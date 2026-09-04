@@ -96,7 +96,6 @@ export default function MinhChungPage() {
                 id="criteria-select"
                 value={selectedCriteriaId}
                 onChange={(e) => setSelectedCriteriaId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Chọn tiêu chí...</option>
                 {table.criteria.map((c) => (

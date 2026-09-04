@@ -130,7 +130,6 @@ export default function CriteriaFormPage() {
                 id="status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as CriteriaTable['status'])}
-                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="DRAFT">Nháp</option>
                 <option value="ACTIVE">Đang hoạt động</option>

@@ -163,7 +163,7 @@ export function DataTable<TData, TValue = unknown>({
           {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
             <div
               key={`list-skeleton-${i}`}
-              className="rounded-lg border border-l-4 border-l-primary bg-card p-4"
+              className="rounded-lg border border-border border-l-4 border-l-primary bg-card p-4"
               style={{ gridTemplateColumns: listGridTemplate }}
             >
               <Skeleton className="h-5 w-full max-w-[120px]" />
@@ -175,7 +175,7 @@ export function DataTable<TData, TValue = unknown>({
 
     if (table.getRowModel().rows.length === 0) {
       return (
-        <div className="rounded-lg border bg-card p-8">
+        <div className="rounded-lg border border-border bg-card p-8">
           {emptyState ? (
             <EmptyState
               title={emptyState.title}
@@ -201,7 +201,7 @@ export function DataTable<TData, TValue = unknown>({
             data-state={row.getIsSelected() ? 'selected' : undefined}
             onClick={enableRowSelection ? () => row.toggleSelected() : undefined}
             className={cn(
-              'grid items-center gap-4 rounded-lg border border-l-4 border-l-primary bg-card p-4 transition-shadow hover:shadow-sm',
+              'grid items-center gap-4 rounded-lg border border-border border-l-4 border-l-primary bg-card p-4 transition-shadow hover:shadow-md',
               enableRowSelection && 'cursor-pointer',
             )}
             style={{ gridTemplateColumns: listGridTemplate }}
@@ -263,7 +263,7 @@ export function DataTable<TData, TValue = unknown>({
       )}
 
       {/* Table */}
-      {variant === 'list' ? renderList() : (<div className="rounded-lg border">
+      {variant === 'list' ? renderList() : (<div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -384,7 +384,6 @@ export function DataTable<TData, TValue = unknown>({
             <select
               value={pageSizeState}
               onChange={(e) => table.setPageSize(Number(e.target.value))}
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
             >
               {[5, 10, 20, 50].map((s) => (
                 <option key={s} value={s}>{s}</option>

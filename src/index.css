@@ -144,6 +144,11 @@
     text-wrap: balance;
   }
 
+  /* Native select — đồng bộ với Input component */
+  select {
+    @apply h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30;
+  }
+
   .shimmer {
     background: linear-gradient(
       90deg,

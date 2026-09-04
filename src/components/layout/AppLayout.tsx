@@ -107,7 +107,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
           {/* User card */}
           {user && (
-            <div className="relative z-10 m-3 mb-4 p-3 rounded-xl bg-white/10 border border-white/10 backdrop-blur-sm">
+            <div className="relative z-10 m-3 mb-4 p-3 rounded-lg bg-white/10 border border-white/10 backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center text-accent">
                   <User className="h-4 w-4" />

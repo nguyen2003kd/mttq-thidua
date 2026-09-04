@@ -213,7 +213,6 @@ export default function CriteriaListPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Trạng thái: Tất cả</option>
               <option value="DRAFT">Nháp</option>
@@ -223,7 +222,6 @@ export default function CriteriaListPage() {
             <select
               value={yearFilter}
               onChange={(e) => setYearFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">Năm: Tất cả</option>
               {availableYears.map((year) => (

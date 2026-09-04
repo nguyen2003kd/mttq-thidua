@@ -48,7 +48,7 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
       className={({ isActive }) =>
         cn(
           baseItem,
-          'px-4 py-3 rounded-xl',
+          'px-4 py-3 rounded-lg',
           isActive
             ? 'bg-accent text-accent-foreground shadow-sm'
             : 'text-white/75 hover:bg-white/10 hover:text-white',
