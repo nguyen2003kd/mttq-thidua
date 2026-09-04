@@ -1,0 +1,171 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand: Thi đua Khen thưởng — MTTQ Việt Nam */
+    /* White base — clean government portal feel */
+    --background: 0 0% 100%;
+    --foreground: 0 10% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 10% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 10% 8%;
+
+    /* Primary — Vietnam Red #d4202a */
+    --primary: 355 74% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — light warm neutral */
+    --secondary: 40 10% 96%;
+    --secondary-foreground: 355 74% 48%;
+
+    --muted: 40 10% 96%;
+    --muted-foreground: 0 5% 45%;
+
+    /* Accent — Gold Yellow #f5c842 */
+    --accent: 45 90% 62%;
+    --accent-foreground: 0 10% 8%;
+
+    /* Semantic colors */
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 55% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 10% 8%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 40 10% 90%;
+    --input: 40 10% 90%;
+    --ring: 355 74% 48%;
+
+    --radius: 0.625rem;
+
+    /* Sidebar — Deep Red */
+    --sidebar-width: 260px;
+    --sidebar: 355 70% 18%;
+    --sidebar-foreground: 40 30% 96%;
+    --sidebar-border: 355 60% 25%;
+    --sidebar-primary: 45 90% 62%;
+    --sidebar-primary-foreground: 355 70% 18%;
+    --sidebar-accent: 355 60% 25%;
+    --sidebar-accent-foreground: 40 30% 96%;
+    --sidebar-ring: 45 90% 62%;
+
+    /* Chart colors — Red + Gold + semantic */
+    --chart-1: 355 74% 48%;
+    --chart-2: 45 90% 62%;
+    --chart-3: 142 55% 45%;
+    --chart-4: 217 91% 60%;
+    --chart-5: 0 72% 45%;
+  }
+
+  .dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 96%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 96%;
+
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 355 74% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 70%;
+
+    --accent: 45 90% 62%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 55% 50%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 10%;
+
+    --info: 217 91% 65%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 0 0% 100% / 10%;
+    --input: 0 0% 100% / 15%;
+    --ring: 355 74% 55%;
+
+    --sidebar: 355 70% 12%;
+    --sidebar-foreground: 40 30% 96%;
+    --sidebar-border: 355 60% 22%;
+    --sidebar-primary: 45 90% 62%;
+    --sidebar-primary-foreground: 355 70% 12%;
+    --sidebar-accent: 355 60% 22%;
+    --sidebar-accent-foreground: 40 30% 96%;
+    --sidebar-ring: 45 90% 62%;
+
+    --chart-1: 355 74% 55%;
+    --chart-2: 45 90% 62%;
+    --chart-3: 142 55% 50%;
+    --chart-4: 217 91% 65%;
+    --chart-5: 0 72% 55%;
+  }
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted) / 0.5) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
