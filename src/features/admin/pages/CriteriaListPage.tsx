@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
+import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Plus, Trash2, Pencil, Calendar } from 'lucide-react';
@@ -23,9 +24,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 
 const statusVariant: Record<CriteriaTable['status'], 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info'> = {
-  DRAFT: 'secondary',
+  DRAFT: 'warning',
   ACTIVE: 'success',
-  EXPIRED: 'destructive',
+  EXPIRED: 'secondary',
 };
 
 export default function CriteriaListPage() {
@@ -33,6 +34,25 @@ export default function CriteriaListPage() {
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const deleteCriteriaTable = useScoreStore((s) => s.deleteCriteriaTable);
   const createCriteriaTable = useScoreStore((s) => s.createCriteriaTable);
+
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [yearFilter, setYearFilter] = useState<string>('');
+
+  const availableYears = useMemo(
+    () => Array.from(new Set(criteriaTables.map((t) => new Date(t.openDate).getFullYear().toString()))).sort().reverse(),
+    [criteriaTables],
+  );
+
+  const filteredTables = useMemo(() => {
+    return criteriaTables.filter((t) => {
+      const statusMatch = !statusFilter || t.status === statusFilter;
+      const yearMatch =
+        !yearFilter ||
+        new Date(t.openDate).getFullYear().toString() === yearFilter ||
+        new Date(t.closeDate).getFullYear().toString() === yearFilter;
+      return statusMatch && yearMatch;
+    });
+  }, [criteriaTables, statusFilter, yearFilter]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -45,53 +65,75 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'name',
         header: LABELS.CRITERIA_TABLE_NAME,
+        meta: {
+          className: 'font-semibold text-base',
+          list: { width: 'minmax(200px, 2fr)' },
+        },
       },
       {
         accessorKey: 'totalScore',
         header: LABELS.CRITERIA_TOTAL_SCORE,
-        meta: { align: 'center' },
+        meta: {
+          align: 'center',
+          list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '100px', valueClassName: 'text-primary' },
+        },
       },
       {
         accessorKey: 'criteria.length',
         header: LABELS.CRITERIA_SUB_COUNT,
-        meta: { align: 'center' },
+        meta: {
+          align: 'center',
+          list: { label: 'Tiêu chí con', width: '100px' },
+        },
       },
       {
         accessorKey: 'assignedLocalityCount',
         header: LABELS.CRITERIA_ASSIGNED_COUNT,
-        meta: { align: 'center' },
+        meta: {
+          align: 'center',
+          list: { label: 'Địa phương', width: '100px' },
+        },
       },
       {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
         cell: ({ row }) => (
-          <Badge variant={statusVariant[row.original.status]}>{row.original.status}</Badge>
+          <Badge variant={statusVariant[row.original.status]}>{CRITERIA_STATUS_LABELS[row.original.status]}</Badge>
         ),
-        meta: { align: 'center' },
+        meta: {
+          align: 'center',
+          list: { label: LABELS.CRITERIA_STATUS, width: '150px' },
+        },
       },
       {
         accessorKey: 'openDate',
         header: () => (
           <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> Mở
+            <Calendar className="h-3.5 w-3.5" /> {LABELS.CRITERIA_OPEN_DATE}
           </span>
         ),
         cell: ({ row }) => formatDate(row.original.openDate),
+        meta: {
+          list: { label: 'Ngày bắt đầu', width: '130px' },
+        },
       },
       {
         accessorKey: 'closeDate',
         header: () => (
           <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> Đóng
+            <Calendar className="h-3.5 w-3.5" /> {LABELS.CRITERIA_CLOSE_DATE}
           </span>
         ),
         cell: ({ row }) => formatDate(row.original.closeDate),
+        meta: {
+          list: { label: 'Ngày kết thúc', width: '130px' },
+        },
       },
       {
         id: 'actions',
         header: 'Thao tác',
         enableSorting: false,
-        meta: { align: 'right' },
+        meta: { align: 'right', list: { width: 'auto' } },
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -159,12 +201,37 @@ export default function CriteriaListPage() {
       />
 
       <DataTable
-        data={criteriaTables}
+        data={filteredTables}
         columns={columns}
+        variant="list"
         searchable
         searchKey="name"
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
+        filters={
+          <>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Trạng thái: Tất cả</option>
+              <option value="DRAFT">Nháp</option>
+              <option value="ACTIVE">Đang hoạt động</option>
+              <option value="EXPIRED">Đã kết thúc</option>
+            </select>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Năm: Tất cả</option>
+              {availableYears.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </>
+        }
         emptyState={{
           title: 'Chưa có bảng tiêu chí',
           description: 'Tạo bảng tiêu chí đầu tiên để bắt đầu.',

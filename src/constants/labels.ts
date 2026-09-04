@@ -33,6 +33,8 @@ export const LABELS = {
   CRITERIA_SUB_COUNT: 'Số tiêu chí con',
   CRITERIA_STATUS: 'Trạng thái',
   CRITERIA_ASSIGNED_COUNT: 'Số địa phương đã gán',
+  CRITERIA_OPEN_DATE: 'Ngày bắt đầu',
+  CRITERIA_CLOSE_DATE: 'Ngày kết thúc',
   CRITERIA_ADD_ROW: 'Thêm tiêu chí con',
   CRITERIA_REMOVE_ROW: 'Xóa tiêu chí con',
   CRITERIA_SCORE_USED: 'Đã dùng',
