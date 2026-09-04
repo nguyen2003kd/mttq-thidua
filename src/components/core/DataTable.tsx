@@ -157,85 +157,146 @@ export function DataTable<TData, TValue = unknown>({
   const getFlexAlign = (align?: 'left' | 'center' | 'right') =>
     align === 'right' ? 'items-end' : align === 'center' ? 'items-center' : 'items-start';
 
-  const renderList = () => {
-    if (loading) {
-      return (
-        <div className="space-y-3">
-          {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
-            <div
-              key={`list-skeleton-${i}`}
-              className="rounded-lg border border-border border-l-4 border-l-primary bg-card p-4"
-              style={{ gridTemplateColumns: listGridTemplate }}
-            >
-              <Skeleton className="h-5 w-full max-w-[120px]" />
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (table.getRowModel().rows.length === 0) {
-      return (
-        <div className="rounded-lg border border-border bg-card p-8">
-          {emptyState ? (
-            <EmptyState
-              title={emptyState.title}
-              description={emptyState.description}
-              icon={emptyState.icon}
-            />
-          ) : (
-            <EmptyState
-              title="Không có dữ liệu"
-              description="Chưa có bản ghi nào phù với bộ lọc hiện tại."
-            />
-          )}
-        </div>
-      );
-    }
-
+  const renderPagination = () => {
+    if (loading || totalRows === 0) return null;
     return (
-      <div className="space-y-3">
-        {/* List rows */}
-        {table.getRowModel().rows.map((row) => (
-          <div
-            key={row.id}
-            data-state={row.getIsSelected() ? 'selected' : undefined}
-            onClick={enableRowSelection ? () => row.toggleSelected() : undefined}
-            className={cn(
-              'grid items-center gap-4 rounded-lg border border-border border-l-4 border-l-primary bg-card p-4 transition-shadow hover:shadow-md',
-              enableRowSelection && 'cursor-pointer',
-            )}
-            style={{ gridTemplateColumns: listGridTemplate }}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/40 bg-muted/20 px-5 py-3">
+        <div className="text-xs text-muted-foreground">
+          {enableRowSelection && table.getSelectedRowModel().rows.length > 0 && (
+            <span className="mr-3">
+              Đã chọn {table.getSelectedRowModel().rows.length} / {totalRows}
+            </span>
+          )}
+          <span>
+            Hiển thị {startRow}–{endRow} / {totalRows}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={String(pageSizeState)}
+            onValueChange={(val) => table.setPageSize(Number(val))}
           >
-            {row.getVisibleCells().map((cell) => {
-              const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
+            <SelectTrigger size="sm" className="w-[65px]">
+              <SelectValue>{pageSizeState}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {[5, 10, 20, 50].map((s) => (
+                <SelectItem key={s} value={String(s)}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderList = () => {
+    return (
+      <div className="rounded-xl border border-border/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] overflow-hidden">
+        {/* Header */}
+        <div
+          className="grid items-center gap-4 bg-primary px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground"
+          style={{ gridTemplateColumns: listGridTemplate }}
+        >
+          {table.getHeaderGroups().map((headerGroup) =>
+            headerGroup.headers.map((header) => {
+              const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align);
               const flexAlign = getFlexAlign(meta?.align);
-              const list = meta?.list;
-              const value = flexRender(cell.column.columnDef.cell, cell.getContext());
 
               return (
                 <div
-                  key={cell.id}
-                  className={cn('flex flex-col justify-center min-w-0', flexAlign, alignClass, meta?.className, list?.label && 'gap-0.5')}
+                  key={header.id}
+                  className={cn('flex items-center min-w-0', flexAlign, alignClass, meta?.className)}
                 >
-                  {list?.label ? (
-                    <>
-                      <span className={cn('truncate text-base font-semibold text-foreground', list.valueClassName)}>
-                        {value}
-                      </span>
-                      <span className={cn('text-xs text-muted-foreground', list.labelClassName)}>
-                        {list.label}
-                      </span>
-                    </>
-                  ) : (
-                    <span className={cn('truncate', list?.valueClassName)}>{value}</span>
-                  )}
+                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                 </div>
               );
-            })}
+            }),
+          )}
+        </div>
+
+        {/* Body */}
+        {loading ? (
+          <div>
+            {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+              <div
+                key={`list-skeleton-${i}`}
+                className="grid items-center gap-4 border-b border-border/40 bg-card px-5 py-4"
+                style={{ gridTemplateColumns: listGridTemplate }}
+              >
+                <Skeleton className="h-5 w-full max-w-[140px]" />
+              </div>
+            ))}
           </div>
-        ))}
+        ) : table.getRowModel().rows.length === 0 ? (
+          <div className="bg-card p-10">
+            {emptyState ? (
+              <EmptyState
+                title={emptyState.title}
+                description={emptyState.description}
+                icon={emptyState.icon}
+              />
+            ) : (
+              <EmptyState
+                title="Không có dữ liệu"
+                description="Chưa có bản ghi nào phù với bộ lọc hiện tại."
+              />
+            )}
+          </div>
+        ) : (
+          <div>
+            {table.getRowModel().rows.map((row) => (
+              <div
+                key={row.id}
+                data-state={row.getIsSelected() ? 'selected' : undefined}
+                onClick={enableRowSelection ? () => row.toggleSelected() : undefined}
+                className={cn(
+                  'grid items-center gap-4 border-b border-border/40 bg-card px-5 py-4 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted/20 last:border-b-0',
+                  enableRowSelection && 'cursor-pointer',
+                  row.getIsSelected() && 'bg-primary/[0.03]',
+                )}
+                style={{ gridTemplateColumns: listGridTemplate }}
+              >
+                {row.getVisibleCells().map((cell) => {
+                  const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
+                  const alignClass = getAlignClass(meta?.align);
+                  const flexAlign = getFlexAlign(meta?.align);
+                  const list = meta?.list;
+                  const value = flexRender(cell.column.columnDef.cell, cell.getContext());
+
+                  return (
+                    <div
+                      key={cell.id}
+                      className={cn('flex items-center min-w-0', flexAlign, alignClass, meta?.className)}
+                    >
+                      <span className={cn('truncate text-sm', list?.valueClassName)}>{value}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {renderPagination()}
       </div>
     );
   };
@@ -264,90 +325,14 @@ export function DataTable<TData, TValue = unknown>({
       )}
 
       {/* Table */}
-      {variant === 'list' ? renderList() : (<div className="rounded-lg border border-border overflow-hidden">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                {headerGroup.headers.map((header) => {
-                  const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
-                  const alignClass = meta?.align === 'right'
-                    ? 'text-right'
-                    : meta?.align === 'center'
-                    ? 'text-center'
-                    : 'text-left';
-
-                  return (
-                    <TableHead key={header.id} className={cn(alignClass, meta?.className)}>
-                      {header.isPlaceholder ? null : (
-                        <div
-                          className={cn(
-                            'flex items-center gap-1.5',
-                            header.column.getCanSort() && 'cursor-pointer select-none hover:text-foreground',
-                            meta?.align === 'right' && 'justify-end',
-                            meta?.align === 'center' && 'justify-center',
-                          )}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {header.column.getCanSort() && (
-                            <span className="text-muted-foreground/50">
-                              {header.column.getIsSorted() === 'asc' ? (
-                                <ChevronUp className="h-3.5 w-3.5" />
-                              ) : header.column.getIsSorted() === 'desc' ? (
-                                <ChevronDown className="h-3.5 w-3.5" />
-                              ) : (
-                                <ChevronsUpDown className="h-3.5 w-3.5" />
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-
-          <TableBody>
-            {loading ? (
-              Array.from({ length: Math.min(pageSize, 5) }).map((_, rowIdx) => (
-                <TableRow key={`skeleton-${rowIdx}`}>
-                  {table.getVisibleLeafColumns().map((col) => (
-                    <TableCell key={col.id}>
-                      <Skeleton className="h-5 w-full max-w-[120px]" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : table.getRowModel().rows.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={table.getVisibleLeafColumns().length} className="h-64">
-                  {emptyState ? (
-                    <EmptyState
-                      title={emptyState.title}
-                      description={emptyState.description}
-                      icon={emptyState.icon}
-                    />
-                  ) : (
-                    <EmptyState
-                      title="Không có dữ liệu"
-                      description="Chưa có bản ghi nào phù với bộ lọc hiện tại."
-                    />
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() ? 'selected' : undefined}
-                  onClick={enableRowSelection ? () => row.toggleSelected() : undefined}
-                  className={cn(enableRowSelection && 'cursor-pointer')}
-                >
-                  {row.getVisibleCells().map((cell) => {
-                    const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
+      {variant === 'list' ? renderList() : (
+        <div className="rounded-xl border border-border/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] overflow-hidden">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="hover:bg-transparent border-border/40">
+                  {headerGroup.headers.map((header) => {
+                    const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = meta?.align === 'right'
                       ? 'text-right'
                       : meta?.align === 'center'
@@ -355,63 +340,95 @@ export function DataTable<TData, TValue = unknown>({
                       : 'text-left';
 
                     return (
-                      <TableCell key={cell.id} className={cn(alignClass, meta?.className)}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
+                      <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, meta?.className)}>
+                        {header.isPlaceholder ? null : (
+                          <div
+                            className={cn(
+                              'flex items-center gap-1.5',
+                              header.column.getCanSort() && 'cursor-pointer select-none hover:text-white/75',
+                              meta?.align === 'right' && 'justify-end',
+                              meta?.align === 'center' && 'justify-center',
+                            )}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {header.column.getCanSort() && (
+                              <span className="text-white/50">
+                                {header.column.getIsSorted() === 'asc' ? (
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                ) : header.column.getIsSorted() === 'desc' ? (
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                ) : (
+                                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </TableHead>
                     );
                   })}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>)}
+              ))}
+            </TableHeader>
 
-      {/* Pagination */}
-      {!loading && totalRows > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div className="text-sm text-muted-foreground">
-            {enableRowSelection && table.getSelectedRowModel().rows.length > 0 && (
-              <span className="mr-3">
-                Đã chọn {table.getSelectedRowModel().rows.length} / {totalRows}
-              </span>
-            )}
-            <span>
-              Hiển thị {startRow} đến {endRow} của {totalRows} kết quả
-            </span>
-          </div>
+            <TableBody>
+              {loading ? (
+                Array.from({ length: Math.min(pageSize, 5) }).map((_, rowIdx) => (
+                  <TableRow key={`skeleton-${rowIdx}`}>
+                    {table.getVisibleLeafColumns().map((col) => (
+                      <TableCell key={col.id}>
+                        <Skeleton className="h-5 w-full max-w-[140px]" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : table.getRowModel().rows.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={table.getVisibleLeafColumns().length} className="h-64">
+                    {emptyState ? (
+                      <EmptyState
+                        title={emptyState.title}
+                        description={emptyState.description}
+                        icon={emptyState.icon}
+                      />
+                    ) : (
+                      <EmptyState
+                        title="Không có dữ liệu"
+                        description="Chưa có bản ghi nào phù với bộ lọc hiện tại."
+                      />
+                    )}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() ? 'selected' : undefined}
+                    onClick={enableRowSelection ? () => row.toggleSelected() : undefined}
+                    className={cn(enableRowSelection && 'cursor-pointer')}
+                  >
+                    {row.getVisibleCells().map((cell) => {
+                      const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
+                      const alignClass = meta?.align === 'right'
+                        ? 'text-right'
+                        : meta?.align === 'center'
+                        ? 'text-center'
+                        : 'text-left';
 
-          <div className="flex items-center gap-2">
-            <Select
-              value={String(pageSizeState)}
-              onValueChange={(val) => table.setPageSize(Number(val))}
-            >
-              <SelectTrigger size="sm" className="w-[70px]">
-                <SelectValue>{pageSizeState}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {[5, 10, 20, 50].map((s) => (
-                  <SelectItem key={s} value={String(s)}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+                      return (
+                        <TableCell key={cell.id} className={cn(alignClass, meta?.className)}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          {renderPagination()}
         </div>
       )}
     </div>

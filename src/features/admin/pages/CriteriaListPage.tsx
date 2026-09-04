@@ -20,7 +20,7 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil, Calendar } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 
@@ -108,11 +108,7 @@ export default function CriteriaListPage() {
       },
       {
         accessorKey: 'openDate',
-        header: () => (
-          <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> {LABELS.CRITERIA_OPEN_DATE}
-          </span>
-        ),
+        header: LABELS.CRITERIA_OPEN_DATE,
         cell: ({ row }) => formatDate(row.original.openDate),
         meta: {
           list: { label: 'Ngày bắt đầu', width: '130px' },
@@ -120,11 +116,7 @@ export default function CriteriaListPage() {
       },
       {
         accessorKey: 'closeDate',
-        header: () => (
-          <span className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> {LABELS.CRITERIA_CLOSE_DATE}
-          </span>
-        ),
+        header: LABELS.CRITERIA_CLOSE_DATE,
         cell: ({ row }) => formatDate(row.original.closeDate),
         meta: {
           list: { label: 'Ngày kết thúc', width: '130px' },

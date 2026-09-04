@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, EmptyState } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button, buttonVariants } from '@/components/core';
+import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ROUTES } from '@/constants/routes';
@@ -71,12 +71,14 @@ export default function ScoreByLocalityPage() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">{l.district}</p>
                   {assigned ? (
-                    <Link
-                      to={ROUTES.CHAM_DIEM_BY_LOCALITY.replace(':id', l.id)}
-                      className={buttonVariants({ variant: 'outline', className: 'w-full' })}
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      render={<Link to={ROUTES.CHAM_DIEM_BY_LOCALITY.replace(':id', l.id)} />}
+                      nativeButton={false}
                     >
                       Chấm điểm
-                    </Link>
+                    </Button>
                   ) : (
                     <p className="text-xs text-muted-foreground">Chưa được gán bảng tiêu chí.</p>
                   )}
@@ -119,9 +121,13 @@ export default function ScoreByLocalityPage() {
         title={`Chấm điểm: ${locality.name}`}
         description={`Bảng ${table.name} — tối đa ${table.totalScore} điểm.`}
         actions={
-          <Link to={ROUTES.DASHBOARD_OVERVIEW} className={buttonVariants({ variant: 'outline' })}>
+          <Button
+            variant="outline"
+            render={<Link to={ROUTES.DASHBOARD_OVERVIEW} />}
+            nativeButton={false}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" /> Quay lại
-          </Link>
+          </Button>
         }
       />
       <Card>

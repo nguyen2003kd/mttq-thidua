@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, EmptyState } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button, buttonVariants } from '@/components/core';
+import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ROUTES } from '@/constants/routes';
@@ -65,18 +65,20 @@ export default function ScoreByCriteriaPage() {
         <PageHeader title={LABELS.SCORE_GRID_TITLE} description="Chọn bảng tiêu chí để bắt đầu chấm điểm." />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {criteriaTables.map((t) => (
-            <Card key={t.id} className="hover:border-primary/50 transition-colors">
+            <Card key={t.id} className="hover:border-primary/50 cursor-pointer transition-colors">
               <CardHeader>
                 <CardTitle className="text-base">{t.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">Tổng điểm: {t.totalScore}</p>
-                <Link
-                  to={ROUTES.CHAM_DIEM_BY_CRITERIA.replace(':id', t.id)}
-                  className={buttonVariants({ variant: 'outline', className: 'w-full' })}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  render={<Link to={ROUTES.CHAM_DIEM_BY_CRITERIA.replace(':id', t.id)} />}
+                  nativeButton={false}
                 >
                   Chấm điểm
-                </Link>
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -104,12 +106,13 @@ export default function ScoreByCriteriaPage() {
         title={`${LABELS.SCORE_GRID_TITLE}: ${table.name}`}
         description={`Nhập điểm cho từng địa phương theo tiêu chí (tối đa ${table.totalScore} điểm).`}
         actions={
-          <Link
-            to={ROUTES.DASHBOARD_OVERVIEW}
-            className={buttonVariants({ variant: 'outline' })}
+          <Button
+            variant="outline"
+            render={<Link to={ROUTES.DASHBOARD_OVERVIEW} />}
+            nativeButton={false}
           >
             <ArrowLeft className="h-4 w-4 mr-2" /> Quay lại
-          </Link>
+          </Button>
         }
       />
 
@@ -129,7 +132,7 @@ export default function ScoreByCriteriaPage() {
                   {table.criteria.map((c) => (
                     <TableHead key={c.id} className="text-center min-w-[120px]">
                       <div className="text-xs font-medium">{c.name}</div>
-                      <div className="text-[10px] text-muted-foreground">tối đa {c.maxScore}</div>
+                      <div className="text-xs text-muted-foreground">tối đa {c.maxScore}</div>
                     </TableHead>
                   ))}
                   <TableHead className="text-center">Tổng</TableHead>
