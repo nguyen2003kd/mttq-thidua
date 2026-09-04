@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from './Button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from './EmptyState';
@@ -381,14 +382,19 @@ export function DataTable<TData, TValue = unknown>({
           </div>
 
           <div className="flex items-center gap-2">
-            <select
-              value={pageSizeState}
-              onChange={(e) => table.setPageSize(Number(e.target.value))}
+            <Select
+              value={String(pageSizeState)}
+              onValueChange={(val) => table.setPageSize(Number(val))}
             >
-              {[5, 10, 20, 50].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="w-[70px]">
+                <SelectValue>{pageSizeState}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 10, 20, 50].map((s) => (
+                  <SelectItem key={s} value={String(s)}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               size="icon-sm"

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
@@ -92,18 +93,25 @@ export default function MinhChungPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="criteria-select">Tiêu chí</Label>
-              <select
-                id="criteria-select"
+              <Select
                 value={selectedCriteriaId}
-                onChange={(e) => setSelectedCriteriaId(e.target.value)}
+                onValueChange={(val) => setSelectedCriteriaId(val as string)}
               >
-                <option value="">Chọn tiêu chí...</option>
-                {table.criteria.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (tối đa {c.maxScore} điểm)
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="criteria-select">
+                  <SelectValue placeholder="Chọn tiêu chí...">
+                    {selectedCriteriaId
+                      ? table.criteria.find((c) => c.id === selectedCriteriaId)?.name + ` (tối đa ${table.criteria.find((c) => c.id === selectedCriteriaId)?.maxScore} điểm)`
+                      : 'Chọn tiêu chí...'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {table.criteria.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} (tối đa {c.maxScore} điểm)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="evidence-file">Tệp đính kèm</Label>

@@ -5,6 +5,7 @@ import { PageHeader, EmptyState } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
@@ -126,15 +127,21 @@ export default function CriteriaFormPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="status">Trạng thái</Label>
-              <select
-                id="status"
+              <Select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as CriteriaTable['status'])}
+                onValueChange={(val) => setStatus(val as CriteriaTable['status'])}
               >
-                <option value="DRAFT">Nháp</option>
-                <option value="ACTIVE">Đang hoạt động</option>
-                <option value="EXPIRED">Hết hạn</option>
-              </select>
+                <SelectTrigger id="status">
+                  <SelectValue>
+                    {status === 'DRAFT' ? 'Nháp' : status === 'ACTIVE' ? 'Đang hoạt động' : 'Hết hạn'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DRAFT">Nháp</SelectItem>
+                  <SelectItem value="ACTIVE">Đang hoạt động</SelectItem>
+                  <SelectItem value="EXPIRED">Hết hạn</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

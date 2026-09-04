@@ -4,6 +4,7 @@ import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, DataTable } from '@/components/core';
 import { Button } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -210,24 +211,38 @@ export default function CriteriaListPage() {
         pageSize={10}
         filters={
           <>
-            <select
+            <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onValueChange={(val) => setStatusFilter(val as string)}
             >
-              <option value="">Trạng thái: Tất cả</option>
-              <option value="DRAFT">Nháp</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="EXPIRED">Đã kết thúc</option>
-            </select>
-            <select
+              <SelectTrigger size="sm">
+                <SelectValue placeholder="Trạng thái: Tất cả">
+                  {statusFilter === 'DRAFT' ? 'Nháp' : statusFilter === 'ACTIVE' ? 'Đang hoạt động' : statusFilter === 'EXPIRED' ? 'Đã kết thúc' : 'Trạng thái: Tất cả'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Tất cả</SelectItem>
+                <SelectItem value="DRAFT">Nháp</SelectItem>
+                <SelectItem value="ACTIVE">Đang hoạt động</SelectItem>
+                <SelectItem value="EXPIRED">Đã kết thúc</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
+              onValueChange={(val) => setYearFilter(val as string)}
             >
-              <option value="">Năm: Tất cả</option>
-              {availableYears.map((year) => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
+              <SelectTrigger size="sm">
+                <SelectValue placeholder="Năm: Tất cả">
+                  {yearFilter || 'Năm: Tất cả'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Tất cả</SelectItem>
+                {availableYears.map((year) => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </>
         }
         emptyState={{
