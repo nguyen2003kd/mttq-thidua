@@ -1,7 +1,6 @@
 import { useMemo, type ReactNode, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Menu,
   Trophy,
   LayoutDashboard,
   Table,
@@ -9,7 +8,9 @@ import {
   FileCheck,
   History,
   LogOut,
-  User,
+  MapPin,
+  Bell,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -18,6 +19,13 @@ import { ROLE_LABELS } from '@/constants/enums';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
 import { NavItem, Button } from '@/components/core';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 interface NavItemDef {
   to: string;
@@ -29,9 +37,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const navigate = useNavigate();
+
+  const stickyTitle = useUIStore((s) => s.stickyTitle);
+  const stickyDescription = useUIStore((s) => s.stickyDescription);
 
   const navItems = useMemo<NavItemDef[]>(() => {
     const items: NavItemDef[] = [];
@@ -39,6 +49,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     if (user?.role === 'ADMIN') {
       items.push({ to: ROUTES.ADMIN_CRITERIA_LIST, label: LABELS.CRITERIA_TABLE, icon: Table });
+      items.push({ to: ROUTES.ADMIN_LOCALITY, label: 'Địa phương', icon: MapPin });
     }
 
     if (user?.role === 'SPECIALIST' && criteriaTables[0]) {
@@ -105,39 +116,59 @@ export function AppLayout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          {/* User card */}
-          {user && (
-            <div className="relative z-10 m-3 mb-4 p-3 rounded-lg bg-white/10 border border-white/10 backdrop-blur-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center text-accent">
-                  <User className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{user.name}</p>
-                  <p className="text-xs text-white/60 truncate">{ROLE_LABELS[user.role]}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={handleLogout}
-                  className="text-white/70 hover:text-white hover:bg-white/10"
-                  aria-label="Đăng xuất"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
         </aside>
       )}
 
       <div className="flex-1 flex flex-col">
-        <header className="h-14 border-b flex items-center px-4 gap-4">
-          <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
-            <Menu className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">{LABELS.APP_NAME}</h1>
+        <header className="h-14 flex items-center justify-between px-6 gap-4 border-b border-border/60 bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            {stickyTitle && (
+              <div className="flex flex-col justify-center">
+                <h1 className="text-[13px] font-semibold tracking-tight leading-relaxed">{stickyTitle}</h1>
+                {stickyDescription && (
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">{stickyDescription}</p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon-sm" className="relative rounded-full">
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
+            </Button>
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-full border border-border/50 bg-card px-3 py-1.5 text-sm transition-all hover:bg-muted/50 hover:border-border"
+                    >
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                        {user.name.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="hidden sm:flex flex-col leading-tight text-left">
+                        <span className="text-xs font-medium truncate max-w-[120px]">{user.name}</span>
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{ROLE_LABELS[user.role]}</span>
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform data-[popup-open]:rotate-180" />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent align="end" sideOffset={6} className="w-60 p-1.5">
+                  <div className="px-2 py-2.5">
+                    <p className="text-sm font-semibold truncate">{user.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{ROLE_LABELS[user.role]}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={handleLogout} className="mt-1 rounded-lg px-2 py-2">
+                    <LogOut className="h-4 w-4" />
+                    <span>Đăng xuất</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto p-6">{children}</main>

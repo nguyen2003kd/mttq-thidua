@@ -150,7 +150,7 @@ export default function CriteriaFormPage() {
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold">Danh sách tiêu chí con</CardTitle>
             <Button type="button" variant="outline" size="sm" onClick={addItem}>
-              <Plus className="h-4 w-4 mr-1.5" /> Thêm
+              <Plus className="h-4 w-4 ml-1.5" /> Thêm
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -193,7 +193,7 @@ export default function CriteriaFormPage() {
 
         <div className="flex justify-end">
           <Button type="submit" action={isNew ? 'create' : 'edit'}>
-            <Save className="h-4 w-4 mr-2" /> Lưu bảng tiêu chí
+            <Save className="h-4 w-4 ml-2" /> Lưu bảng tiêu chí
           </Button>
         </div>
       </form>

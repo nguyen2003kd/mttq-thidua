@@ -6,6 +6,7 @@ export const ROUTES = {
   ADMIN_ASSIGN_LOCALITY: '/thi-dua/admin/bang-tieu-chi/:id/gan-dia-phuong',
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
+  ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 
   // Địa phương
   LOCALITY_MINH_CHUNG: '/thi-dua/dia-phuong/minh-chung',

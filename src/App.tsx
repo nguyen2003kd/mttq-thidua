@@ -18,6 +18,7 @@ const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormP
 const AssignLocalityPage = lazy(() => import('@/features/admin/pages/AssignLocalityPage'));
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
+const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
@@ -85,6 +86,7 @@ export default function App() {
               <Route index element={<Navigate to={ROUTES.ADMIN_CRITERIA_LIST} replace />} />
               <Route path="bang-tieu-chi/:id/gan-dia-phuong" element={<AssignLocalityPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
+              <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>
 

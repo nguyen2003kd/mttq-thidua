@@ -15,8 +15,8 @@ const DEMO_ROLES: Role[] = ['ADMIN', 'LOCALITY', 'SPECIALIST', 'BAN_LEADER', 'CO
 export default function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -114,7 +114,7 @@ export default function LoginPage() {
       >
         <div className="w-full max-w-[440px]">
           {/* Form card */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/60 p-8 sm:p-10 space-y-7">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl border border-white/60 p-8 sm:p-10 space-y-7">
             {/* Header */}
             <div className="space-y-3 text-center">
               <div className="mx-auto w-14 h-14 rounded-full border-2 border-primary/20 bg-primary/5 flex items-center justify-center">
@@ -143,7 +143,7 @@ export default function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Nhập tài khoản"
-                    className="pl-10 h-11"
+                    className="pl-10 h-10"
                     autoComplete="username"
                     autoFocus
                   />
@@ -163,7 +163,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Nhập mật khẩu"
-                    className="pl-10 pr-10 h-11"
+                    className="pl-10 pr-10 h-10"
                     autoComplete="current-password"
                   />
                   <Button
@@ -205,12 +205,12 @@ export default function LoginPage() {
                     <Button
                       key={role}
                       type="button"
-                      size="xs"
+                      size="sm"
                       variant={selectedRole === role ? 'default' : 'outline'}
                       onClick={() => setSelectedRole(role)}
-                      className="w-full !justify-start text-left truncate"
+                      className="w-full !justify-start overflow-hidden"
                     >
-                      {ROLE_LABELS[role]}
+                      <span className="truncate">{ROLE_LABELS[role]}</span>
                     </Button>
                   ))}
                 </div>
@@ -221,7 +221,7 @@ export default function LoginPage() {
                 type="submit"
                 size="lg"
                 disabled={loading}
-                className="w-full h-11 text-sm font-semibold bg-gradient-to-r from-primary to-[hsl(355,74%,40%)] shadow-md hover:shadow-lg transition-shadow"
+                className="w-full h-10 text-sm font-semibold bg-gradient-to-r from-primary to-[hsl(355,74%,40%)] shadow-md hover:shadow-lg transition-shadow"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

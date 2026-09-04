@@ -30,7 +30,7 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
         className={({ isActive }) =>
           cn(
             baseItem,
-            'px-3 py-2.5 border-b-2 rounded-none',
+            'h-10 px-3 border-b-2 rounded-none',
             isActive
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -48,7 +48,7 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
       className={({ isActive }) =>
         cn(
           baseItem,
-          'px-4 py-3 rounded-lg',
+          'h-10 px-4 rounded-lg',
           isActive
             ? 'bg-accent text-accent-foreground shadow-sm'
             : 'text-white/75 hover:bg-white/10 hover:text-white',

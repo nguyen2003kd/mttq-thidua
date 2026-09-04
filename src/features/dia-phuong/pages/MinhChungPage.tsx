@@ -144,7 +144,7 @@ export default function MinhChungPage() {
                 ) : (
                   <ul className="space-y-2">
                     {files.map((ev) => (
-                      <li key={ev.id} className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
+                      <li key={ev.id} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
                         <a
                           href={ev.fileUrl}
                           target="_blank"

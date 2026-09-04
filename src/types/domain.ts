@@ -66,9 +66,11 @@ export interface Evidence {
 
 export interface Locality {
   id: string;
+  code: string;
   name: string;
-  district: string;
-  ward: string;
+  fullName: string;
+  unitType: 'thanh_pho' | 'tinh' | 'phuong' | 'xa';
+  region: string;
 }
 
 export interface ReminderConfig {

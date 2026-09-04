@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentType } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable, AuditTimeline, EmptyState, ConfirmDialog } from '@/components/core';
-import { ScoreStateBadge } from '@/components/core';
+import { PageHeader, DataTable, AuditTimeline, EmptyState, ConfirmDialog, ScoreStateBadge } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -14,12 +13,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { PUBLISH_CONFIRM_KEYWORD } from '@/constants/enums';
 import { toast } from 'sonner';
-import { Trophy, X, History } from 'lucide-react';
+import { X, History } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable, Locality } from '@/types/domain';
 import type { ScoreRecord } from '@/store/scoreStore';
+import type { ScoreState } from '@/types/rbac';
+import type { Action } from '@/lib/rbac';
 
 interface ApprovalRow {
   table: CriteriaTable;
@@ -27,20 +27,43 @@ interface ApprovalRow {
   record: ScoreRecord;
 }
 
-export default function StandingCommitteePage() {
+interface ApprovalPageConfig {
+  targetState: ScoreState;
+  title: string;
+  description: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyIcon: ComponentType<{ className?: string }>;
+  approveLabel: string;
+  approveAction: Action;
+  approveIcon: ComponentType<{ className?: string }>;
+  approveClassName?: string;
+  approveSuccessMessage: (localityName: string) => string;
+  rejectSuccessMessage: (localityName: string) => string;
+  requireChair?: boolean;
+  useConfirmDialog?: boolean;
+  confirmKeyword?: string;
+  confirmDescription?: string;
+}
+
+export function ApprovalPage(config: ApprovalPageConfig) {
   const user = useAuthStore((s) => s.user);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const localities = useScoreStore((s) => s.localities);
   const assignments = useScoreStore((s) => s.assignments);
-  const getScore = useScoreStore((s) => s.getScore);
+  const scores = useScoreStore((s) => s.scores);
+  const emptyRecord = useScoreStore((s) => s.emptyRecord);
+  const audits = useScoreStore((s) => s.audits);
+  const approve = useScoreStore((s) => s.approve);
   const publish = useScoreStore((s) => s.publish);
   const reject = useScoreStore((s) => s.reject);
-  const getAuditsForLocality = useScoreStore((s) => s.getAuditsForLocality);
 
-  const [publishRow, setPublishRow] = useState<ApprovalRow | null>(null);
   const [rejectRow, setRejectRow] = useState<ApprovalRow | null>(null);
   const [reason, setReason] = useState('');
   const [diffRow, setDiffRow] = useState<ApprovalRow | null>(null);
+  const [confirmRow, setConfirmRow] = useState<ApprovalRow | null>(null);
+
+  const canApprove = !config.requireChair || user?.role === 'COUNCIL_CHAIR';
 
   const rows = useMemo(() => {
     const list: ApprovalRow[] = [];
@@ -49,26 +72,29 @@ export default function StandingCommitteePage() {
       assignedIds.forEach((localityId) => {
         const locality = localities.find((l) => l.id === localityId);
         if (!locality) return;
-        const record = getScore(table.id, locality.id);
-        if (record.state === 'CHO_DUYET_BTT') {
+        const record = scores[table.id]?.[localityId] ?? emptyRecord;
+        if (record.state === config.targetState) {
           list.push({ table, locality, record });
         }
       });
     });
     return list;
-  }, [criteriaTables, localities, assignments, getScore]);
+  }, [criteriaTables, localities, assignments, scores, emptyRecord, config.targetState]);
 
-  const handlePublish = () => {
-    if (!user || !publishRow) return;
-    publish(publishRow.table.id, publishRow.locality.id, user.name, user.role);
-    toast.success('Đã công bố kết quả', { description: `${publishRow.locality.name} đã được công bố.` });
-    setPublishRow(null);
+  const handleApprove = (row: ApprovalRow) => {
+    if (!user) return;
+    if (config.approveAction === 'publish') {
+      publish(row.table.id, row.locality.id, user.name, user.role);
+    } else {
+      approve(row.table.id, row.locality.id, user.name, user.role);
+    }
+    toast.success('Đã duyệt', { description: config.approveSuccessMessage(row.locality.name) });
   };
 
   const handleReject = () => {
     if (!user || !rejectRow || !reason.trim()) return;
     reject(rejectRow.table.id, rejectRow.locality.id, reason, user.name, user.role);
-    toast.success('Đã trả lại', { description: `${rejectRow.locality.name} đã được trả về Hội đồng TĐKT.` });
+    toast.success('Đã trả lại', { description: config.rejectSuccessMessage(rejectRow.locality.name) });
     setRejectRow(null);
     setReason('');
   };
@@ -104,11 +130,31 @@ export default function StandingCommitteePage() {
               <History className="h-3.5 w-3.5 mr-1.5" />
               Lịch sử
             </Button>
-            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90" action="publish" state="CHO_DUYET_BTT" onClick={() => setPublishRow(row.original)}>
-              <Trophy className="h-3.5 w-3.5 mr-1.5" />
-              Công bố
-            </Button>
-            <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10" action="reject" state="CHO_DUYET_BTT" onClick={() => setRejectRow(row.original)}>
+            {canApprove && (
+              <Button
+                size="sm"
+                variant="outline"
+                className={config.approveClassName ?? 'text-success hover:bg-success/10'}
+                action={config.approveAction}
+                state={config.targetState}
+                onClick={() =>
+                  config.useConfirmDialog
+                    ? setConfirmRow(row.original)
+                    : handleApprove(row.original)
+                }
+              >
+                <config.approveIcon className="h-3.5 w-3.5 mr-1.5" />
+                {config.approveLabel}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:bg-destructive/10"
+              action="reject"
+              state={config.targetState}
+              onClick={() => setRejectRow(row.original)}
+            >
               <X className="h-3.5 w-3.5 mr-1.5" />
               Trả lại
             </Button>
@@ -116,21 +162,21 @@ export default function StandingCommitteePage() {
         ),
       },
     ],
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canApprove],
   );
+
+  const EmptyIcon = config.emptyIcon;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Duyệt — Ban thường trực"
-        description="Công bố kết quả cuối cùng sau khi đã thông qua Hội đồng TĐKT."
-      />
+      <PageHeader title={config.title} description={config.description} />
 
       {rows.length === 0 ? (
         <EmptyState
-          title="Không có hồ sơ chờ công bố"
-          description="Hiện chưa có địa phương nào đến bước chờ Ban thường trực công bố."
-          icon={<Trophy className="h-8 w-8" />}
+          title={config.emptyTitle}
+          description={config.emptyDescription}
+          icon={<EmptyIcon className="h-8 w-8" />}
         />
       ) : (
         <Card>
@@ -140,19 +186,24 @@ export default function StandingCommitteePage() {
         </Card>
       )}
 
-      <ConfirmDialog
-        open={!!publishRow}
-        onOpenChange={(v) => setPublishRow(v ? publishRow : null)}
-        title="Công bố kết quả"
-        description="Sau khi công bố, kết quả sẽ không thể chỉnh sửa. Hành động này không thể hoàn tác."
-        confirmLabel="Công bố"
-        variant="destructive"
-        action="publish"
-        state="CHO_DUYET_BTT"
-        confirmKeyword={PUBLISH_CONFIRM_KEYWORD}
-        confirmKeywordHint={`Nhập "${PUBLISH_CONFIRM_KEYWORD}" để xác nhận công bố`}
-        onConfirm={handlePublish}
-      />
+      {config.useConfirmDialog && (
+        <ConfirmDialog
+          open={!!confirmRow}
+          onOpenChange={(v) => setConfirmRow(v ? confirmRow : null)}
+          title={config.approveLabel}
+          description={config.confirmDescription ?? ''}
+          confirmLabel={config.approveLabel}
+          variant="destructive"
+          action={config.approveAction}
+          state={config.targetState}
+          confirmKeyword={config.confirmKeyword}
+          confirmKeywordHint={config.confirmKeyword ? `Nhập "${config.confirmKeyword}" để xác nhận` : undefined}
+          onConfirm={() => {
+            if (confirmRow) handleApprove(confirmRow);
+            setConfirmRow(null);
+          }}
+        />
+      )}
 
       <Dialog open={!!rejectRow} onOpenChange={(v) => { if (!v) { setRejectRow(null); setReason(''); } }}>
         <DialogContent className="max-w-md">
@@ -164,9 +215,9 @@ export default function StandingCommitteePage() {
               {rejectRow ? `Trả lại bảng điểm của ${rejectRow.locality.name}. Vui lòng nhập lý do.` : ''}
             </p>
             <div className="space-y-1.5">
-              <Label htmlFor="standing-reject-reason">Lý do trả lại</Label>
+              <Label htmlFor="reject-reason">Lý do trả lại</Label>
               <Input
-                id="standing-reject-reason"
+                id="reject-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Nhập lý do trả lại"
@@ -175,7 +226,7 @@ export default function StandingCommitteePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setRejectRow(null); setReason(''); }}>Hủy</Button>
-            <Button variant="destructive" action="reject" state="CHO_DUYET_BTT" onClick={handleReject} disabled={!reason.trim()}>Trả lại</Button>
+            <Button variant="destructive" action="reject" state={config.targetState} onClick={handleReject} disabled={!reason.trim()}>Trả lại</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -186,7 +237,13 @@ export default function StandingCommitteePage() {
             <DialogTitle>Lịch sử thay đổi — {diffRow?.locality.name}</DialogTitle>
           </DialogHeader>
           <div className="py-2 max-h-[60vh] overflow-auto">
-            <AuditTimeline entries={diffRow ? getAuditsForLocality(diffRow.locality.id) : []} />
+            <AuditTimeline
+              entries={
+                diffRow
+                  ? audits.filter((a) => a.fieldName.endsWith(` - ${diffRow.locality.id}`))
+                  : []
+              }
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDiffRow(null)}>Đóng</Button>

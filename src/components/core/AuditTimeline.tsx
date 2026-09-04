@@ -64,7 +64,7 @@ export function AuditTimeline({ entries }: { entries: AuditEntry[] }) {
               </p>
             )}
             {entry.oldValue !== null && entry.newValue !== undefined && (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-md border bg-muted/50 px-2.5 py-1 text-xs font-medium tabular-nums">
+              <div className="mt-2 inline-flex items-center gap-2 rounded-lg border bg-muted/50 px-2.5 py-1 text-xs font-medium tabular-nums">
                 <span className="text-muted-foreground line-through">{entry.oldValue}</span>
                 <span className="text-muted-foreground">→</span>
                 <span className="text-foreground font-semibold">{entry.newValue}</span>

@@ -5,47 +5,16 @@ import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, EmptyState } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/core';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
 import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileCheck, ArrowLeft, Send, AlertCircle } from 'lucide-react';
+import { ScoreInput } from '@/features/cham-diem/components/ScoreInput';
 import type { CriteriaTable, Locality } from '@/types/domain';
 import type { ScoreRecord } from '@/store/scoreStore';
 import type { Role, AuthUser } from '@/types/rbac';
-
-function ScoreInput({
-  value,
-  max,
-  disabled,
-  onChange,
-}: {
-  value: number | '';
-  max: number;
-  disabled?: boolean;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <Input
-      type="number"
-      min={0}
-      max={max}
-      value={value}
-      onChange={(e) => {
-        const raw = e.target.value === '' ? '' : Number(e.target.value);
-        if (raw === '') {
-          onChange(0);
-          return;
-        }
-        onChange(Math.max(0, Math.min(Number(raw), max)));
-      }}
-      disabled={disabled}
-      className="w-20 text-center"
-    />
-  );
-}
 
 export default function ScoreByCriteriaPage() {
   const { id } = useParams<{ id?: string }>();
@@ -53,7 +22,8 @@ export default function ScoreByCriteriaPage() {
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const localities = useScoreStore((s) => s.localities);
   const assignments = useScoreStore((s) => s.assignments);
-  const getScore = useScoreStore((s) => s.getScore);
+  const scores = useScoreStore((s) => s.scores);
+  const emptyRecord = useScoreStore((s) => s.emptyRecord);
   const scoreCriterion = useScoreStore((s) => s.scoreCriterion);
   const submit = useScoreStore((s) => s.submit);
 
@@ -111,7 +81,7 @@ export default function ScoreByCriteriaPage() {
             render={<Link to={ROUTES.DASHBOARD_OVERVIEW} />}
             nativeButton={false}
           >
-            <ArrowLeft className="h-4 w-4 mr-2" /> Quay lại
+            <ArrowLeft className="h-4 w-4 ml-2" /> Quay lại
           </Button>
         }
       />
@@ -146,7 +116,7 @@ export default function ScoreByCriteriaPage() {
                     key={loc.id}
                     table={table}
                     locality={loc}
-                    record={getScore(table.id, loc.id)}
+                    record={scores[table.id]?.[loc.id] ?? emptyRecord}
                     user={user}
                     scoreCriterion={scoreCriterion}
                     submit={submit}
@@ -173,7 +143,7 @@ function ScoreRow({
   locality: Locality;
   record: ScoreRecord;
   user: AuthUser | null;
-  scoreCriterion: (tableId: string, localityId: string, criteriaId: string, value: number, scoredBy: string) => void;
+  scoreCriterion: (tableId: string, localityId: string, criteriaId: string, value: number, scoredBy: string, actorRole: Role) => void;
   submit: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
 }) {
   const editable = record.state === 'DRAFT';
@@ -182,7 +152,7 @@ function ScoreRow({
     <TableRow>
       <TableCell className="font-medium">
         <div>{locality.name}</div>
-        <div className="text-xs text-muted-foreground">{locality.district}</div>
+        <div className="text-xs text-muted-foreground">{locality.region}</div>
       </TableCell>
       {table.criteria.map((c) => {
         const entry = record.entries.find((e) => e.criteriaId === c.id);
@@ -195,7 +165,7 @@ function ScoreRow({
               disabled={!editable}
               onChange={(v) => {
                 if (!user) return;
-                scoreCriterion(table.id, locality.id, c.id, v, user.name);
+                scoreCriterion(table.id, locality.id, c.id, v, user.name, user.role);
               }}
             />
           </TableCell>

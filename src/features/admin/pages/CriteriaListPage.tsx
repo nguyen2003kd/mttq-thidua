@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable } from '@/components/core';
+import { PageHeader, DataTable, FilterSelect } from '@/components/core';
 import { Button } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,7 +19,8 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil } from 'lucide-react';
+import { Plus, Eye, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 
@@ -60,6 +60,8 @@ export default function CriteriaListPage() {
   const [openDate, setOpenDate] = useState('');
   const [closeDate, setCloseDate] = useState('');
   const [criteriaText, setCriteriaText] = useState('');
+  const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
+  const [viewTable, setViewTable] = useState<CriteriaTable | null>(null);
 
   const columns = useMemo<ColumnDef<CriteriaTable>[]>(
     () => [
@@ -67,8 +69,8 @@ export default function CriteriaListPage() {
         accessorKey: 'name',
         header: LABELS.CRITERIA_TABLE_NAME,
         meta: {
-          className: 'font-semibold text-base',
-          list: { width: 'minmax(200px, 2fr)' },
+          className: 'font-medium',
+          list: { width: 'minmax(220px, 1.5fr)' },
         },
       },
       {
@@ -76,7 +78,7 @@ export default function CriteriaListPage() {
         header: LABELS.CRITERIA_TOTAL_SCORE,
         meta: {
           align: 'center',
-          list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '100px', valueClassName: 'text-primary' },
+          list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '1fr', valueClassName: 'text-primary' },
         },
       },
       {
@@ -84,15 +86,7 @@ export default function CriteriaListPage() {
         header: LABELS.CRITERIA_SUB_COUNT,
         meta: {
           align: 'center',
-          list: { label: 'Tiêu chí con', width: '100px' },
-        },
-      },
-      {
-        accessorKey: 'assignedLocalityCount',
-        header: LABELS.CRITERIA_ASSIGNED_COUNT,
-        meta: {
-          align: 'center',
-          list: { label: 'Địa phương', width: '100px' },
+          list: { label: 'Tiêu chí con', width: '1fr' },
         },
       },
       {
@@ -103,7 +97,7 @@ export default function CriteriaListPage() {
         ),
         meta: {
           align: 'center',
-          list: { label: LABELS.CRITERIA_STATUS, width: '150px' },
+          list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
         },
       },
       {
@@ -111,7 +105,8 @@ export default function CriteriaListPage() {
         header: LABELS.CRITERIA_OPEN_DATE,
         cell: ({ row }) => formatDate(row.original.openDate),
         meta: {
-          list: { label: 'Ngày bắt đầu', width: '130px' },
+          align: 'center',
+          list: { label: 'Ngày bắt đầu', width: '1fr' },
         },
       },
       {
@@ -119,45 +114,12 @@ export default function CriteriaListPage() {
         header: LABELS.CRITERIA_CLOSE_DATE,
         cell: ({ row }) => formatDate(row.original.closeDate),
         meta: {
-          list: { label: 'Ngày kết thúc', width: '130px' },
+          align: 'center',
+          list: { label: 'Ngày kết thúc', width: '1fr' },
         },
       },
-      {
-        id: 'actions',
-        header: 'Thao tác',
-        enableSorting: false,
-        meta: { align: 'right', list: { width: 'auto' } },
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              action="edit"
-              onClick={() => navigate(ROUTES.ADMIN_CRITERIA_FORM.replace(':id', row.original.id))}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            {row.original.status === 'DRAFT' && (
-              <Button
-                variant="outline"
-                size="icon-sm"
-                action="delete"
-                className="text-destructive hover:bg-destructive/10"
-                onClick={() => {
-                  if (window.confirm('Xóa bảng tiêu chí này?')) {
-                    deleteCriteriaTable(row.original.id);
-                    toast.success('Đã xóa bảng tiêu chí');
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        ),
-      },
     ],
-    [deleteCriteriaTable, navigate],
+    [],
   );
 
   const handleCreate = (e: React.FormEvent) => {
@@ -197,55 +159,68 @@ export default function CriteriaListPage() {
         data={filteredTables}
         columns={columns}
         variant="list"
+        getRowId={(row) => row.id}
         searchable
         searchKey="name"
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
+        onRowClick={(row) => setSelectedTable(row)}
+        onRowDoubleClick={(row) => setViewTable(row)}
         filters={
           <>
-            <Select
+            <FilterSelect
+              label="Trạng thái"
               value={statusFilter}
-              onValueChange={(val) => setStatusFilter(val as string)}
-            >
-              <SelectTrigger size="sm">
-                <SelectValue placeholder="Trạng thái: Tất cả">
-                  {statusFilter === 'DRAFT' ? 'Nháp' : statusFilter === 'ACTIVE' ? 'Đang hoạt động' : statusFilter === 'EXPIRED' ? 'Đã kết thúc' : 'Trạng thái: Tất cả'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Tất cả</SelectItem>
-                <SelectItem value="DRAFT">Nháp</SelectItem>
-                <SelectItem value="ACTIVE">Đang hoạt động</SelectItem>
-                <SelectItem value="EXPIRED">Đã kết thúc</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
+              onChange={setStatusFilter}
+              options={[
+                { value: 'DRAFT', label: CRITERIA_STATUS_LABELS.DRAFT },
+                { value: 'ACTIVE', label: CRITERIA_STATUS_LABELS.ACTIVE },
+                { value: 'EXPIRED', label: CRITERIA_STATUS_LABELS.EXPIRED },
+              ]}
+            />
+            <FilterSelect
+              label="Năm"
               value={yearFilter}
-              onValueChange={(val) => setYearFilter(val as string)}
-            >
-              <SelectTrigger size="sm">
-                <SelectValue placeholder="Năm: Tất cả">
-                  {yearFilter || 'Năm: Tất cả'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Tất cả</SelectItem>
-                {availableYears.map((year) => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={setYearFilter}
+              options={availableYears.map((year) => ({ value: year, label: year }))}
+            />
           </>
+        }
+        activeFilters={[
+          ...(statusFilter
+            ? [{
+                label: 'Trạng thái',
+                value: CRITERIA_STATUS_LABELS[statusFilter as CriteriaTable['status']],
+                onClear: () => setStatusFilter(''),
+              }]
+            : []),
+          ...(yearFilter
+            ? [{ label: 'Năm', value: yearFilter, onClear: () => setYearFilter('') }]
+            : []),
+        ]}
+        onClearFilters={
+          statusFilter || yearFilter
+            ? () => {
+                setStatusFilter('');
+                setYearFilter('');
+              }
+            : undefined
         }
         emptyState={{
           title: 'Chưa có bảng tiêu chí',
           description: 'Tạo bảng tiêu chí đầu tiên để bắt đầu.',
         }}
         toolbar={
-          <Button onClick={() => setOpen(true)} action="create">
-            <Plus className="h-4 w-4 mr-2" />
-            {LABELS.CREATE}
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedTable && (
+              <Button className="bg-warning text-white hover:bg-warning/90" onClick={() => setViewTable(selectedTable)}>
+                <Eye className="h-4 w-4 ml-2" /> Xem
+              </Button>
+            )}
+            <Button onClick={() => setOpen(true)} action="create">
+              <Plus className="h-4 w-4 ml-2" /> {LABELS.CREATE}
+            </Button>
+          </div>
         }
       />
 
@@ -286,6 +261,81 @@ export default function CriteriaListPage() {
               <Button type="submit">{LABELS.CREATE}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View modal */}
+      <Dialog open={!!viewTable} onOpenChange={(v) => !v && setViewTable(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Chi tiết bảng tiêu chí</DialogTitle>
+          </DialogHeader>
+          {viewTable && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Tên bảng tiêu chí</p>
+                  <p className="font-medium">{viewTable.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Trạng thái</p>
+                  <Badge variant={statusVariant[viewTable.status]}>{CRITERIA_STATUS_LABELS[viewTable.status]}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Ngày bắt đầu</p>
+                  <p className="font-medium">{formatDate(viewTable.openDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Ngày kết thúc</p>
+                  <p className="font-medium">{formatDate(viewTable.closeDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Tổng điểm</p>
+                  <p className="font-medium text-primary">{viewTable.totalScore}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Số tiêu chí con</p>
+                  <p className="font-medium">{viewTable.criteria.length}</p>
+                </div>
+              </div>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">Danh sách tiêu chí con</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {viewTable.criteria.map((c, idx) => (
+                      <div key={c.id} className="flex items-center justify-between border-b border-border/40 pb-2 last:border-b-0 last:pb-0">
+                        <span className="text-sm">{idx + 1}. {c.name}</span>
+                        <span className="text-sm font-medium text-primary">{c.maxScore} điểm</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+              {viewTable.status === 'DRAFT' && (
+                <div className="flex justify-between">
+                  <Button
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (window.confirm('Xóa bảng tiêu chí này?')) {
+                        deleteCriteriaTable(viewTable.id);
+                        toast.success('Đã xóa bảng tiêu chí');
+                        setViewTable(null);
+                        setSelectedTable(null);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 ml-2" /> Xóa
+                  </Button>
+                  <Button onClick={() => navigate(ROUTES.ADMIN_CRITERIA_FORM.replace(':id', viewTable.id))}>
+                    Chỉnh sửa
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

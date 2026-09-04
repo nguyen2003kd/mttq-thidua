@@ -52,7 +52,7 @@ export default function AssignLocalityPage() {
               >
                 <div className="min-w-0">
                   <p className="font-medium text-sm">{loc.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{loc.district} — {loc.ward}</p>
+                  <p className="text-xs text-muted-foreground truncate">{loc.region}</p>
                 </div>
                 <Checkbox
                   id={`loc-${loc.id}`}

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { CriteriaTable, CriteriaItem, Locality, Evidence, AuditEntry, ScoreEntry } from '@/types/domain';
 import type { Role, ScoreState } from '@/types/rbac';
+import { vnWards } from '@/data/vn-wards';
 
 export interface ScoreRecord {
   state: ScoreState;
@@ -70,12 +71,17 @@ export interface ScoreStore {
   deleteCriteriaTable: (id: string) => void;
   assignLocality: (tableId: string, localityId: string, assigned: boolean) => void;
 
+  createLocality: (payload: { code: string; name: string; fullName: string; unitType: Locality['unitType']; region: string }) => void;
+  updateLocality: (locality: Locality) => void;
+  deleteLocality: (id: string) => void;
+
   scoreCriterion: (
     tableId: string,
     localityId: string,
     criteriaId: string,
     value: number,
     scoredBy: string,
+    actorRole: Role,
   ) => void;
   submit: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
   approve: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
@@ -89,6 +95,9 @@ export interface ScoreStore {
   getScoreForLocality: (localityId: string) => { table: CriteriaTable; record: ScoreRecord } | null;
   getAuditsForLocality: (localityId: string) => AuditEntry[];
   getRanking: () => { locality: Locality; totalScore: number }[];
+
+  // Hằng số mặc định dùng khi chưa có record
+  emptyRecord: ScoreRecord;
 }
 
 const defaultDeadline = `${new Date().getFullYear() + 1}-12-31`;
@@ -110,14 +119,20 @@ const initialTables: CriteriaTable[] = [
   },
 ];
 
-const initialLocalities: Locality[] = [
-  { id: 'dp1', name: 'Hà Nội', district: 'Quận Hoàn Kiếm', ward: 'Phường Hàng Bài' },
-  { id: 'dp2', name: 'TP. Hồ Chí Minh', district: 'Quận 1', ward: 'Phường Bến Nghé' },
-];
+const dongNaiWards = vnWards.filter((w) => w.parentCode === '75');
+
+const initialLocalities: Locality[] = dongNaiWards.map((w) => ({
+  id: `loc-${w.code}`,
+  code: w.code,
+  name: w.name,
+  fullName: w.name,
+  unitType: w.name.startsWith('Phường') ? 'phuong' : 'xa',
+  region: 'Đông Nam Bộ',
+}));
 
 const initialScores: Record<string, Record<string, ScoreRecord>> = {
   tc1: {
-    dp1: {
+    'loc-25195': {
       state: 'DRAFT',
       entries: [
         { id: uid(), criteriaId: 'c1', criteriaName: 'Tổ chức thực hiện nhiệm vụ chính trị', value: 30, state: 'DRAFT', scoredBy: 'Chuyên viên A', scoredAt: now(), evidenceCount: 1 },
@@ -128,7 +143,7 @@ const initialScores: Record<string, Record<string, ScoreRecord>> = {
       submittedAt: null,
       publishedAt: null,
     },
-    dp2: {
+    'loc-26068': {
       state: 'CHO_DUYET_BAN',
       entries: [
         { id: uid(), criteriaId: 'c1', criteriaName: 'Tổ chức thực hiện nhiệm vụ chính trị', value: 35, state: 'CHO_DUYET_BAN', scoredBy: 'Chuyên viên B', scoredAt: now(), evidenceCount: 2 },
@@ -143,17 +158,17 @@ const initialScores: Record<string, Record<string, ScoreRecord>> = {
 };
 
 const initialEvidence: Evidence[] = [
-  { id: uid(), criteriaId: 'c1', localityId: 'dp1', fileName: 'bao-cao-2026.pdf', fileUrl: '#', uploadedAt: now() },
-  { id: uid(), criteriaId: 'c3', localityId: 'dp1', fileName: 'danh-sach-can-bo.xlsx', fileUrl: '#', uploadedAt: now() },
-  { id: uid(), criteriaId: 'c1', localityId: 'dp2', fileName: 'ke-hoach.pdf', fileUrl: '#', uploadedAt: now() },
-  { id: uid(), criteriaId: 'c2', localityId: 'dp2', fileName: 'minh-chung-hoat-dong.jpg', fileUrl: '#', uploadedAt: now() },
+  { id: uid(), criteriaId: 'c1', localityId: 'loc-25195', fileName: 'bao-cao-2026.pdf', fileUrl: '#', uploadedAt: now() },
+  { id: uid(), criteriaId: 'c3', localityId: 'loc-25195', fileName: 'danh-sach-can-bo.xlsx', fileUrl: '#', uploadedAt: now() },
+  { id: uid(), criteriaId: 'c1', localityId: 'loc-26068', fileName: 'ke-hoach.pdf', fileUrl: '#', uploadedAt: now() },
+  { id: uid(), criteriaId: 'c2', localityId: 'loc-26068', fileName: 'minh-chung-hoat-dong.jpg', fileUrl: '#', uploadedAt: now() },
 ];
 
 const initialAudits: AuditEntry[] = [
-  makeAudit('SCORE', 'Chuyên viên A', 'SPECIALIST', 'c1 - dp1', null, '30', 'Chấm lần đầu'),
-  makeAudit('SCORE', 'Chuyên viên A', 'SPECIALIST', 'c3 - dp1', null, '25', 'Chấm lần đầu'),
-  makeAudit('SCORE', 'Chuyên viên B', 'SPECIALIST', 'c2 - dp2', null, '25', 'Hoàn thành bảng'),
-  makeAudit('SCORE', 'Địa phương', 'LOCALITY', 'state - dp2', null, 'Nộp bảng điểm'),
+  makeAudit('SCORE', 'Chuyên viên A', 'SPECIALIST', 'c1 - loc-25195', null, '30', 'Chấm lần đầu'),
+  makeAudit('SCORE', 'Chuyên viên A', 'SPECIALIST', 'c3 - loc-25195', null, '25', 'Chấm lần đầu'),
+  makeAudit('SCORE', 'Chuyên viên B', 'SPECIALIST', 'c2 - loc-26068', null, '25', 'Hoàn thành bảng'),
+  makeAudit('SCORE', 'Địa phương', 'LOCALITY', 'state - loc-26068', null, 'Nộp bảng điểm'),
 ];
 
 export const useScoreStore = create<ScoreStore>()(
@@ -165,9 +180,29 @@ export const useScoreStore = create<ScoreStore>()(
       audits: initialAudits,
       deadline: defaultDeadline,
       scores: initialScores,
-      assignments: { tc1: ['dp1', 'dp2'] },
+      assignments: { tc1: ['loc-25195', 'loc-26068'] },
 
       setDeadline: (date) => set({ deadline: date }),
+
+      createLocality: ({ code, name, fullName, unitType, region }) =>
+        set((state) => {
+          if (state.localities.some((l) => l.code === code)) return state;
+          const locality: Locality = { id: uid(), code, name, fullName, unitType, region };
+          return { localities: [...state.localities, locality] };
+        }),
+
+      updateLocality: (locality) =>
+        set((state) => ({
+          localities: state.localities.map((l) => (l.id === locality.id ? locality : l)),
+        })),
+
+      deleteLocality: (id) =>
+        set((state) => ({
+          localities: state.localities.filter((l) => l.id !== id),
+          assignments: Object.fromEntries(
+            Object.entries(state.assignments).map(([k, v]) => [k, v.filter((lid) => lid !== id)]),
+          ),
+        })),
 
       createCriteriaTable: ({ name, totalScore, openDate, closeDate, criteria }) => {
         const id = uid();
@@ -220,7 +255,7 @@ export const useScoreStore = create<ScoreStore>()(
           };
         }),
 
-      scoreCriterion: (tableId, localityId, criteriaId, value, scoredBy) => {
+      scoreCriterion: (tableId, localityId, criteriaId, value, scoredBy, actorRole) => {
         set((state) => {
           const table = state.criteriaTables.find((t) => t.id === tableId);
           if (!table) return state;
@@ -255,7 +290,7 @@ export const useScoreStore = create<ScoreStore>()(
           const audit = makeAudit(
             action,
             scoredBy,
-            'SPECIALIST',
+            actorRole,
             `${criteria.name} - ${localityId}`,
             oldEntry ? String(oldEntry.value) : null,
             String(clamped),
@@ -444,7 +479,8 @@ export const useScoreStore = create<ScoreStore>()(
       },
 
       getAuditsForLocality: (localityId) => {
-        return get().audits.filter((a) => a.fieldName.includes(` - ${localityId}`));
+        const suffix = ` - ${localityId}`;
+        return get().audits.filter((a) => a.fieldName.endsWith(suffix));
       },
 
       getRanking: () => {
@@ -458,7 +494,26 @@ export const useScoreStore = create<ScoreStore>()(
           }))
           .sort((a, b) => b.totalScore - a.totalScore);
       },
+
+      emptyRecord: {
+        state: 'DRAFT',
+        entries: [],
+        totalScore: 0,
+        submittedAt: null,
+        publishedAt: null,
+      },
     }),
-    { name: 'thidua-score' },
+    {
+      name: 'thidua-score',
+      partialize: (s) => ({
+        criteriaTables: s.criteriaTables,
+        localities: s.localities,
+        evidence: s.evidence,
+        audits: s.audits,
+        deadline: s.deadline,
+        scores: s.scores,
+        assignments: s.assignments,
+      }),
+    },
   ),
 );
