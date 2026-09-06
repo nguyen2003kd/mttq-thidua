@@ -1,22 +1,12 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable } from '@/components/core';
+import { PageHeader, DataTable, ActionBadge } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { formatDateTime } from '@/lib/utils';
-import { ACTION_LABELS } from '@/constants/enums';
 import { LABELS } from '@/constants/labels';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { AuditEntry } from '@/types/domain';
-
-const actionVariant: Record<AuditEntry['action'], 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info'> = {
-  SCORE: 'info',
-  EDIT: 'warning',
-  APPROVE: 'success',
-  REJECT: 'destructive',
-  PUBLISH: 'success',
-};
 
 export default function AuditLogPage() {
   const { diaPhuongId } = useParams<{ diaPhuongId?: string }>();
@@ -47,9 +37,7 @@ export default function AuditLogPage() {
       {
         accessorKey: 'action',
         header: LABELS.AUDIT_ACTION,
-        cell: ({ row }) => (
-          <Badge variant={actionVariant[row.original.action]}>{ACTION_LABELS[row.original.action]}</Badge>
-        ),
+        cell: ({ row }) => <ActionBadge action={row.original.action} />,
       },
       { accessorKey: 'fieldName', header: 'Đối tượng' },
       {

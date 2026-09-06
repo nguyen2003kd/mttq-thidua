@@ -1,18 +1,17 @@
 import { useMemo, useState, type ComponentType } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable, AuditTimeline, EmptyState, ConfirmDialog, ScoreStateBadge } from '@/components/core';
+import {
+  PageHeader,
+  DataTable,
+  EmptyState,
+  ConfirmDialog,
+  ScoreStateBadge,
+  RejectDialog,
+  AuditTimelineDialog,
+} from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/core';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { X, History } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -59,7 +58,6 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const reject = useScoreStore((s) => s.reject);
 
   const [rejectRow, setRejectRow] = useState<ApprovalRow | null>(null);
-  const [reason, setReason] = useState('');
   const [diffRow, setDiffRow] = useState<ApprovalRow | null>(null);
   const [confirmRow, setConfirmRow] = useState<ApprovalRow | null>(null);
 
@@ -91,12 +89,11 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     toast.success('Đã duyệt', { description: config.approveSuccessMessage(row.locality.name) });
   };
 
-  const handleReject = () => {
-    if (!user || !rejectRow || !reason.trim()) return;
+  const handleReject = (reason: string) => {
+    if (!user || !rejectRow) return;
     reject(rejectRow.table.id, rejectRow.locality.id, reason, user.name, user.role);
     toast.success('Đã trả lại', { description: config.rejectSuccessMessage(rejectRow.locality.name) });
     setRejectRow(null);
-    setReason('');
   };
 
   const columns = useMemo<ColumnDef<ApprovalRow>[]>(
@@ -205,51 +202,24 @@ export function ApprovalPage(config: ApprovalPageConfig) {
         />
       )}
 
-      <Dialog open={!!rejectRow} onOpenChange={(v) => { if (!v) { setRejectRow(null); setReason(''); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Trả lại hồ sơ</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              {rejectRow ? `Trả lại bảng điểm của ${rejectRow.locality.name}. Vui lòng nhập lý do.` : ''}
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="reject-reason">Lý do trả lại</Label>
-              <Input
-                id="reject-reason"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Nhập lý do trả lại"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setRejectRow(null); setReason(''); }}>Hủy</Button>
-            <Button variant="destructive" action="reject" state={config.targetState} onClick={handleReject} disabled={!reason.trim()}>Trả lại</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RejectDialog
+        open={!!rejectRow}
+        onOpenChange={(v) => { if (!v) setRejectRow(null); }}
+        localityName={rejectRow?.locality.name}
+        state={config.targetState}
+        onConfirm={handleReject}
+      />
 
-      <Dialog open={!!diffRow} onOpenChange={(v) => { if (!v) setDiffRow(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Lịch sử thay đổi — {diffRow?.locality.name}</DialogTitle>
-          </DialogHeader>
-          <div className="py-2 max-h-[60vh] overflow-auto">
-            <AuditTimeline
-              entries={
-                diffRow
-                  ? audits.filter((a) => a.fieldName.endsWith(` - ${diffRow.locality.id}`))
-                  : []
-              }
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDiffRow(null)}>Đóng</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AuditTimelineDialog
+        open={!!diffRow}
+        onOpenChange={(v) => { if (!v) setDiffRow(null); }}
+        localityName={diffRow?.locality.name}
+        entries={
+          diffRow
+            ? audits.filter((a) => a.fieldName.endsWith(` - ${diffRow.locality.id}`))
+            : []
+        }
+      />
     </div>
   );
 }

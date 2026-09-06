@@ -1,19 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable, AuditTimeline, EmptyState, ConfirmDialog } from '@/components/core';
-import { ScoreStateBadge } from '@/components/core';
+import {
+  PageHeader,
+  DataTable,
+  EmptyState,
+  ConfirmDialog,
+  ScoreStateBadge,
+  RejectDialog,
+  AuditTimelineDialog,
+} from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/core';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { PUBLISH_CONFIRM_KEYWORD } from '@/constants/enums';
 import { toast } from 'sonner';
 import { Trophy, X, History } from 'lucide-react';
@@ -39,7 +37,6 @@ export default function StandingCommitteePage() {
 
   const [publishRow, setPublishRow] = useState<ApprovalRow | null>(null);
   const [rejectRow, setRejectRow] = useState<ApprovalRow | null>(null);
-  const [reason, setReason] = useState('');
   const [diffRow, setDiffRow] = useState<ApprovalRow | null>(null);
 
   const rows = useMemo(() => {
@@ -65,12 +62,11 @@ export default function StandingCommitteePage() {
     setPublishRow(null);
   };
 
-  const handleReject = () => {
-    if (!user || !rejectRow || !reason.trim()) return;
+  const handleReject = (reason: string) => {
+    if (!user || !rejectRow) return;
     reject(rejectRow.table.id, rejectRow.locality.id, reason, user.name, user.role);
     toast.success('Đã trả lại', { description: `${rejectRow.locality.name} đã được trả về Hội đồng TĐKT.` });
     setRejectRow(null);
-    setReason('');
   };
 
   const columns = useMemo<ColumnDef<ApprovalRow>[]>(
@@ -154,45 +150,20 @@ export default function StandingCommitteePage() {
         onConfirm={handlePublish}
       />
 
-      <Dialog open={!!rejectRow} onOpenChange={(v) => { if (!v) { setRejectRow(null); setReason(''); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Trả lại hồ sơ</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              {rejectRow ? `Trả lại bảng điểm của ${rejectRow.locality.name}. Vui lòng nhập lý do.` : ''}
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="standing-reject-reason">Lý do trả lại</Label>
-              <Input
-                id="standing-reject-reason"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Nhập lý do trả lại"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setRejectRow(null); setReason(''); }}>Hủy</Button>
-            <Button variant="destructive" action="reject" state="CHO_DUYET_BTT" onClick={handleReject} disabled={!reason.trim()}>Trả lại</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RejectDialog
+        open={!!rejectRow}
+        onOpenChange={(v) => { if (!v) setRejectRow(null); }}
+        localityName={rejectRow?.locality.name}
+        state="CHO_DUYET_BTT"
+        onConfirm={handleReject}
+      />
 
-      <Dialog open={!!diffRow} onOpenChange={(v) => { if (!v) setDiffRow(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Lịch sử thay đổi — {diffRow?.locality.name}</DialogTitle>
-          </DialogHeader>
-          <div className="py-2 max-h-[60vh] overflow-auto">
-            <AuditTimeline entries={diffRow ? getAuditsForLocality(diffRow.locality.id) : []} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDiffRow(null)}>Đóng</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AuditTimelineDialog
+        open={!!diffRow}
+        onOpenChange={(v) => { if (!v) setDiffRow(null); }}
+        localityName={diffRow?.locality.name}
+        entries={diffRow ? getAuditsForLocality(diffRow.locality.id) : []}
+      />
     </div>
   );
 }

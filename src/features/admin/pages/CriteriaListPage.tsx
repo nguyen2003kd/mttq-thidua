@@ -1,9 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable, FilterSelect } from '@/components/core';
+import {
+  PageHeader,
+  DataTable,
+  FilterSelect,
+  CriteriaStatusBadge,
+  FormDialog,
+  ListDialog,
+} from '@/components/core';
 import { Button } from '@/components/core';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,27 +18,22 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Plus, Eye, Trash2 } from 'lucide-react';
+import { Plus, Eye, Trash2, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 
-const statusVariant: Record<CriteriaTable['status'], 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info'> = {
-  DRAFT: 'warning',
-  ACTIVE: 'success',
-  EXPIRED: 'secondary',
-};
-
 export default function CriteriaListPage() {
   const navigate = useNavigate();
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
+  const localities = useScoreStore((s) => s.localities);
+  const assignments = useScoreStore((s) => s.assignments);
   const deleteCriteriaTable = useScoreStore((s) => s.deleteCriteriaTable);
   const createCriteriaTable = useScoreStore((s) => s.createCriteriaTable);
 
@@ -62,6 +63,7 @@ export default function CriteriaListPage() {
   const [criteriaText, setCriteriaText] = useState('');
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [viewTable, setViewTable] = useState<CriteriaTable | null>(null);
+  const [assignedOpen, setAssignedOpen] = useState(false);
 
   const columns = useMemo<ColumnDef<CriteriaTable>[]>(
     () => [
@@ -92,9 +94,7 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
-        cell: ({ row }) => (
-          <Badge variant={statusVariant[row.original.status]}>{CRITERIA_STATUS_LABELS[row.original.status]}</Badge>
-        ),
+        cell: ({ row }) => <CriteriaStatusBadge status={row.original.status} />,
         meta: {
           align: 'center',
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
@@ -224,45 +224,40 @@ export default function CriteriaListPage() {
         }
       />
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Tạo bảng tiêu chí mới</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="criteria-name">Tên bảng tiêu chí</Label>
-              <Input id="criteria-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Bảng tiêu chí 2026" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="open-date">Ngày mở</Label>
-                <Input id="open-date" type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="close-date">Ngày đóng</Label>
-                <Input id="close-date" type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="criteria-list">Danh sách tiêu chí con (mỗi dòng: Tên:Điểm tối đa)</Label>
-              <Textarea
-                id="criteria-list"
-                value={criteriaText}
-                onChange={(e) => setCriteriaText(e.target.value)}
-                placeholder="Tổ chức thực hiện nhiệm vụ:40\nKết quả hoạt động:30\nChất lượng cán bộ:30"
-                rows={4}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                {LABELS.CANCEL}
-              </Button>
-              <Button type="submit">{LABELS.CREATE}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Tạo bảng tiêu chí mới"
+        onSubmit={handleCreate}
+        submitLabel={LABELS.CREATE}
+        cancelLabel={LABELS.CANCEL}
+        submitAction="create"
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="criteria-name">Tên bảng tiêu chí</Label>
+          <Input id="criteria-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Bảng tiêu chí 2026" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="open-date">Ngày mở</Label>
+            <Input id="open-date" type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="close-date">Ngày đóng</Label>
+            <Input id="close-date" type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="criteria-list">Danh sách tiêu chí con (mỗi dòng: Tên:Điểm tối đa)</Label>
+          <Textarea
+            id="criteria-list"
+            value={criteriaText}
+            onChange={(e) => setCriteriaText(e.target.value)}
+            placeholder="Tổ chức thực hiện nhiệm vụ:40&#10;Kết quả hoạt động:30&#10;Chất lượng cán bộ:30"
+            rows={4}
+          />
+        </div>
+      </FormDialog>
 
       {/* View modal */}
       <Dialog open={!!viewTable} onOpenChange={(v) => !v && setViewTable(null)}>
@@ -279,7 +274,7 @@ export default function CriteriaListPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Trạng thái</p>
-                  <Badge variant={statusVariant[viewTable.status]}>{CRITERIA_STATUS_LABELS[viewTable.status]}</Badge>
+                  <CriteriaStatusBadge status={viewTable.status} />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Ngày bắt đầu</p>
@@ -296,6 +291,17 @@ export default function CriteriaListPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Số tiêu chí con</p>
                   <p className="font-medium">{viewTable.criteria.length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">{LABELS.CRITERIA_ASSIGNED_COUNT}</p>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-sm font-medium"
+                    onClick={() => setAssignedOpen(true)}
+                  >
+                    <Users className="h-3.5 w-3.5 mr-1.5" />
+                    {viewTable.assignedLocalityCount} địa phương
+                  </Button>
                 </div>
               </div>
               <Card>
@@ -338,6 +344,22 @@ export default function CriteriaListPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ListDialog
+        open={assignedOpen}
+        onOpenChange={setAssignedOpen}
+        title={`Địa phương đã gán — ${viewTable?.name ?? ''}`}
+        description={`${viewTable?.assignedLocalityCount ?? 0} địa phương`}
+        emptyText="Chưa gán địa phương nào."
+        items={
+          viewTable
+            ? (assignments[viewTable.id] ?? [])
+                .map((id) => localities.find((l) => l.id === id))
+                .filter((l): l is NonNullable<typeof l> => !!l)
+                .map((l) => ({ id: l.id, label: l.fullName, description: l.region }))
+            : []
+        }
+      />
     </div>
   );
 }

@@ -1,17 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, DataTable, Button, FilterSelect, DetailDialog } from '@/components/core';
+import { PageHeader, DataTable, Button, FilterSelect, DetailDialog, FormDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Plus, Eye } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -241,12 +234,14 @@ export default function LocalityListPage() {
       />
 
       {/* Create modal */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Thêm phường/xã mới</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+      <FormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Thêm phường/xã mới"
+        onSubmit={handleCreate}
+        submitLabel="Tạo mới"
+        submitAction="create"
+      >
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="loc-code">Mã</Label>
@@ -282,23 +277,17 @@ export default function LocalityListPage() {
               <Label htmlFor="loc-region">Vùng</Label>
               <Input id="loc-region" value={formRegion} onChange={(e) => setFormRegion(e.target.value)} placeholder="VD: Đông Nam Bộ" />
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                Hủy
-              </Button>
-              <Button type="submit">Tạo mới</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      </FormDialog>
 
       {/* Edit modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Chỉnh sửa địa phương</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleEdit} className="space-y-4">
+      <FormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title="Chỉnh sửa địa phương"
+        onSubmit={handleEdit}
+        submitLabel="Lưu thay đổi"
+        submitAction="edit"
+      >
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-code">Mã</Label>
@@ -334,15 +323,7 @@ export default function LocalityListPage() {
               <Label htmlFor="edit-region">Vùng</Label>
               <Input id="edit-region" value={editRegion} onChange={(e) => setEditRegion(e.target.value)} placeholder="VD: Đông Nam Bộ" />
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
-                Hủy
-              </Button>
-              <Button type="submit">Lưu thay đổi</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      </FormDialog>
     </div>
   );
 }
