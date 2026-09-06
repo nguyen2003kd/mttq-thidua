@@ -1,16 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { daysBetween } from '@/lib/utils';
 
 export function useCountdown(targetDate: string | Date) {
-  const target = typeof targetDate === 'string' ? new Date(targetDate) : targetDate;
-  const [daysLeft, setDaysLeft] = useState(() => daysBetween(new Date(), target));
+  // Key nguyên thuỷ để dep của hook ổn định qua mỗi render.
+  const targetKey = typeof targetDate === 'string' ? targetDate : targetDate.getTime();
+
+  const targetMs = useMemo(() => new Date(targetKey).getTime(), [targetKey]);
+
+  const [daysLeft, setDaysLeft] = useState(() => daysBetween(Date.now(), targetMs));
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDaysLeft(daysBetween(new Date(), target));
-    }, 60000); // update every minute
-    return () => clearInterval(interval);
-  }, [target]);
+    const tick = () => setDaysLeft(daysBetween(Date.now(), targetMs));
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [targetMs]);
 
   const isExpired = daysLeft <= 0;
 

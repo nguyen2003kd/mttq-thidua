@@ -12,7 +12,7 @@ import { Trophy, FileText, FileCheck, MapPin, Medal, Calendar } from 'lucide-rea
 export default function KetQuaPage() {
   const { nam } = useParams();
   const user = useAuthStore((s) => s.user);
-  const criteriaTables = useScoreStore((s) => s.criteriaTables);
+  const getActiveTableForLocality = useScoreStore((s) => s.getActiveTableForLocality);
   const getScore = useScoreStore((s) => s.getScore);
   const getRanking = useScoreStore((s) => s.getRanking);
   const getAuditsForLocality = useScoreStore((s) => s.getAuditsForLocality);
@@ -27,19 +27,19 @@ export default function KetQuaPage() {
     );
   }
 
-  const table = criteriaTables[0];
+  const table = getActiveTableForLocality(user.localityId);
   if (!table) {
     return (
       <EmptyState
         title="Chưa có bảng tiêu chí"
-        description="Hiện chưa có bảng tiêu chí nào được mở."
+        description="Địa phương chưa được gán bảng tiêu chí nào."
         icon={<FileCheck className="h-8 w-8" />}
       />
     );
   }
 
   const record = getScore(table.id, user.localityId);
-  const ranking = getRanking();
+  const ranking = getRanking(table.id);
   const rank = ranking.findIndex((r) => r.locality.id === user.localityId) + 1;
   const audits = getAuditsForLocality(user.localityId);
 
@@ -57,7 +57,7 @@ export default function KetQuaPage() {
         <StatCard label="Xếp hạng" value={rank || '—'} unit={rank ? `/ ${ranking.length}` : ''} icon={<Medal className="h-5 w-5" />} />
         <StatCard
           label="Trạng thái"
-          value={<LocalityStatusBadge status={toLocalityStatus(record.state)} />}
+          value={<LocalityStatusBadge status={toLocalityStatus(record)} />}
           icon={<FileCheck className="h-5 w-5" />}
         />
         <StatCard

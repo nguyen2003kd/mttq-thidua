@@ -5,10 +5,12 @@ import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
 import { NavItem } from '@/components/core';
 
+const RESULT_YEAR = new Date().getFullYear() + 1;
+
 const LOCALITY_NAV = [
   { to: ROUTES.LOCALITY_TRANG_THAI, label: LABELS.LOCALITY_STATUS_TITLE },
   { to: ROUTES.LOCALITY_MINH_CHUNG, label: LABELS.LOCALITY_EVIDENCE_UPLOAD },
-  { to: '/thi-dua/dia-phuong/ket-qua/2026', label: LABELS.LOCALITY_RESULT_TITLE },
+  { to: `/thi-dua/dia-phuong/ket-qua/${RESULT_YEAR}`, label: LABELS.LOCALITY_RESULT_TITLE },
 ];
 
 export function LocalityLayout({ children }: { children: ReactNode }) {

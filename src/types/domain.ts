@@ -43,6 +43,14 @@ export interface LocalityScoreResponse {
   scores: ScoreEntry[];
 }
 
+export interface ScoreRecord {
+  state: ScoreState;
+  entries: ScoreEntry[];
+  totalScore: number;
+  submittedAt: string | null;
+  publishedAt: string | null;
+}
+
 export interface AuditEntry {
   id: string;
   timestamp: string;

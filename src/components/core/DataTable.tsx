@@ -175,6 +175,7 @@ export function DataTable<TData, TValue = unknown>({
     selectionCbRef.current?.(
       table.getFilteredSelectedRowModel().rows.map((r) => r.original),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
   }, [rowSelection]);
 
   // Debounce: chỉ đẩy giá trị vào bảng sau khi ngừng gõ 250ms
@@ -187,6 +188,7 @@ export function DataTable<TData, TValue = unknown>({
       }
     }, 250);
     return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
   }, [searchInput, searchKey]);
 
   const visibleColumns = table.getVisibleLeafColumns();

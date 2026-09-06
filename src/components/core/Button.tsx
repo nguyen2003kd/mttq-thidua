@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useCan } from '@/hooks/useAuth';
 import type { Action } from '@/lib/rbac';
 import type { ScoreState, Scope } from '@/types/rbac';

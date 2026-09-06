@@ -2,15 +2,15 @@ import { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, EmptyState } from '@/components/core';
+import { PageHeader, EmptyState, ScoreStateBadge } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/core';
-import { Badge } from '@/components/ui/badge';
 import { ROUTES } from '@/constants/routes';
 import { toast } from 'sonner';
 import { ArrowLeft, Send, FileCheck, AlertCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScoreInput } from '@/features/cham-diem/components/ScoreInput';
+import { isRecordComplete } from '@/lib/state-machine';
 
 export default function ScoreByLocalityPage() {
   const { id } = useParams<{ id?: string }>();
@@ -139,12 +139,10 @@ export default function ScoreByLocalityPage() {
 
       <div className="flex items-center justify-between rounded-lg border px-4 py-3">
         <div className="flex items-center gap-3">
-          <Badge variant={record.state === 'DA_CONG_BO' ? 'success' : record.state !== 'DRAFT' ? 'info' : 'secondary'}>
-            {record.state}
-          </Badge>
+          <ScoreStateBadge state={record.state} />
           <span className="text-sm font-semibold">Tổng điểm: {record.totalScore} / {table.totalScore}</span>
         </div>
-        {editable && record.totalScore > 0 && (
+        {editable && isRecordComplete(table, record) && (
           <Button
             action="submit"
             state="DRAFT"

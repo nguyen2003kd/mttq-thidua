@@ -24,7 +24,11 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().clearAuth();
-      window.location.href = '/login';
+      // Điều hướng do React Router lo (RequireAuth thấy token null → /login),
+      // giữ nguyên state SPA thay vì full reload.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:logout'));
+      }
     }
     return Promise.reject(error);
   },

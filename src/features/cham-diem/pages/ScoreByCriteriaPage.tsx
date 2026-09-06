@@ -2,18 +2,18 @@ import { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, EmptyState } from '@/components/core';
+import { PageHeader, EmptyState, ScoreStateBadge } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/core';
-import { Badge } from '@/components/ui/badge';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
 import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileCheck, ArrowLeft, Send, AlertCircle } from 'lucide-react';
 import { ScoreInput } from '@/features/cham-diem/components/ScoreInput';
+import { isRecordComplete } from '@/lib/state-machine';
 import type { CriteriaTable, Locality } from '@/types/domain';
-import type { ScoreRecord } from '@/store/scoreStore';
+import type { ScoreRecord } from '@/types/domain';
 import type { Role, AuthUser } from '@/types/rbac';
 
 export default function ScoreByCriteriaPage() {
@@ -173,12 +173,10 @@ function ScoreRow({
       })}
       <TableCell className="text-center font-semibold tabular-nums">{record.totalScore}</TableCell>
       <TableCell className="text-center">
-        <Badge variant={record.state === 'DA_CONG_BO' ? 'success' : record.state !== 'DRAFT' ? 'info' : 'secondary'}>
-          {record.state}
-        </Badge>
+        <ScoreStateBadge state={record.state} />
       </TableCell>
       <TableCell className="text-right">
-        {record.state === 'DRAFT' && record.totalScore > 0 && (
+        {record.state === 'DRAFT' && isRecordComplete(table, record) && (
           <Button
             size="sm"
             action="submit"

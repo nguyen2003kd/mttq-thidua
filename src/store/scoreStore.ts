@@ -1,27 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CriteriaTable, CriteriaItem, Locality, Evidence, AuditEntry, ScoreEntry } from '@/types/domain';
-import type { Role, ScoreState } from '@/types/rbac';
+import type {
+  CriteriaTable,
+  CriteriaItem,
+  Locality,
+  Evidence,
+  AuditEntry,
+  ScoreEntry,
+  ScoreRecord,
+} from '@/types/domain';
+import type { Role } from '@/types/rbac';
+import { uid, nowIso as now } from '@/lib/id';
+import { applyTransition, isRecordComplete, type WorkflowAction } from '@/lib/state-machine';
 import { vnWards } from '@/data/vn-wards';
 
-export interface ScoreRecord {
-  state: ScoreState;
-  entries: ScoreEntry[];
-  totalScore: number;
-  submittedAt: string | null;
-  publishedAt: string | null;
-}
-
-function uid() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function now() {
-  return new Date().toISOString();
-}
+export type { ScoreRecord } from '@/types/domain';
 
 function makeAudit(
   action: 'SCORE' | 'EDIT' | 'APPROVE' | 'REJECT' | 'PUBLISH',
@@ -47,6 +40,52 @@ function makeAudit(
 
 function evidenceCountFor(criteriaId: string, localityId: string, evidenceList: Evidence[]) {
   return evidenceList.filter((e) => e.criteriaId === criteriaId && e.localityId === localityId).length;
+}
+
+type TransitionState = {
+  criteriaTables: CriteriaTable[];
+  scores: Record<string, Record<string, ScoreRecord>>;
+  audits: AuditEntry[];
+  emptyRecord: ScoreRecord;
+};
+
+/**
+ * Chạy một bước chuyển trạng thái qua state-machine. Trả patch cho store,
+ * hoặc `null` nếu bước không hợp lệ (store no-op).
+ */
+function runTransition(
+  state: TransitionState,
+  tableId: string,
+  localityId: string,
+  action: WorkflowAction,
+  actor: { name: string; role: Role },
+  reason?: string | null,
+): Pick<TransitionState, 'scores' | 'audits'> | null {
+  const table = state.criteriaTables.find((t) => t.id === tableId);
+  if (!table) return null;
+  const record = state.scores[tableId]?.[localityId] ?? state.emptyRecord;
+
+  const res = applyTransition({
+    from: record.state,
+    action,
+    actor,
+    localityId,
+    reason,
+    scoringComplete: action === 'submit' ? isRecordComplete(table, record) : undefined,
+  });
+  if (!res.ok) return null;
+
+  const updated: ScoreRecord = {
+    ...record,
+    state: res.nextState,
+    submittedAt: action === 'submit' ? now() : record.submittedAt,
+    publishedAt: res.nextState === 'DA_CONG_BO' ? now() : record.publishedAt,
+  };
+
+  return {
+    scores: { ...state.scores, [tableId]: { ...state.scores[tableId], [localityId]: updated } },
+    audits: [...state.audits, { ...res.audit, id: uid(), timestamp: now() }],
+  };
 }
 
 export interface ScoreStore {
@@ -92,9 +131,13 @@ export interface ScoreStore {
   deleteEvidence: (id: string) => void;
 
   getScore: (tableId: string, localityId: string) => ScoreRecord;
-  getScoreForLocality: (localityId: string) => { table: CriteriaTable; record: ScoreRecord } | null;
+  getActiveTableForLocality: (localityId: string) => CriteriaTable | null;
+  getScoreForLocality: (
+    localityId: string,
+    tableId?: string,
+  ) => { table: CriteriaTable; record: ScoreRecord } | null;
   getAuditsForLocality: (localityId: string) => AuditEntry[];
-  getRanking: () => { locality: Locality; totalScore: number }[];
+  getRanking: (tableId?: string) => { locality: Locality; totalScore: number }[];
 
   // Hằng số mặc định dùng khi chưa có record
   emptyRecord: ScoreRecord;
@@ -303,106 +346,20 @@ export const useScoreStore = create<ScoreStore>()(
         });
       },
 
-      submit: (tableId, localityId, actorName, actorRole) => {
-        set((state) => {
-          const record = get().getScore(tableId, localityId);
-          if (record.state !== 'DRAFT' || record.totalScore === 0) return state;
-          const updated = { ...record, state: 'CHO_DUYET_BAN' as ScoreState, submittedAt: now() };
-          const audit = makeAudit(
-            'SCORE',
-            actorName,
-            actorRole,
-            `state - ${localityId}`,
-            record.state,
-            'CHO_DUYET_BAN',
-          );
-          return {
-            scores: {
-              ...state.scores,
-              [tableId]: { ...state.scores[tableId], [localityId]: updated },
-            },
-            audits: [...state.audits, audit],
-          };
-        });
-      },
+      submit: (tableId, localityId, actorName, actorRole) =>
+        set((s) => runTransition(s, tableId, localityId, 'submit', { name: actorName, role: actorRole }) ?? s),
 
-      approve: (tableId, localityId, actorName, actorRole) => {
-        set((state) => {
-          const record = get().getScore(tableId, localityId);
-          let next: ScoreState | null = null;
-          if (record.state === 'CHO_DUYET_BAN') next = 'CHO_DUYET_HOI_DONG';
-          else if (record.state === 'CHO_DUYET_HOI_DONG') next = 'CHO_DUYET_BTT';
-          else if (record.state === 'CHO_DUYET_BTT') next = 'DA_CONG_BO';
-          if (!next) return state;
-          const updated = { ...record, state: next, publishedAt: next === 'DA_CONG_BO' ? now() : record.publishedAt };
-          const audit = makeAudit(
-            'APPROVE',
-            actorName,
-            actorRole,
-            `state - ${localityId}`,
-            record.state,
-            next,
-          );
-          return {
-            scores: {
-              ...state.scores,
-              [tableId]: { ...state.scores[tableId], [localityId]: updated },
-            },
-            audits: [...state.audits, audit],
-          };
-        });
-      },
+      approve: (tableId, localityId, actorName, actorRole) =>
+        set((s) => runTransition(s, tableId, localityId, 'approve', { name: actorName, role: actorRole }) ?? s),
 
-      reject: (tableId, localityId, reason, actorName, actorRole) => {
-        set((state) => {
-          const record = get().getScore(tableId, localityId);
-          let next: ScoreState | null = null;
-          if (record.state === 'CHO_DUYET_BAN') next = 'DRAFT';
-          else if (record.state === 'CHO_DUYET_HOI_DONG') next = 'CHO_DUYET_BAN';
-          else if (record.state === 'CHO_DUYET_BTT') next = 'CHO_DUYET_HOI_DONG';
-          if (!next) return state;
-          const updated = { ...record, state: next };
-          const audit = makeAudit(
-            'REJECT',
-            actorName,
-            actorRole,
-            `state - ${localityId}`,
-            record.state,
-            next,
-            reason,
-          );
-          return {
-            scores: {
-              ...state.scores,
-              [tableId]: { ...state.scores[tableId], [localityId]: updated },
-            },
-            audits: [...state.audits, audit],
-          };
-        });
-      },
+      reject: (tableId, localityId, reason, actorName, actorRole) =>
+        set(
+          (s) =>
+            runTransition(s, tableId, localityId, 'reject', { name: actorName, role: actorRole }, reason) ?? s,
+        ),
 
-      publish: (tableId, localityId, actorName, actorRole) => {
-        set((state) => {
-          const record = get().getScore(tableId, localityId);
-          if (record.state !== 'CHO_DUYET_BTT') return state;
-          const updated = { ...record, state: 'DA_CONG_BO' as ScoreState, publishedAt: now() };
-          const audit = makeAudit(
-            'PUBLISH',
-            actorName,
-            actorRole,
-            `state - ${localityId}`,
-            record.state,
-            'DA_CONG_BO',
-          );
-          return {
-            scores: {
-              ...state.scores,
-              [tableId]: { ...state.scores[tableId], [localityId]: updated },
-            },
-            audits: [...state.audits, audit],
-          };
-        });
-      },
+      publish: (tableId, localityId, actorName, actorRole) =>
+        set((s) => runTransition(s, tableId, localityId, 'publish', { name: actorName, role: actorRole }) ?? s),
 
       uploadEvidence: ({ criteriaId, localityId, fileName, fileUrl }) => {
         set((state) => {
@@ -470,12 +427,22 @@ export const useScoreStore = create<ScoreStore>()(
         );
       },
 
-      getScoreForLocality: (localityId) => {
+      getActiveTableForLocality: (localityId) => {
         const state = get();
-        const table = state.criteriaTables[0];
+        const assignedTableIds = Object.entries(state.assignments)
+          .filter(([, ids]) => ids.includes(localityId))
+          .map(([tid]) => tid);
+        const tables = state.criteriaTables.filter((t) => assignedTableIds.includes(t.id));
+        return tables.find((t) => t.status === 'ACTIVE') ?? tables[0] ?? null;
+      },
+
+      getScoreForLocality: (localityId, tableId) => {
+        const state = get();
+        const table = tableId
+          ? (state.criteriaTables.find((t) => t.id === tableId) ?? null)
+          : state.getActiveTableForLocality(localityId);
         if (!table) return null;
-        const record = state.getScore(table.id, localityId);
-        return { table, record };
+        return { table, record: state.getScore(table.id, localityId) };
       },
 
       getAuditsForLocality: (localityId) => {
@@ -483,11 +450,15 @@ export const useScoreStore = create<ScoreStore>()(
         return get().audits.filter((a) => a.fieldName.endsWith(suffix));
       },
 
-      getRanking: () => {
+      getRanking: (tableId) => {
         const state = get();
-        const table = state.criteriaTables[0];
+        const table = tableId
+          ? state.criteriaTables.find((t) => t.id === tableId)
+          : (state.criteriaTables.find((t) => t.status === 'ACTIVE') ?? state.criteriaTables[0]);
         if (!table) return [];
+        const assigned = new Set(state.assignments[table.id] ?? []);
         return state.localities
+          .filter((loc) => assigned.has(loc.id))
           .map((loc) => ({
             locality: loc,
             totalScore: state.getScore(table.id, loc.id).totalScore,

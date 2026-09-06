@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LocalityLayout } from '@/components/layout/LocalityLayout';
@@ -10,7 +10,7 @@ import type { Role } from '@/types/rbac';
 import { useScoreStore } from '@/store/scoreStore';
 
 // Lazy load pages
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
@@ -52,15 +52,30 @@ function Loading() {
 
 function ScoreRedirect() {
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
-  const first = criteriaTables[0];
-  if (!first) return <Navigate to={ROUTES.DASHBOARD_OVERVIEW} replace />;
-  return <Navigate to={`/thi-dua/cham-diem/theo-tieu-chi/${first.id}`} replace />;
+  const target = criteriaTables.find((t) => t.status === 'ACTIVE') ?? criteriaTables[0];
+  if (!target) return <Navigate to={ROUTES.DASHBOARD_OVERVIEW} replace />;
+  return <Navigate to={`/thi-dua/cham-diem/theo-tieu-chi/${target.id}`} replace />;
+}
+
+/** Lắng nghe sự kiện `auth:logout` (từ interceptor 401) và điều hướng về /login. */
+function AuthEvents() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const onLogout = () => {
+      queryClient.clear();
+      navigate(ROUTES.LOGIN, { replace: true });
+    };
+    window.addEventListener('auth:logout', onLogout);
+    return () => window.removeEventListener('auth:logout', onLogout);
+  }, [navigate]);
+  return null;
 }
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <AuthEvents />
         <Toaster position="bottom-right" richColors closeButton />
         <Suspense fallback={<Loading />}>
           <Routes>
@@ -80,10 +95,9 @@ export default function App() {
                 </RequireAuth>
               }
             >
-              <Route path="bang-tieu-chi" element={<CriteriaListPage />} />
-              <Route path="bang-tieu-chi/new" element={<CriteriaFormPage />} />
-              <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route index element={<Navigate to={ROUTES.ADMIN_CRITERIA_LIST} replace />} />
+              <Route path="bang-tieu-chi" element={<CriteriaListPage />} />
+              <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route path="bang-tieu-chi/:id/gan-dia-phuong" element={<AssignLocalityPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />

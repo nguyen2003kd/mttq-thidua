@@ -5,7 +5,7 @@ import { PageHeader, LocalityStatusBadge, EmptyState } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/core';
 import { formatDate } from '@/lib/utils';
-import { toLocalityStatus } from '@/lib/state-machine';
+import { toLocalityStatus, isRecordComplete } from '@/lib/state-machine';
 import { toast } from 'sonner';
 import { Send, Loader2, Trophy, FileCheck, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,7 +18,7 @@ const steps = [
 
 export default function TrangThaiPage() {
   const user = useAuthStore((s) => s.user);
-  const criteriaTables = useScoreStore((s) => s.criteriaTables);
+  const getActiveTableForLocality = useScoreStore((s) => s.getActiveTableForLocality);
   const getScore = useScoreStore((s) => s.getScore);
   const submit = useScoreStore((s) => s.submit);
   const [busy, setBusy] = useState(false);
@@ -33,19 +33,19 @@ export default function TrangThaiPage() {
     );
   }
 
-  const table = criteriaTables[0];
+  const table = getActiveTableForLocality(user.localityId);
   if (!table) {
     return (
       <EmptyState
         title="Chưa có bảng tiêu chí"
-        description="Hiện chưa có bảng tiêu chí nào được mở."
+        description="Địa phương chưa được gán bảng tiêu chí nào."
         icon={<FileCheck className="h-8 w-8" />}
       />
     );
   }
 
   const record = getScore(table.id, user.localityId);
-  const status = toLocalityStatus(record.state);
+  const status = toLocalityStatus(record);
 
   const stepStates = [
     record.state !== 'DRAFT',
@@ -56,8 +56,8 @@ export default function TrangThaiPage() {
 
   const handleSubmit = () => {
     if (!user.localityId) return;
-    if (record.totalScore === 0) {
-      toast.error('Bảng điểm chưa có điểm nào để nộp');
+    if (!isRecordComplete(table, record)) {
+      toast.error('Cần chấm đủ tất cả tiêu chí trước khi nộp');
       return;
     }
     setBusy(true);

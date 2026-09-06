@@ -15,8 +15,11 @@ export function formatDateTime(date: string | Date): string {
   return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-export function daysBetween(from: string | Date, to: string | Date): number {
-  const d1 = typeof from === 'string' ? new Date(from) : from
-  const d2 = typeof to === 'string' ? new Date(to) : to
-  return Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24))
+export function daysBetween(from: number | string | Date, to: number | string | Date): number {
+  const startOfDay = (v: number | string | Date) => {
+    const d = new Date(v)
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  }
+  return Math.round((startOfDay(to) - startOfDay(from)) / 86_400_000)
 }

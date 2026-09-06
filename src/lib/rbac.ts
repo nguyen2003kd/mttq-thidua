@@ -1,6 +1,16 @@
 import type { Role, ScoreState, AuthUser, Scope } from '@/types/rbac';
+import { ROUTES } from '@/constants/routes';
 
-export type Action = 'create' | 'edit' | 'delete' | 'submit' | 'approve' | 'reject' | 'publish' | 'view' | 'assign';
+export type Action =
+  | 'create'
+  | 'edit'
+  | 'delete'
+  | 'submit'
+  | 'approve'
+  | 'reject'
+  | 'publish'
+  | 'view'
+  | 'assign';
 
 const ROLE_ACTIONS: Record<Role, Action[]> = {
   ADMIN: ['create', 'edit', 'delete', 'view', 'assign'],
@@ -35,35 +45,77 @@ export function can(
     if (!stateActions.includes(action)) return false;
   }
 
-  if (context?.scope) {
-    if (context.scope.banId && user.banId && context.scope.banId !== user.banId) {
-      return false;
+  // Scope: khi context yêu cầu scope, user PHẢI có scope tương ứng và khớp.
+  // ADMIN toàn quyền, bỏ qua kiểm scope.
+  if (context?.scope && user.role !== 'ADMIN') {
+    if (context.scope.banId !== undefined) {
+      if (user.banId === undefined || user.banId !== context.scope.banId) return false;
     }
-    if (context.scope.localityId && user.localityId && context.scope.localityId !== user.localityId) {
-      return false;
+    if (context.scope.localityId !== undefined) {
+      if (user.localityId === undefined || user.localityId !== context.scope.localityId) {
+        return false;
+      }
     }
   }
 
   return true;
 }
 
-export function canAccessRoute(role: Role, routePrefix: string): boolean {
-  const routeRoleMap: Record<string, Role[]> = {
-    '/thi-dua/admin': ['ADMIN'],
-    '/thi-dua/dia-phuong': ['LOCALITY'],
-    '/thi-dua/cham-diem': ['SPECIALIST'],
-    '/thi-dua/duyet/lanh-dao-ban': ['BAN_LEADER'],
-    '/thi-dua/duyet/hoi-dong-tdkt': ['COUNCIL_CHAIR', 'COUNCIL_VICE'],
-    '/thi-dua/duyet/ban-thuong-truc': ['STANDING_COMMITTEE'],
-    '/thi-dua/dashboard-tong-quan': ['ADMIN', 'SPECIALIST', 'BAN_LEADER', 'COUNCIL_CHAIR', 'COUNCIL_VICE', 'STANDING_COMMITTEE'],
-    '/thi-dua/lich-su-thay-doi': ['ADMIN', 'SPECIALIST', 'BAN_LEADER', 'COUNCIL_CHAIR', 'COUNCIL_VICE', 'STANDING_COMMITTEE', 'LOCALITY'],
-  };
+/** Ánh xạ tiền tố route → danh sách role được phép. Nguồn duy nhất route↔role. */
+export const ROUTE_ROLES: Record<string, Role[]> = {
+  '/thi-dua/admin': ['ADMIN'],
+  '/thi-dua/dia-phuong': ['LOCALITY'],
+  '/thi-dua/cham-diem': ['SPECIALIST'],
+  '/thi-dua/duyet/lanh-dao-ban': ['BAN_LEADER'],
+  '/thi-dua/duyet/hoi-dong-tdkt': ['COUNCIL_CHAIR', 'COUNCIL_VICE'],
+  '/thi-dua/duyet/ban-thuong-truc': ['STANDING_COMMITTEE'],
+  '/thi-dua/dashboard-tong-quan': [
+    'ADMIN',
+    'SPECIALIST',
+    'BAN_LEADER',
+    'COUNCIL_CHAIR',
+    'COUNCIL_VICE',
+    'STANDING_COMMITTEE',
+  ],
+  // B14: địa phương KHÔNG xem lịch sử thay đổi.
+  '/thi-dua/lich-su-thay-doi': [
+    'ADMIN',
+    'SPECIALIST',
+    'BAN_LEADER',
+    'COUNCIL_CHAIR',
+    'COUNCIL_VICE',
+    'STANDING_COMMITTEE',
+  ],
+};
 
-  for (const [prefix, roles] of Object.entries(routeRoleMap)) {
-    if (routePrefix.startsWith(prefix)) {
-      return roles.includes(role);
-    }
+/** Role được phép vào path — chọn tiền tố khớp DÀI NHẤT. `null` nếu không khớp. */
+export function rolesForPath(pathname: string): Role[] | null {
+  const hit = Object.entries(ROUTE_ROLES)
+    .filter(([prefix]) => pathname.startsWith(prefix))
+    .sort((a, b) => b[0].length - a[0].length)[0];
+  return hit ? hit[1] : null;
+}
+
+export function canAccessRoute(role: Role, pathname: string): boolean {
+  const roles = rolesForPath(pathname);
+  return roles ? roles.includes(role) : false;
+}
+
+/** Trang mặc định của mỗi role sau khi đăng nhập / khi vào route không có quyền. */
+export function defaultRouteForRole(role: Role, user?: Pick<AuthUser, 'banId'> | null): string {
+  switch (role) {
+    case 'LOCALITY':
+      return ROUTES.LOCALITY_TRANG_THAI;
+    case 'BAN_LEADER':
+      return `/thi-dua/duyet/lanh-dao-ban/${user?.banId ?? 'ban1'}`;
+    case 'COUNCIL_CHAIR':
+    case 'COUNCIL_VICE':
+      return ROUTES.DUYET_COUNCIL;
+    case 'STANDING_COMMITTEE':
+      return ROUTES.DUYET_STANDING;
+    case 'ADMIN':
+    case 'SPECIALIST':
+    default:
+      return ROUTES.DASHBOARD_OVERVIEW;
   }
-
-  return false;
 }
