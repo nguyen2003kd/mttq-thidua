@@ -149,12 +149,12 @@ export default function LocalityListPage() {
   };
 
   const handleDelete = () => {
+    // DetailDialog đã có bước xác nhận riêng trước khi gọi onDelete.
     if (!selectedLocality) return;
-    if (window.confirm(`Xóa địa phương "${selectedLocality.fullName}"?`)) {
-      deleteLocality(selectedLocality.id);
-      toast.success('Đã xóa địa phương');
-      setSelectedLocality(null);
-    }
+    deleteLocality(selectedLocality.id);
+    toast.success('Đã xóa địa phương');
+    setSelectedLocality(null);
+    setViewOpen(false);
   };
 
   return (

@@ -29,6 +29,7 @@ const TrangThaiPage = lazy(() => import('@/features/dia-phuong/pages/TrangThaiPa
 const KetQuaPage = lazy(() => import('@/features/dia-phuong/pages/KetQuaPage'));
 const OverviewDashboardPage = lazy(() => import('@/features/dashboard/pages/OverviewDashboardPage'));
 const AuditLogPage = lazy(() => import('@/features/audit/AuditLogPage'));
+const NotFoundPage = lazy(() => import('@/features/NotFoundPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -209,7 +210,7 @@ export default function App() {
 
             {/* Default redirect */}
             <Route path="/" element={<Navigate to={ROUTES.DASHBOARD_OVERVIEW} replace />} />
-            <Route path="*" element={<Navigate to={ROUTES.DASHBOARD_OVERVIEW} replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

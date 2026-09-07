@@ -280,6 +280,56 @@ Cập nhật callers (grep `toLocalityStatus`).
 
 ---
 
+## B15 — `LocalityLayout` thiếu nút đăng xuất
+
+**Vị trí:** `src/components/layout/LocalityLayout.tsx`.
+
+**Mô tả:** header chỉ hiển thị `{user.name}` dạng text, không có user menu, không có logout. Role `LOCALITY` render layout này (không phải `AppLayout`) → **không có cách đăng xuất**. Bonus: 3 nav item cùng dùng `icon={Trophy}`.
+
+**Fix:** thêm `DropdownMenu` (giống `AppLayout`) với avatar + tên + `ROLE_LABELS[role]` + `DropdownMenuItem` "Đăng xuất" gọi `clearAuth()` + `navigate(ROUTES.LOGIN)`. Nav item dùng icon riêng (FileText / Upload / Award).
+
+**Test:** `LocalityLayout.test.tsx` — render với user, mở dropdown, click "Đăng xuất" → `authStore.token` null, điều hướng `/login`.
+
+**Trạng thái:** ✅ fixed (`refactor/phase-7-core-components`).
+
+---
+
+## B16 — Thang font-size không chuẩn
+
+**Vị trí:** `src/components/layout/AppLayout.tsx` header (`text-[13px]`, `text-[10px]`, `text-[11px]` lẫn `text-xs`, `text-sm`), rải rác vài nơi.
+
+**Mô tả:** kích thước chữ tùy tiện, không theo scale Tailwind, khó bảo trì + không scale theo user setting.
+
+**Fix (Phase 6):** chuẩn hóa về `text-xs`/`text-sm`/`text-base`… Bỏ mọi `text-[Npx]` tùy biến trừ khi có lý do. Xem [06-polish-docs.md](06-polish-docs.md) §2 (typography).
+
+**Trạng thái:** ⬜ Phase 6.
+
+---
+
+## B17 — `window.confirm()` thay vì `ConfirmDialog`
+
+**Vị trí:**
+- `src/features/admin/pages/CriteriaListPage.tsx` — xóa bảng tiêu chí.
+- `src/features/admin/pages/LocalityListPage.tsx` — `handleDelete` (còn gây **double confirm** vì `DetailDialog` đã có bước xác nhận riêng).
+
+**Fix:** CriteriaListPage → `<ConfirmDialog variant="destructive" action="delete">`. LocalityListPage → bỏ `window.confirm` (DetailDialog tự lo xác nhận), `handleDelete` chỉ xóa + đóng dialog.
+
+**Trạng thái:** ✅ fixed (`refactor/phase-7-core-components`).
+
+---
+
+## B18 — Không có trang 404 + loading fallback sơ sài
+
+**Vị trí:** `src/App.tsx` — `<Route path="*">` redirect thẳng về dashboard (nuốt lỗi URL sai); `<Loading>` chỉ là spinner tròn, không skeleton.
+
+**Fix:**
+- Thêm `src/features/NotFoundPage.tsx` — `EmptyState` + nút "Về trang chính" (theo `defaultRouteForRole`). `<Route path="*" element={<NotFoundPage />} />`.
+- (Phase 6) `<Loading>` → skeleton khớp layout, hoặc `Spinner` core dùng chung (LoginPage hiện tự viết spinner inline).
+
+**Trạng thái:** 🟡 404 page ✅ fixed; skeleton/Spinner core ⬜ Phase 6.
+
+---
+
 ## Bảng tổng
 
 | ID | Nhóm | Mức | Fix ở |
@@ -298,3 +348,7 @@ Cập nhật callers (grep `toLocalityStatus`).
 | B12 | route thứ tự khó đọc | thấp | Phase 1 |
 | B13 | naming mơ hồ | thấp | Phase 1 (tùy chọn) |
 | B14 | route→role lệch nguồn + scope địa phương | cao | Phase 3 (đã chốt: LOCALITY không xem audit, không xem địa phương khác) |
+| B15 | LOCALITY không đăng xuất được | cao | ✅ fixed (phase-7) |
+| B16 | thang font-size không chuẩn | trung bình | Phase 6 |
+| B17 | window.confirm thay ConfirmDialog (+ double confirm) | trung bình | ✅ fixed (phase-7) |
+| B18 | thiếu 404 page + loading skeleton | thấp | 🟡 404 ✅ fixed; skeleton Phase 6 |

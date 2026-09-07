@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, DataTable, ActionBadge } from '@/components/core';
-import { Card, CardContent } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -65,18 +64,15 @@ export default function AuditLogPage() {
         title={LABELS.AUDIT_TIMELINE_TITLE}
         description={diaPhuongId ? `Lịch sử thay đổi của địa phương ${diaPhuongId}` : 'Lịch sử thay đổi toàn hệ thống.'}
       />
-      <Card>
-        <CardContent className="p-0 overflow-auto">
-          <DataTable
-            data={data}
-            columns={columns}
-            searchable
-            searchKey="fieldName"
-            searchPlaceholder="Tìm theo đối tượng..."
-            pageSize={10}
-          />
-        </CardContent>
-      </Card>
+      <DataTable
+        data={data}
+        columns={columns}
+        searchable
+        searchKey="fieldName"
+        searchPlaceholder="Tìm theo đối tượng..."
+        pageSize={10}
+        className="overflow-auto"
+      />
     </div>
   );
 }

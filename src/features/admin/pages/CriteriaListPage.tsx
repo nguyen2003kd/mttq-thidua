@@ -8,6 +8,7 @@ import {
   CriteriaStatusBadge,
   FormDialog,
   ListDialog,
+  ConfirmDialog,
 } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -64,6 +65,7 @@ export default function CriteriaListPage() {
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [viewTable, setViewTable] = useState<CriteriaTable | null>(null);
   const [assignedOpen, setAssignedOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const columns = useMemo<ColumnDef<CriteriaTable>[]>(
     () => [
@@ -324,14 +326,8 @@ export default function CriteriaListPage() {
                   <Button
                     variant="outline"
                     className="text-destructive hover:bg-destructive/10"
-                    onClick={() => {
-                      if (window.confirm('Xóa bảng tiêu chí này?')) {
-                        deleteCriteriaTable(viewTable.id);
-                        toast.success('Đã xóa bảng tiêu chí');
-                        setViewTable(null);
-                        setSelectedTable(null);
-                      }
-                    }}
+                    action="delete"
+                    onClick={() => setDeleteOpen(true)}
                   >
                     <Trash2 className="h-4 w-4 ml-2" /> Xóa
                   </Button>
@@ -344,6 +340,23 @@ export default function CriteriaListPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Xóa bảng tiêu chí"
+        description={`Xóa "${viewTable?.name ?? ''}"? Toàn bộ điểm và phân công của bảng này sẽ bị xóa. Hành động không thể hoàn tác.`}
+        confirmLabel="Xóa"
+        variant="destructive"
+        action="delete"
+        onConfirm={() => {
+          if (!viewTable) return;
+          deleteCriteriaTable(viewTable.id);
+          toast.success('Đã xóa bảng tiêu chí');
+          setViewTable(null);
+          setSelectedTable(null);
+        }}
+      />
 
       <ListDialog
         open={assignedOpen}

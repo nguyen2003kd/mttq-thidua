@@ -10,7 +10,6 @@ import {
   RejectDialog,
   AuditTimelineDialog,
 } from '@/components/core';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/core';
 import { toast } from 'sonner';
 import { X, History } from 'lucide-react';
@@ -176,11 +175,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           icon={<EmptyIcon className="h-8 w-8" />}
         />
       ) : (
-        <Card>
-          <CardContent className="p-0 overflow-auto">
-            <DataTable data={rows} columns={columns} pageSize={10} />
-          </CardContent>
-        </Card>
+        <DataTable data={rows} columns={columns} pageSize={10} className="overflow-auto" />
       )}
 
       {config.useConfirmDialog && (
