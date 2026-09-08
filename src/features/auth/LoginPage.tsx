@@ -1,28 +1,46 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
-import { ROUTES } from '@/constants/routes';
-import { ROLE_LABELS } from '@/constants/enums';
+import { loginWeb } from '@/api/endpoints/authentication';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Lock, User, Star, ShieldCheck } from 'lucide-react';
 import type { Role } from '@/types/rbac';
+import { defaultRouteForRole } from '@/lib/rbac';
 
-const DEMO_ROLES: Role[] = ['ADMIN', 'LOCALITY', 'SPECIALIST', 'BAN_LEADER', 'COUNCIL_CHAIR', 'STANDING_COMMITTEE'];
+const APP_ROLES: Role[] = [
+  'ADMIN',
+  'LOCALITY',
+  'SPECIALIST',
+  'BAN_LEADER',
+  'COUNCIL_CHAIR',
+  'COUNCIL_VICE',
+  'STANDING_COMMITTEE',
+];
+
+function resolveAppRole(roles: string[]): Role | null {
+  for (const role of roles) {
+    const normalizedRole = role.trim().toUpperCase().replace(/[-\s]/g, '_');
+    if (APP_ROLES.includes(normalizedRole as Role)) return normalizedRole as Role;
+    if (normalizedRole === 'ADMIN' || normalizedRole === 'SYSTEM_ADMIN') return 'ADMIN';
+  }
+
+  return null;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('123456');
+  const setStore = useAuthStore((s) => s.setStore);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role>('ADMIN');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
       toast.error('Vui lòng nhập đầy đủ tài khoản và mật khẩu');
@@ -30,34 +48,61 @@ export default function LoginPage() {
     }
     setLoading(true);
 
-    setTimeout(() => {
-      const scope =
-        selectedRole === 'LOCALITY'
-          ? { localityId: 'dp1' }
-          : selectedRole === 'BAN_LEADER'
-            ? { banId: 'ban1' }
-            : {};
-      setAuth(
-        { id: '1', name: username.trim(), role: selectedRole, ...scope },
-        'mock-token',
-        'mock-refresh',
-      );
-      toast.success(`Đăng nhập thành công với vai trò ${ROLE_LABELS[selectedRole]}`, {
-        description: 'Chuyển đến Dashboard...',
+    try {
+      const response = await loginWeb({
+        email: username.trim(),
+        password,
+        device_info: { platform: 'web' },
       });
-      const defaultRoute =
-        selectedRole === 'LOCALITY'
-          ? ROUTES.LOCALITY_TRANG_THAI
-          : selectedRole === 'BAN_LEADER'
-            ? `/thi-dua/duyet/lanh-dao-ban/${scope.banId ?? 'ban1'}`
-            : selectedRole === 'COUNCIL_CHAIR' || selectedRole === 'COUNCIL_VICE'
-              ? ROUTES.DUYET_COUNCIL
-              : selectedRole === 'STANDING_COMMITTEE'
-                ? ROUTES.DUYET_STANDING
-                : ROUTES.DASHBOARD_OVERVIEW;
-      navigate(defaultRoute);
+      const loginData = response.data;
+      const role = loginData ? resolveAppRole(loginData.user.roles) : null;
+
+      if (!response.success || !loginData || !role) {
+        throw new Error(
+          role ? 'Không thể xác thực phiên đăng nhập.' : 'Tài khoản chưa được gán vai trò trong hệ thống thi đua.',
+        );
+      }
+
+      const { user, session } = loginData;
+      const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.email;
+      setStore({
+        isSignedIn: true,
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        roles: user.roles,
+        permissions: user.permissions,
+        status: user.status,
+        last_login_at: user.last_login_at ?? null,
+        session: {
+          id: session.id,
+          expires_at: session.expires_at,
+          refresh_expires_at: session.refresh_expires_at,
+        },
+        access_token: loginData.access_token ?? null,
+        refresh_token: loginData.refresh_token ?? null,
+        expires_in: session.expires_in,
+        refresh_expires_in:session.refresh_expires_in,
+        token_type: session.token_type,
+        access_token_expires_at: new Date(Date.now() + session.expires_in * 1000),
+        refresh_token_expires_at: new Date(Date.now() + session.refresh_expires_in * 1000),
+        storedUsername: remember ? user.email : null,
+        user: { id: user.id, name, role },
+      });
+      toast.success('Đăng nhập thành công', { description: 'Đang chuyển đến trang làm việc...' });
+      navigate(defaultRouteForRole(role));
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? ((error.response?.data as { message?: string } | undefined)?.message ?? 'Email hoặc mật khẩu không đúng.')
+        : error instanceof Error
+          ? error.message
+          : 'Không thể đăng nhập. Vui lòng thử lại.';
+      toast.error(message);
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
@@ -133,16 +178,16 @@ export default function LoginPage() {
               {/* Username */}
               <div className="space-y-1.5">
                 <label htmlFor="username" className="text-sm font-medium">
-                  Tài khoản
+                  Email
                 </label>
                 <div className="relative">
                   <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="username"
-                    type="text"
+                    type="email"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Nhập tài khoản"
+                    placeholder="Nhập email"
                     className="pl-10 h-10"
                     autoComplete="username"
                     autoFocus
@@ -193,27 +238,6 @@ export default function LoginPage() {
                 >
                   Quên mật khẩu?
                 </Button>
-              </div>
-
-              {/* Demo role selector */}
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground font-medium">
-                  Vai trò demo (chọn để test phân quyền):
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEMO_ROLES.map((role) => (
-                    <Button
-                      key={role}
-                      type="button"
-                      size="sm"
-                      variant={selectedRole === role ? 'default' : 'outline'}
-                      onClick={() => setSelectedRole(role)}
-                      className="w-full !justify-start overflow-hidden"
-                    >
-                      <span className="truncate">{ROLE_LABELS[role]}</span>
-                    </Button>
-                  ))}
-                </div>
               </div>
 
               {/* Submit */}

@@ -6,7 +6,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { cn } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { Building2, FileCheck, Trophy, TrendingUp, Award } from 'lucide-react';
-
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Nháp',
   IN_PROGRESS: 'Đang xử lý',
@@ -19,9 +18,7 @@ export default function AdminDashboardPage() {
   const deadline = useScoreStore((s) => s.deadline);
   const getScore = useScoreStore((s) => s.getScore);
   const getRanking = useScoreStore((s) => s.getRanking);
-
   const table = criteriaTables[0];
-
   const statusCounts = useMemo(() => {
     const counts = { DRAFT: 0, IN_PROGRESS: 0, PUBLISHED: 0 };
     localities.forEach((loc) => {

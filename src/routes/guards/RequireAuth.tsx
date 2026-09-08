@@ -4,10 +4,10 @@ import { useAuthStore } from '@/store/authStore';
 import { ROUTES } from '@/constants/routes';
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const location = useLocation();
 
-  if (!token) {
+  if (!user) {
     return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
   }
 

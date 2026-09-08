@@ -4,7 +4,7 @@ Module chấm điểm thi đua cho 95 xã/phường, đi qua 4 tầng duyệt n�
 
 ## Tech Stack
 
-- **Framework:** React 18 + TypeScript + Vite
+- **Framework:** ReactJS SPA, React 18 + TypeScript + Vite
 - **State:** React Query (server) + Zustand (UI)
 - **Routing:** React Router v6 với RBAC route guards
 - **Forms:** React Hook Form + Zod
