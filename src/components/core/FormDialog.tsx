@@ -38,18 +38,20 @@ export function FormDialog({
   cancelLabel = 'Hủy',
   submitDisabled,
   submitAction,
-  size = 'max-w-lg',
+  size = 'max-w-lg sm:max-w-lg',
   children,
 }: FormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(size)}>
-        <DialogHeader>
+      <DialogContent className={cn('max-h-[calc(100dvh-2rem)] gap-0 overflow-hidden p-0', size)}>
+        <DialogHeader className="border-b bg-muted/25 px-6 py-5 pr-12">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4">
-          {children}
+        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="max-h-[calc(100dvh-13rem)] space-y-5 overflow-y-auto px-6 py-5">
+            {children}
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {cancelLabel}

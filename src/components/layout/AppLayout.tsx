@@ -52,7 +52,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       items.push({ to: ROUTES.ADMIN_LOCALITY, label: 'Địa phương', icon: MapPin });
     }
 
-    if (user?.role === 'SPECIALIST' && criteriaTables[0]) {
+    if ((user?.role === 'SPECIALIST' || user?.role === 'ADMIN') && criteriaTables[0]) {
       items.push({
         to: `/thi-dua/cham-diem/theo-tieu-chi/${criteriaTables[0].id}`,
         label: LABELS.SCORE_GRID_TITLE,
@@ -60,7 +60,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       });
     }
 
-    if (user?.role === 'BAN_LEADER') {
+    if (user?.role === 'BAN_LEADER' || user?.role === 'ADMIN') {
       items.push({
         to: `/thi-dua/duyet/lanh-dao-ban/${user.banId ?? 'ban1'}`,
         label: 'Duyệt — Lãnh đạo Ban',
@@ -68,11 +68,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
       });
     }
 
-    if (user?.role === 'COUNCIL_CHAIR' || user?.role === 'COUNCIL_VICE') {
+    if (user?.role === 'COUNCIL_CHAIR' || user?.role === 'COUNCIL_VICE' || user?.role === 'ADMIN') {
       items.push({ to: ROUTES.DUYET_COUNCIL, label: 'Duyệt — Hội đồng TĐKT', icon: FileCheck });
     }
 
-    if (user?.role === 'STANDING_COMMITTEE') {
+    if (user?.role === 'STANDING_COMMITTEE' || user?.role === 'ADMIN') {
       items.push({ to: ROUTES.DUYET_STANDING, label: 'Duyệt — Ban thường trực', icon: FileCheck });
     }
 
@@ -88,7 +88,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen bg-background">
       {sidebarOpen && (
-        <aside className="w-64 flex flex-col relative overflow-hidden text-white border-r border-white/10">
+        <aside className="w-64 shrink-0 flex flex-col relative overflow-hidden text-white border-r border-white/10">
           {/* Background image + faint black overlay */}
           <div
             className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -119,7 +119,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </aside>
       )}
 
-      <div className="flex-1 flex flex-col">
+      <div className="min-w-0 flex-1 flex flex-col">
         <header className="h-14 flex items-center justify-between px-6 gap-4 border-b border-border/60 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center gap-4">
             {stickyTitle && (

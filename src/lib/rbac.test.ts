@@ -37,9 +37,9 @@ describe('can() — role × action', () => {
     expect(can(u, 'publish')).toBe(false);
   });
 
-  it('STANDING_COMMITTEE có publish, ADMIN không', () => {
+  it('STANDING_COMMITTEE và ADMIN có publish', () => {
     expect(can(mk('STANDING_COMMITTEE'), 'publish')).toBe(true);
-    expect(can(mk('ADMIN'), 'publish')).toBe(false);
+    expect(can(mk('ADMIN'), 'publish')).toBe(true);
   });
 
   it('COUNCIL_VICE chỉ view', () => {
@@ -63,7 +63,7 @@ describe('can() — kết hợp state', () => {
     ['STANDING_COMMITTEE', 'publish', 'CHO_DUYET_BTT', true],
     ['STANDING_COMMITTEE', 'publish', 'CHO_DUYET_HOI_DONG', false],
     ['STANDING_COMMITTEE', 'edit', 'DA_CONG_BO', false],
-    ['ADMIN', 'publish', 'CHO_DUYET_BTT', false],
+    ['ADMIN', 'publish', 'CHO_DUYET_BTT', true],
   ];
   it.each(cases)('%s %s @%s → %s', (role, action, state, expected) => {
     expect(can(mk(role), action, { state })).toBe(expected);
@@ -107,11 +107,11 @@ describe('can() — scope (B7)', () => {
 describe('rolesForPath / canAccessRoute', () => {
   it('prefix khớp cơ bản', () => {
     expect(rolesForPath('/thi-dua/admin/bang-tieu-chi')).toEqual(['ADMIN']);
-    expect(rolesForPath('/thi-dua/cham-diem/theo-tieu-chi/tc1')).toEqual(['SPECIALIST']);
+    expect(rolesForPath('/thi-dua/cham-diem/theo-tieu-chi/tc1')).toEqual(['ADMIN', 'SPECIALIST']);
   });
   it('prefix dài nhất thắng — lanh-dao-ban không nhầm sang hoi-dong', () => {
-    expect(rolesForPath('/thi-dua/duyet/lanh-dao-ban/ban1')).toEqual(['BAN_LEADER']);
-    expect(rolesForPath('/thi-dua/duyet/hoi-dong-tdkt')).toEqual(['COUNCIL_CHAIR', 'COUNCIL_VICE']);
+    expect(rolesForPath('/thi-dua/duyet/lanh-dao-ban/ban1')).toEqual(['ADMIN', 'BAN_LEADER']);
+    expect(rolesForPath('/thi-dua/duyet/hoi-dong-tdkt')).toEqual(['ADMIN', 'COUNCIL_CHAIR', 'COUNCIL_VICE']);
   });
   it('lịch sử thay đổi KHÔNG có LOCALITY (B14)', () => {
     expect(rolesForPath('/thi-dua/lich-su-thay-doi/loc-1')).not.toContain('LOCALITY');

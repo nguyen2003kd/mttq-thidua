@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   CriteriaTable,
+  CriteriaTableAttachment,
   CriteriaItem,
   Locality,
   Evidence,
@@ -102,13 +103,20 @@ export interface ScoreStore {
   createCriteriaTable: (payload: {
     name: string;
     totalScore: number;
+    content?: string;
     openDate: string;
     closeDate: string;
-    criteria: { name: string; maxScore: number }[];
+    note?: string;
+    criteria: { name: string; maxScore: number; bonusScore?: number; deadline?: string; note?: string }[];
   }) => string;
   updateCriteriaTable: (table: CriteriaTable) => void;
   deleteCriteriaTable: (id: string) => void;
   assignLocality: (tableId: string, localityId: string, assigned: boolean) => void;
+  setLocalityAssignments: (
+    tableId: string,
+    localityIds: string[],
+    attachments?: CriteriaTableAttachment[],
+  ) => void;
 
   createLocality: (payload: { code: string; name: string; fullName: string; unitType: Locality['unitType']; region: string }) => void;
   updateLocality: (locality: Locality) => void;
@@ -150,10 +158,14 @@ const initialTables: CriteriaTable[] = [
     id: 'tc1',
     name: 'Bảng tiêu chí thi đua khen thưởng 2026',
     totalScore: 100,
+    content: 'Đánh giá mức độ hoàn thành nhiệm vụ và chất lượng hoạt động thi đua, khen thưởng năm 2026.',
     status: 'ACTIVE',
     assignedLocalityCount: 2,
     openDate: '2026-01-01',
     closeDate: '2026-12-31',
+    note: 'Áp dụng cho phong trào thi đua năm 2026.',
+    updatedAt: '2026-01-01T08:00:00.000Z',
+    updatedBy: 'Quản trị viên',
     criteria: [
       { id: 'c1', name: 'Tổ chức thực hiện nhiệm vụ chính trị', maxScore: 40, order: 1 },
       { id: 'c2', name: 'Kết quả hoạt động công tác Mặt trận', maxScore: 30, order: 2 },
@@ -247,22 +259,29 @@ export const useScoreStore = create<ScoreStore>()(
           ),
         })),
 
-      createCriteriaTable: ({ name, totalScore, openDate, closeDate, criteria }) => {
+      createCriteriaTable: ({ name, totalScore, content, openDate, closeDate, note, criteria }) => {
         const id = uid();
         const criteriaItems: CriteriaItem[] = criteria.map((c, idx) => ({
           id: uid(),
           name: c.name,
           maxScore: c.maxScore,
+          bonusScore: c.bonusScore,
+          deadline: c.deadline,
+          note: c.note,
           order: idx + 1,
         }));
         const table: CriteriaTable = {
           id,
           name,
           totalScore,
+          content: content?.trim() || undefined,
           status: 'ACTIVE',
           assignedLocalityCount: 0,
           openDate,
           closeDate,
+          note: note?.trim() || undefined,
+          updatedAt: now(),
+          updatedBy: 'Quản trị viên',
           criteria: criteriaItems,
         };
         set((state) => ({
@@ -274,7 +293,9 @@ export const useScoreStore = create<ScoreStore>()(
 
       updateCriteriaTable: (table) =>
         set((state) => ({
-          criteriaTables: state.criteriaTables.map((t) => (t.id === table.id ? table : t)),
+          criteriaTables: state.criteriaTables.map((t) =>
+            t.id === table.id ? { ...table, updatedAt: now(), updatedBy: 'Quản trị viên' } : t,
+          ),
         })),
 
       deleteCriteriaTable: (id) =>
@@ -294,6 +315,25 @@ export const useScoreStore = create<ScoreStore>()(
             assignments: { ...state.assignments, [tableId]: list },
             criteriaTables: state.criteriaTables.map((t) =>
               t.id === tableId ? { ...t, assignedLocalityCount: list.length } : t,
+            ),
+          };
+        }),
+
+      setLocalityAssignments: (tableId, localityIds, attachments) =>
+        set((state) => {
+          const availableIds = new Set(state.localities.map((locality) => locality.id));
+          const list = Array.from(new Set(localityIds)).filter((localityId) => availableIds.has(localityId));
+
+          return {
+            assignments: { ...state.assignments, [tableId]: list },
+            criteriaTables: state.criteriaTables.map((table) =>
+              table.id === tableId
+                ? {
+                    ...table,
+                    assignedLocalityCount: list.length,
+                    assignmentAttachments: attachments ?? table.assignmentAttachments,
+                  }
+                : table,
             ),
           };
         }),

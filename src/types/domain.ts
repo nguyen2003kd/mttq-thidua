@@ -12,18 +12,34 @@ export interface CriteriaItem {
   id: string;
   name: string;
   maxScore: number;
+  bonusScore?: number;
+  deadline?: string;
+  note?: string;
   order: number;
+}
+
+/** Thông tin tệp đính kèm khi áp dụng bảng tiêu chí cho địa phương. */
+export interface CriteriaTableAttachment {
+  id: string;
+  fileName: string;
+  fileSize: number;
 }
 
 export interface CriteriaTable {
   id: string;
   name: string;
   totalScore: number;
+  /** Nội dung/mô tả của nhóm tiêu chí. */
+  content?: string;
   status: CriteriaTableStatus;
   criteria: CriteriaItem[];
   assignedLocalityCount: number;
+  assignmentAttachments?: CriteriaTableAttachment[];
   openDate: string;
   closeDate: string;
+  note?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export interface ScoreEntry {

@@ -13,7 +13,8 @@ export type Action =
   | 'assign';
 
 const ROLE_ACTIONS: Record<Role, Action[]> = {
-  ADMIN: ['create', 'edit', 'delete', 'view', 'assign'],
+  // ADMIN là quyền giám sát toàn hệ thống: có thể xem và xử lý ở mọi chặng.
+  ADMIN: ['create', 'edit', 'delete', 'submit', 'approve', 'reject', 'publish', 'view', 'assign'],
   LOCALITY: ['view', 'create', 'delete'],
   SPECIALIST: ['view', 'edit', 'submit'],
   BAN_LEADER: ['view', 'approve', 'reject'],
@@ -64,11 +65,11 @@ export function can(
 /** Ánh xạ tiền tố route → danh sách role được phép. Nguồn duy nhất route↔role. */
 export const ROUTE_ROLES: Record<string, Role[]> = {
   '/thi-dua/admin': ['ADMIN'],
-  '/thi-dua/dia-phuong': ['LOCALITY'],
-  '/thi-dua/cham-diem': ['SPECIALIST'],
-  '/thi-dua/duyet/lanh-dao-ban': ['BAN_LEADER'],
-  '/thi-dua/duyet/hoi-dong-tdkt': ['COUNCIL_CHAIR', 'COUNCIL_VICE'],
-  '/thi-dua/duyet/ban-thuong-truc': ['STANDING_COMMITTEE'],
+  '/thi-dua/dia-phuong': ['ADMIN', 'LOCALITY'],
+  '/thi-dua/cham-diem': ['ADMIN', 'SPECIALIST'],
+  '/thi-dua/duyet/lanh-dao-ban': ['ADMIN', 'BAN_LEADER'],
+  '/thi-dua/duyet/hoi-dong-tdkt': ['ADMIN', 'COUNCIL_CHAIR', 'COUNCIL_VICE'],
+  '/thi-dua/duyet/ban-thuong-truc': ['ADMIN', 'STANDING_COMMITTEE'],
   '/thi-dua/dashboard-tong-quan': [
     'ADMIN',
     'SPECIALIST',
