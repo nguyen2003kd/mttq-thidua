@@ -123,6 +123,11 @@ export interface ScoreStore {
   }) => string;
   updateCriteriaTable: (table: CriteriaTable) => void;
   deleteCriteriaTable: (id: string) => void;
+  setLocalityAssignments: (
+    tableId: string,
+    localityIds: string[],
+    attachments?: CriteriaTableAttachment[],
+  ) => void;
   applyCriteriaToAllLocalities: (tableId: string, attachments?: CriteriaTableAttachment[]) => void;
 
   createLocality: (payload: { code: string; name: string; fullName: string; unitType: Locality['unitType']; region: string }) => void;
@@ -488,6 +493,29 @@ export const useScoreStore = create<ScoreStore>()(
           assignments: Object.fromEntries(Object.entries(state.assignments).filter(([k]) => k !== id)),
           lockedCriteria: Object.fromEntries(Object.entries(state.lockedCriteria).filter(([k]) => k !== id)),
         })),
+
+      setLocalityAssignments: (tableId, localityIds, attachments) =>
+        set((state) => {
+          if (!state.criteriaTables.some((table) => table.id === tableId)) return state;
+          if (attachments?.some((file) => file.fileSize > MAX_UPLOAD_SIZE)) return state;
+
+          const validLocalityIds = [...new Set(localityIds)].filter((localityId) =>
+            state.localities.some((locality) => locality.id === localityId),
+          );
+
+          return {
+            assignments: { ...state.assignments, [tableId]: validLocalityIds },
+            criteriaTables: state.criteriaTables.map((table) =>
+              table.id === tableId
+                ? {
+                    ...table,
+                    assignedLocalityCount: validLocalityIds.length,
+                    assignmentAttachments: attachments ?? table.assignmentAttachments,
+                  }
+                : table,
+            ),
+          };
+        }),
 
       applyCriteriaToAllLocalities: (tableId, attachments) =>
         set((state) => {
