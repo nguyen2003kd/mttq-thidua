@@ -14,6 +14,7 @@ import { lazy, Suspense, useEffect } from 'react';
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
+const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
 const AssignLocalityPage = lazy(() => import('@/features/admin/pages/AssignLocalityPage'));
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
@@ -98,6 +99,7 @@ export default function App() {
             >
               <Route index element={<Navigate to={ROUTES.ADMIN_CRITERIA_LIST} replace />} />
               <Route path="bang-tieu-chi" element={<CriteriaListPage />} />
+              <Route path="bang-tieu-chi/:id/chi-tiet" element={<CriteriaDetailPage />} />
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route path="bang-tieu-chi/:id/gan-dia-phuong" element={<AssignLocalityPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
@@ -110,7 +112,7 @@ export default function App() {
               path="/thi-dua/dia-phuong"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['LOCALITY']}>
+                  <RequireRole roles={['ADMIN', 'LOCALITY']}>
                     <LocalityLayout>
                       <Outlet />
                     </LocalityLayout>
@@ -129,7 +131,7 @@ export default function App() {
               path="/thi-dua/cham-diem"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST']}>
+                  <RequireRole roles={['ADMIN', 'SPECIALIST']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>
@@ -147,7 +149,7 @@ export default function App() {
               path="/thi-dua/duyet/lanh-dao-ban/:banId"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['BAN_LEADER']}>
+                  <RequireRole roles={['ADMIN', 'BAN_LEADER']}>
                     <AppLayout>
                       <BanLeaderApprovalPage />
                     </AppLayout>
@@ -159,7 +161,7 @@ export default function App() {
               path="/thi-dua/duyet/hoi-dong-tdkt"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['COUNCIL_CHAIR', 'COUNCIL_VICE']}>
+                  <RequireRole roles={['ADMIN', 'COUNCIL_CHAIR', 'COUNCIL_VICE']}>
                     <AppLayout>
                       <CouncilApprovalPage />
                     </AppLayout>
@@ -171,7 +173,7 @@ export default function App() {
               path="/thi-dua/duyet/ban-thuong-truc"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['STANDING_COMMITTEE']}>
+                  <RequireRole roles={['ADMIN', 'STANDING_COMMITTEE']}>
                     <AppLayout>
                       <StandingCommitteePage />
                     </AppLayout>

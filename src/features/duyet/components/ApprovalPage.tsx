@@ -11,8 +11,9 @@ import {
   AuditTimelineDialog,
 } from '@/components/core';
 import { Button } from '@/components/core';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { X, History } from 'lucide-react';
+import { X, History, Building2, ClipboardCheck, Landmark, Send, Trophy } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable, Locality } from '@/types/domain';
 import type { ScoreRecord } from '@/store/scoreStore';
@@ -44,6 +45,14 @@ interface ApprovalPageConfig {
   confirmDescription?: string;
 }
 
+const REVIEW_STAGES = [
+  { state: 'DRAFT', label: 'Địa phương nộp', icon: Building2 },
+  { state: 'CHO_DUYET_BAN', label: 'Lãnh đạo ban', icon: ClipboardCheck },
+  { state: 'CHO_DUYET_HOI_DONG', label: 'Hội đồng TĐKT', icon: Landmark },
+  { state: 'CHO_DUYET_BTT', label: 'Ban thường trực', icon: Send },
+  { state: 'DA_CONG_BO', label: 'Công bố kết quả', icon: Trophy },
+] as const;
+
 export function ApprovalPage(config: ApprovalPageConfig) {
   const user = useAuthStore((s) => s.user);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
@@ -60,7 +69,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const [diffRow, setDiffRow] = useState<ApprovalRow | null>(null);
   const [confirmRow, setConfirmRow] = useState<ApprovalRow | null>(null);
 
-  const canApprove = !config.requireChair || user?.role === 'COUNCIL_CHAIR';
+  const canApprove = !config.requireChair || user?.role === 'COUNCIL_CHAIR' || user?.role === 'ADMIN';
 
   const rows = useMemo(() => {
     const list: ApprovalRow[] = [];
@@ -163,10 +172,59 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   );
 
   const EmptyIcon = config.emptyIcon;
+  const activeStage = REVIEW_STAGES.findIndex((stage) => stage.state === config.targetState);
 
   return (
     <div className="space-y-6">
       <PageHeader title={config.title} description={config.description} />
+
+      <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.06] via-background to-accent/[0.10]">
+        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Trung tâm xét duyệt</p>
+            <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
+              <p className="text-3xl font-bold tabular-nums">{rows.length}</p>
+              <p className="pb-1 text-sm text-muted-foreground">hồ sơ đang chờ bạn xử lý</p>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Kiểm tra điểm, minh chứng và lịch sử thay đổi trước khi chuyển hồ sơ sang chặng tiếp theo.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border bg-background/80 px-4 py-3 shadow-sm">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            <div>
+              <p className="text-xs text-muted-foreground">Chặng đang xử lý</p>
+              <p className="text-sm font-semibold">{REVIEW_STAGES[activeStage]?.label}</p>
+            </div>
+          </div>
+        </CardContent>
+        <div className="border-t bg-background/55 px-5 py-4">
+          <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-5">
+            {REVIEW_STAGES.map((stage, index) => {
+              const Icon = stage.icon;
+              const complete = index < activeStage;
+              const current = index === activeStage;
+              return (
+                <div key={stage.state} className="relative flex min-w-0 items-center gap-2">
+                  {index > 0 && <span className="absolute -left-1/2 top-4 hidden h-px w-5 bg-border sm:block" />}
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
+                      current || complete
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className={`text-xs leading-tight ${current ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                    {stage.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
 
       {rows.length === 0 ? (
         <EmptyState

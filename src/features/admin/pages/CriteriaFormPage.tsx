@@ -4,6 +4,7 @@ import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, EmptyState } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,7 @@ export default function CriteriaFormPage() {
   const [openDate, setOpenDate] = useState('');
   const [closeDate, setCloseDate] = useState('');
   const [status, setStatus] = useState<CriteriaTable['status']>('DRAFT');
+  const [note, setNote] = useState('');
   const [items, setItems] = useState<{ id?: string; name: string; maxScore: number }[]>([{ name: '', maxScore: 0 }]);
 
   useEffect(() => {
@@ -39,12 +41,14 @@ export default function CriteriaFormPage() {
       setOpenDate(existing.openDate);
       setCloseDate(existing.closeDate);
       setStatus(existing.status);
+      setNote(existing.note ?? '');
       setItems(existing.criteria.map((c) => ({ id: c.id, name: c.name, maxScore: c.maxScore })));
     } else if (isNew) {
       setName('');
       setOpenDate('');
       setCloseDate('');
       setStatus('DRAFT');
+      setNote('');
       setItems([{ name: '', maxScore: 0 }]);
     }
   }, [existing, isNew]);
@@ -76,7 +80,7 @@ export default function CriteriaFormPage() {
     }
     const totalScore = valid.reduce((sum, i) => sum + i.maxScore, 0);
     if (isNew) {
-      createCriteriaTable({ name, totalScore, openDate, closeDate, criteria: valid });
+      createCriteriaTable({ name, totalScore, openDate, closeDate, note, criteria: valid });
       toast.success('Đã tạo bảng tiêu chí mới');
     } else if (existing) {
       const updated: CriteriaTable = {
@@ -85,6 +89,7 @@ export default function CriteriaFormPage() {
         totalScore,
         openDate,
         closeDate,
+        note: note.trim() || undefined,
         status,
         criteria: valid.map((it, idx) => ({
           id: it.id ?? newId(),
@@ -142,6 +147,10 @@ export default function CriteriaFormPage() {
                   <SelectItem value="EXPIRED">Hết hạn</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="note">Ghi chú</Label>
+              <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú áp dụng bảng tiêu chí (nếu có)" rows={3} />
             </div>
           </CardContent>
         </Card>
