@@ -258,7 +258,7 @@ export function DataTable<TData, TValue = unknown>({
       <div className="rounded-lg border border-border/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
         {/* Header */}
         <div
-          className="grid gap-0 sticky top-0 z-[5] bg-primary text-xs font-semibold uppercase tracking-wider text-primary-foreground"
+          className="grid gap-0 sticky top-0 z-[5] bg-primary text-xs font-semibold text-primary-foreground"
           style={{ gridTemplateColumns: listGridTemplate }}
         >
           {table.getHeaderGroups().map((headerGroup) =>

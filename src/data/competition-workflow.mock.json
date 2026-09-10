@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "module": "Quản lý thi đua",
+    "version": "MVP 1.0",
+    "province": "Đồng Nai",
+    "year": 2026
+  },
+  "criteriaTable": {
+    "id": "tc1",
+    "name": "Bảng tiêu chí thi đua khen thưởng 2026",
+    "status": "ACTIVE",
+    "totalScore": 100,
+    "deadline": "2026-12-31",
+    "applied": true,
+    "criteria": [
+      {
+        "id": "c1",
+        "content": "Tổ chức thực hiện nhiệm vụ chính trị",
+        "maxScore": 40,
+        "maxBonusScore": 0,
+        "required": true,
+        "lockedAfterChange": false,
+        "isLocked": false
+      },
+      {
+        "id": "c2",
+        "content": "Kết quả hoạt động công tác Mặt trận",
+        "maxScore": 30,
+        "maxBonusScore": 3,
+        "required": true,
+        "lockedAfterChange": true,
+        "isLocked": true
+      },
+      {
+        "id": "c3",
+        "content": "Chất lượng đội ngũ cán bộ MTTQ cơ sở",
+        "maxScore": 30,
+        "maxBonusScore": 2,
+        "required": true,
+        "lockedAfterChange": false,
+        "isLocked": false
+      }
+    ]
+  },
+  "workflowScenarios": [
+    {
+      "localityId": "loc-25195",
+      "localityName": "Phường Bình Phước",
+      "state": "DRAFT",
+      "statusLabel": "Yêu cầu chỉnh sửa",
+      "revisionRequested": true,
+      "hasRevisionRequest": true,
+      "isLocked": false,
+      "revisionRequest": "Bổ sung quyết định ban hành kế hoạch và làm rõ tiến độ thực hiện.",
+      "published": false
+    },
+    {
+      "localityId": "loc-26068",
+      "localityName": "Địa phương chờ chuyên viên",
+      "state": "CHO_CHUYEN_VIEN",
+      "statusLabel": "Đang chờ duyệt",
+      "revisionRequested": false,
+      "hasRevisionRequest": false,
+      "isLocked": true,
+      "published": false
+    },
+    {
+      "localityId": "loc-25210",
+      "localityName": "Phường Đồng Xoài",
+      "state": "CHO_DUYET_HOI_DONG",
+      "statusLabel": "Đang chờ duyệt",
+      "revisionRequested": false,
+      "hasRevisionRequest": false,
+      "isLocked": true,
+      "published": false
+    },
+    {
+      "localityId": "loc-25222",
+      "localityName": "Xã Bù Gia Mập",
+      "state": "DRAFT",
+      "statusLabel": "Nháp",
+      "revisionRequested": false,
+      "hasRevisionRequest": false,
+      "isLocked": false,
+      "published": false
+    },
+    {
+      "localityId": "loc-25217",
+      "localityName": "Phường Phước Long",
+      "state": "CHO_DUYET_BTT",
+      "statusLabel": "Đã duyệt",
+      "revisionRequested": false,
+      "hasRevisionRequest": false,
+      "isLocked": true,
+      "published": false
+    },
+    {
+      "localityId": "loc-25220",
+      "localityName": "Phường Phước Bình",
+      "state": "DA_CONG_BO",
+      "statusLabel": "Đã công bố",
+      "revisionRequested": false,
+      "hasRevisionRequest": false,
+      "isLocked": true,
+      "published": true,
+      "decisionFile": "Quyet-dinh-cong-bo-ket-qua-2026.pdf"
+    }
+  ]
+}

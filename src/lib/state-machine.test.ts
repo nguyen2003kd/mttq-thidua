@@ -24,8 +24,10 @@ describe('TRANSITIONS — bảng chuyển hợp lệ', () => {
     expect(getNextState(from, action)).toBe(to);
   });
 
-  it('bổ sung nhánh reject từ CHO_DUYET_BTT (B4)', () => {
-    expect(getNextState('CHO_DUYET_BTT', 'reject')).toBe('CHO_DUYET_HOI_DONG');
+  it('mọi yêu cầu chỉnh sửa từ cấp trên quay về Chuyên viên (B0)', () => {
+    expect(getNextState('CHO_DUYET_BAN', 'reject')).toBe('CHO_CHUYEN_VIEN');
+    expect(getNextState('CHO_DUYET_HOI_DONG', 'reject')).toBe('CHO_CHUYEN_VIEN');
+    expect(getNextState('CHO_DUYET_BTT', 'reject')).toBe('CHO_CHUYEN_VIEN');
   });
 
   it('mọi cặp (state, action) ngoài bảng đều không hợp lệ', () => {
@@ -90,7 +92,7 @@ describe('isRecordComplete', () => {
 });
 
 describe('applyTransition', () => {
-  it('DRAFT + submit + đủ tiêu chí → CHO_DUYET_BAN, audit SCORE', () => {
+  it('DRAFT + submit + đủ tiêu chí → CHO_CHUYEN_VIEN, audit SCORE', () => {
     const res = applyTransition({
       from: 'DRAFT',
       action: 'submit',
@@ -100,10 +102,10 @@ describe('applyTransition', () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.nextState).toBe('CHO_DUYET_BAN');
+    expect(res.nextState).toBe('CHO_CHUYEN_VIEN');
     expect(res.audit.action).toBe('SCORE');
     expect(res.audit.oldValue).toBe('DRAFT');
-    expect(res.audit.newValue).toBe('CHO_DUYET_BAN');
+    expect(res.audit.newValue).toBe('CHO_CHUYEN_VIEN');
     expect(res.audit.fieldName).toBe('state - loc-1');
     expect(res.audit).not.toHaveProperty('id');
     expect(res.audit).not.toHaveProperty('timestamp');
@@ -135,12 +137,12 @@ describe('applyTransition', () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.nextState).toBe('DRAFT');
+    expect(res.nextState).toBe('CHO_CHUYEN_VIEN');
     expect(res.audit.reason).toBe('Thiếu minh chứng');
     expect(res.audit.action).toBe('REJECT');
   });
 
-  it('reject từ CHO_DUYET_BTT → CHO_DUYET_HOI_DONG (B4)', () => {
+  it('reject từ CHO_DUYET_BTT → CHO_CHUYEN_VIEN (B0)', () => {
     const res = applyTransition({
       from: 'CHO_DUYET_BTT',
       action: 'reject',
@@ -148,7 +150,7 @@ describe('applyTransition', () => {
       localityId: 'l',
       reason: 'x',
     });
-    expect(res.ok && res.nextState).toBe('CHO_DUYET_HOI_DONG');
+    expect(res.ok && res.nextState).toBe('CHO_CHUYEN_VIEN');
   });
 
   it('DA_CONG_BO + bất kỳ hành động → FINAL_STATE', () => {

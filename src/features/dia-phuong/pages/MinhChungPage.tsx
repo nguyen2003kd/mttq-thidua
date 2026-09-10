@@ -1,208 +1,200 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { FileCheck2, MapPin, Save, Send, ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, EmptyState } from '@/components/core';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/core';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { formatDate } from '@/lib/utils';
-import { Upload, Trash2, FileText, MapPin, FileCheck, Paperclip } from 'lucide-react';
-import type { Evidence } from '@/types/domain';
+import { PageHeader, EmptyState, Button, ConfirmDialog, ScoreStateBadge } from '@/components/core';
+import { Card, CardContent } from '@/components/ui/card';
+import { CriterionGrid, EvidenceModal, type EvidenceFormValue } from '@/features/workflow/components';
+import type { CriteriaItem, Evidence, ScoreEntry } from '@/types/domain';
+
+interface EditingRow {
+  entry: ScoreEntry;
+  criterion?: CriteriaItem;
+}
 
 export default function MinhChungPage() {
-  const user = useAuthStore((s) => s.user);
-  const criteriaTables = useScoreStore((s) => s.criteriaTables);
-  const evidence = useScoreStore((s) => s.evidence);
-  const uploadEvidence = useScoreStore((s) => s.uploadEvidence);
-  const deleteEvidence = useScoreStore((s) => s.deleteEvidence);
+  const user = useAuthStore((state) => state.user);
+  const criteriaTables = useScoreStore((state) => state.criteriaTables);
+  const assignments = useScoreStore((state) => state.assignments);
+  const scores = useScoreStore((state) => state.scores);
+  const emptyRecord = useScoreStore((state) => state.emptyRecord);
+  const evidence = useScoreStore((state) => state.evidence);
+  const lockedCriteria = useScoreStore((state) => state.lockedCriteria);
+  const saveSelfAssessment = useScoreStore((state) => state.saveSelfAssessment);
+  const uploadEvidence = useScoreStore((state) => state.uploadEvidence);
+  const deleteEvidence = useScoreStore((state) => state.deleteEvidence);
+  const submit = useScoreStore((state) => state.submit);
 
-  const [selectedCriteriaId, setSelectedCriteriaId] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const table = criteriaTables[0];
-
-  const localityEvidence = useMemo(
-    () => evidence.filter((e) => e.localityId === user?.localityId).sort((a, b) => +new Date(b.uploadedAt) - +new Date(a.uploadedAt)),
-    [evidence, user?.localityId],
+  const localityId = user?.localityId;
+  const table = useMemo(
+    () => criteriaTables.find((item) => localityId && assignments[item.id]?.includes(localityId)) ?? null,
+    [criteriaTables, assignments, localityId],
   );
+  const record = table && localityId ? (scores[table.id]?.[localityId] ?? emptyRecord) : emptyRecord;
+  const [editing, setEditing] = useState<EditingRow | null>(null);
+  const [viewing, setViewing] = useState<EditingRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Evidence | null>(null);
+  const [submitOpen, setSubmitOpen] = useState(false);
 
-  if (!user?.localityId) {
-    return (
-      <EmptyState
-        title="Chưa gán địa phương"
-        description="Tài khoản hiện tại chưa được gán địa phương nào."
-        icon={<MapPin className="h-8 w-8" />}
-      />
-    );
+  if (!localityId) {
+    return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương nào." icon={<MapPin className="h-8 w-8" />} />;
   }
-
   if (!table) {
-    return (
-      <EmptyState
-        title="Chưa có bảng tiêu chí"
-        description="Hiện chưa có bảng tiêu chí nào được mở."
-        icon={<FileCheck className="h-8 w-8" />}
-      />
-    );
+    return <EmptyState title="Chưa có nhóm tiêu chí" description="Địa phương chưa được áp dụng nhóm tiêu chí nào." icon={<FileCheck2 className="h-8 w-8" />} />;
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedCriteriaId || !user.localityId) return;
-    const fileUrl = URL.createObjectURL(file);
-    uploadEvidence({
-      criteriaId: selectedCriteriaId,
-      localityId: user.localityId,
-      fileName: file.name,
-      fileUrl,
-    });
-    toast.success('Đã tải lên minh chứng', { description: file.name });
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+  const filesFor = (criteriaId?: string) => evidence.filter(
+    (item) => item.localityId === localityId && item.criteriaId === criteriaId,
+  );
+  const lockedIds = lockedCriteria[table.id]?.[localityId] ?? [];
+  const regularEntries = table.criteria.map((criterion) => record.entries.find((entry) => entry.criteriaId === criterion.id));
+  const complete = regularEntries.every((entry) =>
+    entry && entry.proposedScore !== undefined && entry.explanation?.trim() && filesFor(entry.criteriaId).length > 0,
+  );
+  const editable = record.state === 'DRAFT';
 
-  const handleDelete = (ev: Evidence) => {
-    if (window.confirm(`Xóa minh chứng ${ev.fileName}?`)) {
-      URL.revokeObjectURL(ev.fileUrl);
-      deleteEvidence(ev.id);
-      toast.success('Đã xóa minh chứng');
+  const save = (value: EvidenceFormValue) => {
+    if (!editing?.criterion || !user) return false;
+    if (value.file) {
+      uploadEvidence({
+        criteriaId: editing.criterion.id,
+        localityId,
+        fileName: value.file.name,
+        fileUrl: URL.createObjectURL(value.file),
+        fileSize: value.file.size,
+        description: value.explanation,
+        kind: 'STANDARD',
+      });
     }
+    if (value.bonusFile) {
+      uploadEvidence({
+        criteriaId: editing.criterion.id,
+        localityId,
+        fileName: value.bonusFile.name,
+        fileUrl: URL.createObjectURL(value.bonusFile),
+        fileSize: value.bonusFile.size,
+        description: value.explanation,
+        kind: 'BONUS',
+      });
+    }
+    const ok = saveSelfAssessment({
+      tableId: table.id,
+      localityId,
+      criteriaId: editing.criterion.id,
+      proposedScore: value.proposedScore,
+      proposedBonusScore: value.proposedBonusScore,
+      explanation: value.explanation,
+      actorName: user.name,
+    });
+    if (ok) toast.success('Đã lưu bản nháp', { description: editing.criterion.name });
+    return ok;
   };
-
-  const evidenceByCriteria = (criteriaId: string) =>
-    localityEvidence.filter((e) => e.criteriaId === criteriaId);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Nộp minh chứng"
-        description="Tải lên tài liệu minh chứng cho từng tiêu chí. Các tệp sẽ được liên kết với bảng điểm của địa phương."
+        title="Tự đánh giá & nộp bằng chứng"
+        description="COL.01.02 · Nhập điểm đề xuất, diễn giải và file bằng chứng cho từng tiêu chí."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => toast.success('Đã lưu toàn bộ bản nháp')} disabled={!editable}>
+              <Save className="mr-1.5 h-4 w-4" /> Lưu
+            </Button>
+            <Button onClick={() => setSubmitOpen(true)} disabled={!editable} action="submit" state="DRAFT">
+              <Send className="mr-1.5 h-4 w-4" /> Gửi yêu cầu
+            </Button>
+          </div>
+        }
       />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Upload className="h-4 w-4 text-primary" />
-            Tải lên mới
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="criteria-select">Tiêu chí</Label>
-              <Select
-                value={selectedCriteriaId}
-                onValueChange={(val) => setSelectedCriteriaId(val as string)}
-              >
-                <SelectTrigger id="criteria-select">
-                  <SelectValue placeholder="Chọn tiêu chí...">
-                    {selectedCriteriaId
-                      ? table.criteria.find((c) => c.id === selectedCriteriaId)?.name + ` (tối đa ${table.criteria.find((c) => c.id === selectedCriteriaId)?.maxScore} điểm)`
-                      : 'Chọn tiêu chí...'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {table.criteria.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} (tối đa {c.maxScore} điểm)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="evidence-file">Tệp đính kèm</Label>
-              <Input
-                id="evidence-file"
-                ref={fileInputRef}
-                type="file"
-                disabled={!selectedCriteriaId}
-                onChange={handleFileChange}
-              />
-            </div>
+      <Card className="border-primary/15 bg-gradient-to-r from-primary/[0.05] to-accent/[0.08]">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold text-primary">Nhóm tiêu chí đang áp dụng</p>
+            <h2 className="mt-1 text-lg font-bold">{table.name}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Hạn nộp: {table.closeDate || 'Chưa quy định'} · Tổng điểm tối đa: {table.totalScore}</p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Hỗ trợ tải lên một tệp cho mỗi lần. Có thể nộp nhiều minh chứng cho cùng một tiêu chí.
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Điểm tự đánh giá</p>
+              <p className="text-2xl font-bold tabular-nums">{record.totalScore}</p>
+            </div>
+            <ScoreStateBadge state={record.state} />
+          </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {table.criteria.map((criteria) => {
-          const files = evidenceByCriteria(criteria.id);
-          return (
-            <Card key={criteria.id}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold leading-tight">{criteria.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {files.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Chưa có minh chứng.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {files.map((ev) => (
-                      <li key={ev.id} className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-                        <a
-                          href={ev.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 text-sm hover:underline truncate"
-                          title={ev.fileName}
-                        >
-                          <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{ev.fileName}</span>
-                        </a>
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          action="delete"
-                          className="text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDelete(ev)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {files.length} tệp
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {localityEvidence.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Lịch sử tải lên</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y">
-              {localityEvidence.slice(0, 10).map((ev) => (
-                <li key={ev.id} className="flex items-center justify-between py-3 text-sm">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <a href={ev.fileUrl} target="_blank" rel="noreferrer" className="truncate hover:underline">
-                      {ev.fileName}
-                    </a>
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {formatDate(ev.uploadedAt)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+      {record.revisionRequestedAt && record.state === 'DRAFT' && (
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning-foreground" />
+          <div>
+            <p className="font-semibold">Hồ sơ được mở lại để chỉnh sửa</p>
+            <p className="mt-1 text-sm text-muted-foreground">Các phản hồi được hiển thị tại cột “Diễn giải / phản hồi”. Cập nhật đủ nội dung rồi bấm “Gửi yêu cầu” để nộp lại.</p>
+          </div>
+        </div>
       )}
+
+      <CriterionGrid
+        criteria={table.criteria}
+        record={record}
+        evidence={evidence}
+        localityId={localityId}
+        lockedCriteriaIds={lockedIds}
+        onEdit={editable ? (entry, criterion) => setEditing({ entry, criterion }) : undefined}
+        onEvidence={(entry, criterion) => setViewing({ entry, criterion })}
+      />
+
+      <EvidenceModal
+        open={!!editing}
+        onOpenChange={(open) => { if (!open) setEditing(null); }}
+        criterion={editing?.criterion}
+        entry={editing?.entry}
+        evidence={filesFor(editing?.entry.criteriaId)}
+        onSave={save}
+        onDeleteEvidence={(id) => setDeleteTarget(evidence.find((item) => item.id === id) ?? null)}
+      />
+      <EvidenceModal
+        open={!!viewing}
+        onOpenChange={(open) => { if (!open) setViewing(null); }}
+        criterion={viewing?.criterion}
+        entry={viewing?.entry}
+        evidence={filesFor(viewing?.entry.criteriaId)}
+        readonly
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Xóa bằng chứng"
+        description={`Xóa file “${deleteTarget?.fileName ?? ''}” khỏi bản tự đánh giá?`}
+        confirmLabel="Tiếp tục"
+        cancelLabel="Đóng"
+        variant="destructive"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteEvidence(deleteTarget.id);
+          toast.success('Đã xóa bằng chứng');
+          setDeleteTarget(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        title="Gửi yêu cầu"
+        description={complete ? 'Xác nhận nộp báo cáo tự đánh giá lên cấp chuyên viên?' : 'Chưa đủ điều kiện gửi: mỗi tiêu chí phải có điểm đề xuất, diễn giải và ít nhất một file bằng chứng.'}
+        confirmLabel="Tiếp tục"
+        cancelLabel="Đóng"
+        onConfirm={() => {
+          if (!complete || !user) {
+            toast.error('Hồ sơ chưa đủ điều kiện gửi');
+            return;
+          }
+          submit(table.id, localityId, user.name, user.role);
+          toast.success('Đã gửi yêu cầu', { description: 'Báo cáo đã chuyển lên cấp chuyên viên.' });
+        }}
+      />
     </div>
   );
 }

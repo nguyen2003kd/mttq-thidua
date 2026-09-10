@@ -5,18 +5,18 @@ import {
   PageHeader,
   DataTable,
   EmptyState,
-  ConfirmDialog,
   ScoreStateBadge,
   RejectDialog,
   AuditTimelineDialog,
 } from '@/components/core';
 import { Button } from '@/components/core';
-import { PUBLISH_CONFIRM_KEYWORD } from '@/constants/enums';
 import { toast } from 'sonner';
 import { Trophy, X, History } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable, Locality } from '@/types/domain';
 import type { ScoreRecord } from '@/store/scoreStore';
+import type { CriteriaTableAttachment } from '@/types/domain';
+import { PublishResultModal } from '@/features/workflow/components';
 
 interface ApprovalRow {
   table: CriteriaTable;
@@ -54,9 +54,9 @@ export default function StandingCommitteePage() {
     return list;
   }, [criteriaTables, localities, assignments, getScore]);
 
-  const handlePublish = () => {
+  const handlePublish = (attachments: CriteriaTableAttachment[]) => {
     if (!user || !publishRow) return;
-    publish(publishRow.table.id, publishRow.locality.id, user.name, user.role);
+    publish(publishRow.table.id, publishRow.locality.id, user.name, user.role, attachments);
     toast.success('Đã công bố kết quả', { description: `${publishRow.locality.name} đã được công bố.` });
     setPublishRow(null);
   };
@@ -128,21 +128,15 @@ export default function StandingCommitteePage() {
           icon={<Trophy className="h-8 w-8" />}
         />
       ) : (
-        <DataTable data={rows} columns={columns} pageSize={10} className="overflow-auto" />
+        <DataTable data={rows} columns={columns} pageSize={10} className="overflow-auto" searchable searchPlaceholder="Tìm kiếm địa phương..." />
       )}
 
-      <ConfirmDialog
+      <PublishResultModal
         open={!!publishRow}
         onOpenChange={(v) => setPublishRow(v ? publishRow : null)}
-        title="Công bố kết quả"
-        description="Sau khi công bố, kết quả sẽ không thể chỉnh sửa. Hành động này không thể hoàn tác."
-        confirmLabel="Công bố"
-        variant="destructive"
-        action="publish"
-        state="CHO_DUYET_BTT"
-        confirmKeyword={PUBLISH_CONFIRM_KEYWORD}
-        confirmKeywordHint={`Nhập "${PUBLISH_CONFIRM_KEYWORD}" để xác nhận công bố`}
-        onConfirm={handlePublish}
+        locality={publishRow?.locality}
+        record={publishRow?.record}
+        onPublish={handlePublish}
       />
 
       <RejectDialog

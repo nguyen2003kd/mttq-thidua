@@ -89,7 +89,7 @@ export function CriteriaChildrenDialog({ open, onOpenChange, items, totalScore, 
         </DialogHeader>
         <form onSubmit={handleSave} className="space-y-4">
           <div className="rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2.5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nhóm tiêu chí</p>
+            <p className="text-xs font-medium text-muted-foreground">Nhóm tiêu chí</p>
             <p className="mt-0.5 font-semibold text-foreground">{criteriaGroupName}</p>
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-muted/35 px-3 py-2.5">

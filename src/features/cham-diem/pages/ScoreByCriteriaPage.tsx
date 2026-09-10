@@ -1,197 +1,82 @@
-import { useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Building2, Eye, FileSearch, History, Search } from 'lucide-react';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, EmptyState, ScoreStateBadge } from '@/components/core';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/core';
-import { ROUTES } from '@/constants/routes';
-import { LABELS } from '@/constants/labels';
-import { toast } from 'sonner';
+import { PageHeader, EmptyState, Button, ScoreStateBadge } from '@/components/core';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileCheck, ArrowLeft, Send, AlertCircle } from 'lucide-react';
-import { ScoreInput } from '@/features/cham-diem/components/ScoreInput';
-import { isRecordComplete } from '@/lib/state-machine';
-import type { CriteriaTable, Locality } from '@/types/domain';
-import type { ScoreRecord } from '@/types/domain';
-import type { Role, AuthUser } from '@/types/rbac';
+import { AuditTrailPopup } from '@/features/workflow/components';
+import type { Locality } from '@/types/domain';
 
 export default function ScoreByCriteriaPage() {
   const { id } = useParams<{ id?: string }>();
-  const user = useAuthStore((s) => s.user);
-  const criteriaTables = useScoreStore((s) => s.criteriaTables);
-  const localities = useScoreStore((s) => s.localities);
-  const assignments = useScoreStore((s) => s.assignments);
-  const scores = useScoreStore((s) => s.scores);
-  const emptyRecord = useScoreStore((s) => s.emptyRecord);
-  const scoreCriterion = useScoreStore((s) => s.scoreCriterion);
-  const submit = useScoreStore((s) => s.submit);
+  const criteriaTables = useScoreStore((state) => state.criteriaTables);
+  const localities = useScoreStore((state) => state.localities);
+  const assignments = useScoreStore((state) => state.assignments);
+  const scores = useScoreStore((state) => state.scores);
+  const emptyRecord = useScoreStore((state) => state.emptyRecord);
+  const audits = useScoreStore((state) => state.audits);
+  const [search, setSearch] = useState('');
+  const [historyLocality, setHistoryLocality] = useState<Locality | null>(null);
 
-  const table = useMemo(() => criteriaTables.find((t) => t.id === id), [criteriaTables, id]);
-
-  if (!id) {
-    return (
-      <div className="space-y-6">
-        <PageHeader title={LABELS.SCORE_GRID_TITLE} description="Chọn bảng tiêu chí để bắt đầu chấm điểm." />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {criteriaTables.map((t) => (
-            <Card key={t.id} className="hover:border-primary/50 cursor-pointer transition-colors">
-              <CardHeader>
-                <CardTitle className="text-base">{t.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">Tổng điểm: {t.totalScore}</p>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  render={<Link to={ROUTES.CHAM_DIEM_BY_CRITERIA.replace(':id', t.id)} />}
-                  nativeButton={false}
-                >
-                  Chấm điểm
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const table = criteriaTables.find((item) => item.id === id) ?? criteriaTables[0];
+  const rows = useMemo(() => {
+    if (!table) return [];
+    const keyword = search.trim().toLocaleLowerCase('vi');
+    return localities
+      .filter((locality) => assignments[table.id]?.includes(locality.id))
+      .filter((locality) => !keyword || `${locality.name} ${locality.code}`.toLocaleLowerCase('vi').includes(keyword))
+      .map((locality) => ({ locality, record: scores[table.id]?.[locality.id] ?? emptyRecord }));
+  }, [table, search, localities, assignments, scores, emptyRecord]);
 
   if (!table) {
-    return (
-      <EmptyState
-        title="Không tìm thấy bảng tiêu chí"
-        description="Bảng tiêu chí không tồn tại hoặc đã bị xóa."
-        icon={<AlertCircle className="h-8 w-8" />}
-      />
-    );
+    return <EmptyState title="Chưa có nhóm tiêu chí" description="Tạo và áp dụng nhóm tiêu chí trước khi chấm điểm." icon={<FileSearch className="h-8 w-8" />} />;
   }
 
-  const assignedIds = assignments[table.id] ?? [];
-  const assignedLocalities = localities.filter((l) => assignedIds.includes(l.id));
+  const waiting = rows.filter((row) => row.record.state === 'CHO_CHUYEN_VIEN').length;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`${LABELS.SCORE_GRID_TITLE}: ${table.name}`}
-        description={`Nhập điểm cho từng địa phương theo tiêu chí (tối đa ${table.totalScore} điểm).`}
-        actions={
-          <Button
-            variant="outline"
-            render={<Link to={ROUTES.DASHBOARD_OVERVIEW} />}
-            nativeButton={false}
-          >
-            <ArrowLeft className="h-4 w-4 ml-2" /> Quay lại
-          </Button>
-        }
-      />
+      <PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Chọn địa phương để xem nhóm tiêu chí, bằng chứng và thực hiện chấm điểm." />
 
-      {assignedLocalities.length === 0 ? (
-        <EmptyState
-          title="Chưa gán địa phương"
-          description="Bảng tiêu chí này chưa được gán địa phương nào."
-          icon={<FileCheck className="h-8 w-8" />}
-        />
-      ) : (
-        <Card>
-          <CardContent className="p-0 overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[180px]">Địa phương</TableHead>
-                  {table.criteria.map((c) => (
-                    <TableHead key={c.id} className="text-center min-w-[120px]">
-                      <div className="text-xs font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">tối đa {c.maxScore}</div>
-                    </TableHead>
-                  ))}
-                  <TableHead className="text-center">Tổng</TableHead>
-                  <TableHead className="text-center">Trạng thái</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Địa phương đã áp dụng</p><p className="mt-1 text-2xl font-bold">{rows.length}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Chờ chuyên viên</p><p className="mt-1 text-2xl font-bold text-primary">{waiting}</p></CardContent></Card>
+        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Đã chuyển cấp trên</p><p className="mt-1 text-2xl font-bold">{rows.length - waiting}</p></CardContent></Card>
+      </div>
+
+      <div className="rounded-xl border bg-card">
+        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">{table.name}</p>
+            <p className="text-xs text-muted-foreground">Danh sách địa phương</p>
+          </div>
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm kiếm địa phương..." className="pl-9" />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader><TableRow className="bg-muted/35"><TableHead>Địa phương</TableHead><TableHead>Mã</TableHead><TableHead className="text-center">Tổng điểm hiện tại</TableHead><TableHead className="text-center">Trạng thái</TableHead><TableHead className="text-right">Thao tác</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {rows.map(({ locality, record }) => (
+                <TableRow key={locality.id}>
+                  <TableCell><div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" /><span className="font-medium">{locality.name}</span></div></TableCell>
+                  <TableCell className="text-muted-foreground">{locality.code}</TableCell>
+                  <TableCell className="text-center font-semibold tabular-nums">{record.totalScore}</TableCell>
+                  <TableCell className="text-center"><ScoreStateBadge state={record.state} /></TableCell>
+                  <TableCell><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setHistoryLocality(locality)}><History className="mr-1.5 h-3.5 w-3.5" />Lịch sử</Button><Button size="sm" render={<Link to={`/thi-dua/cham-diem/theo-dia-phuong/${locality.id}`} />} nativeButton={false}><Eye className="mr-1.5 h-3.5 w-3.5" />Xem chi tiết</Button></div></TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assignedLocalities.map((loc) => (
-                  <ScoreRow
-                    key={loc.id}
-                    table={table}
-                    locality={loc}
-                    record={scores[table.id]?.[loc.id] ?? emptyRecord}
-                    user={user}
-                    scoreCriterion={scoreCriterion}
-                    submit={submit}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+              ))}
+              {rows.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">Không tìm thấy địa phương phù hợp.</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <AuditTrailPopup open={!!historyLocality} onOpenChange={(open) => { if (!open) setHistoryLocality(null); }} title={historyLocality?.name} entries={historyLocality ? audits.filter((item) => item.fieldName.endsWith(` - ${historyLocality.id}`)) : []} />
     </div>
-  );
-}
-
-function ScoreRow({
-  table,
-  locality,
-  record,
-  user,
-  scoreCriterion,
-  submit,
-}: {
-  table: CriteriaTable;
-  locality: Locality;
-  record: ScoreRecord;
-  user: AuthUser | null;
-  scoreCriterion: (tableId: string, localityId: string, criteriaId: string, value: number, scoredBy: string, actorRole: Role) => void;
-  submit: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
-}) {
-  const editable = record.state === 'DRAFT';
-
-  return (
-    <TableRow>
-      <TableCell className="font-medium">
-        <div>{locality.name}</div>
-        <div className="text-xs text-muted-foreground">{locality.region}</div>
-      </TableCell>
-      {table.criteria.map((c) => {
-        const entry = record.entries.find((e) => e.criteriaId === c.id);
-        const value = entry?.value ?? '';
-        return (
-          <TableCell key={c.id} className="text-center">
-            <ScoreInput
-              value={value}
-              max={c.maxScore}
-              disabled={!editable}
-              onChange={(v) => {
-                if (!user) return;
-                scoreCriterion(table.id, locality.id, c.id, v, user.name, user.role);
-              }}
-            />
-          </TableCell>
-        );
-      })}
-      <TableCell className="text-center font-semibold tabular-nums">{record.totalScore}</TableCell>
-      <TableCell className="text-center">
-        <ScoreStateBadge state={record.state} />
-      </TableCell>
-      <TableCell className="text-right">
-        {record.state === 'DRAFT' && isRecordComplete(table, record) && (
-          <Button
-            size="sm"
-            action="submit"
-            state="DRAFT"
-            onClick={() => {
-              if (!user) return;
-              submit(table.id, locality.id, user.name, user.role);
-              toast.success('Đã nộp bảng điểm cho địa phương');
-            }}
-          >
-            <Send className="h-3.5 w-3.5 mr-1.5" />
-            Nộp
-          </Button>
-        )}
-      </TableCell>
-    </TableRow>
   );
 }

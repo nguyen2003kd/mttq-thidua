@@ -21,6 +21,14 @@ const actionColor: Record<string, string> = {
   PUBLISH: 'bg-primary/10 text-primary',
 };
 
+const actionSentence: Record<string, string> = {
+  SCORE: 'đã chấm điểm',
+  EDIT: 'đã sửa điểm',
+  APPROVE: 'đã gửi duyệt',
+  REJECT: 'đã yêu cầu bổ sung',
+  PUBLISH: 'đã công bố kết quả',
+};
+
 export function AuditTimeline({ entries }: { entries: AuditEntry[] }) {
   if (entries.length === 0) {
     return (
@@ -50,10 +58,7 @@ export function AuditTimeline({ entries }: { entries: AuditEntry[] }) {
           {/* Content */}
           <div className="flex-1 space-y-1 pt-0.5">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{entry.actorName}</span>
-              <span className="text-xs text-muted-foreground">
-                {ACTION_LABELS[entry.action]}
-              </span>
+              <span className="text-sm font-medium">{entry.actorName} {actionSentence[entry.action] ?? ACTION_LABELS[entry.action].toLocaleLowerCase('vi')}</span>
             </div>
             <p className="text-xs text-muted-foreground">
               {formatDateTime(entry.timestamp)}

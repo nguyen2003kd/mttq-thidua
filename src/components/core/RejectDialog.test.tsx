@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 
 beforeEach(() => {
   useAuthStore.setState({
-    user: { id: 'u', name: 'Lãnh đạo Ban', role: 'BAN_LEADER', banId: 'ban1' },
+    user: { id: 'u', name: 'Lãnh đạo', role: 'LEADER', banId: 'ban1' },
     token: 't',
     refreshToken: 'r',
   });

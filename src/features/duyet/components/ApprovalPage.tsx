@@ -13,12 +13,14 @@ import {
 import { Button } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { X, History, Building2, ClipboardCheck, Landmark, Send, Trophy } from 'lucide-react';
+import { X, History, Building2, ClipboardCheck, Landmark, Send, Trophy, Eye, FilePlus2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { CriteriaTable, Locality } from '@/types/domain';
+import type { CriteriaItem, CriteriaTable, Locality, ScoreEntry, ScoringStage } from '@/types/domain';
 import type { ScoreRecord } from '@/store/scoreStore';
 import type { ScoreState } from '@/types/rbac';
 import type { Action } from '@/lib/rbac';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CriterionGrid, EvidenceModal, ReviewScoreModal, SupplementaryCriterionModal } from '@/features/workflow/components';
 
 interface ApprovalRow {
   table: CriteriaTable;
@@ -47,6 +49,7 @@ interface ApprovalPageConfig {
 
 const REVIEW_STAGES = [
   { state: 'DRAFT', label: 'Địa phương nộp', icon: Building2 },
+  { state: 'CHO_CHUYEN_VIEN', label: 'Chuyên viên', icon: ClipboardCheck },
   { state: 'CHO_DUYET_BAN', label: 'Lãnh đạo ban', icon: ClipboardCheck },
   { state: 'CHO_DUYET_HOI_DONG', label: 'Hội đồng TĐKT', icon: Landmark },
   { state: 'CHO_DUYET_BTT', label: 'Ban thường trực', icon: Send },
@@ -64,12 +67,26 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const approve = useScoreStore((s) => s.approve);
   const publish = useScoreStore((s) => s.publish);
   const reject = useScoreStore((s) => s.reject);
+  const evidence = useScoreStore((s) => s.evidence);
+  const reviewCriterion = useScoreStore((s) => s.reviewCriterion);
+  const addSupplementaryCriterion = useScoreStore((s) => s.addSupplementaryCriterion);
 
   const [rejectRow, setRejectRow] = useState<ApprovalRow | null>(null);
   const [diffRow, setDiffRow] = useState<ApprovalRow | null>(null);
   const [confirmRow, setConfirmRow] = useState<ApprovalRow | null>(null);
+  const [detailRow, setDetailRow] = useState<ApprovalRow | null>(null);
+  const [editing, setEditing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
+  const [viewing, setViewing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
+  const [supplementaryOpen, setSupplementaryOpen] = useState(false);
 
-  const canApprove = !config.requireChair || user?.role === 'COUNCIL_CHAIR' || user?.role === 'ADMIN';
+  const scoringStage: Exclude<ScoringStage, 'LOCAL' | 'SPECIALIST'> =
+    config.targetState === 'CHO_DUYET_BAN'
+      ? 'LEADER'
+      : config.targetState === 'CHO_DUYET_HOI_DONG'
+        ? 'COUNCIL'
+        : 'COMMITTEE';
+
+  const canApprove = !config.requireChair || user?.role === 'COUNCIL';
 
   const rows = useMemo(() => {
     const list: ApprovalRow[] = [];
@@ -131,6 +148,10 @@ export function ApprovalPage(config: ApprovalPageConfig) {
         meta: { align: 'right' },
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDetailRow(row.original)}>
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              Xem chi tiết
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setDiffRow(row.original)}>
               <History className="h-3.5 w-3.5 mr-1.5" />
               Lịch sử
@@ -181,7 +202,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
       <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.06] via-background to-accent/[0.10]">
         <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Trung tâm xét duyệt</p>
+            <p className="text-xs font-semibold text-primary">Trung tâm xét duyệt</p>
             <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
               <p className="text-3xl font-bold tabular-nums">{rows.length}</p>
               <p className="pb-1 text-sm text-muted-foreground">hồ sơ đang chờ bạn xử lý</p>
@@ -199,7 +220,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           </div>
         </CardContent>
         <div className="border-t bg-background/55 px-5 py-4">
-          <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
             {REVIEW_STAGES.map((stage, index) => {
               const Icon = stage.icon;
               const complete = index < activeStage;
@@ -233,7 +254,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           icon={<EmptyIcon className="h-8 w-8" />}
         />
       ) : (
-        <DataTable data={rows} columns={columns} pageSize={10} className="overflow-auto" />
+        <DataTable data={rows} columns={columns} pageSize={10} className="overflow-auto" searchable searchPlaceholder="Tìm kiếm địa phương hoặc nhóm tiêu chí..." />
       )}
 
       {config.useConfirmDialog && (
@@ -272,6 +293,66 @@ export function ApprovalPage(config: ApprovalPageConfig) {
             ? audits.filter((a) => a.fieldName.endsWith(` - ${diffRow.locality.id}`))
             : []
         }
+      />
+
+      <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) setDetailRow(null); }}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Thẩm định chi tiết — {detailRow?.locality.name}</DialogTitle>
+          </DialogHeader>
+          {detailRow && (() => {
+            const liveRecord = scores[detailRow.table.id]?.[detailRow.locality.id] ?? detailRow.record;
+            return (
+              <div className="space-y-4 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                  <div><p className="font-semibold">{detailRow.table.name}</p><p className="text-xs text-muted-foreground">Điểm hiện tại: {liveRecord.totalScore}</p></div>
+                  <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="mr-1.5 h-4 w-4" />Thêm tiêu chí bổ sung</Button>
+                </div>
+                <CriterionGrid
+                  criteria={detailRow.table.criteria}
+                  record={liveRecord}
+                  evidence={evidence}
+                  localityId={detailRow.locality.id}
+                  mode="review"
+                  onEdit={(entry, criterion) => setEditing({ entry, criterion })}
+                  onEvidence={(entry, criterion) => setViewing({ entry, criterion })}
+                />
+              </div>
+            );
+          })()}
+          <DialogFooter><Button variant="outline" onClick={() => setDetailRow(null)}>Đóng</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ReviewScoreModal
+        open={!!editing}
+        onOpenChange={(open) => { if (!open) setEditing(null); }}
+        entry={editing?.entry}
+        criterion={editing?.criterion}
+        onSave={(value) => {
+          if (!detailRow || !editing || !user) return false;
+          const ok = reviewCriterion({ tableId: detailRow.table.id, localityId: detailRow.locality.id, criteriaId: editing.entry.criteriaId, ...value, stage: scoringStage, actorName: user.name, actorRole: user.role });
+          if (ok) toast.success('Đã lưu điểm thẩm định');
+          return ok;
+        }}
+      />
+      <EvidenceModal
+        open={!!viewing}
+        onOpenChange={(open) => { if (!open) setViewing(null); }}
+        entry={viewing?.entry}
+        criterion={viewing?.criterion}
+        evidence={detailRow && viewing ? evidence.filter((item) => item.localityId === detailRow.locality.id && item.criteriaId === viewing.entry.criteriaId) : []}
+        readonly
+      />
+      <SupplementaryCriterionModal
+        open={supplementaryOpen}
+        onOpenChange={setSupplementaryOpen}
+        onSave={({ file, ...value }) => {
+          if (!detailRow || !user) return false;
+          const ok = addSupplementaryCriterion({ tableId: detailRow.table.id, localityId: detailRow.locality.id, ...value, fileName: file.name, fileSize: file.size, actorName: user.name, actorRole: user.role, stage: scoringStage });
+          if (ok) toast.success('Đã thêm tiêu chí bổ sung');
+          return ok;
+        }}
       />
     </div>
   );

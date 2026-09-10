@@ -1,10 +1,16 @@
 export const ROUTES = {
+  // Route chuẩn theo FSD cho hai phân quyền MVP
+  SPECIALIST_CRITERIA: '/chuyen-vien/tieu-chi',
+  SPECIALIST_REVIEW: '/chuyen-vien/duyet',
+  SPECIALIST_HISTORY: '/chuyen-vien/lich-su',
+  LOCALITY_CRITERIA: '/dia-phuong/tieu-chi',
+  LOCALITY_RESULTS: '/dia-phuong/ket-qua',
+
   // Admin
   ADMIN_CRITERIA_LIST: '/thi-dua/admin/bang-tieu-chi',
   ADMIN_CRITERIA_DETAIL: '/thi-dua/admin/bang-tieu-chi/:id/chi-tiet',
   ADMIN_CRITERIA_FORM: '/thi-dua/admin/bang-tieu-chi/:id',
   ADMIN_CRITERIA_NEW: '/thi-dua/admin/bang-tieu-chi/new',
-  ADMIN_ASSIGN_LOCALITY: '/thi-dua/admin/bang-tieu-chi/:id/gan-dia-phuong',
   // NOTE: ADMIN_CRITERIA_NEW trỏ tới route `bang-tieu-chi/:id` với id="new";
   // CriteriaFormPage tự nhận biết qua `id === 'new'`. Không có route literal riêng.
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',

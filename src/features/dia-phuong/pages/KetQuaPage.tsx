@@ -5,9 +5,9 @@ import { PageHeader, AuditTimeline, EmptyState, StatCard, LocalityStatusBadge } 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toLocalityStatus } from '@/lib/state-machine';
 import { formatDate } from '@/lib/utils';
-import { cn } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { Trophy, FileText, FileCheck, MapPin, Medal, Calendar } from 'lucide-react';
+import { CriterionGrid } from '@/features/workflow/components';
 
 export default function KetQuaPage() {
   const { nam } = useParams();
@@ -16,6 +16,7 @@ export default function KetQuaPage() {
   const getScore = useScoreStore((s) => s.getScore);
   const getRanking = useScoreStore((s) => s.getRanking);
   const getAuditsForLocality = useScoreStore((s) => s.getAuditsForLocality);
+  const evidence = useScoreStore((s) => s.evidence);
 
   if (!user?.localityId) {
     return (
@@ -67,39 +68,16 @@ export default function KetQuaPage() {
         />
       </div>
 
-      <Card>
+      {record.state !== 'DA_CONG_BO' ? (
+        <Card><CardContent className="p-8 text-center"><Trophy className="mx-auto h-9 w-9 text-muted-foreground" /><p className="mt-3 font-semibold">Kết quả chưa được công bố</p><p className="mt-1 text-sm text-muted-foreground">Điểm đang trong quy trình thẩm định và chỉ hiển thị chính thức sau khi Ủy ban Thường trực công bố.</p></CardContent></Card>
+      ) : <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">{LABELS.LOCALITY_RESULT_BREAKDOWN}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-5">
-            {table.criteria.map((criteria) => {
-              const entry = record.entries.find((e) => e.criteriaId === criteria.id);
-              const value = entry?.value ?? 0;
-              const percent = Math.round((value / criteria.maxScore) * 100);
-              return (
-                <div key={criteria.id} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{criteria.name}</span>
-                    <span className="tabular-nums text-muted-foreground">
-                      {value} / {criteria.maxScore}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn('h-full rounded-full transition-all', percent >= 80 ? 'bg-success' : percent >= 50 ? 'bg-primary' : 'bg-warning')}
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Minh chứng: {entry?.evidenceCount ?? 0} | Chấm bởi {entry?.scoredBy || '—'}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          <CriterionGrid criteria={table.criteria} record={record} evidence={evidence} localityId={user.localityId} mode="result" />
         </CardContent>
-      </Card>
+      </Card>}
 
       {record.state === 'DA_CONG_BO' && (
         <Card>
@@ -113,6 +91,11 @@ export default function KetQuaPage() {
             <p className="text-sm text-muted-foreground">
               Quyết định công nhận thành tích đã được ban hành vào {record.publishedAt ? formatDate(record.publishedAt) : '—'}.
             </p>
+            <div className="mt-3 space-y-2">
+              {(record.decisionAttachments ?? []).map((file) => (
+                <div key={file.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"><FileText className="h-4 w-4 text-primary" />{file.fileName}</div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

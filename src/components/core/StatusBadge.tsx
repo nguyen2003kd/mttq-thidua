@@ -17,10 +17,20 @@ type BadgeVariant = VariantProps<typeof badgeVariants>['variant'];
 
 const scoreStateVariant: Record<ScoreState, BadgeVariant> = {
   DRAFT: 'secondary',
-  CHO_DUYET_BAN: 'info',
-  CHO_DUYET_HOI_DONG: 'info',
-  CHO_DUYET_BTT: 'warning',
-  DA_CONG_BO: 'success',
+  CHO_CHUYEN_VIEN: 'warning',
+  CHO_DUYET_BAN: 'warning',
+  CHO_DUYET_HOI_DONG: 'warning',
+  CHO_DUYET_BTT: 'success',
+  DA_CONG_BO: 'secondary',
+};
+
+const scoreStateClassName: Record<ScoreState, string> = {
+  DRAFT: 'border-transparent bg-[#9CA3AF]/15 text-[#626A76]',
+  CHO_CHUYEN_VIEN: 'border-transparent bg-[#E8B923]/20 text-[#6E570B]',
+  CHO_DUYET_BAN: 'border-transparent bg-[#E8B923]/20 text-[#6E570B]',
+  CHO_DUYET_HOI_DONG: 'border-transparent bg-[#E8B923]/20 text-[#6E570B]',
+  CHO_DUYET_BTT: 'border-transparent bg-[#2E7D5B]/15 text-[#2E7D5B]',
+  DA_CONG_BO: 'border-transparent bg-[#2D2A26] text-white',
 };
 
 const localityStatusVariant: Record<LocalityStatus, BadgeVariant> = {
@@ -44,7 +54,7 @@ const actionVariant: Record<ActionType, BadgeVariant> = {
 };
 
 export function ScoreStateBadge({ state }: { state: ScoreState }) {
-  return <Badge variant={scoreStateVariant[state]}>{SCORE_STATE_LABELS[state]}</Badge>;
+  return <Badge variant={scoreStateVariant[state]} className={scoreStateClassName[state]}>{SCORE_STATE_LABELS[state]}</Badge>;
 }
 
 export function LocalityStatusBadge({ status }: { status: LocalityStatus }) {

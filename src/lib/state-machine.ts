@@ -14,16 +14,20 @@ interface TransitionDef {
  * UI và mock server đều tra bảng này, không tự chế if-else.
  */
 export const TRANSITIONS: readonly TransitionDef[] = [
-  { from: 'DRAFT', action: 'submit', to: 'CHO_DUYET_BAN' },
+  { from: 'DRAFT', action: 'submit', to: 'CHO_CHUYEN_VIEN' },
+
+  { from: 'CHO_CHUYEN_VIEN', action: 'submit', to: 'CHO_DUYET_BAN' },
+  { from: 'CHO_CHUYEN_VIEN', action: 'reject', to: 'DRAFT' },
 
   { from: 'CHO_DUYET_BAN', action: 'approve', to: 'CHO_DUYET_HOI_DONG' },
-  { from: 'CHO_DUYET_BAN', action: 'reject', to: 'DRAFT' },
+  // B0: mọi yêu cầu chỉnh sửa từ cấp trên đều quay về Chuyên viên.
+  { from: 'CHO_DUYET_BAN', action: 'reject', to: 'CHO_CHUYEN_VIEN' },
 
   { from: 'CHO_DUYET_HOI_DONG', action: 'approve', to: 'CHO_DUYET_BTT' },
-  { from: 'CHO_DUYET_HOI_DONG', action: 'reject', to: 'CHO_DUYET_BAN' },
+  { from: 'CHO_DUYET_HOI_DONG', action: 'reject', to: 'CHO_CHUYEN_VIEN' },
 
   { from: 'CHO_DUYET_BTT', action: 'publish', to: 'DA_CONG_BO' },
-  { from: 'CHO_DUYET_BTT', action: 'reject', to: 'CHO_DUYET_HOI_DONG' },
+  { from: 'CHO_DUYET_BTT', action: 'reject', to: 'CHO_CHUYEN_VIEN' },
 ] as const;
 
 export function canTransition(from: ScoreState, action: WorkflowAction): boolean {

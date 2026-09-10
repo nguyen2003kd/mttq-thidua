@@ -15,14 +15,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  DeleteUser200,
-  ErrorResponse,
-  GetUsersParams,
-  ResetPasswordResponse,
-  UserCreateBody,
-  UserListResponse,
-  UserResponse,
-  UserUpdateBody
+  CreateUserRequest,
+  GetApiV1UsersParams,
+  ResetPasswordRequest,
+  UpdateUserRequest
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
@@ -48,17 +44,13 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-/**
- * Retrieve paginated list of users. Admin only.
- * @summary Get all users
- */
-export const getUsers = (
-    params?: GetUsersParams,
+export const getApiV1Users = (
+    params?: GetApiV1UsersParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
-      return mainInstance<UserListResponse>(
+      return mainInstance<void>(
       {url: `/api/v1/users`, method: 'GET',
         params, signal
     },
@@ -68,69 +60,66 @@ export const getUsers = (
 
 
 
-export const getGetUsersQueryKey = (params?: GetUsersParams,) => {
+export const getGetApiV1UsersQueryKey = (params?: GetApiV1UsersParams,) => {
     return [
     `/api/v1/users`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetUsersQueryOptions = <TData = Awaited<ReturnType<typeof getUsers>>, TError = ErrorResponse>(params?: GetUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const getGetApiV1UsersQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Users>>, TError = unknown>(params?: GetApiV1UsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Users>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetUsersQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getGetApiV1UsersQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsers>>> = ({ signal }) => getUsers(params, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1Users>>> = ({ signal }) => getApiV1Users(params, requestOptions, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1Users>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getUsers>>>
-export type GetUsersQueryError = ErrorResponse
+export type GetApiV1UsersQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1Users>>>
+export type GetApiV1UsersQueryError = unknown
 
 
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = ErrorResponse>(
- params: undefined |  GetUsersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+export function useGetApiV1Users<TData = Awaited<ReturnType<typeof getApiV1Users>>, TError = unknown>(
+ params: undefined |  GetApiV1UsersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Users>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUsers>>,
+          Awaited<ReturnType<typeof getApiV1Users>>,
           TError,
-          Awaited<ReturnType<typeof getUsers>>
+          Awaited<ReturnType<typeof getApiV1Users>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = ErrorResponse>(
- params?: GetUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+export function useGetApiV1Users<TData = Awaited<ReturnType<typeof getApiV1Users>>, TError = unknown>(
+ params?: GetApiV1UsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Users>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUsers>>,
+          Awaited<ReturnType<typeof getApiV1Users>>,
           TError,
-          Awaited<ReturnType<typeof getUsers>>
+          Awaited<ReturnType<typeof getApiV1Users>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = ErrorResponse>(
- params?: GetUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function useGetApiV1Users<TData = Awaited<ReturnType<typeof getApiV1Users>>, TError = unknown>(
+ params?: GetApiV1UsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Users>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get all users
- */
 
-export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = ErrorResponse>(
- params?: GetUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function useGetApiV1Users<TData = Awaited<ReturnType<typeof getApiV1Users>>, TError = unknown>(
+ params?: GetApiV1UsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Users>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetUsersQueryOptions(params,options)
+  const queryOptions = getGetApiV1UsersQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -142,19 +131,16 @@ export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError
 
 
 
-/**
- * @summary Create a user
- */
-export const createUser = (
-    userCreateBody: UserCreateBody,
+export const postApiV1Users = (
+    createUserRequest?: CreateUserRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
-      return mainInstance<UserResponse>(
+      return mainInstance<void>(
       {url: `/api/v1/users`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: userCreateBody, signal
+      data: createUserRequest, signal
     },
       options);
     }
@@ -162,69 +148,66 @@ export const createUser = (
 
 
 
-export const getCreateUserQueryKey = (userCreateBody?: UserCreateBody,) => {
+export const getPostApiV1UsersQueryKey = (createUserRequest?: CreateUserRequest,) => {
     return [
-    'POST', `/api/v1/users`, userCreateBody
+    'POST', `/api/v1/users`, createUserRequest
     ] as const;
     }
 
 
-export const getCreateUserQueryOptions = <TData = Awaited<ReturnType<typeof createUser>>, TError = ErrorResponse>(userCreateBody: UserCreateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof createUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const getPostApiV1UsersQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1Users>>, TError = unknown>(createUserRequest?: CreateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1Users>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getCreateUserQueryKey(userCreateBody);
+  const queryKey =  queryOptions?.queryKey ?? getPostApiV1UsersQueryKey(createUserRequest);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof createUser>>> = ({ signal }) => createUser(userCreateBody, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1Users>>> = ({ signal }) => postApiV1Users(createUserRequest, requestOptions, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof createUser>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1Users>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type CreateUserQueryResult = NonNullable<Awaited<ReturnType<typeof createUser>>>
-export type CreateUserQueryError = ErrorResponse
+export type PostApiV1UsersQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1Users>>>
+export type PostApiV1UsersQueryError = unknown
 
 
-export function useCreateUser<TData = Awaited<ReturnType<typeof createUser>>, TError = ErrorResponse>(
- userCreateBody: UserCreateBody, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof createUser>>, TError, TData>> & Pick<
+export function usePostApiV1Users<TData = Awaited<ReturnType<typeof postApiV1Users>>, TError = unknown>(
+ createUserRequest: undefined |  CreateUserRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1Users>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof createUser>>,
+          Awaited<ReturnType<typeof postApiV1Users>>,
           TError,
-          Awaited<ReturnType<typeof createUser>>
+          Awaited<ReturnType<typeof postApiV1Users>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCreateUser<TData = Awaited<ReturnType<typeof createUser>>, TError = ErrorResponse>(
- userCreateBody: UserCreateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof createUser>>, TError, TData>> & Pick<
+export function usePostApiV1Users<TData = Awaited<ReturnType<typeof postApiV1Users>>, TError = unknown>(
+ createUserRequest?: CreateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1Users>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof createUser>>,
+          Awaited<ReturnType<typeof postApiV1Users>>,
           TError,
-          Awaited<ReturnType<typeof createUser>>
+          Awaited<ReturnType<typeof postApiV1Users>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCreateUser<TData = Awaited<ReturnType<typeof createUser>>, TError = ErrorResponse>(
- userCreateBody: UserCreateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof createUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function usePostApiV1Users<TData = Awaited<ReturnType<typeof postApiV1Users>>, TError = unknown>(
+ createUserRequest?: CreateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1Users>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Create a user
- */
 
-export function useCreateUser<TData = Awaited<ReturnType<typeof createUser>>, TError = ErrorResponse>(
- userCreateBody: UserCreateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof createUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function usePostApiV1Users<TData = Awaited<ReturnType<typeof postApiV1Users>>, TError = unknown>(
+ createUserRequest?: CreateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1Users>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getCreateUserQueryOptions(userCreateBody,options)
+  const queryOptions = getPostApiV1UsersQueryOptions(createUserRequest,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -236,17 +219,13 @@ export function useCreateUser<TData = Awaited<ReturnType<typeof createUser>>, TE
 
 
 
-/**
- * Users may only access their own record; admins can access any.
- * @summary Get user by ID
- */
-export const getUserById = (
+export const getApiV1UsersId = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
-      return mainInstance<UserResponse>(
+      return mainInstance<void>(
       {url: `/api/v1/users/${id}`, method: 'GET', signal
     },
       options);
@@ -255,69 +234,66 @@ export const getUserById = (
 
 
 
-export const getGetUserByIdQueryKey = (id: string,) => {
+export const getGetApiV1UsersIdQueryKey = (id: string,) => {
     return [
     `/api/v1/users/${id}`
     ] as const;
     }
 
 
-export const getGetUserByIdQueryOptions = <TData = Awaited<ReturnType<typeof getUserById>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserById>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const getGetApiV1UsersIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1UsersId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetUserByIdQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetApiV1UsersIdQueryKey(id);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserById>>> = ({ signal }) => getUserById(id, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1UsersId>>> = ({ signal }) => getApiV1UsersId(id, requestOptions, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserById>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1UsersId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetUserByIdQueryResult = NonNullable<Awaited<ReturnType<typeof getUserById>>>
-export type GetUserByIdQueryError = ErrorResponse
+export type GetApiV1UsersIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1UsersId>>>
+export type GetApiV1UsersIdQueryError = unknown
 
 
-export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, TError = ErrorResponse>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserById>>, TError, TData>> & Pick<
+export function useGetApiV1UsersId<TData = Awaited<ReturnType<typeof getApiV1UsersId>>, TError = unknown>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1UsersId>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUserById>>,
+          Awaited<ReturnType<typeof getApiV1UsersId>>,
           TError,
-          Awaited<ReturnType<typeof getUserById>>
+          Awaited<ReturnType<typeof getApiV1UsersId>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserById>>, TError, TData>> & Pick<
+export function useGetApiV1UsersId<TData = Awaited<ReturnType<typeof getApiV1UsersId>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1UsersId>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getUserById>>,
+          Awaited<ReturnType<typeof getApiV1UsersId>>,
           TError,
-          Awaited<ReturnType<typeof getUserById>>
+          Awaited<ReturnType<typeof getApiV1UsersId>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserById>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function useGetApiV1UsersId<TData = Awaited<ReturnType<typeof getApiV1UsersId>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get user by ID
- */
 
-export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUserById>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function useGetApiV1UsersId<TData = Awaited<ReturnType<typeof getApiV1UsersId>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetUserByIdQueryOptions(id,options)
+  const queryOptions = getGetApiV1UsersIdQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -329,20 +305,17 @@ export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, 
 
 
 
-/**
- * @summary Update user
- */
-export const updateUser = (
+export const putApiV1UsersId = (
     id: string,
-    userUpdateBody?: UserUpdateBody,
+    updateUserRequest?: UpdateUserRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
-      return mainInstance<UserResponse>(
+      return mainInstance<void>(
       {url: `/api/v1/users/${id}`, method: 'PUT',
       headers: {'Content-Type': 'application/json', },
-      data: userUpdateBody, signal
+      data: updateUserRequest, signal
     },
       options);
     }
@@ -350,75 +323,72 @@ export const updateUser = (
 
 
 
-export const getUpdateUserQueryKey = (id: string,
-    userUpdateBody?: UserUpdateBody,) => {
+export const getPutApiV1UsersIdQueryKey = (id: string,
+    updateUserRequest?: UpdateUserRequest,) => {
     return [
-    'PUT', `/api/v1/users/${id}`, userUpdateBody
+    'PUT', `/api/v1/users/${id}`, updateUserRequest
     ] as const;
     }
 
 
-export const getUpdateUserQueryOptions = <TData = Awaited<ReturnType<typeof updateUser>>, TError = ErrorResponse>(id: string,
-    userUpdateBody?: UserUpdateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof updateUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const getPutApiV1UsersIdQueryOptions = <TData = Awaited<ReturnType<typeof putApiV1UsersId>>, TError = unknown>(id: string,
+    updateUserRequest?: UpdateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getUpdateUserQueryKey(id,userUpdateBody);
+  const queryKey =  queryOptions?.queryKey ?? getPutApiV1UsersIdQueryKey(id,updateUserRequest);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof updateUser>>> = ({ signal }) => updateUser(id,userUpdateBody, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof putApiV1UsersId>>> = ({ signal }) => putApiV1UsersId(id,updateUserRequest, requestOptions, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof updateUser>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof putApiV1UsersId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type UpdateUserQueryResult = NonNullable<Awaited<ReturnType<typeof updateUser>>>
-export type UpdateUserQueryError = ErrorResponse
+export type PutApiV1UsersIdQueryResult = NonNullable<Awaited<ReturnType<typeof putApiV1UsersId>>>
+export type PutApiV1UsersIdQueryError = unknown
 
 
-export function useUpdateUser<TData = Awaited<ReturnType<typeof updateUser>>, TError = ErrorResponse>(
+export function usePutApiV1UsersId<TData = Awaited<ReturnType<typeof putApiV1UsersId>>, TError = unknown>(
  id: string,
-    userUpdateBody: undefined |  UserUpdateBody, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof updateUser>>, TError, TData>> & Pick<
+    updateUserRequest: undefined |  UpdateUserRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1UsersId>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof updateUser>>,
+          Awaited<ReturnType<typeof putApiV1UsersId>>,
           TError,
-          Awaited<ReturnType<typeof updateUser>>
+          Awaited<ReturnType<typeof putApiV1UsersId>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useUpdateUser<TData = Awaited<ReturnType<typeof updateUser>>, TError = ErrorResponse>(
+export function usePutApiV1UsersId<TData = Awaited<ReturnType<typeof putApiV1UsersId>>, TError = unknown>(
  id: string,
-    userUpdateBody?: UserUpdateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof updateUser>>, TError, TData>> & Pick<
+    updateUserRequest?: UpdateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1UsersId>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof updateUser>>,
+          Awaited<ReturnType<typeof putApiV1UsersId>>,
           TError,
-          Awaited<ReturnType<typeof updateUser>>
+          Awaited<ReturnType<typeof putApiV1UsersId>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useUpdateUser<TData = Awaited<ReturnType<typeof updateUser>>, TError = ErrorResponse>(
+export function usePutApiV1UsersId<TData = Awaited<ReturnType<typeof putApiV1UsersId>>, TError = unknown>(
  id: string,
-    userUpdateBody?: UserUpdateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof updateUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+    updateUserRequest?: UpdateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Update user
- */
 
-export function useUpdateUser<TData = Awaited<ReturnType<typeof updateUser>>, TError = ErrorResponse>(
+export function usePutApiV1UsersId<TData = Awaited<ReturnType<typeof putApiV1UsersId>>, TError = unknown>(
  id: string,
-    userUpdateBody?: UserUpdateBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof updateUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+    updateUserRequest?: UpdateUserRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getUpdateUserQueryOptions(id,userUpdateBody,options)
+  const queryOptions = getPutApiV1UsersIdQueryOptions(id,updateUserRequest,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -430,16 +400,13 @@ export function useUpdateUser<TData = Awaited<ReturnType<typeof updateUser>>, TE
 
 
 
-/**
- * @summary Delete user
- */
-export const deleteUser = (
+export const deleteApiV1UsersId = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
-      return mainInstance<DeleteUser200>(
+      return mainInstance<void>(
       {url: `/api/v1/users/${id}`, method: 'DELETE', signal
     },
       options);
@@ -448,69 +415,66 @@ export const deleteUser = (
 
 
 
-export const getDeleteUserQueryKey = (id: string,) => {
+export const getDeleteApiV1UsersIdQueryKey = (id: string,) => {
     return [
     'DELETE', `/api/v1/users/${id}`
     ] as const;
     }
 
 
-export const getDeleteUserQueryOptions = <TData = Awaited<ReturnType<typeof deleteUser>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const getDeleteApiV1UsersIdQueryOptions = <TData = Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getDeleteUserQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getDeleteApiV1UsersIdQueryKey(id);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof deleteUser>>> = ({ signal }) => deleteUser(id, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof deleteApiV1UsersId>>> = ({ signal }) => deleteApiV1UsersId(id, requestOptions, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof deleteUser>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type DeleteUserQueryResult = NonNullable<Awaited<ReturnType<typeof deleteUser>>>
-export type DeleteUserQueryError = ErrorResponse
+export type DeleteApiV1UsersIdQueryResult = NonNullable<Awaited<ReturnType<typeof deleteApiV1UsersId>>>
+export type DeleteApiV1UsersIdQueryError = unknown
 
 
-export function useDeleteUser<TData = Awaited<ReturnType<typeof deleteUser>>, TError = ErrorResponse>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteUser>>, TError, TData>> & Pick<
+export function useDeleteApiV1UsersId<TData = Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError = unknown>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof deleteUser>>,
+          Awaited<ReturnType<typeof deleteApiV1UsersId>>,
           TError,
-          Awaited<ReturnType<typeof deleteUser>>
+          Awaited<ReturnType<typeof deleteApiV1UsersId>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDeleteUser<TData = Awaited<ReturnType<typeof deleteUser>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteUser>>, TError, TData>> & Pick<
+export function useDeleteApiV1UsersId<TData = Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof deleteUser>>,
+          Awaited<ReturnType<typeof deleteApiV1UsersId>>,
           TError,
-          Awaited<ReturnType<typeof deleteUser>>
+          Awaited<ReturnType<typeof deleteApiV1UsersId>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDeleteUser<TData = Awaited<ReturnType<typeof deleteUser>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function useDeleteApiV1UsersId<TData = Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Delete user
- */
 
-export function useDeleteUser<TData = Awaited<ReturnType<typeof deleteUser>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteUser>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function useDeleteApiV1UsersId<TData = Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError = unknown>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1UsersId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getDeleteUserQueryOptions(id,options)
+  const queryOptions = getDeleteApiV1UsersIdQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -522,18 +486,17 @@ export function useDeleteUser<TData = Awaited<ReturnType<typeof deleteUser>>, TE
 
 
 
-/**
- * Reset user password to default value. Admin only.
- * @summary Reset user password to default
- */
-export const adminResetUserPassword = (
+export const postApiV1UsersIdResetPassword = (
     id: string,
+    resetPasswordRequest?: ResetPasswordRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
-      return mainInstance<ResetPasswordResponse>(
-      {url: `/api/v1/users/${id}/reset-password`, method: 'PUT', signal
+      return mainInstance<void>(
+      {url: `/api/v1/users/${id}/reset-password`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: resetPasswordRequest, signal
     },
       options);
     }
@@ -541,69 +504,72 @@ export const adminResetUserPassword = (
 
 
 
-export const getAdminResetUserPasswordQueryKey = (id: string,) => {
+export const getPostApiV1UsersIdResetPasswordQueryKey = (id: string,
+    resetPasswordRequest?: ResetPasswordRequest,) => {
     return [
-    'PUT', `/api/v1/users/${id}/reset-password`
+    'POST', `/api/v1/users/${id}/reset-password`, resetPasswordRequest
     ] as const;
     }
 
 
-export const getAdminResetUserPasswordQueryOptions = <TData = Awaited<ReturnType<typeof adminResetUserPassword>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminResetUserPassword>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const getPostApiV1UsersIdResetPasswordQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError = unknown>(id: string,
+    resetPasswordRequest?: ResetPasswordRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getAdminResetUserPasswordQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getPostApiV1UsersIdResetPasswordQueryKey(id,resetPasswordRequest);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminResetUserPassword>>> = ({ signal }) => adminResetUserPassword(id, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>> = ({ signal }) => postApiV1UsersIdResetPassword(id,resetPasswordRequest, requestOptions, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminResetUserPassword>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type AdminResetUserPasswordQueryResult = NonNullable<Awaited<ReturnType<typeof adminResetUserPassword>>>
-export type AdminResetUserPasswordQueryError = ErrorResponse
+export type PostApiV1UsersIdResetPasswordQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>>
+export type PostApiV1UsersIdResetPasswordQueryError = unknown
 
 
-export function useAdminResetUserPassword<TData = Awaited<ReturnType<typeof adminResetUserPassword>>, TError = ErrorResponse>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminResetUserPassword>>, TError, TData>> & Pick<
+export function usePostApiV1UsersIdResetPassword<TData = Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError = unknown>(
+ id: string,
+    resetPasswordRequest: undefined |  ResetPasswordRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof adminResetUserPassword>>,
+          Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>,
           TError,
-          Awaited<ReturnType<typeof adminResetUserPassword>>
+          Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useAdminResetUserPassword<TData = Awaited<ReturnType<typeof adminResetUserPassword>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminResetUserPassword>>, TError, TData>> & Pick<
+export function usePostApiV1UsersIdResetPassword<TData = Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError = unknown>(
+ id: string,
+    resetPasswordRequest?: ResetPasswordRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof adminResetUserPassword>>,
+          Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>,
           TError,
-          Awaited<ReturnType<typeof adminResetUserPassword>>
+          Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>
         > , 'initialData'
       >, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useAdminResetUserPassword<TData = Awaited<ReturnType<typeof adminResetUserPassword>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminResetUserPassword>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function usePostApiV1UsersIdResetPassword<TData = Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError = unknown>(
+ id: string,
+    resetPasswordRequest?: ResetPasswordRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Reset user password to default
- */
 
-export function useAdminResetUserPassword<TData = Awaited<ReturnType<typeof adminResetUserPassword>>, TError = ErrorResponse>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof adminResetUserPassword>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export function usePostApiV1UsersIdResetPassword<TData = Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError = unknown>(
+ id: string,
+    resetPasswordRequest?: ResetPasswordRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1UsersIdResetPassword>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getAdminResetUserPasswordQueryOptions(id,options)
+  const queryOptions = getPostApiV1UsersIdResetPasswordQueryOptions(id,resetPasswordRequest,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

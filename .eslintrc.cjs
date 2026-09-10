@@ -6,7 +6,8 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react-hooks/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules'],
+  // Orval output is regenerated from OpenAPI and carries its own eslint header.
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules', 'src/api/endpoints/**', 'src/api/models/**'],
   parser: '@typescript-eslint/parser',
   plugins: ['react-refresh'],
   rules: {

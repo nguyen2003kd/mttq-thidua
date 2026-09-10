@@ -16,7 +16,6 @@ const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
 const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
-const AssignLocalityPage = lazy(() => import('@/features/admin/pages/AssignLocalityPage'));
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
 const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
@@ -31,6 +30,12 @@ const KetQuaPage = lazy(() => import('@/features/dia-phuong/pages/KetQuaPage'));
 const OverviewDashboardPage = lazy(() => import('@/features/dashboard/pages/OverviewDashboardPage'));
 const AuditLogPage = lazy(() => import('@/features/audit/AuditLogPage'));
 const NotFoundPage = lazy(() => import('@/features/NotFoundPage'));
+const SpecialistReviewPage = lazy(() => import('@/features/cham-diem/pages/SpecialistReviewPage'));
+const SpecialistHistoryPage = lazy(() => import('@/features/cham-diem/pages/SpecialistHistoryPage'));
+const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaChildrenPage'));
+const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
+const LocalityCriteriaHistoryPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaHistoryPage'));
+const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/LocalityResultsPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +47,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const INTERNAL_ROLES: Role[] = ['ADMIN', 'SPECIALIST', 'BAN_LEADER', 'COUNCIL_CHAIR', 'COUNCIL_VICE', 'STANDING_COMMITTEE'];
+const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
 
 function Loading() {
   return (
@@ -78,18 +83,57 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthEvents />
-        <Toaster position="bottom-right" richColors closeButton />
+        <Toaster position="top-right" duration={4000} richColors closeButton />
         <Suspense fallback={<Loading />}>
           <Routes>
             {/* Login */}
             <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+
+            {/* Route chuẩn FSD — Cấp Chuyên viên */}
+            <Route
+              path="/chuyen-vien"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['SPECIALIST']}>
+                    <AppLayout><Outlet /></AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            >
+              <Route index element={<Navigate to={ROUTES.SPECIALIST_REVIEW} replace />} />
+              <Route path="tieu-chi" element={<CriteriaListPage />} />
+              <Route path="tieu-chi/:id/con" element={<CriteriaChildrenPage />} />
+              <Route path="duyet" element={<SpecialistReviewPage />} />
+              <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />
+              <Route path="duyet/:diaPhuongId/:nhomTieuChiId" element={<SpecialistReviewPage />} />
+              <Route path="lich-su" element={<SpecialistHistoryPage />} />
+            </Route>
+
+            {/* Route chuẩn FSD — Cấp Địa phương */}
+            <Route
+              path="/dia-phuong"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['LOCAL']}>
+                    <LocalityLayout><Outlet /></LocalityLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            >
+              <Route index element={<Navigate to={ROUTES.LOCALITY_CRITERIA} replace />} />
+              <Route path="tieu-chi" element={<LocalityCriteriaPage />} />
+              <Route path="tieu-chi/:id" element={<LocalityCriteriaPage />} />
+              <Route path="tieu-chi/:id/lich-su" element={<LocalityCriteriaHistoryPage />} />
+              <Route path="ket-qua" element={<LocalityResultsPage />} />
+              <Route path="ket-qua/:id" element={<LocalityResultsPage />} />
+            </Route>
 
             {/* Admin routes */}
             <Route
               path="/thi-dua/admin"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['ADMIN']}>
+                  <RequireRole roles={['SPECIALIST']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>
@@ -101,7 +145,6 @@ export default function App() {
               <Route path="bang-tieu-chi" element={<CriteriaListPage />} />
               <Route path="bang-tieu-chi/:id/chi-tiet" element={<CriteriaDetailPage />} />
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
-              <Route path="bang-tieu-chi/:id/gan-dia-phuong" element={<AssignLocalityPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
@@ -112,7 +155,7 @@ export default function App() {
               path="/thi-dua/dia-phuong"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['ADMIN', 'LOCALITY']}>
+                  <RequireRole roles={['LOCAL']}>
                     <LocalityLayout>
                       <Outlet />
                     </LocalityLayout>
@@ -131,7 +174,7 @@ export default function App() {
               path="/thi-dua/cham-diem"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['ADMIN', 'SPECIALIST']}>
+                  <RequireRole roles={['SPECIALIST']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>
@@ -149,7 +192,7 @@ export default function App() {
               path="/thi-dua/duyet/lanh-dao-ban/:banId"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['ADMIN', 'BAN_LEADER']}>
+                  <RequireRole roles={['LEADER']}>
                     <AppLayout>
                       <BanLeaderApprovalPage />
                     </AppLayout>
@@ -161,7 +204,7 @@ export default function App() {
               path="/thi-dua/duyet/hoi-dong-tdkt"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['ADMIN', 'COUNCIL_CHAIR', 'COUNCIL_VICE']}>
+                  <RequireRole roles={['COUNCIL']}>
                     <AppLayout>
                       <CouncilApprovalPage />
                     </AppLayout>
@@ -173,7 +216,7 @@ export default function App() {
               path="/thi-dua/duyet/ban-thuong-truc"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['ADMIN', 'STANDING_COMMITTEE']}>
+                  <RequireRole roles={['COMMITTEE']}>
                     <AppLayout>
                       <StandingCommitteePage />
                     </AppLayout>

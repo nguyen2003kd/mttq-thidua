@@ -1,14 +1,13 @@
 export type Role =
-  | 'ADMIN'
-  | 'LOCALITY'
+  | 'LOCAL'
   | 'SPECIALIST'
-  | 'BAN_LEADER'
-  | 'COUNCIL_CHAIR'
-  | 'COUNCIL_VICE'
-  | 'STANDING_COMMITTEE';
+  | 'LEADER'
+  | 'COUNCIL'
+  | 'COMMITTEE';
 
 export type ScoreState =
   | 'DRAFT'
+  | 'CHO_CHUYEN_VIEN'
   | 'CHO_DUYET_BAN'
   | 'CHO_DUYET_HOI_DONG'
   | 'CHO_DUYET_BTT'

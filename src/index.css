@@ -2,72 +2,74 @@
 @config "../tailwind.config.js";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource/be-vietnam-pro/400.css";
+@import "@fontsource/be-vietnam-pro/500.css";
+@import "@fontsource/be-vietnam-pro/600.css";
+@import "@fontsource/be-vietnam-pro/700.css";
 
 @layer base {
   :root {
-    /* Brand: Thi đua Khen thưởng — MTTQ Việt Nam */
-    /* White base — clean government portal feel */
+    /* Design tokens — Plan_Component_Va_Giao_Dien A2.1 */
     --background: 0 0% 100%;
-    --foreground: 0 10% 8%;
+    --foreground: 12 9% 11%; /* #1F1B1A */
 
     --card: 0 0% 100%;
-    --card-foreground: 0 10% 8%;
+    --card-foreground: 12 9% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 10% 8%;
+    --popover-foreground: 12 9% 11%;
 
-    /* Primary — Vietnam Red #d4202a */
-    --primary: 355 74% 48%;
+    /* Đỏ thương hiệu — #A8202C */
+    --primary: 355 68% 39%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary — light warm neutral */
-    --secondary: 40 10% 96%;
-    --secondary-foreground: 355 74% 48%;
+    --secondary: 24 33% 97%;
+    --secondary-foreground: 355 68% 39%;
 
-    --muted: 40 10% 96%;
-    --muted-foreground: 0 5% 45%;
+    --muted: 24 33% 97%; /* #FAF7F5 */
+    --muted-foreground: 29 9% 41%; /* #71685F */
 
-    /* Accent — Gold Yellow #f5c842 */
-    --accent: 45 90% 62%;
-    --accent-foreground: 0 10% 8%;
+    /* Vàng đồng — #E8B923 */
+    --accent: 45 81% 52%;
+    --accent-foreground: 12 9% 11%;
 
     /* Semantic colors */
-    --destructive: 0 72% 45%;
+    /* Đỏ nguy hiểm — #8B2635, không dùng thay đỏ thương hiệu */
+    --destructive: 351 57% 35%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 55% 45%;
+    --success: 154 46% 34%; /* #2E7D5B */
     --success-foreground: 0 0% 100%;
 
-    --warning: 45 90% 55%;
-    --warning-foreground: 0 10% 8%;
+    --warning: 22 67% 55%; /* #D9773D */
+    --warning-foreground: 12 9% 11%;
 
     --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
 
-    --border: 220 13% 72%;
-    --input: 220 13% 72%;
-    --ring: 355 74% 48%;
+    --border: 27 16% 89%; /* #E7E2DE */
+    --input: 27 16% 89%;
+    --ring: 45 81% 52%;
 
     --radius: 0.625rem;
 
     /* Sidebar — Deep Red */
     --sidebar-width: 260px;
-    --sidebar: 355 70% 18%;
-    --sidebar-foreground: 40 30% 96%;
-    --sidebar-border: 355 60% 25%;
-    --sidebar-primary: 45 90% 62%;
-    --sidebar-primary-foreground: 355 70% 18%;
-    --sidebar-accent: 355 60% 25%;
-    --sidebar-accent-foreground: 40 30% 96%;
-    --sidebar-ring: 45 90% 62%;
+    --sidebar: 355 68% 39%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-border: 355 58% 32%;
+    --sidebar-primary: 45 81% 52%;
+    --sidebar-primary-foreground: 12 9% 11%;
+    --sidebar-accent: 355 58% 32%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-ring: 45 81% 52%;
 
     /* Chart colors — Red + Gold + semantic */
-    --chart-1: 355 74% 48%;
-    --chart-2: 45 90% 62%;
-    --chart-3: 142 55% 45%;
+    --chart-1: 355 68% 39%;
+    --chart-2: 45 81% 52%;
+    --chart-3: 154 46% 34%;
     --chart-4: 217 91% 60%;
-    --chart-5: 0 72% 45%;
+    --chart-5: 351 57% 35%;
   }
 
   .dark {
@@ -125,13 +127,14 @@
   }
   .theme {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Be Vietnam Pro', sans-serif;
   }
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Be Vietnam Pro', sans-serif;
   }
   html {
     @apply font-sans;

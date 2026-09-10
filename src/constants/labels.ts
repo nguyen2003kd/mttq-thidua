@@ -27,12 +27,12 @@ export const LABELS = {
   REASON_CHANGE_REQUIRED: 'Lý do thay đổi (bắt buộc khi sửa điểm)',
 
   // Criteria
-  CRITERIA_TABLE: 'Bảng tiêu chí',
+  CRITERIA_TABLE: 'Quản lý tiêu chí',
   CRITERIA_TABLE_NAME: 'Tên bảng tiêu chí',
   CRITERIA_TOTAL_SCORE: 'Tổng điểm',
   CRITERIA_SUB_COUNT: 'Số tiêu chí con',
   CRITERIA_STATUS: 'Trạng thái',
-  CRITERIA_ASSIGNED_COUNT: 'Số địa phương đã gán',
+  CRITERIA_ASSIGNED_COUNT: 'Số địa phương áp dụng',
   CRITERIA_OPEN_DATE: 'Ngày bắt đầu',
   CRITERIA_CLOSE_DATE: 'Ngày kết thúc',
   CRITERIA_ADD_ROW: 'Thêm tiêu chí con',

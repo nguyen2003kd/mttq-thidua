@@ -10,7 +10,7 @@ import {
 describe('badge core — hiển thị nhãn tiếng Việt, không enum thô', () => {
   it('ScoreStateBadge', () => {
     render(<ScoreStateBadge state="CHO_DUYET_BAN" />);
-    expect(screen.getByText('Chờ duyệt Ban')).toBeInTheDocument();
+    expect(screen.getByText('Đang chờ duyệt')).toBeInTheDocument();
     expect(screen.queryByText('CHO_DUYET_BAN')).not.toBeInTheDocument();
   });
 

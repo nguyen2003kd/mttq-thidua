@@ -63,7 +63,7 @@ export default function TrangThaiPage() {
     setBusy(true);
     setTimeout(() => {
       submit(table.id, user.localityId!, user.name, user.role);
-      toast.success('Đã nộp bảng điểm', { description: 'Hồ sơ đang chờ Ban xem xét.' });
+      toast.success('Đã nộp bảng điểm', { description: 'Hồ sơ đang chờ Chuyên viên xem xét.' });
       setBusy(false);
     }, 400);
   };

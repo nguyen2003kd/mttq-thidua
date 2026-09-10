@@ -42,7 +42,7 @@ export default function CriteriaDetailPage() {
         <CardHeader className="border-b bg-muted/20">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nhóm tiêu chí</p>
+              <p className="text-xs font-medium text-muted-foreground">Nhóm tiêu chí</p>
               <CardTitle className="mt-1 text-xl">{table.name}</CardTitle>
             </div>
             <CriteriaStatusBadge status={table.status} />
@@ -101,11 +101,17 @@ export default function CriteriaDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader className="border-b"><CardTitle className="text-base">Địa phương được áp dụng</CardTitle></CardHeader>
+        <CardHeader className="border-b"><CardTitle className="text-base">Phạm vi áp dụng</CardTitle></CardHeader>
         <CardContent className="pt-5">
-          {assignedLocalities.length === 0 ? <p className="text-sm text-muted-foreground">Chưa gán địa phương nào.</p> : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {assignedLocalities.map((locality) => <div key={locality.id} className="flex items-center gap-2 rounded-md border border-border/70 p-3 text-sm"><MapPin className="h-4 w-4 text-primary" /><span>{locality.fullName}</span></div>)}
+          {assignedLocalities.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Bảng tiêu chí chưa được áp dụng.</p>
+          ) : (
+            <div className="flex items-center gap-3 rounded-md border border-primary/20 bg-primary/[0.035] p-4">
+              <MapPin className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Toàn bộ địa phương</p>
+                <p className="text-sm text-muted-foreground">Đã áp dụng cho {assignedLocalities.length} địa phương trong hệ thống.</p>
+              </div>
             </div>
           )}
         </CardContent>

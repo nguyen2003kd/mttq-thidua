@@ -41,7 +41,7 @@ describe('submit — B5: tổng điểm 0 vẫn nộp được khi đủ tiêu c
 
     const r = S().getScore(TC, LOC);
     expect(r.totalScore).toBe(0);
-    expect(r.state).toBe('CHO_DUYET_BAN');
+    expect(r.state).toBe('CHO_CHUYEN_VIEN');
     expect(r.submittedAt).not.toBeNull();
   });
 
@@ -61,46 +61,50 @@ describe('luồng duyệt 4 tầng qua applyTransition', () => {
     const table = S().criteriaTables.find((t) => t.id === TC)!;
     table.criteria.forEach((c) => S().scoreCriterion(TC, LOC, c.id, 10, actor.name, actor.role));
 
+    S().submit(TC, LOC, 'Địa phương', 'LOCAL');
+    expect(S().getScore(TC, LOC).state).toBe('CHO_CHUYEN_VIEN');
+
     S().submit(TC, LOC, 'CV', 'SPECIALIST');
     expect(S().getScore(TC, LOC).state).toBe('CHO_DUYET_BAN');
 
-    S().approve(TC, LOC, 'Lãnh đạo Ban', 'BAN_LEADER');
+    S().approve(TC, LOC, 'Lãnh đạo', 'LEADER');
     expect(S().getScore(TC, LOC).state).toBe('CHO_DUYET_HOI_DONG');
 
-    S().approve(TC, LOC, 'Chủ tịch HĐ', 'COUNCIL_CHAIR');
+    S().approve(TC, LOC, 'Hội đồng', 'COUNCIL');
     expect(S().getScore(TC, LOC).state).toBe('CHO_DUYET_BTT');
 
-    S().publish(TC, LOC, 'BTT', 'STANDING_COMMITTEE');
+    S().publish(TC, LOC, 'Ủy ban', 'COMMITTEE');
     const r = S().getScore(TC, LOC);
     expect(r.state).toBe('DA_CONG_BO');
     expect(r.publishedAt).not.toBeNull();
 
-    // 3 SCORE (chấm) + submit(SCORE) + APPROVE + APPROVE + PUBLISH
+    // 3 SCORE (chấm) + 2 lần submit + APPROVE + APPROVE + PUBLISH
     const stateAudits = S().audits.filter((a) => a.fieldName === `state - ${LOC}`);
-    expect(stateAudits.map((a) => a.action)).toEqual(['SCORE', 'APPROVE', 'APPROVE', 'PUBLISH']);
+    expect(stateAudits.map((a) => a.action)).toEqual(['SCORE', 'SCORE', 'APPROVE', 'APPROVE', 'PUBLISH']);
   });
 });
 
-describe('reject (B4)', () => {
-  it('reject từ CHO_DUYET_BTT → CHO_DUYET_HOI_DONG', () => {
+describe('reject (B0)', () => {
+  it('reject từ CHO_DUYET_BTT → CHO_CHUYEN_VIEN', () => {
     useScoreStore.setState({ scores: { [TC]: { [LOC]: rec({ state: 'CHO_DUYET_BTT' }) } } });
-    S().reject(TC, LOC, 'Cần rà soát lại', 'BTT', 'STANDING_COMMITTEE');
-    expect(S().getScore(TC, LOC).state).toBe('CHO_DUYET_HOI_DONG');
+    S().reject(TC, LOC, 'Cần rà soát lại', 'Ủy ban', 'COMMITTEE');
+    expect(S().getScore(TC, LOC).state).toBe('CHO_CHUYEN_VIEN');
   });
 
   it('reject không lý do → no-op', () => {
     useScoreStore.setState({ scores: { [TC]: { [LOC]: rec({ state: 'CHO_DUYET_BAN' }) } } });
-    S().reject(TC, LOC, '', 'Ban', 'BAN_LEADER');
+    S().reject(TC, LOC, '', 'Lãnh đạo', 'LEADER');
     expect(S().getScore(TC, LOC).state).toBe('CHO_DUYET_BAN');
   });
 
-  it('reject từ CHO_DUYET_BAN → DRAFT, giữ lý do trong audit', () => {
+  it('reject từ CHO_DUYET_BAN → CHO_CHUYEN_VIEN, giữ lý do trong audit', () => {
     useScoreStore.setState({
       scores: { [TC]: { [LOC]: rec({ state: 'CHO_DUYET_BAN', submittedAt: '2026-01-01' }) } },
       audits: [],
     });
-    S().reject(TC, LOC, 'Thiếu minh chứng', 'Ban', 'BAN_LEADER');
-    expect(S().getScore(TC, LOC).state).toBe('DRAFT');
+    S().reject(TC, LOC, 'Thiếu minh chứng', 'Lãnh đạo', 'LEADER');
+    expect(S().getScore(TC, LOC).state).toBe('CHO_CHUYEN_VIEN');
+    expect(S().getScore(TC, LOC).revisionRequestedAt).toBeTruthy();
     expect(S().audits.at(-1)?.reason).toBe('Thiếu minh chứng');
   });
 });
@@ -112,5 +116,57 @@ describe('getRanking (B6)', () => {
     expect(ids).toContain('loc-25195');
     expect(ids).toContain('loc-26068');
     expect(ids.every((id) => S().assignments[TC].includes(id))).toBe(true);
+  });
+});
+
+describe('áp dụng tiêu chí theo COL.01.01', () => {
+  it('luôn áp dụng cho toàn bộ địa phương', () => {
+    useScoreStore.setState({ assignments: { ...S().assignments, [TC]: [LOC] } });
+
+    S().applyCriteriaToAllLocalities(TC, [{ id: 'file-1', fileName: 'huong-dan.pdf', fileSize: 1024 }]);
+
+    expect(S().assignments[TC]).toEqual(S().localities.map((locality) => locality.id));
+    expect(S().criteriaTables.find((table) => table.id === TC)?.assignedLocalityCount).toBe(S().localities.length);
+    expect(S().criteriaTables.find((table) => table.id === TC)?.assignmentAttachments?.[0]?.fileName).toBe('huong-dan.pdf');
+  });
+});
+
+describe('ràng buộc chấm điểm theo FSD', () => {
+  it('bắt buộc lý do khi điểm chuyên viên lệch điểm địa phương', () => {
+    useScoreStore.setState({
+      scores: {
+        [TC]: {
+          [LOC]: rec({
+            state: 'CHO_CHUYEN_VIEN',
+            entries: [{
+              id: 'e1',
+              criteriaId: 'c1',
+              criteriaName: 'Tiêu chí 1',
+              value: 8,
+              proposedScore: 8,
+              proposedBonusScore: 0,
+              state: 'CHO_CHUYEN_VIEN',
+              scoredBy: 'Địa phương',
+              scoredAt: '',
+              evidenceCount: 1,
+            }],
+          }),
+        },
+      },
+    });
+
+    expect(S().reviewCriterion({ tableId: TC, localityId: LOC, criteriaId: 'c1', score: 7, stage: 'SPECIALIST', actorName: 'CV', actorRole: 'SPECIALIST' })).toBe(false);
+    expect(S().getScore(TC, LOC).entries[0].value).toBe(8);
+    expect(S().reviewCriterion({ tableId: TC, localityId: LOC, criteriaId: 'c1', score: 7, reason: 'Thiếu một minh chứng', stage: 'SPECIALIST', actorName: 'CV', actorRole: 'SPECIALIST' })).toBe(true);
+    expect(S().getScore(TC, LOC).entries[0].value).toBe(7);
+  });
+
+  it('tiêu chí bổ sung bắt buộc nội dung, lý do và file', () => {
+    useScoreStore.setState({ scores: { [TC]: { [LOC]: rec({ state: 'CHO_CHUYEN_VIEN' }) } } });
+    const base = { tableId: TC, localityId: LOC, name: 'Tiêu chí sáng kiến', score: 2, reason: 'Có sáng kiến cấp tỉnh', actorName: 'CV', actorRole: 'SPECIALIST' as const, stage: 'SPECIALIST' as const };
+    expect(S().addSupplementaryCriterion({ ...base, fileName: '' })).toBe(false);
+    expect(S().addSupplementaryCriterion({ ...base, fileName: 'qua-lon.pdf', fileSize: 20 * 1024 * 1024 + 1 })).toBe(false);
+    expect(S().addSupplementaryCriterion({ ...base, fileName: 'sang-kien.pdf', fileSize: 1000 })).toBe(true);
+    expect(S().getScore(TC, LOC).entries[0].isSupplementary).toBe(true);
   });
 });

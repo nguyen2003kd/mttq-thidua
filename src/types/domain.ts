@@ -16,6 +16,18 @@ export interface CriteriaItem {
   deadline?: string;
   note?: string;
   order: number;
+  /** Tiêu chí đã áp dụng bị sửa sẽ bị khóa ở báo cáo địa phương. */
+  updatedAt?: string;
+}
+
+export type ScoringStage = 'LOCAL' | 'SPECIALIST' | 'LEADER' | 'COUNCIL' | 'COMMITTEE';
+
+export interface StageScore {
+  score: number;
+  bonusScore: number;
+  reason: string | null;
+  actorName: string;
+  updatedAt: string;
 }
 
 /** Thông tin tệp đính kèm khi áp dụng bảng tiêu chí cho địa phương. */
@@ -51,6 +63,17 @@ export interface ScoreEntry {
   scoredBy: string;
   scoredAt: string;
   evidenceCount: number;
+  /** Điểm và diễn giải do địa phương tự đánh giá. */
+  proposedScore?: number;
+  proposedBonusScore?: number;
+  explanation?: string;
+  /** Phản hồi gần nhất từ cấp xét duyệt. */
+  revisionRequest?: string | null;
+  /** Dòng bị khóa do tiêu chí đã áp dụng được sửa/xóa. */
+  locked?: boolean;
+  isSupplementary?: boolean;
+  supplementaryMaxScore?: number;
+  stageScores?: Partial<Record<ScoringStage, StageScore>>;
 }
 
 export interface LocalityScoreResponse {
@@ -65,6 +88,8 @@ export interface ScoreRecord {
   totalScore: number;
   submittedAt: string | null;
   publishedAt: string | null;
+  revisionRequestedAt?: string | null;
+  decisionAttachments?: CriteriaTableAttachment[];
 }
 
 export interface AuditEntry {
@@ -86,6 +111,9 @@ export interface Evidence {
   fileName: string;
   fileUrl: string;
   uploadedAt: string;
+  fileSize?: number;
+  description?: string;
+  kind?: 'STANDARD' | 'BONUS' | 'SUPPLEMENTARY';
 }
 
 export interface Locality {

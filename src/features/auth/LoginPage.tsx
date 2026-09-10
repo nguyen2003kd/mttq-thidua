@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
-import { loginWeb } from '@/api/endpoints/authentication';
+import { postApiV1AuthLoginWeb } from '@/api/endpoints/auth';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,23 +12,73 @@ import type { Role } from '@/types/rbac';
 import { defaultRouteForRole } from '@/lib/rbac';
 
 const APP_ROLES: Role[] = [
-  'ADMIN',
-  'LOCALITY',
+  'LOCAL',
   'SPECIALIST',
-  'BAN_LEADER',
-  'COUNCIL_CHAIR',
-  'COUNCIL_VICE',
-  'STANDING_COMMITTEE',
+  'LEADER',
+  'COUNCIL',
+  'COMMITTEE',
 ];
+
+const DEMO_ACCOUNTS: { role: Role; label: string; name: string }[] = [
+  { role: 'LOCAL', label: 'Địa phương', name: 'Phường Bình Phước' },
+  { role: 'SPECIALIST', label: 'Chuyên viên', name: 'Chuyên viên Thi đua' },
+  { role: 'LEADER', label: 'Lãnh đạo', name: 'Lãnh đạo Ban' },
+  { role: 'COUNCIL', label: 'Hội đồng', name: 'Hội đồng Thi đua Khen thưởng' },
+  { role: 'COMMITTEE', label: 'Ủy ban', name: 'Ủy ban' },
+];
+
+/** Response envelope returned by Mttq.Tctd.Api's AuthController. */
+interface LoginApiResponse {
+  success: boolean;
+  data?: {
+    userId: string;
+    email: string;
+    username?: string | null;
+    accessToken?: string | null;
+    refreshToken?: string | null;
+    sessionId: string;
+    roles: string[];
+    permissions: string[];
+  } | null;
+  errors?: Array<{
+    messages?: { vi?: string | null; en?: string | null } | null;
+  }> | null;
+}
 
 function resolveAppRole(roles: string[]): Role | null {
   for (const role of roles) {
     const normalizedRole = role.trim().toUpperCase().replace(/[-\s]/g, '_');
     if (APP_ROLES.includes(normalizedRole as Role)) return normalizedRole as Role;
-    if (normalizedRole === 'ADMIN' || normalizedRole === 'SYSTEM_ADMIN') return 'ADMIN';
+    if (normalizedRole === 'LOCALITY') return 'LOCAL';
+    if (normalizedRole === 'BAN_LEADER') return 'LEADER';
+    if (normalizedRole === 'COUNCIL_CHAIR' || normalizedRole === 'COUNCIL_VICE') return 'COUNCIL';
+    if (normalizedRole === 'STANDING_COMMITTEE') return 'COMMITTEE';
+    if (normalizedRole === 'ADMIN' || normalizedRole === 'SYSTEM_ADMIN') return 'SPECIALIST';
   }
 
   return null;
+}
+
+function unwrapLoginResponse(value: unknown): LoginApiResponse | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as LoginApiResponse;
+  if (typeof candidate.success === 'boolean') return candidate;
+  const nested = (value as { data?: unknown }).data;
+  return nested && typeof nested === 'object' && typeof (nested as LoginApiResponse).success === 'boolean'
+    ? nested as LoginApiResponse
+    : null;
+}
+
+function rolesFromAccessToken(token: string | null | undefined): string[] {
+  if (!token) return [];
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return [];
+    const json = decodeURIComponent(atob(payload.replace(/-/g, '+').replace(/_/g, '/')).split('').map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''));
+    const claims = JSON.parse(json) as Record<string, unknown>;
+    const role = claims.role ?? claims['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+    return Array.isArray(role) ? role.filter((item): item is string => typeof item === 'string') : typeof role === 'string' ? [role] : [];
+  } catch { return []; }
 }
 
 export default function LoginPage() {
@@ -40,6 +90,27 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  const handleDemoLogin = (role: Role, name: string) => {
+    const demoUser = {
+      id: `demo-${role.toLowerCase()}`,
+      name,
+      role,
+      localityId: role === 'LOCAL' ? 'loc-25195' : undefined,
+      banId: role === 'LEADER' ? 'ban1' : undefined,
+    };
+    setStore({
+      isSignedIn: true,
+      id: demoUser.id,
+      username: demoUser.id,
+      roles: [role],
+      access_token: 'demo-access-token',
+      refresh_token: 'demo-refresh-token',
+      user: demoUser,
+    });
+    toast.success(`Đang vào vai ${name}`);
+    navigate(defaultRouteForRole(role, demoUser));
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
@@ -49,53 +120,66 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await loginWeb({
-        email: username.trim(),
+      // The generated endpoint has `void` as its response because the current
+      // Swagger document does not declare a 200 response schema. The API still
+      // returns this documented envelope at runtime.
+      const rawResponse = await postApiV1AuthLoginWeb({
+        username: username.trim(),
         password,
-        device_info: { platform: 'web' },
+        platform: 'web',
       });
-      const loginData = response.data;
-      const role = loginData ? resolveAppRole(loginData.user.roles) : null;
+      const response = unwrapLoginResponse(rawResponse);
+      const loginData = response?.data ?? null;
+      const role = loginData ? resolveAppRole([...(loginData.roles ?? []), ...rolesFromAccessToken(loginData.accessToken)]) : null;
 
-      if (!response.success || !loginData || !role) {
+      if (!response?.success || !loginData || !loginData.accessToken || !role) {
         throw new Error(
           role ? 'Không thể xác thực phiên đăng nhập.' : 'Tài khoản chưa được gán vai trò trong hệ thống thi đua.',
         );
       }
 
-      const { user, session } = loginData;
-      const name = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || user.email;
+      const expiresIn = 60 * 60;
+      const refreshExpiresIn = 7 * 24 * 60 * 60;
+      const sessionExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+      const refreshExpiresAt = new Date(Date.now() + refreshExpiresIn * 1000).toISOString();
+      const accountName = loginData.username || loginData.email;
       setStore({
         isSignedIn: true,
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        roles: user.roles,
-        permissions: user.permissions,
-        status: user.status,
-        last_login_at: user.last_login_at ?? null,
+        id: loginData.userId,
+        email: loginData.email,
+        username: loginData.username ?? loginData.email,
+        first_name: null,
+        last_name: null,
+        roles: loginData.roles,
+        permissions: loginData.permissions,
+        status: 'Active',
+        last_login_at: null,
         session: {
-          id: session.id,
-          expires_at: session.expires_at,
-          refresh_expires_at: session.refresh_expires_at,
+          id: loginData.sessionId,
+          expires_at: sessionExpiresAt,
+          refresh_expires_at: refreshExpiresAt,
         },
-        access_token: loginData.access_token ?? null,
-        refresh_token: loginData.refresh_token ?? null,
-        expires_in: session.expires_in,
-        refresh_expires_in:session.refresh_expires_in,
-        token_type: session.token_type,
-        access_token_expires_at: new Date(Date.now() + session.expires_in * 1000),
-        refresh_token_expires_at: new Date(Date.now() + session.refresh_expires_in * 1000),
-        storedUsername: remember ? user.email : null,
-        user: { id: user.id, name, role },
+        access_token: loginData.accessToken,
+        refresh_token: loginData.refreshToken ?? null,
+        expires_in: expiresIn,
+        refresh_expires_in: refreshExpiresIn,
+        token_type: 'Bearer',
+        access_token_expires_at: new Date(sessionExpiresAt),
+        refresh_token_expires_at: new Date(refreshExpiresAt),
+        storedUsername: remember ? username.trim() : null,
+        user: {
+          id: loginData.userId,
+          name: accountName,
+          role,
+          localityId: role === 'LOCAL' ? 'loc-25195' : undefined,
+          banId: role === 'LEADER' ? 'ban1' : undefined,
+        },
       });
       toast.success('Đăng nhập thành công', { description: 'Đang chuyển đến trang làm việc...' });
       navigate(defaultRouteForRole(role));
     } catch (error) {
       const message = axios.isAxiosError(error)
-        ? ((error.response?.data as { message?: string } | undefined)?.message ?? 'Email hoặc mật khẩu không đúng.')
+        ? ((error.response?.data as LoginApiResponse | undefined)?.errors?.[0]?.messages?.vi ?? 'Tài khoản hoặc mật khẩu không đúng.')
         : error instanceof Error
           ? error.message
           : 'Không thể đăng nhập. Vui lòng thử lại.';
@@ -178,16 +262,16 @@ export default function LoginPage() {
               {/* Username */}
               <div className="space-y-1.5">
                 <label htmlFor="username" className="text-sm font-medium">
-                  Email
+                  Tài khoản
                 </label>
                 <div className="relative">
                   <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="username"
-                    type="email"
+                    type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Nhập email"
+                    placeholder="Nhập tên đăng nhập"
                     className="pl-10 h-10"
                     autoComplete="username"
                     autoFocus
@@ -260,6 +344,17 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-3"><span className="h-px flex-1 bg-border" /><span className="text-[11px] font-semibold text-muted-foreground">Bản mô phỏng FSD</span><span className="h-px flex-1 bg-border" /></div>
+              <div className="grid grid-cols-2 gap-2">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <Button key={account.role} type="button" variant="outline" size="sm" className="justify-start text-xs" onClick={() => handleDemoLogin(account.role, account.name)}>
+                    {account.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
 
             {/* Footer note */}
             <p className="text-center text-xs text-muted-foreground">
