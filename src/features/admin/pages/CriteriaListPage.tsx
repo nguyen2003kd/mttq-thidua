@@ -194,6 +194,14 @@ export default function CriteriaListPage() {
     try {
       const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null };
       if (editingTable) {
+        const latestGroup = await criteriaGroupsApi.get(editingTable.id);
+        const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
+        if (parsedTotalScore < childrenTotal) {
+          toast.error(
+            `Không thể giảm tổng điểm xuống ${parsedTotalScore}. Tổng điểm của các tiêu chí con hiện là ${childrenTotal}.`,
+          );
+          return;
+        }
         await criteriaGroupsApi.update(editingTable.id, payload);
         toast.success('Đã cập nhật nhóm tiêu chí');
       } else {
