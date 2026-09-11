@@ -110,9 +110,13 @@ export const localityApi = {
   listSubmissionsByGroup: (groupId: string, params?: { stage?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionApi>>({ url: `/api/v1/criteria-groups/${groupId}/submissions`, method: 'GET', params }),
 
-  // Submit points — tự đánh giá
+  // Submit points — tự đánh giá (cập nhật submission đã tồn tại)
   submitPoints: (payload: { submissionId: string; items: Array<{ submissionResultId: string; point: number; bonusPoint?: number; explanation?: string | null }> }) =>
     request<{ applied: true }>({ url: '/api/v1/submissions/submit-points', method: 'POST', data: payload }),
+
+  // Create submission — nộp kết quả lần đầu (tạo submission + submission_results)
+  createSubmission: (payload: { criteriaGroupId: string; items: Array<{ criteriaId: string; point: number; bonusPoint?: number; explanation?: string | null }> }) =>
+    request<SubmissionApi>({ url: '/api/v1/submissions', method: 'POST', data: payload }),
 
   // Finalize — nộp hồ sơ lên chuyên viên
   finalizeSubmission: (submissionId: string) =>
