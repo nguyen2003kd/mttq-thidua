@@ -20,7 +20,6 @@ import {
   SupplementaryCriterionModal,
 } from '@/features/workflow/components';
 import type { CriteriaItem, ScoreEntry } from '@/types/domain';
-import type { ScoreState } from '@/types/rbac';
 import { specialistApi, type SubmissionApi as SpecialistSubmission } from '@/features/cham-diem/api/specialistApi';
 
 const PAGE_SIZE = 10;
@@ -144,13 +143,14 @@ export default function SpecialistReviewPage() {
             <FilterSelect
               label="Trạng thái"
               value={status === 'ALL' ? '' : status}
-              onChange={(value) => { setStatus((value || 'ALL') as 'ALL' | ScoreState); }}
+              onChange={(value) => { setStatus(value || 'ALL'); setPage(0); }}
               allLabel="Tất cả trạng thái"
               options={[
-                { value: 'DRAFT', label: 'Nháp / cần chỉnh sửa' },
-                { value: 'CHO_CHUYEN_VIEN', label: 'Đang chờ chuyên viên' },
-                { value: 'CHO_DUYET_BAN', label: 'Đã chuyển lãnh đạo' },
-                { value: 'DA_CONG_BO', label: 'Đã công bố' },
+                { value: 'LocalSubmitted', label: 'Mới nộp' },
+                { value: 'SpecialistApproved', label: 'Đã chấm' },
+                { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+                { value: 'LeaderApproved', label: 'Đã duyệt' },
+                { value: 'CommitteeFinalized', label: 'Đã công bố' },
               ]}
             />
           </FilterDropdown>
