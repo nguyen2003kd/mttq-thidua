@@ -1,8 +1,6 @@
 /* eslint-disable */
 
-export interface CreateCriteriaRequest {
-  /** @nullable */
-  criteriaGroupId?: string | null;
+export interface BulkCriteriaItem {
   /** @nullable */
   type?: string | null;
   /** @nullable */

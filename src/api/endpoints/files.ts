@@ -1,15 +1,19 @@
 /* eslint-disable */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
@@ -88,78 +92,51 @@ if(postApiV1FilesUploadBody?.Visibility !== undefined) {
 
 
 
-export const getPostApiV1FilesUploadQueryKey = (postApiV1FilesUploadBody?: PostApiV1FilesUploadBody,) => {
-    return [
-    'POST', `/api/v1/files/upload`, postApiV1FilesUploadBody
-    ] as const;
+export const getPostApiV1FilesUploadMutationKey = () => ['postApiV1FilesUpload'] as const;
+
+export const getPostApiV1FilesUploadMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError,PostApiV1FilesUploadMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError,PostApiV1FilesUploadMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1FilesUploadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1FilesUpload>>, PostApiV1FilesUploadMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1FilesUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1FilesUploadMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1FilesUpload>>>
+    export type PostApiV1FilesUploadMutationBody = PostApiV1FilesUploadBody | undefined
+    export type PostApiV1FilesUploadMutationError = unknown
+    export type PostApiV1FilesUploadMutationVariables = {data?: PostApiV1FilesUploadBody}
+
+    export const usePostApiV1FilesUpload = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError,PostApiV1FilesUploadMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1FilesUpload>>,
+        TError,
+        PostApiV1FilesUploadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1FilesUploadMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1FilesUploadQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError = unknown>(postApiV1FilesUploadBody?: PostApiV1FilesUploadBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1FilesUploadQueryKey(postApiV1FilesUploadBody);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1FilesUpload>>> = ({ signal }) => postApiV1FilesUpload(postApiV1FilesUploadBody, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type PostApiV1FilesUploadQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1FilesUpload>>>
-export type PostApiV1FilesUploadQueryError = unknown
-
-
-export function usePostApiV1FilesUpload<TData = Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError = unknown>(
- postApiV1FilesUploadBody: undefined |  PostApiV1FilesUploadBody, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1FilesUpload>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1FilesUpload>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1FilesUpload<TData = Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError = unknown>(
- postApiV1FilesUploadBody?: PostApiV1FilesUploadBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1FilesUpload>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1FilesUpload>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1FilesUpload<TData = Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError = unknown>(
- postApiV1FilesUploadBody?: PostApiV1FilesUploadBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1FilesUpload<TData = Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError = unknown>(
- postApiV1FilesUploadBody?: PostApiV1FilesUploadBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUpload>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1FilesUploadQueryOptions(postApiV1FilesUploadBody,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-export const postApiV1FilesUploadBulk = (
+    export const postApiV1FilesUploadBulk = (
     postApiV1FilesUploadBulkBody?: PostApiV1FilesUploadBulkBody,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
@@ -204,78 +181,51 @@ if(postApiV1FilesUploadBulkBody?.visibility !== undefined) {
 
 
 
-export const getPostApiV1FilesUploadBulkQueryKey = (postApiV1FilesUploadBulkBody?: PostApiV1FilesUploadBulkBody,) => {
-    return [
-    'POST', `/api/v1/files/upload-bulk`, postApiV1FilesUploadBulkBody
-    ] as const;
+export const getPostApiV1FilesUploadBulkMutationKey = () => ['postApiV1FilesUploadBulk'] as const;
+
+export const getPostApiV1FilesUploadBulkMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError,PostApiV1FilesUploadBulkMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError,PostApiV1FilesUploadBulkMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1FilesUploadBulkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, PostApiV1FilesUploadBulkMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1FilesUploadBulk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1FilesUploadBulkMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>>
+    export type PostApiV1FilesUploadBulkMutationBody = PostApiV1FilesUploadBulkBody | undefined
+    export type PostApiV1FilesUploadBulkMutationError = unknown
+    export type PostApiV1FilesUploadBulkMutationVariables = {data?: PostApiV1FilesUploadBulkBody}
+
+    export const usePostApiV1FilesUploadBulk = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError,PostApiV1FilesUploadBulkMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>,
+        TError,
+        PostApiV1FilesUploadBulkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1FilesUploadBulkMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1FilesUploadBulkQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError = unknown>(postApiV1FilesUploadBulkBody?: PostApiV1FilesUploadBulkBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1FilesUploadBulkQueryKey(postApiV1FilesUploadBulkBody);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>> = ({ signal }) => postApiV1FilesUploadBulk(postApiV1FilesUploadBulkBody, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type PostApiV1FilesUploadBulkQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>>
-export type PostApiV1FilesUploadBulkQueryError = unknown
-
-
-export function usePostApiV1FilesUploadBulk<TData = Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError = unknown>(
- postApiV1FilesUploadBulkBody: undefined |  PostApiV1FilesUploadBulkBody, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1FilesUploadBulk<TData = Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError = unknown>(
- postApiV1FilesUploadBulkBody?: PostApiV1FilesUploadBulkBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1FilesUploadBulk<TData = Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError = unknown>(
- postApiV1FilesUploadBulkBody?: PostApiV1FilesUploadBulkBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1FilesUploadBulk<TData = Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError = unknown>(
- postApiV1FilesUploadBulkBody?: PostApiV1FilesUploadBulkBody, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1FilesUploadBulk>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1FilesUploadBulkQueryOptions(postApiV1FilesUploadBulkBody,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-export const getApiV1Files = (
+    export const getApiV1Files = (
     params?: GetApiV1FilesParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
@@ -463,78 +413,51 @@ export const deleteApiV1FilesId = (
 
 
 
-export const getDeleteApiV1FilesIdQueryKey = (id: string,) => {
-    return [
-    'DELETE', `/api/v1/files/${id}`
-    ] as const;
+export const getDeleteApiV1FilesIdMutationKey = () => ['deleteApiV1FilesId'] as const;
+
+export const getDeleteApiV1FilesIdMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError,DeleteApiV1FilesIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError,DeleteApiV1FilesIdMutationVariables, TContext> => {
+
+const mutationKey = getDeleteApiV1FilesIdMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteApiV1FilesId>>, DeleteApiV1FilesIdMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteApiV1FilesId(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteApiV1FilesIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteApiV1FilesId>>>
+
+    export type DeleteApiV1FilesIdMutationError = unknown
+    export type DeleteApiV1FilesIdMutationVariables = {id: string}
+
+    export const useDeleteApiV1FilesId = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError,DeleteApiV1FilesIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteApiV1FilesId>>,
+        TError,
+        DeleteApiV1FilesIdMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteApiV1FilesIdMutationOptions(options), queryClient);
     }
-
-
-export const getDeleteApiV1FilesIdQueryOptions = <TData = Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getDeleteApiV1FilesIdQueryKey(id);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof deleteApiV1FilesId>>> = ({ signal }) => deleteApiV1FilesId(id, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type DeleteApiV1FilesIdQueryResult = NonNullable<Awaited<ReturnType<typeof deleteApiV1FilesId>>>
-export type DeleteApiV1FilesIdQueryError = unknown
-
-
-export function useDeleteApiV1FilesId<TData = Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError = unknown>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof deleteApiV1FilesId>>,
-          TError,
-          Awaited<ReturnType<typeof deleteApiV1FilesId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDeleteApiV1FilesId<TData = Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof deleteApiV1FilesId>>,
-          TError,
-          Awaited<ReturnType<typeof deleteApiV1FilesId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useDeleteApiV1FilesId<TData = Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function useDeleteApiV1FilesId<TData = Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof deleteApiV1FilesId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getDeleteApiV1FilesIdQueryOptions(id,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-export const getApiV1FilesIdDownload = (
+    export const getApiV1FilesIdDownload = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {

@@ -1,6 +1,9 @@
 import axios, { type AxiosError, type AxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/authStore";
 import baseConfig from "../../configs/base";
+import { invalidateApiQueries } from "./query-client";
+
+const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"]);
 
 const mainAxiosInstance = axios.create({
   baseURL: baseConfig.backendDomain,
@@ -43,5 +46,14 @@ export function mainInstance<T>(
         ...options?.headers,
       },
     })
-    .then((response) => response.data);
+    .then((response) => {
+      // Most feature APIs call `mainInstance` directly instead of a generated
+      // useMutation hook. Invalidate here so both styles refresh active
+      // TanStack Query screens after a successful write.
+      if (MUTATION_METHODS.has(response.config.method?.toLowerCase() ?? "")) {
+        void invalidateApiQueries();
+      }
+
+      return response.data;
+    });
 }

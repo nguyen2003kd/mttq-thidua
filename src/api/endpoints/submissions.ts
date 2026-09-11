@@ -1,15 +1,19 @@
 /* eslint-disable */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
@@ -82,6 +86,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
    return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
+
 export type GetApiV1SubmissionsIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1SubmissionsId>>>
 export type GetApiV1SubmissionsIdQueryError = unknown
 
@@ -122,6 +127,12 @@ export function useGetApiV1SubmissionsId<TData = Awaited<ReturnType<typeof getAp
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
 export const getApiV1CriteriaGroupsGroupIdSubmissions = (
     groupId: string,
     params?: GetApiV1CriteriaGroupsGroupIdSubmissionsParams,
@@ -165,6 +176,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
    return  { queryKey, queryFn, enabled: groupId !== null && groupId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroupsGroupIdSubmissions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
+
 export type GetApiV1CriteriaGroupsGroupIdSubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1CriteriaGroupsGroupIdSubmissions>>>
 export type GetApiV1CriteriaGroupsGroupIdSubmissionsQueryError = unknown
 
@@ -209,6 +221,12 @@ export function useGetApiV1CriteriaGroupsGroupIdSubmissions<TData = Awaited<Retu
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
 export const getApiV1MySubmissions = (
     params?: GetApiV1MySubmissionsParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
@@ -249,6 +267,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1MySubmissions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
+
 export type GetApiV1MySubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1MySubmissions>>>
 export type GetApiV1MySubmissionsQueryError = unknown
 
@@ -293,6 +312,8 @@ export function useGetApiV1MySubmissions<TData = Awaited<ReturnType<typeof getAp
 
 
 
+
+
 export const postApiV1SubmissionsSubmitPoints = (
     submitPointsRequest?: SubmitPointsRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
@@ -310,69 +331,47 @@ export const postApiV1SubmissionsSubmitPoints = (
 
 
 
-export const getPostApiV1SubmissionsSubmitPointsQueryKey = (submitPointsRequest?: SubmitPointsRequest,) => {
-    return [
-    'POST', `/api/v1/submissions/submit-points`, submitPointsRequest
-    ] as const;
+export const getPostApiV1SubmissionsSubmitPointsMutationKey = () => ['postApiV1SubmissionsSubmitPoints'] as const;
+
+export const getPostApiV1SubmissionsSubmitPointsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError,PostApiV1SubmissionsSubmitPointsMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError,PostApiV1SubmissionsSubmitPointsMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsSubmitPointsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, PostApiV1SubmissionsSubmitPointsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1SubmissionsSubmitPoints(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsSubmitPointsMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>>
+    export type PostApiV1SubmissionsSubmitPointsMutationBody = SubmitPointsRequest | undefined
+    export type PostApiV1SubmissionsSubmitPointsMutationError = unknown
+    export type PostApiV1SubmissionsSubmitPointsMutationVariables = {data?: SubmitPointsRequest}
+
+    export const usePostApiV1SubmissionsSubmitPoints = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError,PostApiV1SubmissionsSubmitPointsMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>,
+        TError,
+        PostApiV1SubmissionsSubmitPointsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsSubmitPointsMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1SubmissionsSubmitPointsQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError = unknown>(submitPointsRequest?: SubmitPointsRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1SubmissionsSubmitPointsQueryKey(submitPointsRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>> = ({ signal }) => postApiV1SubmissionsSubmitPoints(submitPointsRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-export type PostApiV1SubmissionsSubmitPointsQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>>
-export type PostApiV1SubmissionsSubmitPointsQueryError = unknown
-
-
-export function usePostApiV1SubmissionsSubmitPoints<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError = unknown>(
- submitPointsRequest: undefined |  SubmitPointsRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsSubmitPoints<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError = unknown>(
- submitPointsRequest?: SubmitPointsRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsSubmitPoints<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError = unknown>(
- submitPointsRequest?: SubmitPointsRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1SubmissionsSubmitPoints<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError = unknown>(
- submitPointsRequest?: SubmitPointsRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSubmitPoints>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1SubmissionsSubmitPointsQueryOptions(submitPointsRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-

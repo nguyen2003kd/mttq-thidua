@@ -1,15 +1,19 @@
 /* eslint-disable */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
@@ -61,71 +65,51 @@ export const postApiV1CriteriaGroups = (
 
 
 
-export const getPostApiV1CriteriaGroupsQueryKey = (createCriteriaGroupRequest?: CreateCriteriaGroupRequest,) => {
-    return [
-    'POST', `/api/v1/criteria-groups`, createCriteriaGroupRequest
-    ] as const;
+export const getPostApiV1CriteriaGroupsMutationKey = () => ['postApiV1CriteriaGroups'] as const;
+
+export const getPostApiV1CriteriaGroupsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError,PostApiV1CriteriaGroupsMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError,PostApiV1CriteriaGroupsMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1CriteriaGroupsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, PostApiV1CriteriaGroupsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1CriteriaGroups(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1CriteriaGroupsMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>>
+    export type PostApiV1CriteriaGroupsMutationBody = CreateCriteriaGroupRequest | undefined
+    export type PostApiV1CriteriaGroupsMutationError = unknown
+    export type PostApiV1CriteriaGroupsMutationVariables = {data?: CreateCriteriaGroupRequest}
+
+    export const usePostApiV1CriteriaGroups = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError,PostApiV1CriteriaGroupsMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1CriteriaGroups>>,
+        TError,
+        PostApiV1CriteriaGroupsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1CriteriaGroupsMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1CriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError = unknown>(createCriteriaGroupRequest?: CreateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1CriteriaGroupsQueryKey(createCriteriaGroupRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>> = ({ signal }) => postApiV1CriteriaGroups(createCriteriaGroupRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-export type PostApiV1CriteriaGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>>
-export type PostApiV1CriteriaGroupsQueryError = unknown
-
-
-export function usePostApiV1CriteriaGroups<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError = unknown>(
- createCriteriaGroupRequest: undefined |  CreateCriteriaGroupRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1CriteriaGroups>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1CriteriaGroups>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1CriteriaGroups<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError = unknown>(
- createCriteriaGroupRequest?: CreateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1CriteriaGroups>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1CriteriaGroups>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1CriteriaGroups<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError = unknown>(
- createCriteriaGroupRequest?: CreateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1CriteriaGroups<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError = unknown>(
- createCriteriaGroupRequest?: CreateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1CriteriaGroupsQueryOptions(createCriteriaGroupRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-export const getApiV1CriteriaGroups = (
+    export const getApiV1CriteriaGroups = (
     params?: GetApiV1CriteriaGroupsParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
@@ -165,6 +149,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
    return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
+
 export type GetApiV1CriteriaGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1CriteriaGroups>>>
 export type GetApiV1CriteriaGroupsQueryError = unknown
 
@@ -205,6 +190,12 @@ export function useGetApiV1CriteriaGroups<TData = Awaited<ReturnType<typeof getA
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
 export const putApiV1CriteriaGroupsId = (
     id: string,
     updateCriteriaGroupRequest?: UpdateCriteriaGroupRequest,
@@ -223,81 +214,51 @@ export const putApiV1CriteriaGroupsId = (
 
 
 
-export const getPutApiV1CriteriaGroupsIdQueryKey = (id: string,
-    updateCriteriaGroupRequest?: UpdateCriteriaGroupRequest,) => {
-    return [
-    'PUT', `/api/v1/criteria-groups/${id}`, updateCriteriaGroupRequest
-    ] as const;
+export const getPutApiV1CriteriaGroupsIdMutationKey = () => ['putApiV1CriteriaGroupsId'] as const;
+
+export const getPutApiV1CriteriaGroupsIdMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError,PutApiV1CriteriaGroupsIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError,PutApiV1CriteriaGroupsIdMutationVariables, TContext> => {
+
+const mutationKey = getPutApiV1CriteriaGroupsIdMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, PutApiV1CriteriaGroupsIdMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  putApiV1CriteriaGroupsId(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutApiV1CriteriaGroupsIdMutationResult = NonNullable<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>>
+    export type PutApiV1CriteriaGroupsIdMutationBody = UpdateCriteriaGroupRequest | undefined
+    export type PutApiV1CriteriaGroupsIdMutationError = unknown
+    export type PutApiV1CriteriaGroupsIdMutationVariables = {id: string;data?: UpdateCriteriaGroupRequest}
+
+    export const usePutApiV1CriteriaGroupsId = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError,PutApiV1CriteriaGroupsIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>,
+        TError,
+        PutApiV1CriteriaGroupsIdMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPutApiV1CriteriaGroupsIdMutationOptions(options), queryClient);
     }
-
-
-export const getPutApiV1CriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError = unknown>(id: string,
-    updateCriteriaGroupRequest?: UpdateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPutApiV1CriteriaGroupsIdQueryKey(id,updateCriteriaGroupRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>> = ({ signal }) => putApiV1CriteriaGroupsId(id,updateCriteriaGroupRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-export type PutApiV1CriteriaGroupsIdQueryResult = NonNullable<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>>
-export type PutApiV1CriteriaGroupsIdQueryError = unknown
-
-
-export function usePutApiV1CriteriaGroupsId<TData = Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError = unknown>(
- id: string,
-    updateCriteriaGroupRequest: undefined |  UpdateCriteriaGroupRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>,
-          TError,
-          Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePutApiV1CriteriaGroupsId<TData = Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError = unknown>(
- id: string,
-    updateCriteriaGroupRequest?: UpdateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>,
-          TError,
-          Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePutApiV1CriteriaGroupsId<TData = Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError = unknown>(
- id: string,
-    updateCriteriaGroupRequest?: UpdateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePutApiV1CriteriaGroupsId<TData = Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError = unknown>(
- id: string,
-    updateCriteriaGroupRequest?: UpdateCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof putApiV1CriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPutApiV1CriteriaGroupsIdQueryOptions(id,updateCriteriaGroupRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-export const getApiV1CriteriaGroupsId = (
+    export const getApiV1CriteriaGroupsId = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
@@ -336,6 +297,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
    return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
+
 export type GetApiV1CriteriaGroupsIdQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>>
 export type GetApiV1CriteriaGroupsIdQueryError = unknown
 
@@ -399,70 +361,47 @@ export const postApiV1CriteriaGroupsApply = (
 
 
 
-export const getPostApiV1CriteriaGroupsApplyQueryKey = (applyCriteriaGroupRequest?: ApplyCriteriaGroupRequest,) => {
-    return [
-    'POST', `/api/v1/criteria-groups/apply`, applyCriteriaGroupRequest
-    ] as const;
+export const getPostApiV1CriteriaGroupsApplyMutationKey = () => ['postApiV1CriteriaGroupsApply'] as const;
+
+export const getPostApiV1CriteriaGroupsApplyMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError,PostApiV1CriteriaGroupsApplyMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError,PostApiV1CriteriaGroupsApplyMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1CriteriaGroupsApplyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, PostApiV1CriteriaGroupsApplyMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1CriteriaGroupsApply(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1CriteriaGroupsApplyMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>>
+    export type PostApiV1CriteriaGroupsApplyMutationBody = ApplyCriteriaGroupRequest | undefined
+    export type PostApiV1CriteriaGroupsApplyMutationError = unknown
+    export type PostApiV1CriteriaGroupsApplyMutationVariables = {data?: ApplyCriteriaGroupRequest}
+
+    export const usePostApiV1CriteriaGroupsApply = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError,PostApiV1CriteriaGroupsApplyMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>,
+        TError,
+        PostApiV1CriteriaGroupsApplyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1CriteriaGroupsApplyMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1CriteriaGroupsApplyQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError = unknown>(applyCriteriaGroupRequest?: ApplyCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1CriteriaGroupsApplyQueryKey(applyCriteriaGroupRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>> = ({ signal }) => postApiV1CriteriaGroupsApply(applyCriteriaGroupRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type PostApiV1CriteriaGroupsApplyQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>>
-export type PostApiV1CriteriaGroupsApplyQueryError = unknown
-
-
-export function usePostApiV1CriteriaGroupsApply<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError = unknown>(
- applyCriteriaGroupRequest: undefined |  ApplyCriteriaGroupRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1CriteriaGroupsApply<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError = unknown>(
- applyCriteriaGroupRequest?: ApplyCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1CriteriaGroupsApply<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError = unknown>(
- applyCriteriaGroupRequest?: ApplyCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1CriteriaGroupsApply<TData = Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError = unknown>(
- applyCriteriaGroupRequest?: ApplyCriteriaGroupRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1CriteriaGroupsApplyQueryOptions(applyCriteriaGroupRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-

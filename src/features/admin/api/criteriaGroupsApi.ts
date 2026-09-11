@@ -63,19 +63,37 @@ export interface CriteriaPayload {
   note?: string;
 }
 
+export type SortOrder = 'asc' | 'desc';
+export type CriteriaGroupSortBy = 'createdAt' | 'name' | 'deadline' | 'maxPoint';
+export type CriteriaSortBy = 'createdAt' | 'content' | 'maxPoint' | 'deadline';
+
 const request = async <T>(config: AxiosRequestConfig) => {
   const response = await mainInstance<ApiEnvelope<T>>(config);
   return response.data;
 };
 
 export const criteriaGroupsApi = {
-  list: (params?: { search?: string; status?: CriteriaGroupStatusApi; page?: number; pageSize?: number }) =>
+  list: (params?: {
+    search?: string;
+    status?: CriteriaGroupStatusApi;
+    page?: number;
+    pageSize?: number;
+    sortBy?: CriteriaGroupSortBy;
+    sortOrder?: SortOrder;
+  }) =>
     request<PagedResult<CriteriaGroupApi>>({ url: '/api/v1/criteria-groups', method: 'GET', params }),
   get: (id: string) => request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
   create: (payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: '/api/v1/criteria-groups', method: 'POST', data: payload }),
   update: (id: string, payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'PUT', data: payload }),
   apply: (criteriaGroupId: string) => request<{ applied: true; criteriaGroupId: string }>({ url: '/api/v1/criteria-groups/apply', method: 'POST', data: { criteriaGroupId } }),
-  listCriteria: (groupId: string, params?: { search?: string; page?: number; pageSize?: number }) =>
+  listCriteria: (groupId: string, params?: {
+    search?: string;
+    type?: CriteriaApi['type'];
+    page?: number;
+    pageSize?: number;
+    sortBy?: CriteriaSortBy;
+    sortOrder?: SortOrder;
+  }) =>
     request<PagedResult<CriteriaApi>>({ url: `/api/v1/criteria-groups/${groupId}/criteria`, method: 'GET', params }),
   createBulk: (criteriaGroupId: string, items: CriteriaPayload[]) =>
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'POST', data: { criteriaGroupId, items } }),

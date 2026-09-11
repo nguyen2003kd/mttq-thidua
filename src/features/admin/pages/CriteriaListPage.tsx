@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { AlertTriangle, Plus, Eye, Pencil, Send } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
-import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
+import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
@@ -44,11 +44,16 @@ export default function CriteriaListPage() {
   const localities = useScoreStore((s) => s.localities);
   const deadline = useScoreStore((s) => s.deadline);
   const setDeadline = useScoreStore((s) => s.setDeadline);
-  const { data: groupPage, isLoading } = useQuery({ queryKey: ['criteria-groups'], queryFn: () => criteriaGroupsApi.list({ page: 1, pageSize: 100 }) });
-  const criteriaTables = useMemo(() => (groupPage?.items ?? []).map(toCriteriaTable), [groupPage]);
-
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<CriteriaGroupStatusApi | ''>('');
+  const [sort, setSort] = useState('createdAt-desc');
   const [yearFilter, setYearFilter] = useState<string>('');
+  const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
+  const { data: groupPage, isLoading } = useQuery({
+    queryKey: ['criteria-groups', { search, statusFilter, sortBy, sortOrder }],
+    queryFn: () => criteriaGroupsApi.list({ search: search || undefined, status: statusFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
+  });
+  const criteriaTables = useMemo(() => (groupPage?.items ?? []).map(toCriteriaTable), [groupPage]);
 
   const availableYears = useMemo(
     () => Array.from(new Set(criteriaTables.map((t) => new Date(t.openDate).getFullYear().toString()))).sort().reverse(),
@@ -57,14 +62,13 @@ export default function CriteriaListPage() {
 
   const filteredTables = useMemo(() => {
     return criteriaTables.filter((t) => {
-      const statusMatch = !statusFilter || t.status === statusFilter;
       const yearMatch =
         !yearFilter ||
         new Date(t.openDate).getFullYear().toString() === yearFilter ||
         new Date(t.closeDate).getFullYear().toString() === yearFilter;
-      return statusMatch && yearMatch;
+      return yearMatch;
     });
-  }, [criteriaTables, statusFilter, yearFilter]);
+  }, [criteriaTables, yearFilter]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -223,6 +227,7 @@ export default function CriteriaListPage() {
         getRowId={(row) => row.id}
         searchable
         searchKey="name"
+        onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
         onRowClick={(row) => setSelectedTable(row)}
@@ -232,11 +237,24 @@ export default function CriteriaListPage() {
             <FilterSelect
               label="Trạng thái"
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(value) => setStatusFilter(value as CriteriaGroupStatusApi | '')}
               options={[
-                { value: 'DRAFT', label: CRITERIA_STATUS_LABELS.DRAFT },
-                { value: 'ACTIVE', label: CRITERIA_STATUS_LABELS.ACTIVE },
-                { value: 'EXPIRED', label: CRITERIA_STATUS_LABELS.EXPIRED },
+                { value: 'Draft', label: CRITERIA_STATUS_LABELS.DRAFT },
+                { value: 'Applied', label: CRITERIA_STATUS_LABELS.ACTIVE },
+                { value: 'Closed', label: CRITERIA_STATUS_LABELS.EXPIRED },
+              ]}
+            />
+            <FilterSelect
+              label="Sắp xếp"
+              value={sort}
+              onChange={setSort}
+              allLabel="Mặc định"
+              options={[
+                { value: 'createdAt-desc', label: 'Mới nhất' },
+                { value: 'name-asc', label: 'Tên A–Z' },
+                { value: 'name-desc', label: 'Tên Z–A' },
+                { value: 'deadline-asc', label: 'Hạn nộp gần nhất' },
+                { value: 'maxPoint-desc', label: 'Điểm cao nhất' },
               ]}
             />
             <FilterSelect
@@ -251,19 +269,23 @@ export default function CriteriaListPage() {
           ...(statusFilter
             ? [{
                 label: 'Trạng thái',
-                value: CRITERIA_STATUS_LABELS[statusFilter as CriteriaTable['status']],
+                value: statusFilter === 'Draft' ? CRITERIA_STATUS_LABELS.DRAFT : statusFilter === 'Applied' ? CRITERIA_STATUS_LABELS.ACTIVE : CRITERIA_STATUS_LABELS.EXPIRED,
                 onClear: () => setStatusFilter(''),
               }]
             : []),
           ...(yearFilter
             ? [{ label: 'Năm', value: yearFilter, onClear: () => setYearFilter('') }]
             : []),
+          ...(sort !== 'createdAt-desc'
+            ? [{ label: 'Sắp xếp', value: sort === 'name-asc' ? 'Tên A–Z' : sort === 'name-desc' ? 'Tên Z–A' : sort === 'deadline-asc' ? 'Hạn nộp gần nhất' : 'Điểm cao nhất', onClear: () => setSort('createdAt-desc') }]
+            : []),
         ]}
         onClearFilters={
-          statusFilter || yearFilter
+          statusFilter || yearFilter || sort !== 'createdAt-desc'
             ? () => {
                 setStatusFilter('');
                 setYearFilter('');
+                setSort('createdAt-desc');
               }
             : undefined
         }
@@ -376,4 +398,3 @@ export default function CriteriaListPage() {
     </div>
   );
 }
-

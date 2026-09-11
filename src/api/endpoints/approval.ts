@@ -1,15 +1,19 @@
 /* eslint-disable */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
@@ -62,71 +66,51 @@ export const postApiV1SubmissionsApprove = (
 
 
 
-export const getPostApiV1SubmissionsApproveQueryKey = (approvalRequest?: ApprovalRequest,) => {
-    return [
-    'POST', `/api/v1/submissions/approve`, approvalRequest
-    ] as const;
+export const getPostApiV1SubmissionsApproveMutationKey = () => ['postApiV1SubmissionsApprove'] as const;
+
+export const getPostApiV1SubmissionsApproveMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError,PostApiV1SubmissionsApproveMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError,PostApiV1SubmissionsApproveMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsApproveMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, PostApiV1SubmissionsApproveMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1SubmissionsApprove(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsApproveMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>>
+    export type PostApiV1SubmissionsApproveMutationBody = ApprovalRequest | undefined
+    export type PostApiV1SubmissionsApproveMutationError = unknown
+    export type PostApiV1SubmissionsApproveMutationVariables = {data?: ApprovalRequest}
+
+    export const usePostApiV1SubmissionsApprove = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError,PostApiV1SubmissionsApproveMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>,
+        TError,
+        PostApiV1SubmissionsApproveMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsApproveMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1SubmissionsApproveQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError = unknown>(approvalRequest?: ApprovalRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1SubmissionsApproveQueryKey(approvalRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>> = ({ signal }) => postApiV1SubmissionsApprove(approvalRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-export type PostApiV1SubmissionsApproveQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>>
-export type PostApiV1SubmissionsApproveQueryError = unknown
-
-
-export function usePostApiV1SubmissionsApprove<TData = Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError = unknown>(
- approvalRequest: undefined |  ApprovalRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsApprove<TData = Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError = unknown>(
- approvalRequest?: ApprovalRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsApprove<TData = Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError = unknown>(
- approvalRequest?: ApprovalRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1SubmissionsApprove<TData = Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError = unknown>(
- approvalRequest?: ApprovalRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsApprove>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1SubmissionsApproveQueryOptions(approvalRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-export const postApiV1SubmissionsSupplementaryCriteria = (
+    export const postApiV1SubmissionsSupplementaryCriteria = (
     addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
@@ -143,71 +127,51 @@ export const postApiV1SubmissionsSupplementaryCriteria = (
 
 
 
-export const getPostApiV1SubmissionsSupplementaryCriteriaQueryKey = (addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest,) => {
-    return [
-    'POST', `/api/v1/submissions/supplementary-criteria`, addSupplementaryCriteriaRequest
-    ] as const;
+export const getPostApiV1SubmissionsSupplementaryCriteriaMutationKey = () => ['postApiV1SubmissionsSupplementaryCriteria'] as const;
+
+export const getPostApiV1SubmissionsSupplementaryCriteriaMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError,PostApiV1SubmissionsSupplementaryCriteriaMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError,PostApiV1SubmissionsSupplementaryCriteriaMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsSupplementaryCriteriaMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, PostApiV1SubmissionsSupplementaryCriteriaMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1SubmissionsSupplementaryCriteria(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsSupplementaryCriteriaMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>>
+    export type PostApiV1SubmissionsSupplementaryCriteriaMutationBody = AddSupplementaryCriteriaRequest | undefined
+    export type PostApiV1SubmissionsSupplementaryCriteriaMutationError = unknown
+    export type PostApiV1SubmissionsSupplementaryCriteriaMutationVariables = {data?: AddSupplementaryCriteriaRequest}
+
+    export const usePostApiV1SubmissionsSupplementaryCriteria = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError,PostApiV1SubmissionsSupplementaryCriteriaMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>,
+        TError,
+        PostApiV1SubmissionsSupplementaryCriteriaMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsSupplementaryCriteriaMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1SubmissionsSupplementaryCriteriaQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError = unknown>(addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1SubmissionsSupplementaryCriteriaQueryKey(addSupplementaryCriteriaRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>> = ({ signal }) => postApiV1SubmissionsSupplementaryCriteria(addSupplementaryCriteriaRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-export type PostApiV1SubmissionsSupplementaryCriteriaQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>>
-export type PostApiV1SubmissionsSupplementaryCriteriaQueryError = unknown
-
-
-export function usePostApiV1SubmissionsSupplementaryCriteria<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError = unknown>(
- addSupplementaryCriteriaRequest: undefined |  AddSupplementaryCriteriaRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsSupplementaryCriteria<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError = unknown>(
- addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsSupplementaryCriteria<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError = unknown>(
- addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1SubmissionsSupplementaryCriteria<TData = Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError = unknown>(
- addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsSupplementaryCriteria>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1SubmissionsSupplementaryCriteriaQueryOptions(addSupplementaryCriteriaRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-export const postApiV1SubmissionsFinalize = (
+    export const postApiV1SubmissionsFinalize = (
     finalizeSubmissionRequest?: FinalizeSubmissionRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
@@ -224,75 +188,51 @@ export const postApiV1SubmissionsFinalize = (
 
 
 
-export const getPostApiV1SubmissionsFinalizeQueryKey = (finalizeSubmissionRequest?: FinalizeSubmissionRequest,) => {
-    return [
-    'POST', `/api/v1/submissions/finalize`, finalizeSubmissionRequest
-    ] as const;
+export const getPostApiV1SubmissionsFinalizeMutationKey = () => ['postApiV1SubmissionsFinalize'] as const;
+
+export const getPostApiV1SubmissionsFinalizeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError,PostApiV1SubmissionsFinalizeMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError,PostApiV1SubmissionsFinalizeMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsFinalizeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, PostApiV1SubmissionsFinalizeMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1SubmissionsFinalize(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsFinalizeMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>>
+    export type PostApiV1SubmissionsFinalizeMutationBody = FinalizeSubmissionRequest | undefined
+    export type PostApiV1SubmissionsFinalizeMutationError = unknown
+    export type PostApiV1SubmissionsFinalizeMutationVariables = {data?: FinalizeSubmissionRequest}
+
+    export const usePostApiV1SubmissionsFinalize = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError,PostApiV1SubmissionsFinalizeMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>,
+        TError,
+        PostApiV1SubmissionsFinalizeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsFinalizeMutationOptions(options), queryClient);
     }
-
-
-export const getPostApiV1SubmissionsFinalizeQueryOptions = <TData = Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError = unknown>(finalizeSubmissionRequest?: FinalizeSubmissionRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getPostApiV1SubmissionsFinalizeQueryKey(finalizeSubmissionRequest);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>> = ({ signal }) => postApiV1SubmissionsFinalize(finalizeSubmissionRequest, requestOptions, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-export type PostApiV1SubmissionsFinalizeQueryResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>>
-export type PostApiV1SubmissionsFinalizeQueryError = unknown
-
-
-export function usePostApiV1SubmissionsFinalize<TData = Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError = unknown>(
- finalizeSubmissionRequest: undefined |  FinalizeSubmissionRequest, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsFinalize<TData = Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError = unknown>(
- finalizeSubmissionRequest?: FinalizeSubmissionRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>,
-          TError,
-          Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePostApiV1SubmissionsFinalize<TData = Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError = unknown>(
- finalizeSubmissionRequest?: FinalizeSubmissionRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function usePostApiV1SubmissionsFinalize<TData = Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError = unknown>(
- finalizeSubmissionRequest?: FinalizeSubmissionRequest, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof postApiV1SubmissionsFinalize>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getPostApiV1SubmissionsFinalizeQueryOptions(finalizeSubmissionRequest,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-export const getApiV1SubmissionsSubmissionIdApprovalHistories = (
+    export const getApiV1SubmissionsSubmissionIdApprovalHistories = (
     submissionId: string,
     params?: GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
@@ -335,6 +275,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 
    return  { queryKey, queryFn, enabled: submissionId !== null && submissionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsSubmissionIdApprovalHistories>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
+
 export type GetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1SubmissionsSubmissionIdApprovalHistories>>>
 export type GetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryError = unknown
 
@@ -473,5 +414,9 @@ export function useGetApiV1SubmissionResultsResultIdHistories<TData = Awaited<Re
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
 
 

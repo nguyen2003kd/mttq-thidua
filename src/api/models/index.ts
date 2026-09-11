@@ -9,6 +9,8 @@ export * from './batchLinkRequestMode.ts';
 export * from './batchLinkResponse.ts';
 export * from './batchLinkResult.ts';
 export * from './batchLinkResultItem.ts';
+export * from './bulkCreateCriteriaRequest.ts';
+export * from './bulkCriteriaItem.ts';
 export * from './compressInfo.ts';
 export * from './confirmFileRequest.ts';
 export * from './confirmFileUpload200.ts';
