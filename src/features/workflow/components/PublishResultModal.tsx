@@ -1,7 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { FileCheck2, Upload } from 'lucide-react';
-import { FormDialog } from '@/components/core';
-import { Input } from '@/components/ui/input';
+import { FormDialog, FileUpload } from '@/components/core';
 import { Label } from '@/components/ui/label';
 import type { CriteriaTableAttachment, Locality, ScoreRecord } from '@/types/domain';
 
@@ -53,14 +51,8 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="decision-file">Đính kèm Quyết định <span className="text-destructive">*</span></Label>
-        <div className="rounded-lg border border-dashed p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-            {file ? <FileCheck2 className="h-4 w-4 text-success" /> : <Upload className="h-4 w-4" />}
-            <span>{file?.name ?? 'Chọn file quyết định đã ký'}</span>
-          </div>
-          <Input id="decision-file" type="file" accept=".pdf,.doc,.docx" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        </div>
+        <Label>Đính kèm Quyết định <span className="text-destructive">*</span></Label>
+        <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} accept=".pdf,.doc,.docx" />
       </div>
       <p className="text-xs text-muted-foreground">Sau khi công bố, hồ sơ chuyển sang trạng thái chỉ đọc và hiển thị cho địa phương.</p>
       {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}

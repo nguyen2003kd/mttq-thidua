@@ -8,7 +8,7 @@ interface NavItemProps {
   to: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
-  theme?: 'sidebar' | 'top';
+  theme?: 'sidebar' | 'top' | 'header';
   roles?: Role[];
   children?: ReactNode;
 }
@@ -21,6 +21,30 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
 
   if (roles && user && !roles.includes(user.role)) {
     return null;
+  }
+
+  if (theme === 'header') {
+    return (
+      <NavLink
+        to={to}
+        className={({ isActive }) =>
+          cn(
+            baseItem,
+            'h-9 gap-2 px-3 text-[13px]',
+            isActive
+              ? 'bg-white/15 text-white'
+              : 'text-white/75 hover:bg-white/10 hover:text-white',
+          )
+        }
+      >
+        {({ isActive }) => (
+          <>
+            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-accent' : 'text-white/60')} />
+            <span className="truncate">{label}</span>
+          </>
+        )}
+      </NavLink>
+    );
   }
 
   if (theme === 'top') {

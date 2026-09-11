@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { FormDialog } from '@/components/core';
+import { FormDialog, FileUpload } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,9 +52,8 @@ export function SupplementaryCriterionModal({ open, onOpenChange, onSave }: Supp
         <Textarea id="supplementary-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="supplementary-file">File đính kèm <span className="text-destructive">*</span></Label>
-        <Input id="supplementary-file" type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        <p className="text-xs text-muted-foreground">Dung lượng tối đa 20MB.</p>
+        <Label>File đính kèm <span className="text-destructive">*</span></Label>
+        <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="supplementary-score">Điểm chấm <span className="text-destructive">*</span></Label>

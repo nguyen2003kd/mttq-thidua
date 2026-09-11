@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AlertTriangle, FileText, Paperclip, Trash2 } from 'lucide-react';
-import { FormDialog, Button } from '@/components/core';
+import { FormDialog, Button, FileUpload } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -128,14 +128,13 @@ export function EvidenceModal({
             <Textarea id="evidence-explanation" rows={3} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Mô tả kết quả đạt được và căn cứ chấm điểm" />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="evidence-file">File bằng chứng {!hasEvidence && <span className="text-destructive">*</span>}</Label>
-            <Input id="evidence-file" type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-            <p className="text-xs text-muted-foreground">Dung lượng tối đa 20MB.</p>
+            <Label>File bằng chứng {!hasEvidence && <span className="text-destructive">*</span>}</Label>
+            <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="bonus-evidence-file">Bằng chứng điểm thưởng</Label>
-            <Input id="bonus-evidence-file" type="file" onChange={(event) => setBonusFile(event.target.files?.[0] ?? null)} disabled={maxBonus === 0} />
-            <p className="text-xs text-muted-foreground">Không bắt buộc, dung lượng tối đa 20MB.</p>
+            <Label>Bằng chứng điểm thưởng</Label>
+            <FileUpload value={bonusFile ? [bonusFile] : []} onChange={(files) => setBonusFile(files[0] ?? null)} multiple={false} disabled={maxBonus === 0} />
+            <p className="text-xs text-muted-foreground">Không bắt buộc.</p>
           </div>
         </div>
       )}

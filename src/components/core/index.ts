@@ -15,7 +15,11 @@ export { AuditTimelineDialog, type AuditTimelineDialogProps } from './AuditTimel
 export { DataTable, type DataTableColumnMeta, type DataTableProps } from './DataTable';
 export { EmptyState } from './EmptyState';
 export { FilterSelect, type FilterOption, type FilterSelectProps } from './FilterSelect';
+export { FilterDropdown, type FilterDropdownProps } from './FilterDropdown';
 export { ListDialog, type ListDialogItem, type ListDialogProps } from './ListDialog';
 export { StatCard } from './StatCard';
 export { AuditTimeline } from './AuditTimeline';
 export { CountdownBanner } from './CountdownBanner';
+export { FileUpload, type FileUploadProps } from './FileUpload';
+export { FileAttachmentList, type FileAttachmentListProps } from './FileAttachmentList';
+export { FilePreviewDialog, type FilePreviewDialogProps } from './FilePreviewDialog';

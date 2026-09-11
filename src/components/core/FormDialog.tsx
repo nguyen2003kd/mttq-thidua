@@ -52,7 +52,7 @@ export function FormDialog({
           <div className="max-h-[calc(100dvh-13rem)] space-y-5 overflow-y-auto px-6 py-5">
             {children}
           </div>
-          <DialogFooter>
+          <DialogFooter className="mx-0 mb-0 rounded-b-[8px] px-6 py-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {cancelLabel}
             </Button>

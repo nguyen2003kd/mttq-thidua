@@ -39,7 +39,6 @@ interface NavItemDef {
 export function AppLayout({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const navigate = useNavigate();
 
@@ -129,51 +128,36 @@ export function AppLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-dvh bg-background">
-      {sidebarOpen && (
-        <aside className="w-64 shrink-0 flex flex-col relative overflow-hidden text-white border-r border-white/10">
-          {/* Background image + faint black overlay */}
-          <div
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: "url('/sidebar.png')" }}
-            aria-hidden="true"
-          />
-          <div className="absolute inset-0 bg-[#1F1B1A]/30" aria-hidden="true" />
-
-          {/* Brand block */}
-          <div className="relative z-10 h-14 px-4 border-b border-white/20 flex items-center gap-2">
+    <div className="flex h-dvh flex-col bg-background">
+      <header className="h-14 flex shrink-0 items-center justify-between gap-4 px-4 border-b border-primary bg-primary text-primary-foreground">
+        <div className="flex min-w-0 items-center gap-3">
+          {/* Brand */}
+          <div className="flex items-center gap-2 pl-1 pr-2">
             <Trophy className="h-6 w-6 text-accent" />
-            <span className="font-semibold text-sm tracking-tight">Mặt Trận Tổ Quốc</span>
+            <span className="hidden lg:block font-semibold text-sm tracking-tight whitespace-nowrap">Mặt Trận Tổ Quốc</span>
           </div>
-
-          {/* Navigation */}
-          <nav className="relative z-10 flex-1 p-3 space-y-1 overflow-y-auto">
+          <span className="h-6 w-px bg-white/25" aria-hidden="true" />
+          {/* Navigation ngang */}
+          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
             {navItems.map((item) => (
               <NavItem
                 key={item.to}
                 to={item.to}
                 label={item.label}
                 icon={item.icon}
-                theme="sidebar"
+                theme="header"
               />
             ))}
           </nav>
-
-        </aside>
-      )}
-
-      <div className="min-w-0 flex-1 flex flex-col">
-        <header className="h-14 flex items-center justify-between px-6 gap-4 border-b border-primary bg-primary text-primary-foreground">
-          <div className="flex items-center gap-4">
-            {stickyTitle && (
-              <div className="flex flex-col justify-center">
-                <h1 className="text-[13px] font-semibold tracking-tight leading-relaxed">{stickyTitle}</h1>
-                {stickyDescription && (
-                  <p className="text-[10px] text-white/75 leading-relaxed">{stickyDescription}</p>
-                )}
-              </div>
-            )}
-          </div>
+          {stickyTitle && (
+            <div className="ml-auto hidden min-w-0 flex-col justify-center border-l border-white/25 pl-4 xl:flex">
+              <h1 className="truncate text-[13px] font-semibold tracking-tight leading-relaxed">{stickyTitle}</h1>
+              {stickyDescription && (
+                <p className="truncate text-[10px] text-white/75 leading-relaxed">{stickyDescription}</p>
+              )}
+            </div>
+          )}
+        </div>
           <div className="flex items-center gap-2">
             <DropdownMenu onOpenChange={(open) => { if (open) void fetchFirstPage(); }}>
               <DropdownMenuTrigger
@@ -285,8 +269,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-auto p-6">{children}</main>
       </div>
-    </div>
   );
 }

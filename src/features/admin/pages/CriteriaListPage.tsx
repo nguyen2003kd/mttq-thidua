@@ -7,6 +7,7 @@ import {
   DataTable,
   FilterSelect,
   FormDialog,
+  FileUpload,
 } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -15,12 +16,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { AlertTriangle, Plus, Eye, Pencil, Send } from 'lucide-react';
+import { Plus, Eye, Pencil, Send } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
+import { useFileUpload } from '@/hooks/useFileUpload';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
@@ -78,11 +80,12 @@ export default function CriteriaListPage() {
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
-  const [applyFile, setApplyFile] = useState<File | null>(null);
+  const [applyFiles, setApplyFiles] = useState<File[]>([]);
   const [applyError, setApplyError] = useState('');
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
+  const { uploading: fileUploading, uploadProgress: fileProgress, uploadFiles } = useFileUpload();
 
   const columns = useMemo<ColumnDef<CriteriaTable>[]>(
     () => [
@@ -110,7 +113,6 @@ export default function CriteriaListPage() {
         header: 'Hạn nộp',
         cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
         meta: {
-          align: 'left',
           list: { label: 'Hạn nộp', width: '1fr' },
         },
       },
@@ -118,7 +120,6 @@ export default function CriteriaListPage() {
         accessorKey: 'totalScore',
         header: LABELS.CRITERIA_TOTAL_SCORE,
         meta: {
-          align: 'right',
           list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '1fr', valueClassName: 'text-primary' },
         },
       },
@@ -139,19 +140,7 @@ export default function CriteriaListPage() {
           ? <Badge className="bg-success/15 text-success">Đã áp dụng</Badge>
           : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Chưa áp dụng</Badge>,
         meta: {
-          align: 'center',
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
-        },
-      },
-      {
-        accessorKey: 'openDate',
-        header: 'Cập nhật lần cuối',
-        cell: ({ row }) => (
-          <p className="text-sm">bởi {row.original.updatedBy ?? 'Hệ thống'} · {formatDateTime(row.original.updatedAt ?? row.original.openDate)}</p>
-        ),
-        meta: {
-          align: 'left',
-          list: { label: 'Cập nhật lần cuối', width: '1fr' },
         },
       },
     ],
@@ -225,6 +214,7 @@ export default function CriteriaListPage() {
         columns={columns}
         variant="list"
         getRowId={(row) => row.id}
+        selectedRowId={selectedTable?.id}
         searchable
         searchKey="name"
         onSearchChange={setSearch}
@@ -305,7 +295,11 @@ export default function CriteriaListPage() {
                 <Button variant="outline" disabled={!selectedTable} onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
-                <Button disabled={!selectedTable} onClick={() => { if (selectedTable) { setApplyFile(null); setApplyError(''); setApplyTable(selectedTable); } }}>
+                <Button
+                  disabled={!selectedTable || selectedTable.status !== 'DRAFT'}
+                  title={selectedTable && selectedTable.status !== 'DRAFT' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.' : undefined}
+                  onClick={() => { if (selectedTable && selectedTable.status === 'DRAFT') { setApplyFiles([]); setApplyError(''); setApplyTable(selectedTable); } }}
+                >
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
               </>
@@ -362,14 +356,26 @@ export default function CriteriaListPage() {
         cancelLabel="Đóng"
         submitAction="assign"
         submitDisabled={saving}
+        size="max-w-xl sm:max-w-xl"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!applyTable) return;
-          if (applyFile && applyFile.size > 20 * 1024 * 1024) { setApplyError('File thông báo không được vượt quá 20MB.'); return; }
-          if (applyFile) { setApplyError('API hiện chưa nhận file thông báo khi áp dụng.'); return; }
+          if (applyFiles.some((file) => file.size > 20 * 1024 * 1024)) { setApplyError('File thông báo không được vượt quá 20MB.'); return; }
+          const totalMax = applyTable.criteria.reduce((sum, item) => sum + (item.maxScore || 0), 0);
+          if (totalMax > applyTable.totalScore) {
+            setApplyError(`Tổng điểm tối đa của các tiêu chí (${totalMax.toFixed(2)}) vượt quá điểm tối đa của nhóm (${applyTable.totalScore.toFixed(2)}). Hãy chỉnh sửa điểm tiêu chí trước khi áp dụng.`);
+            return;
+          }
           setSaving(true);
           try {
             await criteriaGroupsApi.apply(applyTable.id);
+            if (applyFiles.length > 0) {
+              try {
+                await uploadFiles(applyFiles, { entityType: 'CriteriaGroup', entityId: applyTable.id, category: 'notice' });
+              } catch {
+                // Áp dụng đã thành công — lỗi upload chỉ cảnh báo, không chặn luồng
+              }
+            }
             await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
             setSelectedTable(null);
             setApplyTable(null);
@@ -379,8 +385,10 @@ export default function CriteriaListPage() {
         }}
       >
         <div className="rounded-md border border-primary/20 bg-primary/[0.04] p-3"><p className="font-medium">Địa phương <span className="text-destructive">★</span></p><p className="mt-1 text-sm text-muted-foreground">Áp dụng toàn bộ {localities.length} địa phương</p></div>
-        <div className="space-y-1.5"><Label htmlFor="apply-notice-file">Đính kèm file thông báo</Label><Input id="apply-notice-file" type="file" onChange={(event) => setApplyFile(event.target.files?.[0] ?? null)} /><p className="text-xs text-muted-foreground">Dung lượng tối đa 20MB.</p></div>
-        {applyError && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{applyError}</p>}
+        <div className="space-y-1.5">
+          <Label>Đính kèm file thông báo</Label>
+          <FileUpload value={applyFiles} onChange={setApplyFiles} uploading={fileUploading} uploadProgress={fileProgress} error={applyError} />
+        </div>
       </FormDialog>
 
       <FormDialog

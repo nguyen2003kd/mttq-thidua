@@ -2,11 +2,10 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Eye, FilePlus2, Search, Send, Sparkles, SquarePen } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, EmptyState, FormDialog, PageHeader, ScoreStateBadge } from '@/components/core';
+import { Button, EmptyState, FilterDropdown, FilterSelect, FormDialog, PageHeader, ScoreStateBadge } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuthStore } from '@/store/authStore';
@@ -91,9 +90,20 @@ export default function SpecialistReviewPage() {
         <PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Danh sách địa phương và trạng thái hồ sơ" />
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 md:flex-row md:items-center">
           <div className="relative flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Tìm kiếm tên hoặc mã địa phương" className="pl-9" /></div>
-          <Select value={status} onValueChange={(value) => { setStatus(value as 'ALL' | ScoreState); setPage(0); }}><SelectTrigger className="w-full md:w-60"><SelectValue>{status === 'ALL' ? 'Tất cả trạng thái' : undefined}</SelectValue></SelectTrigger><SelectContent><SelectItem value="ALL">Tất cả trạng thái</SelectItem><SelectItem value="DRAFT">Nháp / cần chỉnh sửa</SelectItem><SelectItem value="CHO_CHUYEN_VIEN">Đang chờ chuyên viên</SelectItem><SelectItem value="CHO_DUYET_BAN">Đã chuyển lãnh đạo</SelectItem><SelectItem value="DA_CONG_BO">Đã công bố</SelectItem></SelectContent></Select>
-          <Button onClick={() => setPage(0)}><Search className="size-4" />Tìm kiếm</Button>
-          <Button variant="ghost" onClick={() => { setSearch(''); setStatus('ALL'); setPage(0); }}>Xóa lọc</Button>
+          <FilterDropdown activeCount={status !== 'ALL' ? 1 : 0} onClear={() => { setSearch(''); setStatus('ALL'); setPage(0); }}>
+            <FilterSelect
+              label="Trạng thái"
+              value={status === 'ALL' ? '' : status}
+              onChange={(value) => { setStatus((value || 'ALL') as 'ALL' | ScoreState); }}
+              allLabel="Tất cả trạng thái"
+              options={[
+                { value: 'DRAFT', label: 'Nháp / cần chỉnh sửa' },
+                { value: 'CHO_CHUYEN_VIEN', label: 'Đang chờ chuyên viên' },
+                { value: 'CHO_DUYET_BAN', label: 'Đã chuyển lãnh đạo' },
+                { value: 'DA_CONG_BO', label: 'Đã công bố' },
+              ]}
+            />
+          </FilterDropdown>
         </div>
         <div className="overflow-hidden rounded-lg border bg-card">
           <div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-muted/70"><TableHead>Tên địa phương</TableHead><TableHead className="text-center">Nhóm tiêu chí hoàn thành</TableHead><TableHead className="text-center">Trạng thái hồ sơ</TableHead><TableHead className="text-center">Tiêu chí mới nộp</TableHead><TableHead className="text-center">Yêu cầu chỉnh sửa</TableHead><TableHead className="text-center">Cập nhật thông tin mới</TableHead><TableHead className="text-right">Hành động</TableHead></TableRow></TableHeader><TableBody>

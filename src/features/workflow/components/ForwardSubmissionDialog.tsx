@@ -1,7 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { FormDialog } from '@/components/core';
-import { Input } from '@/components/ui/input';
+import { FormDialog, FileUpload } from '@/components/core';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -29,9 +27,11 @@ export function ForwardSubmissionDialog({ open, onOpenChange, onConfirm }: Forwa
 
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title="Gửi yêu cầu" description="Chuyển hồ sơ đã thẩm định lên Lãnh đạo ban." onSubmit={submit} submitLabel="Gửi yêu cầu" cancelLabel="Đóng">
-      <div className="space-y-1.5"><Label htmlFor="forward-file">Đính kèm file hồ sơ</Label><Input id="forward-file" type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><p className="text-xs text-muted-foreground">Dung lượng tối đa 20MB.</p></div>
+      <div className="space-y-1.5">
+        <Label>Đính kèm file hồ sơ</Label>
+        <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} error={error} />
+      </div>
       <div className="space-y-1.5"><Label htmlFor="forward-description">Diễn giải hồ sơ</Label><Textarea id="forward-description" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Nhập thông tin cần lưu ý khi chuyển hồ sơ" /></div>
-      {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
     </FormDialog>
   );
 }
