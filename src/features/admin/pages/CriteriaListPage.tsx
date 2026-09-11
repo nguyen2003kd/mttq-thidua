@@ -31,7 +31,6 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   content: group.content ?? undefined,
   status: toTableStatus(group.status),
   criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
-  // API không trả số đơn vị đã nhận; chỉ dùng cờ này cho cách hiển thị trạng thái cũ của bảng.
   assignedLocalityCount: group.status === 'Applied' ? 1 : 0,
   openDate: group.createdAt,
   closeDate: group.deadline ?? '',
@@ -135,9 +134,12 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
-        cell: ({ row }) => row.original.assignedLocalityCount > 0
-          ? <Badge className="bg-success/15 text-success">Đã áp dụng</Badge>
-          : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Chưa áp dụng</Badge>,
+        cell: ({ row }) =>
+          row.original.status === 'ACTIVE'
+            ? <Badge className="bg-success/15 text-success">Đã áp dụng</Badge>
+            : row.original.status === 'EXPIRED'
+              ? <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Đã kết thúc</Badge>
+              : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Nháp</Badge>,
         meta: {
           align: 'center',
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
@@ -188,10 +190,6 @@ export default function CriteriaListPage() {
       return;
     }
 
-    if (editingTable?.assignedLocalityCount) {
-      toast.error('Nhóm tiêu chí đã áp dụng không thể cập nhật.');
-      return;
-    }
     setSaving(true);
     try {
       const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null };
