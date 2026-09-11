@@ -1,6 +1,6 @@
-import axios, { type AxiosError, type AxiosRequestConfig } from "axios";
-import { useAuthStore } from "@/store/authStore";
+import axios, { type AxiosRequestConfig } from "axios";
 import baseConfig from "../../configs/base";
+import { installAuthInterceptors } from "./auth-interceptors";
 import { invalidateApiQueries } from "./query-client";
 
 const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"]);
@@ -12,27 +12,7 @@ const mainAxiosInstance = axios.create({
     "Content-Type": "application/json",
   },
 });
-mainAxiosInstance.interceptors.request.use((config) => {
-  const accessToken = useAuthStore.getState().token;
-  if (accessToken) {
-    config.headers.set("Authorization", `Bearer ${accessToken}`);
-  }
-
-  return config;
-});
-mainAxiosInstance.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().clearAuth();
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("auth:logout"));
-      }
-    }
-
-    return Promise.reject(error);
-  },
-);
+installAuthInterceptors(mainAxiosInstance);
 export function mainInstance<T>(
   config: AxiosRequestConfig,
   options?: AxiosRequestConfig,
