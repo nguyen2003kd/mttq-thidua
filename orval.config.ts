@@ -21,7 +21,8 @@ const orvalConfig = async () => {
         httpClient: 'axios',
         override: {
           query: {
-            useQuery: true,
+            // Do not force a hook type here. Orval's defaults map GET to
+            // useQuery and POST/PUT/PATCH/DELETE to useMutation.
             useInfinite: false 
           },
           mutator: {

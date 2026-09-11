@@ -129,3 +129,9 @@ export function useGetApiV1ExternalProvincesCodeWards<TData = Awaited<ReturnType
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+

@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/api/mutator/query-client';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -36,16 +37,6 @@ const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaC
 const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
 const LocalityCriteriaHistoryPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaHistoryPage'));
 const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/LocalityResultsPage'));
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
 

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   useReactTable,
   getCoreRowModel,
@@ -50,6 +51,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   searchable?: boolean;
   searchPlaceholder?: string;
   searchKey?: string;
+  /** Nhận giá trị tìm kiếm đã debounce để gọi API phía server khi cần. */
+  onSearchChange?: (value: string) => void;
   filters?: ReactNode;
   /** Chip hiển thị các bộ lọc đang bật, kèm nút bỏ từng cái */
   activeFilters?: { label: string; value: string; onClear: () => void }[];
@@ -79,6 +82,7 @@ export function DataTable<TData, TValue = unknown>({
   searchable = false,
   searchPlaceholder = 'Tìm kiếm...',
   searchKey,
+  onSearchChange,
   filters,
   activeFilters,
   onClearFilters,
@@ -102,6 +106,7 @@ export function DataTable<TData, TValue = unknown>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [globalFilter, setGlobalFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const debouncedSearchInput = useDebounce(searchInput, 300);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
@@ -178,18 +183,16 @@ export function DataTable<TData, TValue = unknown>({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
   }, [rowSelection]);
 
-  // Debounce: chỉ đẩy giá trị vào bảng sau khi ngừng gõ 250ms
+  // Chỉ lọc bảng hoặc gọi API sau khi người dùng ngừng gõ.
   useEffect(() => {
-    const id = setTimeout(() => {
-      if (searchKey) {
-        table.getColumn(searchKey)?.setFilterValue(searchInput || undefined);
-      } else {
-        setGlobalFilter(searchInput);
-      }
-    }, 250);
-    return () => clearTimeout(id);
+    if (searchKey) {
+      table.getColumn(searchKey)?.setFilterValue(debouncedSearchInput || undefined);
+    } else {
+      setGlobalFilter(debouncedSearchInput);
+    }
+    onSearchChange?.(debouncedSearchInput.trim());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
-  }, [searchInput, searchKey]);
+  }, [debouncedSearchInput, searchKey, onSearchChange]);
 
   const visibleColumns = table.getVisibleLeafColumns();
   const listGridTemplate = visibleColumns
@@ -270,7 +273,7 @@ export function DataTable<TData, TValue = unknown>({
                 <div
                   key={header.id}
                   className={cn(
-                    'relative flex items-center min-w-0 h-11 px-4 box-border',
+                    'relative flex items-center min-w-0 h-12 px-4 box-border',
                     idx === 0 && 'pl-5',
                     idx === arr.length - 1 && 'pr-5',
                     alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
@@ -297,8 +300,8 @@ export function DataTable<TData, TValue = unknown>({
                 style={{ gridTemplateColumns: listGridTemplate }}
               >
                 {visibleColumns.map((col, sIdx) => (
-                  <div key={col.id} className={cn('relative flex items-center h-11 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
-                    <Skeleton className="h-5 w-full max-w-[140px]" />
+                    <div key={col.id} className={cn('relative flex items-center h-11 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
+                      <Skeleton className="h-5 w-full max-w-[140px]" />
                     {sIdx < visibleColumns.length - 1 && (
                       <span className="absolute right-0 top-1/2 -translate-y-1/2 h-1/2 border-r-2 border-primary/25" />
                     )}
@@ -576,4 +579,3 @@ export function DataTable<TData, TValue = unknown>({
     </div>
   );
 }
-
