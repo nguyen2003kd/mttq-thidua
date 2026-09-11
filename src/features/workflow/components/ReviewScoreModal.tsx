@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { FormDialog } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,7 +87,7 @@ export function ReviewScoreModal({ open, onOpenChange, entry, criterion, onSave 
         <Label htmlFor="review-reason">Lý do {(Number(score) !== proposedScore || Number(bonus) !== proposedBonus || entry?.isSupplementary) && <span className="text-destructive">*</span>}</Label>
         <Textarea id="review-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Nhập căn cứ điều chỉnh điểm" />
       </div>
-      {error && <p role="alert" className="text-sm font-medium text-destructive">⚠ {error}</p>}
+      {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
     </FormDialog>
   );
 }

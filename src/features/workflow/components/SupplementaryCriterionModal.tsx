@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { FormDialog } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,7 +60,7 @@ export function SupplementaryCriterionModal({ open, onOpenChange, onSave }: Supp
         <Label htmlFor="supplementary-score">Điểm chấm <span className="text-destructive">*</span></Label>
         <Input id="supplementary-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} />
       </div>
-      {error && <p role="alert" className="text-sm font-medium text-destructive">⚠ {error}</p>}
+      {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
     </FormDialog>
   );
 }

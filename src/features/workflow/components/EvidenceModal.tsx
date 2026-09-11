@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { FileText, Paperclip, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, Paperclip, Trash2 } from 'lucide-react';
 import { FormDialog, Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -169,7 +169,7 @@ export function EvidenceModal({
           ))
         )}
       </div>
-      {error && <p role="alert" className="text-sm font-medium text-destructive">⚠ {error}</p>}
+      {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
     </FormDialog>
   );
 }

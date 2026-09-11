@@ -87,7 +87,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-dvh bg-background">
       {sidebarOpen && (
         <aside className="w-64 shrink-0 flex flex-col relative overflow-hidden text-white border-r border-white/10">
           {/* Background image + faint black overlay */}
@@ -96,7 +96,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             style={{ backgroundImage: "url('/sidebar.png')" }}
             aria-hidden="true"
           />
-          <div className="absolute inset-0 bg-black/25" aria-hidden="true" />
+          <div className="absolute inset-0 bg-[#1F1B1A]/30" aria-hidden="true" />
 
           {/* Brand block */}
           <div className="relative z-10 h-14 px-4 border-b border-white/20 flex items-center gap-2">

@@ -55,7 +55,7 @@ export function DetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogOverlay className="bg-black/50 backdrop-blur-sm" />
+      <DialogOverlay className="bg-[#1F1B1A]/50 backdrop-blur-sm" />
       <DialogContent
         showCloseButton={false}
         className={cn(

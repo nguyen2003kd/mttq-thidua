@@ -199,7 +199,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     <div className="space-y-6">
       <PageHeader title={config.title} description={config.description} />
 
-      <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.06] via-background to-accent/[0.10]">
+      <Card className="overflow-hidden border-primary/15 bg-primary/[0.03]">
         <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div>
             <p className="text-xs font-semibold text-primary">Trung tâm xét duyệt</p>

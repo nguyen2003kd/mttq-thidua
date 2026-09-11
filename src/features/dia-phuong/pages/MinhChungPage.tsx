@@ -108,7 +108,7 @@ export default function MinhChungPage() {
         }
       />
 
-      <Card className="border-primary/15 bg-gradient-to-r from-primary/[0.05] to-accent/[0.08]">
+      <Card className="border-primary/15 bg-primary/[0.03]">
         <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold text-primary">Nhóm tiêu chí đang áp dụng</p>

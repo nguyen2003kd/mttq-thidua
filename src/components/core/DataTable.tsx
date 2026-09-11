@@ -255,7 +255,7 @@ export function DataTable<TData, TValue = unknown>({
 
   const renderList = () => {
     return (
-      <div className="rounded-lg border border-border/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
+      <div className="rounded-lg border border-border/60 shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         {/* Header */}
         <div
           className="grid gap-0 sticky top-0 z-[5] bg-primary text-xs font-semibold text-primary-foreground"
@@ -270,7 +270,7 @@ export function DataTable<TData, TValue = unknown>({
                 <div
                   key={header.id}
                   className={cn(
-                    'relative flex items-center min-w-0 h-12 px-4 box-border',
+                    'relative flex items-center min-w-0 h-11 px-4 box-border',
                     idx === 0 && 'pl-5',
                     idx === arr.length - 1 && 'pr-5',
                     alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
@@ -297,7 +297,7 @@ export function DataTable<TData, TValue = unknown>({
                 style={{ gridTemplateColumns: listGridTemplate }}
               >
                 {visibleColumns.map((col, sIdx) => (
-                  <div key={col.id} className={cn('relative flex items-center h-12 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
+                  <div key={col.id} className={cn('relative flex items-center h-11 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
                     <Skeleton className="h-5 w-full max-w-[140px]" />
                     {sIdx < visibleColumns.length - 1 && (
                       <span className="absolute right-0 top-1/2 -translate-y-1/2 h-1/2 border-r-2 border-primary/25" />
@@ -331,7 +331,7 @@ export function DataTable<TData, TValue = unknown>({
                 onClick={enableRowSelection ? () => row.toggleSelected() : onRowClick ? () => onRowClick(row.original) : undefined}
                 onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row.original) : undefined}
                 className={cn(
-                  'grid items-center gap-0 border-b border-border/40 bg-card transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-destructive/10',
+                  'grid items-center gap-0 border-b border-border/40 bg-card transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted',
                   (enableRowSelection || onRowClick) && 'cursor-pointer',
                   row.getIsSelected() && 'bg-primary/[0.03]',
                 )}
@@ -348,7 +348,7 @@ export function DataTable<TData, TValue = unknown>({
                     <div
                       key={cell.id}
                       className={cn(
-                        'relative flex items-center min-w-0 h-12 px-4 box-border',
+                        'relative flex items-center min-w-0 h-11 px-4 box-border',
                         isFirst && 'pl-5',
                         idx === arr.length - 1 && 'pr-5',
                         alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
@@ -371,7 +371,7 @@ export function DataTable<TData, TValue = unknown>({
                 style={{ gridTemplateColumns: listGridTemplate }}
               >
                 {visibleColumns.map((col, sIdx) => (
-                  <div key={col.id} className={cn('relative flex items-center h-12 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
+                  <div key={col.id} className={cn('relative flex items-center h-11 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
                     {sIdx < visibleColumns.length - 1 && (
                       <span className="absolute right-0 top-1/2 -translate-y-1/2 h-1/2 border-r-2 border-primary/25" />
                     )}
@@ -394,7 +394,7 @@ export function DataTable<TData, TValue = unknown>({
       <div ref={sentinelRef} className="absolute top-0 h-px w-full" aria-hidden="true" />
 
       {/* Unified container: toolbar + chips + table */}
-      <div className="rounded-lg border border-border/60 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="rounded-lg border border-border/60 shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)] overflow-hidden">
       {/* Toolbar */}
       {(searchable || filters || toolbar) && (
         <div className="sticky top-[-24px] z-10 px-4 py-3 bg-background/95 backdrop-blur-sm flex flex-wrap items-center gap-2">
@@ -576,3 +576,4 @@ export function DataTable<TData, TValue = unknown>({
     </div>
   );
 }
+
