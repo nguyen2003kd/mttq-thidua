@@ -10,14 +10,18 @@ import {
   LogOut,
   Bell,
   ChevronDown,
+  CheckCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import { useUIStore } from '@/store/uiStore';
+import { useNotificationStore } from '@/store/notificationStore';
+import { useSseNotifications } from '@/hooks/useSseNotifications';
+import { notificationsApi } from '@/features/notifications/api/notificationsApi';
 import { ROLE_LABELS } from '@/constants/enums';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
-import { NavItem, Button } from '@/components/core';
+import { NavItem } from '@/components/core';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -38,6 +42,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const navigate = useNavigate();
+
+  // SSE notifications
+  useSseNotifications();
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const connected = useNotificationStore((s) => s.connected);
+  const notifications = useNotificationStore((s) => s.notifications);
+  const markAllReadStore = useNotificationStore((s) => s.markAllRead);
+  const markReadStore = useNotificationStore((s) => s.markRead);
+  const fetchFirstPage = useNotificationStore((s) => s.fetchFirstPage);
+  const loadMore = useNotificationStore((s) => s.loadMore);
+  const loadingNotifications = useNotificationStore((s) => s.loading);
+  const hasMoreNotifications = useNotificationStore((s) => s.hasMore);
 
   const stickyTitle = useUIStore((s) => s.stickyTitle);
   const stickyDescription = useUIStore((s) => s.stickyDescription);
@@ -84,6 +100,32 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const handleLogout = () => {
     clearAuth();
     navigate(ROUTES.LOGIN);
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationsApi.readAll();
+    } catch {
+      // still mark locally so UI stays consistent
+    }
+    markAllReadStore();
+  };
+
+  const handleNotificationClick = async (id: string, isRead?: boolean) => {
+    if (isRead) return;
+    markReadStore(id);
+    try {
+      await notificationsApi.markRead(id);
+    } catch {
+      // ignore — will re-sync on next connect
+    }
+  };
+
+  const handleNotificationScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) {
+      void loadMore();
+    }
   };
 
   return (
@@ -133,10 +175,81 @@ export function AppLayout({ children }: { children: ReactNode }) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon-sm" className="relative rounded-full text-white hover:bg-white/10 hover:text-white">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-primary" />
-            </Button>
+            <DropdownMenu onOpenChange={(open) => { if (open) void fetchFirstPage(); }}>
+              <DropdownMenuTrigger
+                render={
+                  <button
+                    type="button"
+                    className="relative rounded-full border border-white/25 bg-white/10 p-2 text-white transition-all hover:bg-white/15"
+                  >
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground ring-2 ring-primary">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                    <span
+                      className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-primary ${connected ? 'bg-green-400' : 'bg-gray-400'}`}
+                    />
+                  </button>
+                }
+              />
+              <DropdownMenuContent align="end" sideOffset={6} className="w-80 p-0">
+                <div className="flex items-center justify-between border-b px-3 py-2">
+                  <span className="text-sm font-semibold">Thông báo</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs ${connected ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      {connected ? '● Đã kết nối' : '○ Chưa kết nối'}
+                    </span>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllRead}
+                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <CheckCheck className="h-3.5 w-3.5" />
+                        Đã đọc tất cả
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div
+                  className="max-h-80 overflow-y-auto"
+                  onScroll={handleNotificationScroll}
+                >
+                  {notifications.length === 0 && !loadingNotifications ? (
+                    <p className="px-3 py-6 text-center text-sm text-muted-foreground">Chưa có thông báo</p>
+                  ) : (
+                    <>
+                      {notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => handleNotificationClick(n.id, n.isRead)}
+                          className={`block w-full border-b px-3 py-2.5 text-left last:border-0 transition-colors hover:bg-muted/50 ${
+                            n.isRead ? 'opacity-60' : ''
+                          }`}
+                        >
+                          <span className="flex items-start gap-2">
+                            {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />}
+                            <span className="min-w-0">
+                              <p className={`text-sm ${n.isRead ? 'font-normal' : 'font-semibold'}`}>{n.title}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                      {loadingNotifications && (
+                        <p className="px-3 py-3 text-center text-xs text-muted-foreground">Đang tải…</p>
+                      )}
+                      {!loadingNotifications && !hasMoreNotifications && notifications.length > 0 && (
+                        <p className="px-3 py-2 text-center text-xs text-muted-foreground">Đã hiển thị tất cả</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger

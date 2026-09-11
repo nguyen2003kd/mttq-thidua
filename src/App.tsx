@@ -74,7 +74,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthEvents />
-        <Toaster position="top-right" duration={4000} richColors closeButton />
+        <Toaster position="bottom-right" duration={4000} richColors closeButton />
         <Suspense fallback={<Loading />}>
           <Routes>
             {/* Login */}

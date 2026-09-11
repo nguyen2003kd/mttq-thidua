@@ -85,7 +85,7 @@ export const criteriaGroupsApi = {
   get: (id: string) => request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
   create: (payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: '/api/v1/criteria-groups', method: 'POST', data: payload }),
   update: (id: string, payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'PUT', data: payload }),
-  apply: (criteriaGroupId: string) => request<{ applied: true; criteriaGroupId: string }>({ url: '/api/v1/criteria-groups/apply', method: 'POST', data: { criteriaGroupId } }),
+  apply: (criteriaGroupId: string) => request<{ applied: true; criteriaGroupIds: string[] }>({ url: '/api/v1/criteria-groups/apply', method: 'POST', data: { criteriaGroupIds: [criteriaGroupId] } }),
   listCriteria: (groupId: string, params?: {
     search?: string;
     type?: CriteriaApi['type'];
