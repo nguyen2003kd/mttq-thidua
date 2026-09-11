@@ -34,6 +34,7 @@ export default function LocalityCriteriaPage() {
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Evidence | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [draftResults, setDraftResults] = useState<Map<string, EvidenceFormValue>>(new Map());
 
   // Danh sách nhóm tiêu chí được giao (backend trả về tất cả, lọc theo submission của locality)
   const groupsQuery = useQuery({
@@ -88,10 +89,43 @@ export default function LocalityCriteriaPage() {
     enabled: Boolean(submission?.id),
   });
 
+  const detailCriteria = useMemo(() => {
+    const group = groupDetailQuery.data;
+    if (!group) return [];
+    return group.criteria.map((c, idx): CriteriaItem => ({
+      id: c.id,
+      name: c.content,
+      maxScore: c.maxPoint,
+      bonusScore: c.maxBonusPoint || undefined,
+      deadline: c.deadline ?? undefined,
+      note: c.note ?? undefined,
+      order: idx + 1,
+      updatedAt: c.updatedAt ?? undefined,
+    }));
+  }, [groupDetailQuery.data]);
+
   const record: ScoreRecord = useMemo(() => {
     if (submissionDetailQuery.data) return mapSubmissionToRecord(submissionDetailQuery.data);
-    return { state: 'DRAFT', entries: [], totalScore: 0, submittedAt: null, publishedAt: null };
-  }, [submissionDetailQuery.data]);
+    // Khi chưa có submission, dựng record từ draft local
+    const draftEntries: ScoreEntry[] = detailCriteria.map((c): ScoreEntry => {
+      const draft = draftResults.get(c.id);
+      return {
+        id: `draft-${c.id}`,
+        criteriaId: c.id,
+        criteriaName: c.name,
+        value: draft?.proposedScore ?? 0,
+        state: 'DRAFT',
+        scoredBy: '',
+        scoredAt: '',
+        evidenceCount: 0,
+        proposedScore: draft?.proposedScore,
+        proposedBonusScore: draft?.proposedBonusScore,
+        explanation: draft?.explanation,
+      };
+    });
+    const totalScore = draftEntries.reduce((sum, e) => sum + (e.proposedScore ?? 0) + (e.proposedBonusScore ?? 0), 0);
+    return { state: 'DRAFT', entries: draftEntries, totalScore, submittedAt: null, publishedAt: null };
+  }, [submissionDetailQuery.data, draftResults, detailCriteria]);
 
   const evidence: Evidence[] = useMemo(() => {
     const rows = filesQuery.data?.rows ?? [];
@@ -118,15 +152,15 @@ export default function LocalityCriteriaPage() {
     onError: (e) => toast.error('Lỗi khi lưu', { description: getLocalityApiError(e) }),
   });
 
-  const finalizeMutation = useMutation({
-    mutationFn: localityApi.finalizeSubmission,
+  const createSubmissionMutation = useMutation({
+    mutationFn: localityApi.createSubmission,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
       queryClient.invalidateQueries({ queryKey: ['locality-my-submissions'] });
-      toast.success('Đã gửi hồ sơ lên Chuyên viên');
+      toast.success('Đã nộp kết quả lên Chuyên viên');
       setSubmitOpen(false);
     },
-    onError: (e) => toast.error('Lỗi khi gửi', { description: getLocalityApiError(e) }),
+    onError: (e) => toast.error('Lỗi khi nộp', { description: getLocalityApiError(e) }),
   });
 
   const uploadMutation = useMutation({
@@ -178,17 +212,26 @@ export default function LocalityCriteriaPage() {
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
-  const editable = record.state === 'DRAFT';
+  const editable = record.state === 'DRAFT' || record.state === 'CHO_CHUYEN_VIEN';
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
-  const complete = detailTable.criteria.every((criterion) => {
-    const entry = record.entries.find((item) => item.criteriaId === criterion.id);
-    return Boolean(entry?.explanation?.trim() && entry.proposedScore !== undefined);
+  const notYetSubmitted = !submission;
+  const canSubmit = notYetSubmitted || record.state === 'DRAFT';
+  const allCriteriaFilled = detailTable.criteria.every((c) => {
+    const draft = draftResults.get(c.id);
+    return Boolean(draft?.explanation?.trim() && draft.proposedScore !== undefined);
   });
 
   const save = (value: EvidenceFormValue) => {
-    if (!editing?.criterion || !submission || !user) return false;
+    if (!editing?.criterion || !user) return false;
     const criterionId = editing.criterion.id;
-    // Upload file bằng chứng nếu có (fire-and-forget, mutation tự toast)
+
+    // Khi chưa có submission → lưu vào draft local
+    if (!submission) {
+      setDraftResults((prev) => new Map(prev).set(criterionId, value));
+      return true;
+    }
+
+    // Khi đã có submission → gọi API như cũ
     if (value.file) {
       uploadMutation.mutate({
         file: value.file,
@@ -207,7 +250,6 @@ export default function LocalityCriteriaPage() {
         category: 'bonus',
       });
     }
-    // Submit point cho tiêu chí
     const resultItem = submissionDetailQuery.data?.results.find((r) => r.criteriaId === criterionId);
     if (resultItem) {
       submitPointsMutation.mutate({
@@ -221,6 +263,47 @@ export default function LocalityCriteriaPage() {
       });
     }
     return true;
+  };
+
+  const handleSubmitResults = async () => {
+    if (!id || !user) return;
+    const items = detailTable.criteria.map((c) => {
+      const draft = draftResults.get(c.id);
+      return {
+        criteriaId: c.id,
+        point: draft?.proposedScore ?? 0,
+        bonusPoint: draft?.proposedBonusScore ?? 0,
+        explanation: draft?.explanation ?? '',
+      };
+    });
+    try {
+      const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
+      // Upload files from draft
+      for (const c of detailTable.criteria) {
+        const draft = draftResults.get(c.id);
+        if (draft?.file) {
+          uploadMutation.mutate({
+            file: draft.file,
+            displayName: draft.file.name,
+            entityType: 'submission',
+            entityId: result.id,
+            category: 'evidence',
+          });
+        }
+        if (draft?.bonusFile) {
+          uploadMutation.mutate({
+            file: draft.bonusFile,
+            displayName: draft.bonusFile.name,
+            entityType: 'submission',
+            entityId: result.id,
+            category: 'bonus',
+          });
+        }
+      }
+      setDraftResults(new Map());
+    } catch {
+      // error handled by mutation onError
+    }
   };
 
   const requireSelection = (callback: () => void) => { if (!selected) { toast.info('Vui lòng chọn một dòng tiêu chí trước.'); return; } callback(); };
@@ -237,13 +320,13 @@ export default function LocalityCriteriaPage() {
         <Button variant="outline" disabled={!editable} onClick={() => requireSelection(() => setEditing(selected))}><FilePlus2 className="size-4" />Thêm mới bằng chứng</Button>
         <Button variant="outline" disabled={!editable} onClick={() => requireSelection(() => setEditing(selected))}><Pencil className="size-4" />Sửa bằng chứng</Button>
         <Button variant="destructive" disabled={!editable} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
-        <div className="ml-auto flex gap-2"><Button disabled={!editable} onClick={() => toast.success('Đã lưu toàn bộ dữ liệu nháp')}><Save className="size-4" />Lưu</Button><Button disabled={!editable || !complete} onClick={() => setSubmitOpen(true)}><Send className="size-4" />Gửi yêu cầu</Button></div>
+        <div className="ml-auto flex gap-2"><Button disabled={!editable} onClick={() => toast.success('Đã lưu toàn bộ dữ liệu nháp')}><Save className="size-4" />Lưu</Button><Button disabled={!canSubmit || (!submission && !allCriteriaFilled)} onClick={() => setSubmitOpen(true)}><Send className="size-4" />Gửi yêu cầu</Button></div>
       </div>
 
       <EvidenceModal open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }} criterion={editing?.criterion} entry={editing?.entry} evidence={filesFor(editing?.entry.criteriaId)} onSave={save} onDeleteEvidence={(id) => deleteFileMutation.mutate(id)} />
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => { if (deleteTarget) deleteFileMutation.mutate(deleteTarget.id); }} />
-      <ConfirmDialog open={submitOpen} onOpenChange={setSubmitOpen} title="Gửi yêu cầu" description="Gửi hồ sơ tự đánh giá này lên Chuyên viên cấp thành phố?" confirmLabel="Tiếp tục" cancelLabel="Đóng" action="submit" state="DRAFT" onConfirm={() => { if (submission) finalizeMutation.mutate(submission.id); }} />
+      <ConfirmDialog open={submitOpen} onOpenChange={setSubmitOpen} title="Gửi yêu cầu" description="Gửi hồ sơ tự đánh giá này lên Chuyên viên cấp thành phố?" confirmLabel="Tiếp tục" cancelLabel="Đóng" action="submit" state="DRAFT" onConfirm={handleSubmitResults} />
     </div>
   );
 }

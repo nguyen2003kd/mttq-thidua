@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ChevronLeft, ChevronRight, Eye, FilePlus2, Search, Send, Sparkles, SquarePen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, EmptyState, FilterDropdown, FilterSelect, FormDialog, PageHeader, ScoreStateBadge } from '@/components/core';
@@ -20,6 +21,7 @@ import {
 } from '@/features/workflow/components';
 import type { CriteriaItem, ScoreEntry } from '@/types/domain';
 import type { ScoreState } from '@/types/rbac';
+import { specialistApi, type SubmissionApi as SpecialistSubmission } from '@/features/cham-diem/api/specialistApi';
 
 const PAGE_SIZE = 10;
 
@@ -57,7 +59,7 @@ export default function SpecialistReviewPage() {
   const requestRevision = useScoreStore((state) => state.requestRevision);
   const submitRecord = useScoreStore((state) => state.submit);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'ALL' | ScoreState>('ALL');
+  const [status, setStatus] = useState<'ALL' | string>('ALL');
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<SelectedRow | null>(null);
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
@@ -66,11 +68,40 @@ export default function SpecialistReviewPage() {
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
 
-  const localityRows = useMemo(() => localities.flatMap((locality) => {
-    const table = criteriaTables.find((item) => assignments[item.id]?.includes(locality.id));
-    if (!table) return [];
-    return [{ locality, table, record: scores[table.id]?.[locality.id] ?? emptyRecord }];
-  }), [localities, criteriaTables, assignments, scores, emptyRecord]);
+  // ── API: Fetch criteria groups (Applied) ──────────────────────────────────
+  const groupsQuery = useQuery({
+    queryKey: ['specialist-criteria-groups'],
+    queryFn: () => specialistApi.listCriteriaGroups({ status: 'Applied', page: 1, pageSize: 100 }),
+  });
+
+  // Fetch submissions for each Applied group
+  const submissionQueries = useQuery({
+    queryKey: ['specialist-all-submissions', groupsQuery.data?.items],
+    queryFn: async () => {
+      const groups = groupsQuery.data?.items ?? [];
+      const results = await Promise.all(
+        groups.map((g) => specialistApi.listSubmissionsByGroup(g.id, { page: 1, pageSize: 100 })),
+      );
+      // Flatten all submissions across groups
+      return results.flatMap((r) => r.items);
+    },
+    enabled: Boolean(groupsQuery.data?.items?.length),
+  });
+
+  const allSubmissions: SpecialistSubmission[] = submissionQueries.data ?? [];
+
+  // Group submissions by wardCode (mỗi địa phương 1 tài khoản)
+  const submissionRows = useMemo(() => {
+    const map = new Map<string, { wardCode: string; localityName: string; submissions: SpecialistSubmission[] }>();
+    for (const sub of allSubmissions) {
+      const ward = sub.createdByWardCode ?? 'Không xác định';
+      if (!map.has(ward)) {
+        map.set(ward, { wardCode: ward, localityName: sub.localityFullName ?? ward, submissions: [] });
+      }
+      map.get(ward)!.submissions.push(sub);
+    }
+    return Array.from(map.values());
+  }, [allSubmissions]);
 
   const locality = localities.find((item) => item.id === diaPhuongId);
   const assignedTables = locality ? criteriaTables.filter((item) => assignments[item.id]?.includes(locality.id)) : [];
@@ -78,13 +109,32 @@ export default function SpecialistReviewPage() {
   const record = table && locality ? (scores[table.id]?.[locality.id] ?? emptyRecord) : emptyRecord;
 
   if (!diaPhuongId) {
+    if (groupsQuery.isLoading || submissionQueries.isLoading) {
+      return <div className="space-y-5"><PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Danh sách địa phương và trạng thái hồ sơ" /><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
+    }
+    if (groupsQuery.isError || submissionQueries.isError) {
+      return <EmptyState title="Không tải được dữ liệu" description="Vui lòng thử lại sau." />;
+    }
+
     const keyword = search.trim().toLocaleLowerCase('vi');
-    const filtered = localityRows.filter(({ locality: item, record: itemRecord }) =>
-      (!keyword || `${item.name} ${item.code}`.toLocaleLowerCase('vi').includes(keyword)) &&
-      (status === 'ALL' || itemRecord.state === status),
+    const filtered = submissionRows.filter(({ wardCode, localityName, submissions }) =>
+      (!keyword || `${wardCode} ${localityName}`.toLocaleLowerCase('vi').includes(keyword)) &&
+      (status === 'ALL' || submissions.some((s) => s.currentStage === status)),
     );
     const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const visible = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+    const stageBadge = (stage: string) => {
+      switch (stage) {
+        case 'LocalSubmitted': return <Badge className="bg-accent/20 text-foreground">Mới nộp</Badge>;
+        case 'SpecialistApproved': return <Badge variant="success">Đã chấm</Badge>;
+        case 'RequiresRevision': return <Badge className="bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>;
+        case 'LeaderApproved': return <Badge variant="success">Đã duyệt</Badge>;
+        case 'CommitteeFinalized': return <Badge variant="success">Đã công bố</Badge>;
+        default: return <Badge variant="secondary">{stage}</Badge>;
+      }
+    };
+
     return (
       <div className="space-y-5">
         <PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Danh sách địa phương và trạng thái hồ sơ" />
@@ -106,13 +156,13 @@ export default function SpecialistReviewPage() {
           </FilterDropdown>
         </div>
         <div className="overflow-hidden rounded-lg border bg-card">
-          <div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-muted/70"><TableHead>Tên địa phương</TableHead><TableHead className="text-center">Nhóm tiêu chí hoàn thành</TableHead><TableHead className="text-center">Trạng thái hồ sơ</TableHead><TableHead className="text-center">Tiêu chí mới nộp</TableHead><TableHead className="text-center">Yêu cầu chỉnh sửa</TableHead><TableHead className="text-center">Cập nhật thông tin mới</TableHead><TableHead className="text-right">Hành động</TableHead></TableRow></TableHeader><TableBody>
-            {visible.map(({ locality: item, table: rowTable, record: rowRecord }) => {
-              const completed = rowTable.criteria.filter((criterion) => rowRecord.entries.some((entry) => entry.criteriaId === criterion.id && entry.proposedScore !== undefined)).length;
-              const hasRevision = Boolean(rowRecord.revisionRequestedAt || rowRecord.entries.some((entry) => entry.revisionRequest));
-              return <TableRow key={item.id}><TableCell><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.code}</p></TableCell><TableCell className="text-center font-medium">{completed}/{rowTable.criteria.length}</TableCell><TableCell className="text-center"><ScoreStateBadge state={rowRecord.state} /></TableCell><TableCell className="text-center">{rowRecord.state === 'CHO_CHUYEN_VIEN' ? <Badge className="bg-accent/20 text-foreground">Mới nộp</Badge> : 'Không'}</TableCell><TableCell className="text-center">{hasRevision ? <Badge className="bg-warning/15 text-warning-foreground">Có</Badge> : 'Không'}</TableCell><TableCell className="text-center">{rowRecord.submittedAt ? 'Có' : 'Không'}</TableCell><TableCell className="text-right"><Button size="sm" onClick={() => navigate(`/chuyen-vien/duyet/${item.id}`)}><Eye className="size-4" />Xem</Button></TableCell></TableRow>;
+          <div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-muted/70"><TableHead>Tên địa phương</TableHead><TableHead>Nhóm tiêu chí</TableHead><TableHead className="text-center">Trạng thái mới nhất</TableHead><TableHead className="text-right">Tổng điểm đề xuất</TableHead><TableHead className="text-right">Hành động</TableHead></TableRow></TableHeader><TableBody>
+            {visible.map(({ wardCode, localityName, submissions }) => {
+              const latest = submissions.reduce((a, b) => (a.submittedAt ?? a.createdAt) > (b.submittedAt ?? b.createdAt) ? a : b);
+              const totalProposed = submissions.reduce((sum, s) => sum + s.totalProposedPoint, 0);
+              return <TableRow key={wardCode}><TableCell className="font-medium">{localityName}</TableCell><TableCell className="text-muted-foreground">{latest.criteriaGroupName ?? latest.criteriaGroupId}</TableCell><TableCell className="text-center">{stageBadge(latest.currentStage)}</TableCell><TableCell className="text-right tabular-nums">{totalProposed}</TableCell><TableCell className="text-right"><Button size="sm" onClick={() => navigate(`/chuyen-vien/duyet/${wardCode}`)}><Eye className="size-4" />Xem</Button></TableCell></TableRow>;
             })}
-            {visible.length === 0 && <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">Không có địa phương phù hợp.</TableCell></TableRow>}
+            {visible.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">Không có địa phương phù hợp.</TableCell></TableRow>}
           </TableBody></Table></div>
           <div className="flex items-center justify-center gap-2 border-t bg-muted/20 p-2"><Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="size-4" />Trước</Button><span className="min-w-20 text-center text-xs">Trang {page + 1}/{pageCount}</span><Button size="sm" variant="outline" disabled={page + 1 >= pageCount} onClick={() => setPage((value) => value + 1)}>Sau<ChevronRight className="size-4" /></Button><span className="ml-2 text-xs text-muted-foreground">10 dòng/trang</span></div>
         </div>

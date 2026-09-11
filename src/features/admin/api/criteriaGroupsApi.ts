@@ -3,6 +3,8 @@ import { mainInstance } from '@/api/mutator/custom-instance';
 
 export type CriteriaGroupStatusApi = 'Draft' | 'Applied' | 'Closed';
 
+export type CriteriaStatusApi = 'Draft' | 'Applied';
+
 export interface CriteriaApi {
   id: string;
   criteriaGroupId: string | null;
@@ -13,6 +15,7 @@ export interface CriteriaApi {
   maxBonusPoint: number;
   deadline: string | null;
   note: string | null;
+  status: CriteriaStatusApi;
   createdAt: string;
   updatedAt: string | null;
 }
