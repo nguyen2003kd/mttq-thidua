@@ -190,7 +190,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-dvh flex">
       {/* Brand Panel — Left background image */}
       <div
         className="hidden lg:flex lg:w-[45%] xl:w-[48%] relative overflow-hidden bg-cover bg-center bg-no-repeat"
@@ -213,7 +213,7 @@ export default function LoginPage() {
           {/* Hero text */}
           <div className="space-y-6">
             <div className="space-y-3">
-              <h1 className="text-4xl xl:text-5xl font-bold tracking-tight leading-[1.1]">
+              <h1 className="text-3xl xl:text-4xl font-bold tracking-tight leading-[1.15]">
                 Thi đua
                 <br />
                 Khen thưởng
@@ -243,7 +243,7 @@ export default function LoginPage() {
       >
         <div className="w-full max-w-[440px]">
           {/* Form card */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-2xl border border-white/60 p-8 sm:p-10 space-y-7">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-[0_18px_45px_rgba(41,20,20,0.16)] border border-white/60 p-8 sm:p-10 space-y-7">
             {/* Header */}
             <div className="space-y-3 text-center">
               <div className="mx-auto w-14 h-14 rounded-full border-2 border-primary/20 bg-primary/5 flex items-center justify-center">
@@ -329,7 +329,7 @@ export default function LoginPage() {
                 type="submit"
                 size="lg"
                 disabled={loading}
-                className="w-full h-10 text-sm font-semibold bg-gradient-to-r from-primary to-[hsl(355,74%,40%)] shadow-md hover:shadow-lg transition-shadow"
+                className="w-full h-10 text-sm font-semibold"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

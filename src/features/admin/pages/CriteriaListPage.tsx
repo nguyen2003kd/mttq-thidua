@@ -17,7 +17,7 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Plus, Eye, Pencil, Send } from 'lucide-react';
+import { AlertTriangle, Plus, Eye, Pencil, Send } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -358,7 +358,7 @@ export default function CriteriaListPage() {
       >
         <div className="rounded-md border border-primary/20 bg-primary/[0.04] p-3"><p className="font-medium">Địa phương <span className="text-destructive">★</span></p><p className="mt-1 text-sm text-muted-foreground">Áp dụng toàn bộ {localities.length} địa phương</p></div>
         <div className="space-y-1.5"><Label htmlFor="apply-notice-file">Đính kèm file thông báo</Label><Input id="apply-notice-file" type="file" onChange={(event) => setApplyFile(event.target.files?.[0] ?? null)} /><p className="text-xs text-muted-foreground">Dung lượng tối đa 20MB.</p></div>
-        {applyError && <p className="text-sm font-medium text-destructive">⚠ {applyError}</p>}
+        {applyError && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{applyError}</p>}
       </FormDialog>
 
       <FormDialog
@@ -376,3 +376,4 @@ export default function CriteriaListPage() {
     </div>
   );
 }
+

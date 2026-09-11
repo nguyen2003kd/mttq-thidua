@@ -10,7 +10,7 @@ export default function NotFoundPage() {
   const home = user ? defaultRouteForRole(user.role, user) : ROUTES.LOGIN;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-dvh flex items-center justify-center bg-background p-6">
       <EmptyState
         icon={<FileQuestion className="h-8 w-8" />}
         title="Không tìm thấy trang"

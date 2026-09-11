@@ -236,13 +236,13 @@ export default function LocalityCriteriaPage() {
       <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-t bg-card/95 px-4 py-3 shadow-[0_-6px_20px_rgba(31,27,26,0.08)] backdrop-blur">
         <Button variant="outline" disabled={!editable} onClick={() => requireSelection(() => setEditing(selected))}><FilePlus2 className="size-4" />Thêm mới bằng chứng</Button>
         <Button variant="outline" disabled={!editable} onClick={() => requireSelection(() => setEditing(selected))}><Pencil className="size-4" />Sửa bằng chứng</Button>
-        <Button variant="destructive" disabled={!editable} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />⚠ Xóa bằng chứng</Button>
+        <Button variant="destructive" disabled={!editable} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
         <div className="ml-auto flex gap-2"><Button disabled={!editable} onClick={() => toast.success('Đã lưu toàn bộ dữ liệu nháp')}><Save className="size-4" />Lưu</Button><Button disabled={!editable || !complete} onClick={() => setSubmitOpen(true)}><Send className="size-4" />Gửi yêu cầu</Button></div>
       </div>
 
       <EvidenceModal open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }} criterion={editing?.criterion} entry={editing?.entry} evidence={filesFor(editing?.entry.criteriaId)} onSave={save} onDeleteEvidence={(id) => deleteFileMutation.mutate(id)} />
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
-      <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="⚠ Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => { if (deleteTarget) deleteFileMutation.mutate(deleteTarget.id); }} />
+      <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => { if (deleteTarget) deleteFileMutation.mutate(deleteTarget.id); }} />
       <ConfirmDialog open={submitOpen} onOpenChange={setSubmitOpen} title="Gửi yêu cầu" description="Gửi hồ sơ tự đánh giá này lên Chuyên viên cấp thành phố?" confirmLabel="Tiếp tục" cancelLabel="Đóng" action="submit" state="DRAFT" onConfirm={() => { if (submission) finalizeMutation.mutate(submission.id); }} />
     </div>
   );

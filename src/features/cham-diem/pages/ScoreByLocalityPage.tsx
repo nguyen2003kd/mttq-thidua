@@ -57,7 +57,7 @@ export default function ScoreByLocalityPage() {
         actions={<div className="flex flex-wrap gap-2"><Button variant="outline" render={<Link to={`/thi-dua/cham-diem/theo-tieu-chi/${table.id}`} />} nativeButton={false}><ArrowLeft className="mr-1.5 h-4 w-4" />Quay lại</Button><Button variant="outline" onClick={() => setHistoryOpen(true)}><History className="mr-1.5 h-4 w-4" />Lịch sử</Button></div>}
       />
 
-      <Card className="border-primary/15 bg-gradient-to-r from-primary/[0.05] to-accent/[0.08]">
+      <Card className="border-primary/15 bg-primary/[0.03]">
         <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-xs font-semibold text-primary">Hồ sơ địa phương</p><h2 className="mt-1 text-lg font-bold">{locality.fullName}</h2><p className="mt-1 text-sm text-muted-foreground">{record.entries.length} bản ghi · {evidence.filter((item) => item.localityId === localityId).length} file bằng chứng</p></div>
           <div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-muted-foreground">Tổng điểm hiện tại</p><p className="text-2xl font-bold tabular-nums">{record.totalScore}</p></div><ScoreStateBadge state={record.state} /></div>

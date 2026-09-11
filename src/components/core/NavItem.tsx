@@ -50,7 +50,7 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
           baseItem,
           'h-10 px-4 rounded-lg',
           isActive
-            ? 'bg-accent text-accent-foreground shadow-sm'
+            ? 'bg-accent text-accent-foreground'
             : 'text-white/75 hover:bg-white/10 hover:text-white',
         )
       }
