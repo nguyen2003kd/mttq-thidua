@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowLeft, Plus, Search, Send } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle, Plus, Search, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, EmptyState, FileAttachmentList, FilterSelect, FormDialog, PageHeader } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import type { CriteriaItem } from '@/types/domain';
 
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
   id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
-  deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order,
+  deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order, status: criterion.status,
 });
 
 interface EditorProps {
@@ -46,6 +46,8 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, onSave
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
   const [search, setSearch] = useState(''); const [type, setType] = useState<CriteriaApi['type'] | ''>(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false); const [bulkStatus, setBulkStatus] = useState<'Applied' | 'Draft'>('Applied');
   const debouncedSearch = useDebounce(search, 300);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
@@ -58,6 +60,8 @@ export default function CriteriaChildrenPage() {
   });
   const groupCriteria = useMemo(() => group?.criteria.map(toItem) ?? [], [group]);
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
+  const toggleSelect = (id: string) => setSelectedIds((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+  const toggleSelectAll = () => setSelectedIds((prev) => prev.length === criteria.length ? [] : criteria.map((item) => item.id));
   if (isLoading) return <div className="p-8 text-sm text-muted-foreground">Đang tải nhóm tiêu chí…</div>;
   if (!group) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description={error ? getCriteriaApiError(error) : 'Nhóm tiêu chí không tồn tại hoặc đã bị xóa.'} />;
   const saveItem = async (value: Omit<CriteriaItem, 'id' | 'order' | 'updatedAt'>) => {
@@ -73,6 +77,19 @@ export default function CriteriaChildrenPage() {
         queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
       ]);
       toast.success(current ? 'Đã cập nhật tiêu chí.' : 'Đã thêm tiêu chí.'); setEditor(null); setSelected(null);
+    } catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
+  };
+  const bulkUpdateStatus = async () => {
+    if (selectedIds.length === 0) return toast.error('Vui lòng chọn ít nhất một tiêu chí.');
+    setSaving(true);
+    try {
+      await criteriaGroupsApi.bulkUpdateStatus(selectedIds, bulkStatus);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
+        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
+      ]);
+      toast.success(`Đã cập nhật ${selectedIds.length} tiêu chí thành '${bulkStatus === 'Applied' ? 'Đã áp dụng' : 'Nháp'}'.`);
+      setSelectedIds([]); setBulkStatusOpen(false);
     } catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
   };
   const apply = async () => {
@@ -91,8 +108,8 @@ export default function CriteriaChildrenPage() {
     <div className="grid flex-1 items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_1px_360px]">
       <div className="space-y-4">
         {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : 'đóng'} — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử.</div>}
-        <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 lg:flex-row lg:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Tìm nội dung hoặc ghi chú tiêu chí" /></div><FilterSelect label="Loại" value={type} onChange={setType} options={[{ value: 'Standard', label: 'Tiêu chuẩn' }, { value: 'Supplementary', label: 'Bổ sung' }]} /><FilterSelect label="Sắp xếp" value={sort} onChange={setSort} allLabel="Mới nhất" options={[{ value: 'content-asc', label: 'Nội dung A–Z' }, { value: 'maxPoint-desc', label: 'Điểm cao nhất' }, { value: 'deadline-asc', label: 'Hạn nộp gần nhất' }]} /><Button onClick={() => setEditor({ item: null, readonly: false })}><Plus className="size-4" />Thêm mới</Button><Button variant="outline" disabled={!selected} onClick={() => selected && setEditor({ item: selected, readonly: false })}>Sửa</Button><Button variant="outline" disabled={!selected} onClick={() => selected && setEditor({ item: selected, readonly: true })}>Xem</Button><Button disabled={groupCriteria.length === 0} onClick={() => setApplyOpen(true)}><Send className="size-4" />Áp dụng tiêu chí</Button></div>
-        {isLoadingCriteria ? <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">Đang lọc tiêu chí…</div> : <CriteriaGrid items={criteria} selectedId={selected?.id} onSelect={setSelected} onView={(item) => setEditor({ item, readonly: true })} onEdit={(item) => setEditor({ item, readonly: false })} onDelete={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')} />}
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 lg:flex-row lg:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" placeholder="Tìm nội dung hoặc ghi chú tiêu chí" /></div><FilterSelect label="Loại" value={type} onChange={setType} options={[{ value: 'Standard', label: 'Tiêu chuẩn' }, { value: 'Supplementary', label: 'Bổ sung' }]} /><FilterSelect label="Sắp xếp" value={sort} onChange={setSort} allLabel="Mới nhất" options={[{ value: 'content-asc', label: 'Nội dung A–Z' }, { value: 'maxPoint-desc', label: 'Điểm cao nhất' }, { value: 'deadline-asc', label: 'Hạn nộp gần nhất' }]} /><Button onClick={() => setEditor({ item: null, readonly: false })}><Plus className="size-4" />Thêm mới</Button><Button variant="outline" disabled={selectedIds.length === 0} onClick={() => setBulkStatusOpen(true)}><CheckCircle className="size-4" />Đổi trạng thái{selectedIds.length > 0 && ` (${selectedIds.length})`}</Button><Button disabled={groupCriteria.length === 0} onClick={() => setApplyOpen(true)}><Send className="size-4" />Áp dụng tiêu chí</Button></div>
+        {isLoadingCriteria ? <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">Đang lọc tiêu chí…</div> : <CriteriaGrid items={criteria} selectedId={selected?.id} selectedIds={selectedIds} onSelect={setSelected} onToggleSelect={toggleSelect} onToggleSelectAll={toggleSelectAll} onView={(item) => setEditor({ item, readonly: true })} onEdit={(item) => setEditor({ item, readonly: false })} onDelete={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')} />}
       </div>
       <div aria-hidden="true" className="hidden w-px bg-border lg:block" />
       <aside className="lg:pl-2">
@@ -107,5 +124,6 @@ export default function CriteriaChildrenPage() {
     </div>
     <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} onSave={saveItem} saving={saving} />
     <FormDialog open={applyOpen} onOpenChange={setApplyOpen} title="Áp dụng tiêu chí cho địa phương" description="Hệ thống sẽ tạo phiếu chấm cho mỗi user cấp xã/phường." onSubmit={(event) => { event.preventDefault(); void apply(); }} submitLabel="Áp dụng" cancelLabel="Đóng" submitDisabled={saving}><p className="rounded-md border border-primary/20 bg-primary/[0.04] p-3 text-sm">Sau khi áp dụng, hệ thống sẽ tạo phiếu chấm cho mỗi user cấp xã/phường.</p></FormDialog>
+    <FormDialog open={bulkStatusOpen} onOpenChange={setBulkStatusOpen} title="Đổi trạng thái tiêu chí" description={`Cập nhật trạng thái cho ${selectedIds.length} tiêu chí đã chọn.`} onSubmit={(event) => { event.preventDefault(); void bulkUpdateStatus(); }} submitLabel="Cập nhật" cancelLabel="Đóng" submitDisabled={saving}><div className="space-y-3"><div className="flex gap-2"><Button type="button" variant={bulkStatus === 'Applied' ? 'default' : 'outline'} onClick={() => setBulkStatus('Applied')}>Đã áp dụng</Button><Button type="button" variant={bulkStatus === 'Draft' ? 'default' : 'outline'} onClick={() => setBulkStatus('Draft')}>Nháp</Button></div></div></FormDialog>
   </div>;
 }

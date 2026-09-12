@@ -20,6 +20,25 @@ export interface CriteriaApi {
   updatedAt: string | null;
 }
 
+export interface CriteriaGroupFileApi {
+  id: string;
+  originalName: string;
+  displayName: string | null;
+  title: string | null;
+  description: string | null;
+  note: string | null;
+  mimeType: string;
+  extension: string | null;
+  category: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  sizeBytes: number;
+  visibility: string;
+  status: string;
+  url: string | null;
+  createdAt: string;
+}
+
 export interface CriteriaGroupApi {
   id: string;
   name: string;
@@ -30,6 +49,7 @@ export interface CriteriaGroupApi {
   createdAt: string;
   updatedAt: string | null;
   criteria: CriteriaApi[];
+  files: CriteriaGroupFileApi[];
 }
 
 export interface PagedResult<T> {
@@ -102,6 +122,8 @@ export const criteriaGroupsApi = {
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'POST', data: { criteriaGroupId, items } }),
   updateCriteria: (id: string, payload: Omit<CriteriaPayload, 'type'> & { changeReason?: string }) =>
     request<CriteriaApi>({ url: `/api/v1/criteria/${id}`, method: 'PUT', data: payload }),
+  bulkUpdateStatus: (criteriaIds: string[], status: CriteriaStatusApi) =>
+    request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'PUT', data: { criteriaIds, status } }),
 };
 
 export function getCriteriaApiError(error: unknown) {

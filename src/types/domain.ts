@@ -16,6 +16,7 @@ export interface CriteriaItem {
   deadline?: string;
   note?: string;
   order: number;
+  status?: 'Draft' | 'Applied';
   /** Tiêu chí đã áp dụng bị sửa sẽ bị khóa ở báo cáo địa phương. */
   updatedAt?: string;
 }
