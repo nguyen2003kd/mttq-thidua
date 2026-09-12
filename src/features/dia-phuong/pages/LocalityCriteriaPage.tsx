@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Eye, FilePlus2, History, Pencil, Save, Search, Send, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, Eye, FilePlus2, FileText, History, Pencil, Save, Search, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, EmptyState, PageHeader, ScoreStateBadge } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import {
   getLocalityApiError,
   type SubmissionApi,
 } from '@/features/dia-phuong/api/localityApi';
+import { downloadFile } from '@/features/files/api/filesApi';
 
 interface SelectedRow { entry: ScoreEntry; criterion?: CriteriaItem }
 
@@ -313,8 +314,46 @@ export default function LocalityCriteriaPage() {
       <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/dia-phuong/tieu-chi" className="hover:text-primary">Danh sách nhóm tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{detailTable.name}</span></div>
       <PageHeader title="Tự đánh giá và nộp bài" description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatDate(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`} actions={<div className="flex gap-2"><ScoreStateBadge state={record.state} /><Button variant="outline" render={<Link to={`/dia-phuong/tieu-chi/${detailTable.id}/lich-su`} />} nativeButton={false}><History className="size-4" />Lịch sử</Button><Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
       <StatusStepper state={record.state} hasRevisionRequest={Boolean(record.revisionRequestedAt)} revisionTarget="LOCAL" />
-      <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="text-sm text-muted-foreground">Điểm tự đánh giá hiện tại</p><p className="text-2xl font-bold tabular-nums">{record.totalScore}<span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span></p></div>{record.revisionRequestedAt && <div className="max-w-xl rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi màu cam rồi nộp lại từ đầu chuỗi duyệt.</div>}</CardContent></Card>
+      <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex gap-6"><div><p className="text-sm text-muted-foreground">Điểm tự đánh giá hiện tại</p><p className="text-2xl font-bold tabular-nums">{record.entries.reduce((sum, e) => sum + (e.proposedScore ?? e.value ?? 0), 0)}<span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span></p></div><div><p className="text-sm text-muted-foreground">Điểm thưởng hiện tại</p><p className="text-2xl font-bold tabular-nums">{record.entries.reduce((sum, e) => sum + (e.proposedBonusScore ?? 0), 0)}</p></div></div>{record.revisionRequestedAt && <div className="max-w-xl rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi màu cam rồi nộp lại từ đầu chuỗi duyệt.</div>}</CardContent></Card>
       <ScoreGroupInput criteria={detailTable.criteria} record={record} evidence={evidence} localityId={localityId} mode="locality" selectedCriteriaId={selected?.entry.criteriaId} onSelect={(entry, criterion) => setSelected({ entry, criterion })} onEdit={editable ? (entry, criterion) => setEditing({ entry, criterion }) : undefined} onEvidence={(entry, criterion) => setViewing({ entry, criterion })} />
+
+      {(groupDetailQuery.data?.files ?? []).length > 0 && (
+        <div className="overflow-hidden rounded-lg border bg-card">
+          <div className="bg-primary px-4 py-3 text-primary-foreground">
+            <p className="text-sm font-semibold">Quyết định</p>
+            <p className="mt-0.5 text-xs text-white/75">File đính kèm của nhóm tiêu chí</p>
+          </div>
+          <div className="p-3">
+            <ul className="space-y-2">
+              {(groupDetailQuery.data?.files ?? []).map((file) => (
+                <li key={file.id} className="group relative overflow-hidden rounded-md border border-border border-l-[3px] border-l-primary bg-card transition-colors hover:bg-surface-muted">
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                      <FileText className="h-4.5 w-4.5 text-primary" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground" title={file.displayName || file.originalName}>
+                      {file.displayName || file.originalName}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-border/60 px-3 py-1.5">
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      {file.sizeBytes ? `${file.sizeBytes < 1024 ? `${file.sizeBytes} B` : file.sizeBytes < 1024 * 1024 ? `${Math.ceil(file.sizeBytes / 1024)} KB` : `${(file.sizeBytes / 1024 / 1024).toFixed(1)} MB`}` : ''} · {formatDate(file.createdAt)}
+                    </span>
+                    <button
+                      type="button"
+                      title="Tải file về máy"
+                      onClick={() => void downloadFile(file.id, file.displayName || file.originalName)}
+                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    >
+                      <ArrowDownToLine className="h-4 w-4" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-t bg-card/95 px-4 py-3 shadow-[0_-6px_20px_rgba(31,27,26,0.08)] backdrop-blur">
         <Button variant="outline" disabled={!editable} onClick={() => requireSelection(() => setEditing(selected))}><FilePlus2 className="size-4" />Thêm mới bằng chứng</Button>
