@@ -24,7 +24,7 @@ export function StatusStepper({ state, hasRevisionRequest = false, revisionTarge
 
   return (
     <section className="rounded-lg border border-border bg-card px-4 py-4" aria-label="Tiến trình xét duyệt hồ sơ">
-      <div className="overflow-x-auto pb-1">
+      <div className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <ol className="flex min-w-[680px] items-start" role="list">
           {STEPS.map((label, index) => {
             const complete = index < current || state === 'DA_CONG_BO';

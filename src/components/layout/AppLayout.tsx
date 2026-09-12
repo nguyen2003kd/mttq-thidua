@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode, type ComponentType } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState, type ReactNode, type ComponentType } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Trophy,
   LayoutDashboard,
@@ -11,6 +11,7 @@ import {
   Bell,
   ChevronDown,
   CheckCheck,
+  Menu,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -29,6 +30,14 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 interface NavItemDef {
   to: string;
@@ -41,6 +50,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // SSE notifications
   useSseNotifications();
@@ -129,16 +140,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-dvh flex-col bg-background">
-      <header className="h-14 flex shrink-0 items-center justify-between gap-4 px-4 border-b border-primary bg-primary text-primary-foreground">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-primary bg-primary px-4 text-primary-foreground">
         <div className="flex min-w-0 items-center gap-3">
           {/* Brand */}
-          <div className="flex items-center gap-2 pl-1 pr-2">
+          <div className="flex shrink-0 items-center gap-2 pl-1 pr-2">
             <Trophy className="h-6 w-6 text-accent" />
             <span className="hidden lg:block font-semibold text-sm tracking-tight whitespace-nowrap">Mặt Trận Tổ Quốc</span>
           </div>
-          <span className="h-6 w-px bg-white/25" aria-hidden="true" />
+          <span className="hidden h-6 w-px bg-white/25 xl:block" aria-hidden="true" />
           {/* Navigation ngang */}
-          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          <nav className="hidden min-w-0 items-center gap-1 xl:flex">
             {navItems.map((item) => (
               <NavItem
                 key={item.to}
@@ -158,12 +169,62 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
           )}
         </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex size-9 items-center justify-center rounded-[6px] border border-white/25 bg-white/10 text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent xl:hidden"
+                    aria-label="Mở menu điều hướng"
+                  />
+                }
+              >
+                <Menu className="size-5" />
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[min(84vw,320px)] gap-0 p-0">
+                <SheetHeader className="border-b border-white/20 bg-primary px-5 py-5 text-left text-white">
+                  <div className="flex items-center gap-2.5">
+                    <Trophy className="size-6 text-accent" />
+                    <SheetTitle className="text-base font-semibold text-white">Mặt Trận Tổ Quốc</SheetTitle>
+                  </div>
+                  <SheetDescription className="mt-1 text-xs text-white/75">Phân hệ Quản lý Thi đua</SheetDescription>
+                </SheetHeader>
+                <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Điều hướng chính">
+                  {navItems.map((item) => {
+                    const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+                    return (
+                      <button
+                        key={item.to}
+                        type="button"
+                        onClick={() => {
+                          navigate(item.to);
+                          setMobileNavOpen(false);
+                        }}
+                        className={`flex h-11 w-full items-center gap-3 rounded-[6px] px-3 text-left text-sm font-medium transition-colors ${
+                          isActive ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <item.icon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+                {user && (
+                  <div className="border-t border-border p-4">
+                    <p className="truncate text-sm font-semibold text-foreground">{user.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+                  </div>
+                )}
+              </SheetContent>
+            </Sheet>
             <DropdownMenu onOpenChange={(open) => { if (open) void fetchFirstPage(); }}>
               <DropdownMenuTrigger
                 render={
                   <button
                     type="button"
+                    aria-label={unreadCount > 0 ? `Thông báo, ${unreadCount} chưa đọc` : 'Thông báo'}
                     className="relative rounded-full border border-white/25 bg-white/10 p-2 text-white transition-all hover:bg-white/15"
                   >
                     <Bell className="h-4 w-4" />
@@ -247,7 +308,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       </span>
                       <span className="hidden sm:flex flex-col leading-tight text-left">
                         <span className="text-xs font-medium truncate max-w-[120px]">{user.name}</span>
-                        <span className="text-[10px] text-white/75 truncate max-w-[120px]">{ROLE_LABELS[user.role]}</span>
+                        <span className="max-w-[120px] truncate text-[11px] text-white">{ROLE_LABELS[user.role]}</span>
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 text-white/75 transition-transform data-[popup-open]:rotate-180" />
                     </button>
@@ -269,7 +330,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-auto p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">{children}</main>
       </div>
   );
 }
