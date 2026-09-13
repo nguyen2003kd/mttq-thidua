@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
@@ -25,13 +26,15 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ForwardSubmissionDialog, StatusStepper } from '@/features/workflow/components';
+import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { downloadFile, getFilesApiError } from '@/features/files/api/filesApi';
 
 interface EvidenceFile {
   id: string;
   fileName: string;
   fileSize: string;
   uploadedAt: string;
-  fileUrl: string;
+  fileId: string;
 }
 
 interface SpecialistCriteriaItem {
@@ -57,128 +60,39 @@ interface SpecialistCriteriaGroup {
   description: string;
   totalProposedScore: number;
   totalProposedBonusScore: number;
-  status: 'CHUA_CHAM' | 'DA_CHAM';
+  status: 'CHUA_NOP' | 'CHO_CHAM' | 'DA_CHAM' | 'YEU_CAU_SUA';
   hasModificationRequest: boolean;
   modificationNote?: string;
   items: SpecialistCriteriaItem[];
 }
 
-interface DistrictDetail {
-  districtId: string;
-  districtName: string;
+interface LocalityRow {
+  localityId: string;
+  localityName: string;
   completionRate: string;
   overallStatus: 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
-  groups: SpecialistCriteriaGroup[];
+  hasNewSubmissions: boolean;
+  hasModificationRequest: boolean;
+  submissionIds: string[];
 }
 
-const MOCK_SPECIALIST_DATA: DistrictDetail = {
-  districtId: 'DIST_001',
-  districtName: 'Phường Tân Mai',
-  completionRate: '5/9',
-  overallStatus: 'CHO_DUYET',
-  groups: [
-    {
-      id: 'GRP_01',
-      code: 'NGC_01',
-      groupName: 'Công tác an ninh trật tự & An toàn xã hội',
-      description: 'Thực hiện các tiêu chí đảm bảo an ninh trật tự, phòng chống tội phạm trên địa bàn phường năm 2026.',
-      totalProposedScore: 100,
-      totalProposedBonusScore: 10,
-      status: 'DA_CHAM',
-      hasModificationRequest: false,
-      items: [
-        {
-          id: 'CRIT_01_01',
-          code: 'TC_01.01',
-          title: 'Tổ chức tuyên truyền an toàn giao thông và phòng chống tội phạm hàng quý',
-          evidenceFiles: [
-            { id: 'F01', fileName: 'Bao_cao_tuyen_truyen_Q1_Q2.pdf', fileSize: '2.4 MB', uploadedAt: '10/05/2026', fileUrl: '#' },
-          ],
-          proposedScore: 30,
-          proposedBonusScore: 5,
-          maxProposedScore: 30,
-          maxProposedBonusScore: 5,
-          explanation: 'Đã tổ chức đủ 4 buổi tuyên truyền tại 5 khu phố với hơn 1.200 lượt người tham gia.',
-          officialScore: 30,
-          officialBonusScore: 5,
-          scoreReason: '',
-        },
-        {
-          id: 'CRIT_01_02',
-          code: 'TC_01.02',
-          title: 'Duy trì mô hình Tổ liên gia an toàn phòng cháy chữa cháy',
-          evidenceFiles: [
-            { id: 'F02', fileName: 'Nhat_ky_dien_tap_PCCC_2026.docx', fileSize: '1.1 MB', uploadedAt: '12/05/2026', fileUrl: '#' },
-          ],
-          proposedScore: 40,
-          proposedBonusScore: 0,
-          maxProposedScore: 40,
-          maxProposedBonusScore: 0,
-          explanation: 'Thành lập và duy trì 8 tổ liên gia PCCC, đã thực tập phương án chữa cháy 2 lần/năm.',
-          officialScore: 35,
-          officialBonusScore: 0,
-          scoreReason: 'Thiếu sổ nhật ký kiểm tra phương tiện PCCC định kỳ tháng 4',
-        },
-        {
-          id: 'CRIT_01_03',
-          code: 'TC_01_ADD',
-          title: '[Tiêu chí bổ sung] Thực hiện đợt cao điểm tấn công trấn áp tội phạm dịp Lễ',
-          evidenceFiles: [
-            { id: 'F03', fileName: 'Quyet_dinh_tang_cuong_luc_luong.pdf', fileSize: '3.0 MB', uploadedAt: '15/05/2026', fileUrl: '#' },
-          ],
-          proposedScore: 0,
-          proposedBonusScore: 0,
-          maxProposedScore: 0,
-          maxProposedBonusScore: 0,
-          explanation: 'Chuyên viên tạo bổ sung do kiểm tra thực tế địa phương đạt thành tích xuất sắc đột xuất.',
-          officialScore: 10,
-          officialBonusScore: 5,
-          scoreReason: 'Bổ sung theo biên bản kiểm tra thực tế của Đoàn thẩm định Thành phố',
-          isAddedBySpecialist: true,
-        },
-      ],
-    },
-    {
-      id: 'GRP_02',
-      code: 'NGC_02',
-      groupName: 'Xây dựng đời sống văn hóa & Văn minh đô thị',
-      description: 'Các chỉ tiêu về đăng ký Gia đình văn hóa, Khu phố văn hóa và giữ gìn trật tự đô thị.',
-      totalProposedScore: 95,
-      totalProposedBonusScore: 5,
-      status: 'CHUA_CHAM',
-      hasModificationRequest: true,
-      modificationNote: 'Cần làm rõ minh chứng tỷ lệ Gia đình văn hóa đạt trên 95%',
-      items: [
-        {
-          id: 'CRIT_02_01',
-          code: 'TC_02.01',
-          title: 'Tỷ lệ Gia đình văn hóa đạt từ 95% trở lên',
-          evidenceFiles: [
-            { id: 'F04', fileName: 'Danh_sach_Gia_dinh_van_hoa.xlsx', fileSize: '850 KB', uploadedAt: '08/05/2026', fileUrl: '#' },
-          ],
-          proposedScore: 50,
-          proposedBonusScore: 5,
-          maxProposedScore: 50,
-          maxProposedBonusScore: 5,
-          explanation: 'Tổng số hộ đăng ký: 3.500 hộ, số hộ đạt chuẩn: 3.380 hộ (đạt 96,5%).',
-          officialScore: null,
-          officialBonusScore: null,
-          scoreReason: '',
-        },
-      ],
-    },
-    {
-      id: 'GRP_03',
-      code: 'NGC_03',
-      groupName: 'Công tác cải cách hành chính & Chuyển đổi số',
-      description: 'Chỉ số hài lòng của người dân, tỷ lệ dịch vụ công trực tuyến toàn trình.',
-      totalProposedScore: 90,
-      totalProposedBonusScore: 0,
-      status: 'DA_CHAM',
-      hasModificationRequest: false,
-      items: [],
-    },
-  ],
+const STAGE_TO_STATUS: Record<string, LocalityRow['overallStatus']> = {
+  LocalSubmitted: 'CHO_DUYET',
+  SpecialistApproved: 'DA_DUYET',
+  LeaderApproved: 'DA_DUYET',
+  CouncilApproved: 'DA_DUYET',
+  CommitteeFinalized: 'DA_DUYET',
+  RequiresRevision: 'YEU_CAU_SUA',
+};
+
+const STAGE_TO_GROUP_STATUS: Record<string, SpecialistCriteriaGroup['status']> = {
+  Draft: 'CHUA_NOP',
+  LocalSubmitted: 'CHO_CHAM',
+  SpecialistApproved: 'DA_CHAM',
+  LeaderApproved: 'DA_CHAM',
+  CouncilApproved: 'DA_CHAM',
+  CommitteeFinalized: 'DA_CHAM',
+  RequiresRevision: 'YEU_CAU_SUA',
 };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -298,16 +212,17 @@ function RevisionDialog({
   );
 }
 
-function OverallStatusBadge({ status }: { status: DistrictDetail['overallStatus'] }) {
+function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
   if (status === 'DA_DUYET') return <Badge variant="success">Đã duyệt</Badge>;
   if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
   return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Đang chờ duyệt</Badge>;
 }
 
 function GroupStatusBadge({ status }: { status: SpecialistCriteriaGroup['status'] }) {
-  return status === 'DA_CHAM'
-    ? <Badge variant="success"><CheckCircle2 className="size-3" />Đã chấm</Badge>
-    : <Badge variant="secondary">Chưa chấm</Badge>;
+  if (status === 'DA_CHAM') return <Badge variant="success"><CheckCircle2 className="size-3" />Đã chấm</Badge>;
+  if (status === 'CHO_CHAM') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ chấm</Badge>;
+  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
+  return <Badge variant="secondary">Chưa nộp</Badge>;
 }
 
 function TableSectionHeader({ title, countLabel }: { title: string; countLabel: string }) {
@@ -331,10 +246,10 @@ function EvidenceList({ files }: { files: EvidenceFile[] }) {
       {files.map((file) => (
         <a
           key={file.id}
-          href={file.fileUrl}
+          href={`#file-${file.fileId}`}
           onClick={(event) => {
             event.preventDefault();
-            toast.info(`Đang mở ${file.fileName}`);
+            void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
           }}
           className="flex min-w-0 items-start gap-2 rounded-md border border-border bg-muted/60 px-3 py-2.5 text-xs transition-[border-color,background-color,color,transform] duration-150 hover:border-primary/40 hover:bg-primary/[0.03] hover:text-primary active:translate-y-px"
         >
@@ -435,49 +350,209 @@ function SpecialistScoreEditor({
 export default function SpecialistReviewPage() {
   const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
   const navigate = useNavigate();
-  const [district, setDistrict] = useState<DistrictDetail>(() => MOCK_SPECIALIST_DATA);
   const [localitySearch, setLocalitySearch] = useState('');
   const [groupSearch, setGroupSearch] = useState('');
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
 
-  const selectedGroup = district.groups.find((group) => group.id === nhomTieuChiId);
+  // ── Data fetching ───────────────────────────────────────────────────────────
+  const allSubmissionsQuery = useQuery({
+    queryKey: ['specialist-submissions'],
+    queryFn: () => specialistApi.listAllSubmissions({ page: 1, pageSize: 200 }),
+  });
+
+  const groupsQuery = useQuery({
+    queryKey: ['specialist-criteria-groups'],
+    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+  });
+
+  // Danh sách địa phương = nhóm submissions theo locality (wardCode)
+  const totalAppliedGroups = useMemo(
+    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied').length,
+    [groupsQuery.data],
+  );
+
+  const localityRows: LocalityRow[] = useMemo(() => {
+    const submissions = allSubmissionsQuery.data?.items ?? [];
+    const byLocality = new Map<string, SubmissionApi[]>();
+    for (const s of submissions) {
+      const key = s.createdByWardCode ?? s.createdBy ?? 'unknown';
+      if (!byLocality.has(key)) byLocality.set(key, []);
+      byLocality.get(key)!.push(s);
+    }
+    return Array.from(byLocality.entries()).map(([wardCode, subs]) => {
+      const statuses = subs.map((s) => STAGE_TO_STATUS[s.currentStage] ?? 'CHO_DUYET');
+      const overallStatus: LocalityRow['overallStatus'] = statuses.includes('YEU_CAU_SUA')
+        ? 'YEU_CAU_SUA'
+        : statuses.includes('CHO_DUYET')
+          ? 'CHO_DUYET'
+          : 'DA_DUYET';
+      return {
+        localityId: wardCode,
+        localityName: subs[0]?.localityFullName ?? subs[0]?.createdByUsername ?? wardCode,
+        completionRate: `${subs.length}/${totalAppliedGroups}`,
+        overallStatus,
+        hasNewSubmissions: statuses.includes('CHO_DUYET'),
+        hasModificationRequest: statuses.includes('YEU_CAU_SUA'),
+        submissionIds: subs.map((s) => s.id),
+      };
+    });
+  }, [allSubmissionsQuery.data, totalAppliedGroups]);
+
+  // Submissions của địa phương đang chọn
+  const localitySubmissions = useMemo(
+    () => (allSubmissionsQuery.data?.items ?? []).filter((s) => (s.createdByWardCode ?? s.createdBy ?? 'unknown') === diaPhuongId),
+    [allSubmissionsQuery.data, diaPhuongId],
+  );
+
+  const submissionByGroup = useMemo(() => {
+    const map = new Map<string, SubmissionApi>();
+    for (const s of localitySubmissions) map.set(s.criteriaGroupId, s);
+    return map;
+  }, [localitySubmissions]);
+
+  // Nhóm tiêu chí của địa phương đang chọn (chỉ hiện group Applied hoặc đã có submission)
+  const localityGroups: SpecialistCriteriaGroup[] = useMemo(() => {
+    const groups = groupsQuery.data?.items ?? [];
+    return groups
+      .filter((g) => g.status === 'Applied' || submissionByGroup.has(g.id))
+      .map((g) => {
+        const submission = submissionByGroup.get(g.id);
+        const items: SpecialistCriteriaItem[] = (g.criteria ?? []).map((c, idx) => {
+          const result = submission?.results.find((r) => r.criteriaId === c.id);
+          return {
+            id: c.id,
+            code: `TC_${String(idx + 1).padStart(2, '0')}`,
+            title: c.content,
+            evidenceFiles: [],
+            proposedScore: result?.point ?? 0,
+            proposedBonusScore: result?.bonusPoint ?? 0,
+            maxProposedScore: c.maxPoint,
+            maxProposedBonusScore: c.maxBonusPoint,
+            explanation: result?.explanation ?? '',
+            officialScore: null,
+            officialBonusScore: null,
+            scoreReason: '',
+          };
+        });
+        return {
+          id: g.id,
+          code: g.name,
+          groupName: g.name,
+          description: g.content ?? '',
+          totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
+          totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
+          status: submission ? (STAGE_TO_GROUP_STATUS[submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
+          hasModificationRequest: submission?.currentStage === 'RequiresRevision',
+          items,
+        };
+      });
+  }, [groupsQuery.data, submissionByGroup]);
+
+  const district: LocalityRow | undefined = useMemo(
+    () => localityRows.find((row) => row.localityId === diaPhuongId),
+    [localityRows, diaPhuongId],
+  );
+
+  // Chi tiết submission đang chọn
+  const selectedSubmission = useMemo(
+    () => localitySubmissions.find((s) => s.criteriaGroupId === nhomTieuChiId),
+    [localitySubmissions, nhomTieuChiId],
+  );
+
+  const selectedGroupDetailQuery = useQuery({
+    queryKey: ['specialist-group-detail', nhomTieuChiId],
+    queryFn: () => specialistApi.getCriteriaGroup(nhomTieuChiId!),
+    enabled: Boolean(nhomTieuChiId),
+  });
+
+  const selectedSubmissionDetailQuery = useQuery({
+    queryKey: ['specialist-submission-detail', selectedSubmission?.id],
+    queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
+    enabled: Boolean(selectedSubmission?.id),
+  });
+
+  const selectedGroup: SpecialistCriteriaGroup | undefined = useMemo(() => {
+    if (!nhomTieuChiId) return undefined;
+    const group = selectedGroupDetailQuery.data;
+    if (!group) return undefined;
+    const submission = selectedSubmissionDetailQuery.data;
+    const items: SpecialistCriteriaItem[] = (group.criteria ?? []).map((c, idx) => {
+      const result = submission?.results.find((r) => r.criteriaId === c.id);
+      return {
+        id: c.id,
+        code: `TC_${String(idx + 1).padStart(2, '0')}`,
+        title: c.content,
+        evidenceFiles: [],
+        proposedScore: result?.point ?? 0,
+        proposedBonusScore: result?.bonusPoint ?? 0,
+        maxProposedScore: c.maxPoint,
+        maxProposedBonusScore: c.maxBonusPoint,
+        explanation: result?.explanation ?? '',
+        officialScore: null,
+        officialBonusScore: null,
+        scoreReason: '',
+      };
+    });
+    return {
+      id: group.id,
+      code: group.name,
+      groupName: group.name,
+      description: group.content ?? '',
+      totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
+      totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
+      status: submission ? (STAGE_TO_GROUP_STATUS[submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
+      hasModificationRequest: submission?.currentStage === 'RequiresRevision',
+      items,
+    };
+  }, [nhomTieuChiId, selectedGroupDetailQuery.data, selectedSubmissionDetailQuery.data]);
+
+  // Local state cho điểm chuyên viên chấm (đè lên dữ liệu API)
+  const [scoreOverrides, setScoreOverrides] = useState<Map<string, Partial<SpecialistCriteriaItem>>>(new Map());
+
+  const applyOverrides = (group: SpecialistCriteriaGroup): SpecialistCriteriaGroup => ({
+    ...group,
+    items: group.items.map((item) => {
+      const override = scoreOverrides.get(item.id);
+      return override ? { ...item, ...override } : item;
+    }),
+  });
+
+  const updateCriterion = (criterionId: string, values: Partial<SpecialistCriteriaItem>) => {
+    setScoreOverrides((prev) => new Map(prev).set(criterionId, { ...prev.get(criterionId), ...values }));
+  };
 
   const filteredGroups = useMemo(() => {
     const keyword = groupSearch.trim().toLocaleLowerCase('vi');
-    if (!keyword) return district.groups;
-    return district.groups.filter((group) =>
+    if (!keyword) return localityGroups;
+    return localityGroups.filter((group) =>
       `${group.code} ${group.groupName} ${group.description}`.toLocaleLowerCase('vi').includes(keyword),
     );
-  }, [district.groups, groupSearch]);
+  }, [localityGroups, groupSearch]);
 
-  const updateGroup = (groupId: string, updater: (group: SpecialistCriteriaGroup) => SpecialistCriteriaGroup) => {
-    setDistrict((current) => ({
-      ...current,
-      groups: current.groups.map((group) => group.id === groupId ? updater(group) : group),
-    }));
-  };
-
-  const updateCriterion = (criterionId: string, values: Partial<SpecialistCriteriaItem>) => {
-    if (!selectedGroup) return;
-    updateGroup(selectedGroup.id, (group) => ({
-      ...group,
-      items: group.items.map((item) => item.id === criterionId ? { ...item, ...values } : item),
-    }));
-  };
+  const filteredLocalityRows = useMemo(() => {
+    const keyword = localitySearch.trim().toLocaleLowerCase('vi');
+    if (!keyword) return localityRows;
+    return localityRows.filter((row) =>
+      `${row.localityId} ${row.localityName}`.toLocaleLowerCase('vi').includes(keyword),
+    );
+  }, [localityRows, localitySearch]);
 
   if (!diaPhuongId) {
-    const keyword = localitySearch.trim().toLocaleLowerCase('vi');
-    const isVisible = !keyword || `${district.districtId} ${district.districtName}`.toLocaleLowerCase('vi').includes(keyword);
-    const newGroups = district.groups.filter((group) => group.status === 'CHUA_CHAM').length;
-    const hasModificationRequest = district.groups.some((group) => group.hasModificationRequest);
+    const visibleRows = filteredLocalityRows;
+    if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
+      return <div className="mx-auto w-full max-w-[1480px] space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
+    }
+    if (allSubmissionsQuery.isError || groupsQuery.isError) {
+      return <EmptyState title="Không tải được dữ liệu" description={getFilesApiError(allSubmissionsQuery.error ?? groupsQuery.error)} />;
+    }
 
     return (
       <div className="mx-auto w-full max-w-[1480px] space-y-6">
         <PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" />
         <div className="overflow-hidden rounded-lg border border-border bg-card">
-          <TableSectionHeader title="Hồ sơ địa phương" countLabel={isVisible ? '1 địa phương' : '0 địa phương'} />
+          <TableSectionHeader title="Hồ sơ địa phương" countLabel={`${visibleRows.length} địa phương`} />
           <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="relative w-full max-w-xl">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -490,7 +565,7 @@ export default function SpecialistReviewPage() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{isVisible ? 1 : 0}</span> kết quả phù hợp
+              <span className="font-medium text-foreground">{visibleRows.length}</span> kết quả phù hợp
             </p>
           </div>
 
@@ -517,84 +592,87 @@ export default function SpecialistReviewPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isVisible && (
-                  <TableRow className="group cursor-pointer" onClick={() => navigate(`/chuyen-vien/duyet/${district.districtId}`)}>
+                {visibleRows.map((row) => {
+                  const newGroups = row.hasNewSubmissions ? 1 : 0;
+                  return (
+                  <TableRow key={row.localityId} className="group cursor-pointer" onClick={() => navigate(`/chuyen-vien/duyet/${row.localityId}`)}>
                     <TableCell className="whitespace-normal px-4 py-4">
                       <div className="flex items-center gap-3">
                         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><MapPin className="size-4" /></span>
                         <div className="min-w-0">
-                          <p className="font-semibold leading-5 text-foreground">{district.districtName}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{district.districtId}</p>
+                          <p className="font-semibold leading-5 text-foreground">{row.localityName}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{row.localityId}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums">{district.completionRate}</span><span className="ml-1 text-xs text-muted-foreground">nhóm</span></TableCell>
-                    <TableCell className="px-4 py-4 text-center"><OverallStatusBadge status={district.overallStatus} /></TableCell>
-                    <TableCell className="px-4 py-4 text-center"><Badge variant="secondary">{newGroups} nhóm</Badge></TableCell>
-                    <TableCell className="px-4 py-4 text-center">{hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
-                    <TableCell className="px-4 py-4 text-center"><Badge variant="secondary">Có</Badge></TableCell>
+                    <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums">{row.completionRate}</span><span className="ml-1 text-xs text-muted-foreground">nhóm</span></TableCell>
+                    <TableCell className="px-4 py-4 text-center"><OverallStatusBadge status={row.overallStatus} /></TableCell>
+                    <TableCell className="px-4 py-4 text-center">{newGroups > 0 ? <Badge variant="secondary">{newGroups} nhóm</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="px-4 py-4 text-center">{row.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
+                    <TableCell className="px-4 py-4 text-center">{row.hasNewSubmissions ? <Badge variant="secondary">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
                     <TableCell className="px-3 py-4 text-right">
-                      <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); navigate(`/chuyen-vien/duyet/${district.districtId}`); }}>
-                        <Eye className="size-4" /><span className="sr-only">Xem {district.districtName}</span>
+                      <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); navigate(`/chuyen-vien/duyet/${row.localityId}`); }}>
+                        <Eye className="size-4" /><span className="sr-only">Xem {row.localityName}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
-                )}
-                {!isVisible && <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">Không có địa phương phù hợp.</TableCell></TableRow>}
+                  );
+                })}
+                {visibleRows.length === 0 && <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">Không có địa phương phù hợp.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
 
           <div className="xl:hidden">
-            {isVisible ? (
-              <article className="p-4 sm:p-5">
+            {visibleRows.length > 0 ? visibleRows.map((row) => (
+              <article key={row.localityId} className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><MapPin className="size-5" /></span>
                     <div className="min-w-0">
-                      <h3 className="font-semibold leading-5 text-foreground">{district.districtName}</h3>
-                      <p className="mt-1 text-xs text-muted-foreground">{district.districtId}</p>
+                      <h3 className="font-semibold leading-5 text-foreground">{row.localityName}</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">{row.localityId}</p>
                     </div>
                   </div>
-                  <OverallStatusBadge status={district.overallStatus} />
+                  <OverallStatusBadge status={row.overallStatus} />
                 </div>
                 <dl className="mt-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-border sm:grid-cols-4">
-                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Đã hoàn thành</dt><dd className="mt-1 font-semibold tabular-nums">{district.completionRate} nhóm</dd></div>
-                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Tiêu chí mới</dt><dd className="mt-1 font-semibold tabular-nums">{newGroups} nhóm</dd></div>
-                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{hasModificationRequest ? 'Có' : 'Không'}</dd></div>
-                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Cập nhật mới</dt><dd className="mt-1 font-medium">Có</dd></div>
+                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Đã hoàn thành</dt><dd className="mt-1 font-semibold tabular-nums">{row.completionRate} nhóm</dd></div>
+                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Tiêu chí mới</dt><dd className="mt-1 font-semibold tabular-nums">{row.hasNewSubmissions ? '1 nhóm' : '0 nhóm'}</dd></div>
+                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{row.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
+                  <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Cập nhật mới</dt><dd className="mt-1 font-medium">{row.hasNewSubmissions ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" onClick={() => navigate(`/chuyen-vien/duyet/${district.districtId}`)}><Eye className="size-4" />Xem hồ sơ</Button>
+                <Button className="mt-4 w-full sm:w-auto" onClick={() => navigate(`/chuyen-vien/duyet/${row.localityId}`)}><Eye className="size-4" />Xem hồ sơ</Button>
               </article>
-            ) : (
+            )) : (
               <p className="px-4 py-12 text-center text-sm text-muted-foreground">Không có địa phương phù hợp.</p>
             )}
           </div>
-          <div className="border-t border-border bg-muted/20 px-4 py-2 text-center text-xs text-muted-foreground">{isVisible ? 1 : 0} kết quả · 10 dòng/trang</div>
+          <div className="border-t border-border bg-muted/20 px-4 py-2 text-center text-xs text-muted-foreground">{visibleRows.length} kết quả · 10 dòng/trang</div>
         </div>
       </div>
     );
   }
 
-  if (diaPhuongId !== district.districtId) {
-    return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không tồn tại trong dữ liệu mẫu." />;
+  if (!district) {
+    return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không tồn tại trong dữ liệu." />;
   }
 
   if (!nhomTieuChiId) {
-    const completedGroups = district.groups.filter((group) => group.status === 'DA_CHAM').length;
-    const revisionGroups = district.groups.filter((group) => group.hasModificationRequest).length;
-    const [completedCount, totalCount] = district.completionRate.split('/').map(Number);
-    const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedCount / totalCount) * 100)) : 0;
+    const completedGroups = localityGroups.filter((group) => group.status === 'DA_CHAM').length;
+    const revisionGroups = localityGroups.filter((group) => group.hasModificationRequest).length;
+    const totalCount = localityGroups.length;
+    const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
 
     return (
       <div className="mx-auto w-full max-w-[1480px] space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
           <span>/</span>
-          <span className="font-medium text-foreground">{district.districtName}</span>
+          <span className="font-medium text-foreground">{district.localityName}</span>
         </div>
         <PageHeader
-          title={`Nhóm tiêu chí của ${district.districtName}`}
+          title={`Nhóm tiêu chí của ${district.localityName}`}
           description="Xem tiến độ và thực hiện chấm điểm từng nhóm tiêu chí"
           actions={<Button variant="outline" render={<Link to="/chuyen-vien/duyet" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>}
         />
@@ -604,7 +682,7 @@ export default function SpecialistReviewPage() {
             <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><MapPin className="size-5" /></span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">{district.districtName}</h2>
+                <h2 className="text-lg font-semibold text-foreground">{district.localityName}</h2>
                 <OverallStatusBadge status={district.overallStatus} />
               </div>
               <p className="mt-1 text-sm text-muted-foreground">Hồ sơ thi đua năm 2026 · {completedGroups} nhóm đã chấm</p>
@@ -614,7 +692,7 @@ export default function SpecialistReviewPage() {
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Nhóm tiêu chí đã hoàn thành</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{district.completionRate}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{completedGroups}/{totalCount}</p>
               </div>
               {revisionGroups > 0 && <Badge variant="warning">{revisionGroups} nhóm cần chỉnh sửa</Badge>}
             </div>
@@ -668,7 +746,7 @@ export default function SpecialistReviewPage() {
               </TableHeader>
               <TableBody>
                 {filteredGroups.map((group) => (
-                  <TableRow key={group.id} className="group cursor-pointer" onClick={() => navigate(`/chuyen-vien/duyet/${district.districtId}/${group.id}`)}>
+                  <TableRow key={group.id} className="group cursor-pointer" onClick={() => navigate(`/chuyen-vien/duyet/${district.localityId}/${group.id}`)}>
                     <TableCell className="whitespace-normal px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
                     <TableCell className="whitespace-normal px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
                     <TableCell className="px-4 py-4 text-right align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
@@ -676,9 +754,9 @@ export default function SpecialistReviewPage() {
                     <TableCell className="px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
                     <TableCell className="px-4 py-4 text-center align-top">{group.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
                     <TableCell className="px-4 py-4 text-right align-top">
-                      <Button variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} size="sm" onClick={(event) => { event.stopPropagation(); navigate(`/chuyen-vien/duyet/${district.districtId}/${group.id}`); }}>
-                        {group.status === 'DA_CHAM' ? <Eye className="size-4" /> : <Edit3 className="size-4" />}
-                        {group.status === 'DA_CHAM' ? 'Xem' : 'Chấm điểm'}
+                      <Button variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} size="sm" onClick={(event) => { event.stopPropagation(); navigate(`/chuyen-vien/duyet/${district.localityId}/${group.id}`); }}>
+                        {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
+                        {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem'}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -704,9 +782,9 @@ export default function SpecialistReviewPage() {
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm thưởng</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedBonusScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{group.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} onClick={() => navigate(`/chuyen-vien/duyet/${district.districtId}/${group.id}`)}>
-                  {group.status === 'DA_CHAM' ? <Eye className="size-4" /> : <Edit3 className="size-4" />}
-                  {group.status === 'DA_CHAM' ? 'Xem chi tiết' : 'Chấm điểm'}
+                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} onClick={() => navigate(`/chuyen-vien/duyet/${district.localityId}/${group.id}`)}>
+                  {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
+                  {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
                 </Button>
               </article>
             ))}
@@ -718,34 +796,36 @@ export default function SpecialistReviewPage() {
   }
 
   if (!selectedGroup) {
-    return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Mã nhóm tiêu chí không tồn tại trong dữ liệu mẫu." />;
+    return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Mã nhóm tiêu chí không tồn tại trong dữ liệu." />;
   }
 
+  const displayGroup = applyOverrides(selectedGroup);
+
   const copyProposedScores = () => {
-    updateGroup(selectedGroup.id, (group) => ({
-      ...group,
-      status: 'DA_CHAM',
-      items: group.items.map((item) => ({
-        ...item,
+    const newOverrides = new Map(scoreOverrides);
+    for (const item of displayGroup.items) {
+      newOverrides.set(item.id, {
+        ...newOverrides.get(item.id),
         officialScore: item.proposedScore,
         officialBonusScore: item.proposedBonusScore,
         scoreReason: item.isAddedBySpecialist ? item.scoreReason : '',
-      })),
-    }));
+      });
+    }
+    setScoreOverrides(newOverrides);
     toast.success('Đã sao chép toàn bộ điểm đề xuất sang điểm Chuyên viên chấm.');
   };
 
   const openForwardDialog = () => {
-    if (selectedGroup.items.length === 0) {
+    if (displayGroup.items.length === 0) {
       toast.error('Nhóm tiêu chí chưa có tiêu chí con để gửi duyệt.');
       return;
     }
-    const missingScore = selectedGroup.items.some((item) => item.officialScore === null || item.officialBonusScore === null);
+    const missingScore = displayGroup.items.some((item) => item.officialScore === null || item.officialBonusScore === null);
     if (missingScore) {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
     }
-    const missingReason = selectedGroup.items.some((item) => {
+    const missingReason = displayGroup.items.some((item) => {
       const changed = item.officialScore !== item.proposedScore || item.officialBonusScore !== item.proposedBonusScore;
       return changed && !item.scoreReason.trim();
     });
@@ -761,14 +841,14 @@ export default function SpecialistReviewPage() {
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
         <span>/</span>
-        <Link className="hover:text-primary" to={`/chuyen-vien/duyet/${district.districtId}`}>{district.districtName}</Link>
+        <Link className="hover:text-primary" to={`/chuyen-vien/duyet/${district.localityId}`}>{district.localityName}</Link>
         <span>/</span>
         <span className="font-medium text-foreground">{selectedGroup.groupName}</span>
       </div>
       <PageHeader
         title="Chi tiết chấm điểm kết quả tiêu chí"
         description={`${selectedGroup.code} · ${selectedGroup.groupName}`}
-        actions={<Button variant="outline" render={<Link to={`/chuyen-vien/duyet/${district.districtId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
+        actions={<Button variant="outline" render={<Link to={`/chuyen-vien/duyet/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
       />
 
       <StatusStepper state="CHO_CHUYEN_VIEN" hasRevisionRequest={selectedGroup.hasModificationRequest} />
@@ -802,7 +882,7 @@ export default function SpecialistReviewPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {selectedGroup.items.map((item) => (
+              {displayGroup.items.map((item) => (
                 <TableRow key={item.id} className="align-top">
                   <TableCell className="whitespace-normal px-4 py-5">
                     <p className="font-semibold leading-5 text-foreground">{item.title}</p>
@@ -817,13 +897,13 @@ export default function SpecialistReviewPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {selectedGroup.items.length === 0 && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
+              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
 
         <div className="divide-y divide-border xl:hidden">
-          {selectedGroup.items.map((item) => (
+          {displayGroup.items.map((item) => (
             <article key={item.id} className="p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
                 <div className="min-w-0 flex-1">
@@ -856,14 +936,14 @@ export default function SpecialistReviewPage() {
               </div>
             </article>
           ))}
-          {selectedGroup.items.length === 0 && <p className="px-4 py-12 text-center text-sm text-muted-foreground">Nhóm này chưa có tiêu chí con.</p>}
+          {displayGroup.items.length === 0 && <p className="px-4 py-12 text-center text-sm text-muted-foreground">Nhóm này chưa có tiêu chí con.</p>}
         </div>
       </div>
 
       <div className="border-t border-border bg-background py-3 md:sticky md:bottom-0 md:z-20 md:-mx-6 md:px-6">
         <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
-            <Button variant="outline" onClick={copyProposedScores} disabled={selectedGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
+            <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
             <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}><AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa</Button>
           </div>
@@ -877,45 +957,36 @@ export default function SpecialistReviewPage() {
         onSave={({ reason, score, file }) => {
           const now = new Date();
           const itemId = `CRIT_ADD_${now.getTime()}`;
-          updateGroup(selectedGroup.id, (group) => ({
-            ...group,
-            items: [
-              ...group.items,
-              {
-                id: itemId,
-                code: `TC_ADD_${group.items.length + 1}`,
-                title: '[Tiêu chí bổ sung] Tiêu chí phát sinh trong quá trình thẩm định',
-                evidenceFiles: file ? [{ id: `FILE_${now.getTime()}`, fileName: file.name, fileSize: formatFileSize(file.size), uploadedAt: new Intl.DateTimeFormat('vi-VN').format(now), fileUrl: '#' }] : [],
-                proposedScore: 0,
-                proposedBonusScore: 0,
-                maxProposedScore: 0,
-                maxProposedBonusScore: 0,
-                explanation: reason,
-                officialScore: score,
-                officialBonusScore: 0,
-                scoreReason: reason,
-                isAddedBySpecialist: true,
-              },
-            ],
-          }));
-          toast.success('Đã thêm tiêu chí bổ sung vào dữ liệu mẫu.');
+          updateCriterion(itemId, {
+            id: itemId,
+            code: `TC_ADD_${displayGroup.items.length + 1}`,
+            title: '[Tiêu chí bổ sung] Tiêu chí phát sinh trong quá trình thẩm định',
+            evidenceFiles: file ? [{ id: `FILE_${now.getTime()}`, fileName: file.name, fileSize: formatFileSize(file.size), uploadedAt: new Intl.DateTimeFormat('vi-VN').format(now), fileId: `FILE_${now.getTime()}` }] : [],
+            proposedScore: 0,
+            proposedBonusScore: 0,
+            maxProposedScore: 0,
+            maxProposedBonusScore: 0,
+            explanation: reason,
+            officialScore: score,
+            officialBonusScore: 0,
+            scoreReason: reason,
+            isAddedBySpecialist: true,
+          });
+          toast.success('Đã thêm tiêu chí bổ sung.');
         }}
       />
       <RevisionDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
-        localityName={district.districtName}
+        localityName={district.localityName}
         onSubmit={(reason) => {
-          updateGroup(selectedGroup.id, (group) => ({ ...group, hasModificationRequest: true, modificationNote: reason }));
-          setDistrict((current) => ({ ...current, overallStatus: 'YEU_CAU_SUA' }));
-          toast.success('Đã ghi nhận yêu cầu chỉnh sửa trong dữ liệu mẫu.');
+          toast.info('Yêu cầu chỉnh sửa đã được ghi nhận cục bộ.', { description: reason });
         }}
       />
       <ForwardSubmissionDialog
         open={forwardOpen}
         onOpenChange={setForwardOpen}
         onConfirm={({ file, description }) => {
-          updateGroup(selectedGroup.id, (group) => ({ ...group, status: 'DA_CHAM' }));
           toast.success('Đã chuyển hồ sơ lên Lãnh đạo ban.', { description: description || (file ? `Đính kèm ${file.name}` : undefined) });
         }}
       />
