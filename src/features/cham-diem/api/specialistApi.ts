@@ -72,6 +72,10 @@ export const specialistApi = {
   getCriteriaGroup: (id: string) =>
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
 
+  // Submissions — chuyên viên xem tất cả bài nộp
+  listAllSubmissions: (params?: { stage?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+    request<PagedResult<SubmissionApi>>({ url: '/api/v1/submissions', method: 'GET', params }),
+
   // Submissions by criteria group — chuyên viên xem tất cả bài nộp của địa phương
   listSubmissionsByGroup: (groupId: string, params?: { stage?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionApi>>({ url: `/api/v1/criteria-groups/${groupId}/submissions`, method: 'GET', params }),
