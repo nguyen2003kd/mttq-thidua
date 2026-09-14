@@ -958,7 +958,7 @@ export default function SpecialistReviewPage() {
     }
     setSavingDraft(true);
     try {
-      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', items });
+      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
       await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
       await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
       setScoreOverrides(new Map());
@@ -983,7 +983,7 @@ export default function SpecialistReviewPage() {
     try {
       const items = buildScoreItems();
       if (items.length > 0) {
-        await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', items });
+        await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
       }
       await specialistApi.approveSubmission(submission.id);
       await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
