@@ -1,37 +1,63 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { FormDialog, FileUpload } from '@/components/core';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+import { useState, type FormEvent } from 'react';
+import { FileCheck2 } from 'lucide-react';
+import { FormDialog } from '@/components/core';
 
 interface ForwardSubmissionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (value: { file: File | null; description: string }) => void;
+  localityName?: string;
+  groupName?: string;
+  onConfirm: () => void | Promise<void>;
 }
 
-export function ForwardSubmissionDialog({ open, onOpenChange, onConfirm }: ForwardSubmissionDialogProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [description, setDescription] = useState('');
-  const [error, setError] = useState('');
+export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, onConfirm }: ForwardSubmissionDialogProps) {
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { if (open) { setFile(null); setDescription(''); setError(''); } }, [open]);
-
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (file && file.size > MAX_FILE_SIZE) { setError('Tệp hồ sơ không được vượt quá 20MB.'); return; }
-    onConfirm({ file, description: description.trim() });
-    onOpenChange(false);
+    try {
+      setSubmitting(true);
+      await onConfirm();
+      onOpenChange(false);
+    } catch {
+      // Lỗi đã được toast ở caller — giữ dialog mở
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title="Gửi yêu cầu" description="Chuyển hồ sơ đã thẩm định lên Lãnh đạo ban." onSubmit={submit} submitLabel="Gửi yêu cầu" cancelLabel="Đóng">
-      <div className="space-y-1.5">
-        <Label>Đính kèm file hồ sơ</Label>
-        <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} error={error} />
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Xác nhận chuyển hồ sơ"
+      description="Chuyển hồ sơ đã thẩm định lên Lãnh đạo ban."
+      onSubmit={submit}
+      submitLabel={submitting ? 'Đang xử lý…' : 'Xác nhận'}
+      submitDisabled={submitting}
+      cancelLabel="Đóng"
+    >
+      <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <FileCheck2 className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-semibold leading-5 text-foreground">Hồ sơ đã hoàn tất thẩm định</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Sau khi xác nhận, kết quả chấm điểm sẽ được chuyển lên Lãnh đạo ban để phê duyệt. Bạn sẽ không thể chỉnh sửa điểm sau bước này.
+          </p>
+        </div>
       </div>
-      <div className="space-y-1.5"><Label htmlFor="forward-description">Diễn giải hồ sơ</Label><Textarea id="forward-description" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Nhập thông tin cần lưu ý khi chuyển hồ sơ" /></div>
+      <dl className="grid grid-cols-2 gap-3 rounded-xl border bg-muted/30 p-4">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">Địa phương</dt>
+          <dd className="mt-1 truncate font-semibold text-foreground">{localityName ?? '—'}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">Nhóm tiêu chí</dt>
+          <dd className="mt-1 truncate font-semibold text-foreground">{groupName ?? '—'}</dd>
+        </div>
+      </dl>
     </FormDialog>
   );
 }
