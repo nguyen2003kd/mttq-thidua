@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowDownToLine, FileText, MessageSquareText, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, FileUpload, FormDialog } from '@/components/core';
@@ -30,6 +30,7 @@ interface LocalityScoreTableProps {
   draftValues?: Map<string, EvidenceFormValue>;
   selectedCriterionId?: string;
   uploading?: boolean;
+  toolbar?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
   onDeleteEvidence?: (id: string) => void;
 }
@@ -308,6 +309,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   draftValues,
   selectedCriterionId,
   uploading,
+  toolbar,
   onSelect,
   onDeleteEvidence,
 }, ref) {
@@ -329,7 +331,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   }));
 
   return (
-    <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+    <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">Nội dung tự đánh giá</h2>
@@ -337,6 +339,11 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
         </div>
         <Badge variant="outline">{criteria.length} tiêu chí</Badge>
       </div>
+      {toolbar && (
+        <div className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
+          {toolbar}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <Table className="min-w-[1100px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0">
           <TableHeader>

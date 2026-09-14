@@ -24,6 +24,14 @@ import { Button, EmptyState, FileUpload, FormDialog, PageHeader } from '@/compon
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
@@ -367,32 +375,84 @@ function TableSectionHeader({ title, countLabel, actions }: { title: string; cou
   );
 }
 
-function EvidenceList({ files }: { files: EvidenceFile[] }) {
+function EvidenceButton({ files, onClick }: { files: EvidenceFile[]; onClick: () => void }) {
   if (files.length === 0) {
     return <p className="text-xs text-muted-foreground">Chưa có minh chứng</p>;
   }
 
   return (
-    <div className="space-y-2">
-      {files.map((file) => (
-        <a
-          key={file.id}
-          href={`#file-${file.fileId}`}
-          onClick={(event) => {
-            event.preventDefault();
-            void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
-          }}
-          className="flex min-w-0 items-start gap-2 rounded-md border border-border bg-muted/60 px-3 py-2.5 text-xs transition-[border-color,background-color,color,transform] duration-150 hover:border-primary/40 hover:bg-primary/[0.03] hover:text-primary active:translate-y-px"
-        >
-          <FileText className="mt-0.5 size-4 shrink-0" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{file.fileName}</span>
-            <span className="mt-0.5 block text-muted-foreground">{file.fileSize} · {file.uploadedAt}</span>
-          </span>
-          <Download className="mt-0.5 size-3.5 shrink-0" />
-        </a>
-      ))}
-    </div>
+    <Button type="button" variant="outline" size="sm" onClick={onClick}>
+      <FileText className="size-4" />
+      Xem file
+      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
+        {files.length}
+      </span>
+    </Button>
+  );
+}
+
+function EvidenceFilesDialog({
+  item,
+  onOpenChange,
+}: {
+  item: SpecialistCriteriaItem | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const files = item?.evidenceFiles ?? [];
+
+  return (
+    <Dialog open={Boolean(item)} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="shrink-0 border-b border-border bg-muted/25 px-6 py-5 pr-12">
+          <DialogTitle>Minh chứng đã nộp</DialogTitle>
+          <DialogDescription className="line-clamp-2">
+            {item ? `${item.code} · ${item.title}` : ''}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-foreground">Danh sách file</p>
+            <Badge variant="secondary">{files.length} file</Badge>
+          </div>
+          {files.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+              Tiêu chí này chưa có file minh chứng.
+            </div>
+          ) : (
+            <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+              {files.map((file) => (
+                <div key={file.id} className="flex min-w-0 items-center gap-3 px-4 py-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <FileText className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground" title={file.fileName}>{file.fileName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{file.fileSize} · Nộp ngày {file.uploadedAt}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    title={`Tải xuống ${file.fileName}`}
+                    aria-label={`Tải xuống ${file.fileName}`}
+                    onClick={() => {
+                      void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
+                    }}
+                  >
+                    <Download className="size-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-lg px-6 py-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -430,6 +490,7 @@ export default function SpecialistReviewPage() {
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
+  const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const allSubmissionsQuery = useQuery({
@@ -997,7 +1058,7 @@ export default function SpecialistReviewPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] space-y-5 pb-24">
+    <div className="mx-auto w-full max-w-[1480px] space-y-5 pb-6">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
         <span>/</span>
@@ -1020,13 +1081,25 @@ export default function SpecialistReviewPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+      <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
           countLabel={`${selectedGroup.items.length} tiêu chí`}
         />
 
-        <div className="hidden xl:block">
+        <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur lg:flex-row lg:items-center lg:justify-between sm:px-5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+            <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
+            <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
+            <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}><AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa</Button>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
+            <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
+          </div>
+        </div>
+
+        <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
           <Table className="w-full min-w-[1240px] table-fixed">
             <colgroup>
               <col className="w-[20%]" />
@@ -1036,7 +1109,7 @@ export default function SpecialistReviewPage() {
               <col className="w-[28%]" />
             </colgroup>
             <TableHeader>
-              <TableRow className="bg-primary hover:bg-primary">
+              <TableRow className="sticky top-[61px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary">
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
@@ -1057,7 +1130,15 @@ export default function SpecialistReviewPage() {
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
                   </TableCell>
-                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><EvidenceList files={item.evidenceFiles} /></TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
+                    <EvidenceButton
+                      files={item.evidenceFiles}
+                      onClick={() => {
+                        setSelectedCriterionId(item.id);
+                        setViewingEvidenceItem(item);
+                      }}
+                    />
+                  </TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
                   <TableCell className="whitespace-normal px-4 py-5" onClick={(event) => event.stopPropagation()}>
@@ -1117,7 +1198,15 @@ export default function SpecialistReviewPage() {
                 <div className="space-y-5">
                   <div>
                     <h4 className="text-xs font-semibold text-foreground">Minh chứng</h4>
-                    <div className="mt-2"><EvidenceList files={item.evidenceFiles} /></div>
+                    <div className="mt-2">
+                      <EvidenceButton
+                        files={item.evidenceFiles}
+                        onClick={() => {
+                          setSelectedCriterionId(item.id);
+                          setViewingEvidenceItem(item);
+                        }}
+                      />
+                    </div>
                   </div>
                   <div>
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
@@ -1174,20 +1263,6 @@ export default function SpecialistReviewPage() {
         </div>
       </div>
 
-      <div className="border-t border-border bg-background py-3 md:sticky md:bottom-0 md:z-20 md:-mx-6 md:px-6">
-        <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
-            <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
-            <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
-            <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}><AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa</Button>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
-            <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
-          </div>
-        </div>
-      </div>
-
       <SupplementaryDialog
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
@@ -1228,6 +1303,12 @@ export default function SpecialistReviewPage() {
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
         onConfirm={confirmForward}
+      />
+      <EvidenceFilesDialog
+        item={viewingEvidenceItem}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setViewingEvidenceItem(null);
+        }}
       />
     </div>
   );
