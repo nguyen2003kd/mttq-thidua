@@ -81,4 +81,12 @@ export const specialistApi = {
     request<PagedResult<SubmissionApi>>({ url: `/api/v1/criteria-groups/${groupId}/submissions`, method: 'GET', params }),
   getSubmission: (id: string) =>
     request<SubmissionApi>({ url: `/api/v1/submissions/${id}`, method: 'GET' }),
+
+  // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
+  approveSubmission: (submissionId: string) =>
+    request<{ processed: boolean; submissionId: string; action: string }>({
+      url: '/api/v1/submissions/approve',
+      method: 'POST',
+      data: { submissionId, action: 'Approve' },
+    }),
 };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
@@ -350,6 +350,7 @@ function SpecialistScoreEditor({
 export default function SpecialistReviewPage() {
   const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [localitySearch, setLocalitySearch] = useState('');
   const [groupSearch, setGroupSearch] = useState('');
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
@@ -836,6 +837,28 @@ export default function SpecialistReviewPage() {
     setForwardOpen(true);
   };
 
+  const confirmForward = async () => {
+    const submission = submissionByGroup.get(selectedGroup.id);
+    if (!submission) {
+      toast.error('Nhóm này chưa có hồ sơ để chuyển.');
+      return;
+    }
+    if (submission.currentStage !== 'LocalSubmitted') {
+      toast.error('Chỉ hồ sơ ở trạng thái Chờ chấm mới có thể chuyển lên Lãnh đạo ban.');
+      return;
+    }
+    try {
+      await specialistApi.approveSubmission(submission.id);
+      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
+      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+      setScoreOverrides(new Map());
+      toast.success('Đã chuyển hồ sơ lên Lãnh đạo ban.');
+    } catch (error) {
+      toast.error('Không chuyển được hồ sơ lên Lãnh đạo ban.', { description: getFilesApiError(error) });
+      throw error;
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1480px] space-y-5 pb-24">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -986,9 +1009,9 @@ export default function SpecialistReviewPage() {
       <ForwardSubmissionDialog
         open={forwardOpen}
         onOpenChange={setForwardOpen}
-        onConfirm={({ file, description }) => {
-          toast.success('Đã chuyển hồ sơ lên Lãnh đạo ban.', { description: description || (file ? `Đính kèm ${file.name}` : undefined) });
-        }}
+        localityName={district.localityName}
+        groupName={selectedGroup.groupName}
+        onConfirm={confirmForward}
       />
     </div>
   );
