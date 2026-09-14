@@ -148,13 +148,11 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const [bonusScore, setBonusScore] = useState('0');
   const [explanation, setExplanation] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [bonusFile, setBonusFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [scoreError, setScoreError] = useState('');
   const [bonusScoreError, setBonusScoreError] = useState('');
   const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
-  const [bonusEvidenceDialogOpen, setBonusEvidenceDialogOpen] = useState(false);
   const [explanationDialogOpen, setExplanationDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -162,7 +160,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     setBonusScore(draft?.proposedBonusScore.toString() ?? entry?.proposedBonusScore?.toString() ?? '0');
     setExplanation(draft?.explanation ?? entry?.explanation ?? '');
     setFile(draft?.file ?? null);
-    setBonusFile(draft?.bonusFile ?? null);
     setError('');
     setScoreError('');
     setBonusScoreError('');
@@ -171,7 +168,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const maxBonus = criterion.bonusScore ?? 0;
   const locked = Boolean(entry?.locked || !editable);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
-  const bonusFiles = files.filter((item) => item.kind === 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
     id: `empty-${criterion.id}`,
     criteriaId: criterion.id,
@@ -201,8 +197,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       setError('Vui lòng chọn file bằng chứng.');
       return false;
     }
-    if ((file && file.size > MAX_FILE_SIZE) || (bonusFile && bonusFile.size > MAX_FILE_SIZE)) {
-      setError('Mỗi file không được vượt quá 20MB.');
+    if (file && file.size > MAX_FILE_SIZE) {
+      setError('File không được vượt quá 20MB.');
       return false;
     }
 
@@ -224,7 +220,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         proposedBonusScore,
         explanation: explanation.trim(),
         file,
-        bonusFile,
+        bonusFile: null,
       });
       if (!saved) {
         setError('Không thể lưu tiêu chí. Vui lòng thử lại.');
@@ -232,7 +228,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       }
       if (!draft) {
         setFile(null);
-        setBonusFile(null);
       }
       return true;
     } catch {
@@ -277,14 +272,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         </div>
       </TableCell>
       <TableCell className="align-top">
-        <div className="flex min-w-0 flex-col gap-2">
-          <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || maxBonus === 0 || saving || uploading} onClick={(event) => { event.stopPropagation(); setBonusEvidenceDialogOpen(true); }}>
-            <Upload className="size-4 shrink-0" />
-            <span className="truncate">{bonusFile?.name ?? (bonusFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file')}</span>
-          </Button>
-        </div>
-      </TableCell>
-      <TableCell className="align-top">
         <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || saving || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
           <MessageSquareText className="size-4 shrink-0" />
           <span className="truncate">{explanation || 'Nhập nội dung diễn giải'}</span>
@@ -292,7 +279,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         {entry?.revisionRequest && <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs"><strong>Phản hồi:</strong> {entry.revisionRequest}</p>}
         {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
         <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file bằng chứng" description={criterion.name} value={file} onConfirm={setFile} />
-        <EvidenceUploadDialog open={bonusEvidenceDialogOpen} onOpenChange={setBonusEvidenceDialogOpen} title="Nộp bằng chứng điểm thưởng" description={criterion.name} value={bonusFile} onConfirm={setBonusFile} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={setExplanation} />
       </TableCell>
     </TableRow>
@@ -335,7 +321,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
         <Badge variant="outline">{criteria.length} tiêu chí</Badge>
       </div>
       <div className="overflow-x-auto">
-        <Table className="min-w-[1320px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0">
+        <Table className="min-w-[1100px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0">
           <TableHeader>
             <TableRow className="bg-primary hover:bg-primary">
               <TableHead className="h-12 w-[250px] border-r border-white/30 bg-primary text-primary-foreground">Nội dung tiêu chí</TableHead>
@@ -343,7 +329,6 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               <TableHead className="h-12 w-[130px] border-r border-white/30 bg-primary text-right text-primary-foreground">Điểm đề xuất ★</TableHead>
               <TableHead className="h-12 w-[130px] border-r border-white/30 bg-primary text-right text-primary-foreground">Điểm thưởng</TableHead>
               <TableHead className="h-12 w-[180px] border-r border-white/30 bg-primary text-primary-foreground">File bằng chứng ★</TableHead>
-              <TableHead className="h-12 w-[190px] border-r border-white/30 bg-primary text-primary-foreground">Bằng chứng điểm thưởng</TableHead>
               <TableHead className="h-12 w-[280px] bg-primary text-primary-foreground">Nội dung diễn giải ★</TableHead>
             </TableRow>
           </TableHeader>

@@ -127,6 +127,9 @@ export function DataTable<TData, TValue = unknown>({
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearchInput = useDebounce(searchInput, 300);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
+  const hasToolbar = Boolean(searchable || filters || toolbar);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
 
@@ -144,6 +147,19 @@ export function DataTable<TData, TValue = unknown>({
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [stickyTitle, stickyDescription, setStickyTitle, setStickyDescription]);
+
+  useEffect(() => {
+    const toolbarElement = toolbarRef.current;
+    if (!toolbarElement) {
+      setToolbarHeight(0);
+      return;
+    }
+    const updateToolbarHeight = () => setToolbarHeight(toolbarElement.getBoundingClientRect().height);
+    updateToolbarHeight();
+    const observer = new ResizeObserver(updateToolbarHeight);
+    observer.observe(toolbarElement);
+    return () => observer.disconnect();
+  }, [hasToolbar]);
 
   const columnsWithSelect = useMemo(() => {
     if (!enableRowSelection) return columns;
@@ -277,11 +293,11 @@ export function DataTable<TData, TValue = unknown>({
 
   const renderList = () => {
     return (
-      <div className="overflow-hidden">
+      <div className="overflow-clip">
         {/* Header */}
         <div
-          className="grid gap-0 sticky top-0 z-[5] bg-primary text-xs font-semibold text-primary-foreground"
-          style={{ gridTemplateColumns: listGridTemplate }}
+          className="sticky z-[5] grid gap-0 bg-primary text-xs font-semibold text-primary-foreground"
+          style={{ gridTemplateColumns: listGridTemplate, top: toolbarHeight }}
         >
           {table.getHeaderGroups().map((headerGroup) =>
             headerGroup.headers.map((header, idx, arr) => {
@@ -425,10 +441,10 @@ export function DataTable<TData, TValue = unknown>({
       <div ref={sentinelRef} className="absolute top-0 h-px w-full" aria-hidden="true" />
 
       {/* Unified container: toolbar + chips + table */}
-      <div className="rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)] overflow-hidden">
+      <div className="overflow-clip rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
       {/* Toolbar */}
-      {(searchable || filters || toolbar) && (
-        <div className="sticky top-[-24px] z-10 px-4 py-3 bg-background/95 backdrop-blur-sm flex flex-wrap items-center gap-2">
+      {hasToolbar && (
+        <div ref={toolbarRef} className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
           {searchable && (
             <div className="relative w-full max-w-[300px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -466,7 +482,7 @@ export function DataTable<TData, TValue = unknown>({
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent border-border/40 sticky top-0 z-[5] bg-primary">
+                <TableRow key={headerGroup.id} style={{ top: toolbarHeight }} className="sticky z-[5] border-border/40 bg-primary hover:bg-transparent">
                   {headerGroup.headers.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
