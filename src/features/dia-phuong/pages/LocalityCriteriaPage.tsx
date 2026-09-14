@@ -41,6 +41,7 @@ export default function LocalityCriteriaPage() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [draftResults, setDraftResults] = useState<Map<string, EvidenceFormValue>>(new Map());
+  const draftResultsRef = useRef<Map<string, EvidenceFormValue>>(draftResults);
   const scoreTableRef = useRef<LocalityScoreTableHandle>(null);
   const { uploading: fileUploading, uploadFiles } = useFileUpload();
 
@@ -238,8 +239,6 @@ export default function LocalityCriteriaPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
       queryClient.invalidateQueries({ queryKey: ['locality-my-submissions'] });
-      toast.success('Đã nộp kết quả lên Chuyên viên');
-      setSubmitOpen(false);
     },
     onError: (e) => toast.error('Lỗi khi nộp', { description: getLocalityApiError(e) }),
   });
@@ -297,7 +296,7 @@ export default function LocalityCriteriaPage() {
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
-  const editable = record.state === 'DRAFT' || record.state === 'CHO_CHUYEN_VIEN';
+  const editable = record.state === 'DRAFT';
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const notYetSubmitted = !submission;
   const canSubmit = notYetSubmitted || record.state === 'DRAFT';
@@ -312,7 +311,9 @@ export default function LocalityCriteriaPage() {
 
     // Khi chưa có submission → lưu vào draft local
     if (!submission) {
-      setDraftResults((prev) => new Map(prev).set(criterionId, value));
+      const next = new Map(draftResultsRef.current).set(criterionId, value);
+      draftResultsRef.current = next;
+      setDraftResults(next);
       return true;
     }
 
@@ -324,6 +325,7 @@ export default function LocalityCriteriaPage() {
 
     await submitPointsMutation.mutateAsync({
       submissionId: submission.id,
+      isDraft: true,
       items: [{
         submissionResultId: resultItem.id,
         point: value.proposedScore,
@@ -351,43 +353,77 @@ export default function LocalityCriteriaPage() {
     return true;
   };
 
+  const uploadDraftFiles = async (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
+    if (!result || !draft) return;
+    if (draft.file) {
+      await uploadFiles([draft.file], {
+        displayName: draft.file.name,
+        entityType: 'SubmissionResult',
+        entityId: result.id,
+        category: 'evidence',
+      });
+    }
+    if (draft.bonusFile) {
+      await uploadFiles([draft.bonusFile], {
+        displayName: draft.bonusFile.name,
+        entityType: 'SubmissionResult',
+        entityId: result.id,
+        category: 'bonus',
+      });
+    }
+  };
+
+  const clearLocalDrafts = () => {
+    draftResultsRef.current = new Map();
+    setDraftResults(new Map());
+  };
+
   const handleSubmitResults = async () => {
     if (!id || !user) return;
-    const items = detailTable.criteria.map((c) => {
-      const draft = draftResults.get(c.id);
-      return {
-        criteriaId: c.id,
-        point: draft?.proposedScore ?? 0,
-        bonusPoint: draft?.proposedBonusScore ?? 0,
-        explanation: draft?.explanation ?? '',
-      };
-    });
     try {
-      const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
-      // Sau khi BE tạo SubmissionResult mới có thể gắn file đúng entityId.
-      for (const c of detailTable.criteria) {
-        const draft = draftResults.get(c.id);
-        const resultItem = result.results.find((item) => item.criteriaId === c.id);
-        if (!resultItem) continue;
-        if (draft?.file) {
-          await uploadFiles([draft.file], {
-            displayName: draft.file.name,
-            entityType: 'SubmissionResult',
-            entityId: resultItem.id,
-            category: 'evidence',
-          });
+      if (!submission) {
+        const items = detailTable.criteria.map((c) => {
+          const draft = draftResultsRef.current.get(c.id);
+          return {
+            criteriaId: c.id,
+            point: draft?.proposedScore ?? 0,
+            bonusPoint: draft?.proposedBonusScore ?? 0,
+            explanation: draft?.explanation ?? '',
+          };
+        });
+        const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
+        // Sau khi BE tạo SubmissionResult mới có thể gắn file đúng entityId.
+        for (const c of detailTable.criteria) {
+          const resultItem = result.results.find((item) => item.criteriaId === c.id);
+          if (!resultItem) continue;
+          await uploadDraftFiles(resultItem, draftResultsRef.current.get(c.id));
         }
-        if (draft?.bonusFile) {
-          await uploadFiles([draft.bonusFile], {
-            displayName: draft.bonusFile.name,
-            entityType: 'SubmissionResult',
-            entityId: resultItem.id,
-            category: 'bonus',
-          });
+        await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+      } else {
+        // Có bản nháp trên server: lưu toàn bộ hàng đang sửa rồi chuyển sang chờ chuyên viên
+        if (scoreTableRef.current && !(await scoreTableRef.current.saveAll())) {
+          toast.error('Vui lòng hoàn thiện các trường bắt buộc trước khi gửi yêu cầu.');
+          return;
         }
+        const fresh = await queryClient.fetchQuery({
+          queryKey: ['locality-submission', submission.id],
+          queryFn: () => localityApi.getSubmission(submission.id),
+        });
+        await localityApi.submitPoints({
+          submissionId: submission.id,
+          isDraft: false,
+          items: fresh.results.map((r) => ({
+            submissionResultId: r.id,
+            point: r.point,
+            bonusPoint: r.bonusPoint,
+            explanation: r.explanation,
+          })),
+        });
+        await queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
       }
-      await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
-      setDraftResults(new Map());
+      clearLocalDrafts();
+      toast.success('Đã nộp kết quả lên Chuyên viên');
+      setSubmitOpen(false);
     } catch {
       // error handled by mutation onError
     }
@@ -400,11 +436,31 @@ export default function LocalityCriteriaPage() {
     if (!scoreTableRef.current) return;
     setSavingAll(true);
     try {
-      if (await scoreTableRef.current.saveAll()) {
-        toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
-      } else {
+      if (!(await scoreTableRef.current.saveAll())) {
         toast.error('Không thể lưu bản nháp. Vui lòng thử lại.');
+        return;
       }
+      // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
+      if (!submission && draftResultsRef.current.size > 0) {
+        const items = detailTable.criteria.map((c) => {
+          const draft = draftResultsRef.current.get(c.id);
+          return {
+            criteriaId: c.id,
+            point: draft?.proposedScore ?? 0,
+            bonusPoint: draft?.proposedBonusScore ?? 0,
+            explanation: draft?.explanation ?? '',
+          };
+        });
+        const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id!, isDraft: true, items });
+        for (const c of detailTable.criteria) {
+          const resultItem = result.results.find((item) => item.criteriaId === c.id);
+          if (!resultItem) continue;
+          await uploadDraftFiles(resultItem, draftResultsRef.current.get(c.id));
+        }
+        await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+        clearLocalDrafts();
+      }
+      toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
     } finally {
       setSavingAll(false);
     }
