@@ -115,23 +115,24 @@ function createScoreSchema(item: SpecialistCriteriaItem) {
       .number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' })
       .min(0, 'Điểm thưởng không được nhỏ hơn 0.')
       .max(item.maxProposedBonusScore, `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.`),
-    scoreReason: z.string().trim(),
-  }).superRefine((value, context) => {
-    const scoreChanged = value.score !== item.proposedScore || value.bonusScore !== item.proposedBonusScore;
-    if (scoreChanged && !value.scoreReason) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Vui lòng nhập lý do khi điểm chấm khác điểm địa phương đề xuất.',
-        path: ['scoreReason'],
-      });
-    }
+    // scoreReason: z.string().trim(),
   });
+  // }).superRefine((value, context) => {
+  //   const scoreChanged = value.score !== item.proposedScore || value.bonusScore !== item.proposedBonusScore;
+  //   if (scoreChanged && !value.scoreReason) {
+  //     context.addIssue({
+  //       code: z.ZodIssueCode.custom,
+  //       message: 'Vui lòng nhập lý do khi điểm chấm khác điểm địa phương đề xuất.',
+  //       path: ['scoreReason'],
+  //     });
+  //   }
+  // });
 }
 
 type ScoreForm = {
   score: number;
   bonusScore: number;
-  scoreReason: string;
+  // scoreReason: string;
 };
 
 function formatFileSize(bytes: number) {
@@ -213,7 +214,7 @@ function ScoreDialog({
   }), [item]);
   const form = useForm<ScoreForm>({
     resolver: zodResolver(schema),
-    defaultValues: { score: 0, bonusScore: 0, scoreReason: '' },
+    defaultValues: { score: 0, bonusScore: 0 /*, scoreReason: '' */ },
   });
 
   useEffect(() => {
@@ -221,7 +222,7 @@ function ScoreDialog({
     form.reset({
       score: item.officialScore ?? item.proposedScore,
       bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
-      scoreReason: item.scoreReason,
+      // scoreReason: item.scoreReason,
     });
   }, [form, item, open]);
 
@@ -261,18 +262,21 @@ function ScoreDialog({
           {form.formState.errors.bonusScore && <p className="text-xs text-destructive">{form.formState.errors.bonusScore.message}</p>}
         </div>
       </div>
-      <div className="space-y-1.5">
+      {/* <div className="space-y-1.5">
         <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác điểm đề xuất)</span></Label>
         <Textarea id="specialist-score-reason" rows={3} className="resize-y" placeholder="Ví dụ: Đối chiếu minh chứng thực tế, điều chỉnh điểm phù hợp." {...form.register('scoreReason')} />
         {form.formState.errors.scoreReason && <p className="text-xs text-destructive">{form.formState.errors.scoreReason.message}</p>}
-      </div>
+      </div> */}
     </FormDialog>
   );
 }
 
 const revisionSchema = z.object({
   reason: z.string().trim().min(1, 'Vui lòng nhập nội dung yêu cầu chỉnh sửa.'),
+  file: z.instanceof(File).nullable().refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
 });
+
+type RevisionForm = z.infer<typeof revisionSchema>;
 
 function RevisionDialog({
   open,
@@ -283,15 +287,16 @@ function RevisionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   localityName: string;
-  onSubmit: (reason: string) => void;
+  onSubmit: (reason: string, file: File | null) => void;
 }) {
-  const form = useForm<z.infer<typeof revisionSchema>>({
+  const form = useForm<RevisionForm>({
     resolver: zodResolver(revisionSchema),
-    defaultValues: { reason: '' },
+    defaultValues: { reason: '', file: null },
   });
+  const selectedFile = form.watch('file');
 
   useEffect(() => {
-    if (open) form.reset({ reason: '' });
+    if (open) form.reset({ reason: '', file: null });
   }, [form, open]);
 
   return (
@@ -300,8 +305,8 @@ function RevisionDialog({
       onOpenChange={onOpenChange}
       title="Yêu cầu địa phương chỉnh sửa"
       description={`Mở lại quyền sửa hồ sơ cho ${localityName}.`}
-      onSubmit={form.handleSubmit(({ reason }) => {
-        onSubmit(reason);
+      onSubmit={form.handleSubmit(({ reason, file }) => {
+        onSubmit(reason, file);
         onOpenChange(false);
       })}
       submitLabel="Gửi yêu cầu"
@@ -311,6 +316,16 @@ function RevisionDialog({
         <Label htmlFor="revision-reason">Nội dung yêu cầu chỉnh sửa <span className="text-destructive">★</span></Label>
         <Textarea id="revision-reason" rows={4} {...form.register('reason')} placeholder="Ví dụ: Minh chứng chưa rõ nét, đề nghị bổ sung ảnh chụp thực tế" />
         {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label>File đính kèm</Label>
+        <FileUpload
+          value={selectedFile ? [selectedFile] : []}
+          onChange={(files) => form.setValue('file', files[0] ?? null, { shouldValidate: true })}
+          multiple={false}
+          maxSizeMb={20}
+          error={form.formState.errors.file?.message}
+        />
       </div>
     </FormDialog>
   );
@@ -877,7 +892,7 @@ export default function SpecialistReviewPage() {
         ...newOverrides.get(item.id),
         officialScore: item.proposedScore,
         officialBonusScore: item.proposedBonusScore,
-        scoreReason: item.isAddedBySpecialist ? item.scoreReason : '',
+        // scoreReason: item.isAddedBySpecialist ? item.scoreReason : '',
       });
     }
     setScoreOverrides(newOverrides);
@@ -894,14 +909,14 @@ export default function SpecialistReviewPage() {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
     }
-    const missingReason = displayGroup.items.some((item) => {
-      const changed = item.officialScore !== item.proposedScore || item.officialBonusScore !== item.proposedBonusScore;
-      return changed && !item.scoreReason.trim();
-    });
-    if (missingReason) {
-      toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
-      return;
-    }
+    // const missingReason = displayGroup.items.some((item) => {
+    //   const changed = item.officialScore !== item.proposedScore || item.officialBonusScore !== item.proposedBonusScore;
+    //   return changed && !item.scoreReason.trim();
+    // });
+    // if (missingReason) {
+    //   toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
+    //   return;
+    // }
     setForwardOpen(true);
   };
 
@@ -1085,12 +1100,12 @@ export default function SpecialistReviewPage() {
         onOpenChange={(open) => {
           if (!open) setScoringCriterionId(null);
         }}
-        onSave={({ score, bonusScore, scoreReason }) => {
+        onSave={({ score, bonusScore /*, scoreReason */ }) => {
           if (!scoringItem) return;
           updateCriterion(scoringItem.id, {
             officialScore: score,
             officialBonusScore: bonusScore,
-            scoreReason,
+            // scoreReason,
           });
           toast.success('Đã lưu điểm chấm của Chuyên viên.');
         }}
@@ -1124,8 +1139,10 @@ export default function SpecialistReviewPage() {
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
         localityName={district.localityName}
-        onSubmit={(reason) => {
-          toast.info('Yêu cầu chỉnh sửa đã được ghi nhận cục bộ.', { description: reason });
+        onSubmit={(reason, file) => {
+          toast.info('Yêu cầu chỉnh sửa đã được ghi nhận cục bộ.', {
+            description: file ? `${reason} (kèm file: ${file.name})` : reason,
+          });
         }}
       />
       <ForwardSubmissionDialog
