@@ -5,11 +5,12 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   breadcrumbs?: { label: string; href?: string }[];
+  summary?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }
 
-export function PageHeader({ title, description, breadcrumbs, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, description, breadcrumbs, summary, actions, className }: PageHeaderProps) {
   return (
     <div className={cn('flex flex-col gap-3 pb-6 border-b', className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
@@ -27,12 +28,15 @@ export function PageHeader({ title, description, breadcrumbs, actions, className
         </nav>
       )}
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {description && <p className="text-sm text-muted-foreground max-w-2xl">{description}</p>}
+      <div className={cn('flex items-start justify-between gap-4', summary && 'flex-col xl:flex-row xl:items-center')}>
+        <div className={cn('space-y-1', summary && 'flex w-full min-w-0 flex-col gap-4 space-y-0 sm:flex-row sm:items-center xl:w-auto')}>
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            {description && <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>}
+          </div>
+          {summary && <div className="shrink-0">{summary}</div>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {actions && <div className={cn('flex items-center gap-2 shrink-0', summary && 'flex-wrap')}>{actions}</div>}
       </div>
     </div>
   );
