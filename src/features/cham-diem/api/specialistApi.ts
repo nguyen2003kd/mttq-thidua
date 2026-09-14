@@ -104,7 +104,7 @@ export const specialistApi = {
     }),
 
   // UpdateScore — chuyên viên lưu nháp điểm chấm (giữ nguyên stage)
-  updateScores: (payload: { submissionId: string; reason: string; items: Array<{ submissionResultId: string; point: number; bonusPoint: number; reason?: string | null }> }) =>
+  updateScores: (payload: { submissionId: string; reason: string; scoreItems: Array<{ submissionResultId: string; point: number; bonusPoint: number; reason?: string | null }> }) =>
     request<{ processed: boolean; submissionId: string; action: string }>({
       url: '/api/v1/submissions/approve',
       method: 'POST',
