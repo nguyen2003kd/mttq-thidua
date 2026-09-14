@@ -928,6 +928,48 @@ export default function SpecialistReviewPage() {
     setForwardOpen(true);
   };
 
+  const buildScoreItems = () => {
+    const results = selectedSubmissionDetailQuery.data?.results ?? [];
+    return displayGroup.items
+      .filter((item) => item.officialScore !== null && item.officialBonusScore !== null)
+      .map((item) => {
+        const result = results.find((r) => r.criteriaId === item.id);
+        if (!result) return null;
+        return {
+          submissionResultId: result.id,
+          point: item.officialScore!,
+          bonusPoint: item.officialBonusScore!,
+          reason: null,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  };
+
+  const saveDraftScores = async () => {
+    const submission = submissionByGroup.get(selectedGroup.id);
+    if (!submission) {
+      toast.error('Nhóm này chưa có hồ sơ để chấm điểm.');
+      return;
+    }
+    const items = buildScoreItems();
+    if (items.length === 0) {
+      toast.info('Chưa có điểm nào để lưu nháp.');
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', items });
+      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
+      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+      setScoreOverrides(new Map());
+      toast.success('Đã lưu nháp điểm chấm.');
+    } catch (error) {
+      toast.error('Không lưu được bản nháp điểm chấm.', { description: getFilesApiError(error) });
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const confirmForward = async () => {
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
