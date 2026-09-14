@@ -478,7 +478,7 @@ export default function LocalityCriteriaPage() {
   };
 
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-5 pb-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/dia-phuong/tieu-chi" className="hover:text-primary">Danh sách nhóm tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{detailTable.name}</span></div>
       <PageHeader
         title="Tự đánh giá và nộp bài"
@@ -501,7 +501,29 @@ export default function LocalityCriteriaPage() {
         actions={<div className="flex flex-wrap gap-2"><ScoreStateBadge state={record.state} /><Button variant="outline" render={<Link to={`/dia-phuong/tieu-chi/${detailTable.id}/lich-su`} />} nativeButton={false}><History className="size-4" />Lịch sử</Button><Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && <div className="max-w-xl rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi màu cam rồi nộp lại từ đầu chuỗi duyệt.</div>}
-      <LocalityScoreTable ref={scoreTableRef} criteria={detailTable.criteria} record={record} evidence={evidence} localityId={localityId} editable={editable} draftValues={draftResults} selectedCriterionId={selected?.criterion?.id} uploading={fileUploading} onSave={save} onSelect={(entry, criterion) => setSelected({ entry, criterion })} />
+      <LocalityScoreTable
+        ref={scoreTableRef}
+        criteria={detailTable.criteria}
+        record={record}
+        evidence={evidence}
+        localityId={localityId}
+        editable={editable}
+        draftValues={draftResults}
+        selectedCriterionId={selected?.criterion?.id}
+        uploading={fileUploading}
+        onSave={save}
+        onSelect={(entry, criterion) => setSelected({ entry, criterion })}
+        toolbar={(
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" disabled={!selected} onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem file</Button>
+            <Button variant="destructive" disabled={!editable || !selected} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
+            <div className="ml-auto flex flex-wrap gap-2">
+              <Button disabled={!editable || savingAll || fileUploading} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll || fileUploading ? 'Đang lưu' : 'Lưu tất cả'}</Button>
+              <Button disabled={savingAll || !canSubmit} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
+            </div>
+          </div>
+        )}
+      />
 
       {(groupDetailQuery.data?.files ?? []).length > 0 && (
         <div className="overflow-hidden rounded-lg border bg-card">
@@ -540,12 +562,6 @@ export default function LocalityCriteriaPage() {
           </div>
         </div>
       )}
-
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-t bg-card/95 px-4 py-3 shadow-[0_-6px_20px_rgba(31,27,26,0.08)] backdrop-blur">
-        {selected && <Button variant="outline" onClick={() => setViewing(selected)}><FileText className="size-4" />Xem file</Button>}
-        <Button variant="destructive" disabled={!editable} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
-        <div className="ml-auto flex gap-2"><Button disabled={!editable || savingAll || fileUploading} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll || fileUploading ? 'Đang lưu' : 'Lưu tất cả'}</Button><Button disabled={savingAll || !canSubmit} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button></div>
-      </div>
 
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => { if (deleteTarget) deleteFileMutation.mutate(deleteTarget.id); }} />
