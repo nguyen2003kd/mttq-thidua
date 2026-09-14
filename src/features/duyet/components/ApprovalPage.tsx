@@ -1,4 +1,5 @@
 import { useMemo, useState, type ComponentType } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import {
@@ -11,9 +12,8 @@ import {
   AuditTimelineDialog,
 } from '@/components/core';
 import { Button } from '@/components/core';
-import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { X, History, Building2, ClipboardCheck, Landmark, Send, Trophy, Eye, FilePlus2 } from 'lucide-react';
+import { X, History, Eye, FilePlus2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaItem, CriteriaTable, Locality, ScoreEntry, ScoringStage } from '@/types/domain';
 import type { ScoreRecord } from '@/store/scoreStore';
@@ -45,18 +45,12 @@ interface ApprovalPageConfig {
   useConfirmDialog?: boolean;
   confirmKeyword?: string;
   confirmDescription?: string;
+  view?: 'leader' | 'council';
 }
 
-const REVIEW_STAGES = [
-  { state: 'DRAFT', label: 'Địa phương nộp', icon: Building2 },
-  { state: 'CHO_CHUYEN_VIEN', label: 'Chuyên viên', icon: ClipboardCheck },
-  { state: 'CHO_DUYET_BAN', label: 'Lãnh đạo ban', icon: ClipboardCheck },
-  { state: 'CHO_DUYET_HOI_DONG', label: 'Hội đồng TĐKT', icon: Landmark },
-  { state: 'CHO_DUYET_BTT', label: 'Ban thường trực', icon: Send },
-  { state: 'DA_CONG_BO', label: 'Công bố kết quả', icon: Trophy },
-] as const;
-
 export function ApprovalPage(config: ApprovalPageConfig) {
+  const navigate = useNavigate();
+  const { banId } = useParams<{ banId?: string }>();
   const user = useAuthStore((s) => s.user);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const localities = useScoreStore((s) => s.localities);
@@ -75,6 +69,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const [diffRow, setDiffRow] = useState<ApprovalRow | null>(null);
   const [confirmRow, setConfirmRow] = useState<ApprovalRow | null>(null);
   const [detailRow, setDetailRow] = useState<ApprovalRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<ApprovalRow | null>(null);
   const [editing, setEditing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [viewing, setViewing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
@@ -121,6 +116,29 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     setRejectRow(null);
   };
 
+  const openDetail = (row: ApprovalRow) => {
+    if (config.view === 'leader') {
+      navigate(`/thi-dua/duyet/lanh-dao-ban/${banId ?? 'ban1'}/chi-tiet/${row.table.id}/${row.locality.id}`);
+      return;
+    }
+    setDetailRow(row);
+  };
+
+  const getStageTotal = (record: ScoreRecord, stage: ScoringStage) =>
+    record.entries.reduce((total, entry) => {
+      const score = entry.stageScores?.[stage];
+      return total + (score?.score ?? 0) + (score?.bonusScore ?? 0);
+    }, 0);
+
+  const getProposedTotal = (record: ScoreRecord) =>
+    record.entries.reduce((total, entry) => total + (entry.proposedScore ?? 0), 0);
+
+  const getProposedBonusTotal = (record: ScoreRecord) =>
+    record.entries.reduce((total, entry) => total + (entry.proposedBonusScore ?? 0), 0);
+
+  const getStageBonusTotal = (record: ScoreRecord, stage: ScoringStage) =>
+    record.entries.reduce((total, entry) => total + (entry.stageScores?.[stage]?.bonusScore ?? 0), 0);
+
   const columns = useMemo<ColumnDef<ApprovalRow>[]>(
     () => [
       {
@@ -134,118 +152,100 @@ export function ApprovalPage(config: ApprovalPageConfig) {
         ),
       },
       { accessorFn: (row) => row.table.name, header: 'Bảng tiêu chí' },
-      { accessorFn: (row) => row.record.totalScore, header: 'Tổng điểm', meta: { align: 'center' } },
+      ...(config.view === 'leader'
+        ? [
+            {
+              id: 'proposedScore',
+              header: 'Điểm địa phương đề xuất',
+              accessorFn: (row: ApprovalRow) => getProposedTotal(row.record),
+              cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-medium tabular-nums">{getProposedTotal(row.original.record)}</span>,
+              meta: { align: 'right' },
+            },
+            {
+              id: 'specialistScore',
+              header: 'Điểm chuyên viên chấm',
+              accessorFn: (row: ApprovalRow) => getStageTotal(row.record, 'SPECIALIST'),
+              cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-medium tabular-nums">{getStageTotal(row.original.record, 'SPECIALIST')}</span>,
+              meta: { align: 'right' },
+            },
+            {
+              id: 'proposedBonus',
+              header: 'Điểm thưởng đề xuất',
+              accessorFn: (row: ApprovalRow) => getProposedBonusTotal(row.record),
+              cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="tabular-nums">{getProposedBonusTotal(row.original.record)}</span>,
+              meta: { align: 'right' },
+            },
+            {
+              id: 'specialistBonus',
+              header: 'Điểm thưởng chuyên viên',
+              accessorFn: (row: ApprovalRow) => getStageBonusTotal(row.record, 'SPECIALIST'),
+              cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="tabular-nums">{getStageBonusTotal(row.original.record, 'SPECIALIST')}</span>,
+              meta: { align: 'right' },
+            },
+            {
+              accessorFn: (row: ApprovalRow) => row.record.totalScore,
+              header: 'Tổng điểm chuyên viên',
+              cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-semibold tabular-nums">{row.original.record.totalScore}</span>,
+              meta: { align: 'right' },
+            },
+          ]
+        : [{ accessorFn: (row: ApprovalRow) => row.record.totalScore, header: 'Tổng điểm', meta: { align: 'right' } }]),
       {
         accessorFn: (row) => row.record.state,
         header: 'Trạng thái',
         cell: ({ row }) => <ScoreStateBadge state={row.original.record.state} />,
         meta: { align: 'center' },
       },
-      {
-        id: 'actions',
-        header: 'Thao tác',
-        enableSorting: false,
-        meta: { align: 'right' },
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDetailRow(row.original)}>
-              <Eye className="h-3.5 w-3.5 mr-1.5" />
-              Xem chi tiết
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDiffRow(row.original)}>
-              <History className="h-3.5 w-3.5 mr-1.5" />
-              Lịch sử
-            </Button>
-            {canApprove && (
-              <Button
-                size="sm"
-                variant="outline"
-                className={config.approveClassName ?? 'text-success hover:bg-success/10'}
-                action={config.approveAction}
-                state={config.targetState}
-                onClick={() =>
-                  config.useConfirmDialog
-                    ? setConfirmRow(row.original)
-                    : handleApprove(row.original)
-                }
-              >
-                <config.approveIcon className="h-3.5 w-3.5 mr-1.5" />
-                {config.approveLabel}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:bg-destructive/10"
-              action="reject"
-              state={config.targetState}
-              onClick={() => setRejectRow(row.original)}
-            >
-              <X className="h-3.5 w-3.5 mr-1.5" />
-              Trả lại
-            </Button>
-          </div>
-        ),
-      },
+      ...(config.view === 'leader'
+        ? [{ accessorFn: (row: ApprovalRow) => row.record.submittedAt ?? '', header: 'Cập nhật lần cuối', cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="text-xs text-muted-foreground">{row.original.record.submittedAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.original.record.submittedAt)) : '—'}</span> }]
+        : []),
+      ...(config.view === 'leader'
+        ? []
+        : [{
+            id: 'actions',
+            header: 'Thao tác',
+            enableSorting: false,
+            meta: { align: 'right' },
+            cell: ({ row }: { row: { original: ApprovalRow } }) => (
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setDetailRow(row.original)}>
+                  <Eye className="h-3.5 w-3.5 mr-1.5" />
+                  Xem chi tiết
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDiffRow(row.original)}>
+                  <History className="h-3.5 w-3.5 mr-1.5" />
+                  Lịch sử
+                </Button>
+                {canApprove && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={config.approveClassName ?? 'text-success hover:bg-success/10'}
+                    action={config.approveAction}
+                    state={config.targetState}
+                    onClick={() => config.useConfirmDialog ? setConfirmRow(row.original) : handleApprove(row.original)}
+                  >
+                    <config.approveIcon className="h-3.5 w-3.5 mr-1.5" />
+                    {config.approveLabel}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10" action="reject" state={config.targetState} onClick={() => setRejectRow(row.original)}>
+                  <X className="h-3.5 w-3.5 mr-1.5" />
+                  Trả lại
+                </Button>
+              </div>
+            ),
+          }]),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canApprove],
+    [canApprove, config.view],
   );
 
   const EmptyIcon = config.emptyIcon;
-  const activeStage = REVIEW_STAGES.findIndex((stage) => stage.state === config.targetState);
 
   return (
     <div className="space-y-6">
       <PageHeader title={config.title} description={config.description} />
-
-      <Card className="overflow-hidden border-primary/15 bg-primary/[0.03]">
-        <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-          <div>
-            <p className="text-xs font-semibold text-primary">Trung tâm xét duyệt</p>
-            <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-              <p className="text-3xl font-bold tabular-nums">{rows.length}</p>
-              <p className="pb-1 text-sm text-muted-foreground">hồ sơ đang chờ bạn xử lý</p>
-            </div>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Kiểm tra điểm, minh chứng và lịch sử thay đổi trước khi chuyển hồ sơ sang chặng tiếp theo.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border bg-background/80 px-4 py-3 shadow-sm">
-            <ClipboardCheck className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Chặng đang xử lý</p>
-              <p className="text-sm font-semibold">{REVIEW_STAGES[activeStage]?.label}</p>
-            </div>
-          </div>
-        </CardContent>
-        <div className="border-t bg-background/55 px-5 py-4">
-          <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
-            {REVIEW_STAGES.map((stage, index) => {
-              const Icon = stage.icon;
-              const complete = index < activeStage;
-              const current = index === activeStage;
-              return (
-                <div key={stage.state} className="relative flex min-w-0 items-center gap-2">
-                  {index > 0 && <span className="absolute -left-1/2 top-4 hidden h-px w-5 bg-border sm:block" />}
-                  <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
-                      current || complete
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-background text-muted-foreground'
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className={`text-xs leading-tight ${current ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
-                    {stage.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Card>
 
       {rows.length === 0 ? (
         <EmptyState
@@ -254,7 +254,34 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           icon={<EmptyIcon className="h-8 w-8" />}
         />
       ) : (
-        <DataTable data={rows} columns={columns} pageSize={10} className="overflow-auto" searchable searchPlaceholder="Tìm kiếm địa phương hoặc nhóm tiêu chí..." />
+        <DataTable
+          data={rows}
+          columns={columns}
+          pageSize={10}
+          variant={config.view === 'leader' ? 'list' : 'table'}
+          className="overflow-auto"
+          searchable
+          searchPlaceholder="Tìm kiếm địa phương hoặc nhóm tiêu chí..."
+          getRowId={(row) => `${row.table.id}:${row.locality.id}`}
+          selectedRowId={selectedRow ? `${selectedRow.table.id}:${selectedRow.locality.id}` : undefined}
+          onRowClick={config.view === 'leader' ? setSelectedRow : undefined}
+          toolbar={config.view === 'leader' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="info" disabled={!selectedRow} onClick={() => selectedRow && openDetail(selectedRow)}>
+                <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
+              </Button>
+              <Button variant="outline" disabled={!selectedRow} onClick={() => selectedRow && setDiffRow(selectedRow)}>
+                <History className="mr-1.5 h-4 w-4" />Lịch sử
+              </Button>
+              <Button disabled={!selectedRow || !canApprove} action={config.approveAction} state={config.targetState} onClick={() => selectedRow && (config.useConfirmDialog ? setConfirmRow(selectedRow) : handleApprove(selectedRow))}>
+                <config.approveIcon className="mr-1.5 h-4 w-4" />{config.approveLabel}
+              </Button>
+              <Button variant="outline" disabled={!selectedRow} className="border-destructive text-destructive hover:bg-destructive/10" action="reject" state={config.targetState} onClick={() => selectedRow && setRejectRow(selectedRow)}>
+                <X className="mr-1.5 h-4 w-4" />Trả lại
+              </Button>
+            </div>
+          ) : undefined}
+        />
       )}
 
       {config.useConfirmDialog && (

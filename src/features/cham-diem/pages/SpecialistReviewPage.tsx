@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { ForwardSubmissionDialog, StatusStepper } from '@/features/workflow/components';
+import { ForwardSubmissionDialog } from '@/features/workflow/components';
 import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, getFilesApiError } from '@/features/files/api/filesApi';
 
@@ -942,7 +942,7 @@ export default function SpecialistReviewPage() {
         actions={<Button variant="outline" render={<Link to={`/chuyen-vien/duyet/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
       />
 
-      <StatusStepper state="CHO_CHUYEN_VIEN" hasRevisionRequest={selectedGroup.hasModificationRequest} />
+      {/* <StatusStepper state="CHO_CHUYEN_VIEN" hasRevisionRequest={selectedGroup.hasModificationRequest} /> */}
 
       {selectedGroup.modificationNote && (
         <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
