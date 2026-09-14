@@ -100,7 +100,7 @@ export function FileUpload({
   };
 
   return (
-    <div className={className}>
+    <div className={cn('min-w-0 max-w-full', className)}>
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -126,17 +126,17 @@ export function FileUpload({
           if (!disabled && !uploading) pick(event.dataTransfer.files);
         }}
         className={cn(
-          'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-5 text-center transition-colors',
+          'flex w-full min-w-0 max-w-full cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-md border border-dashed px-4 py-5 text-center transition-colors',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           dragOver ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/40 hover:bg-surface-muted',
           (disabled || uploading) && 'cursor-not-allowed opacity-60',
         )}
       >
         <Upload className="h-5 w-5 text-muted-foreground" />
-        <p className="text-[13px] text-foreground">
+        <p className="max-w-full break-words text-[13px] text-foreground">
           Kéo thả file vào đây hoặc <span className="font-medium text-primary">bấm để chọn</span>
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="max-w-full break-words text-xs text-muted-foreground">
           {multiple ? `Tối đa ${maxFiles} file, ` : ''}mỗi file tối đa {maxSizeMb}MB
         </p>
         <input
@@ -154,14 +154,14 @@ export function FileUpload({
       </div>
 
       {value.length > 0 && (
-        <ul className="mt-2 space-y-1.5">
+        <ul className="mt-2 min-w-0 max-w-full space-y-1.5">
           {rows.map((row, index) => {
             const percent = uploadProgress?.[row.file.name];
             return (
               <li
                 key={`${row.file.name}-${index}`}
                 className={cn(
-                  'relative flex items-center gap-2.5 overflow-hidden rounded-md border px-2.5 py-2',
+                  'relative flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-md border px-2.5 py-2',
                   row.error ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card',
                 )}
               >
@@ -169,7 +169,7 @@ export function FileUpload({
                   <row.Icon className={cn('h-4 w-4', row.error ? 'text-destructive' : row.iconCls)} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-foreground">{row.file.name}</span>
+                  <span className="block max-w-full truncate text-[13px] font-medium text-foreground" title={row.file.name}>{row.file.name}</span>
                   <span className="block text-xs text-muted-foreground">
                     {formatSize(row.file.size)}
                     {row.error && <span className="text-destructive"> · {row.error}</span>}

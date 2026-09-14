@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertTriangle, FileText, Paperclip, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, FileText, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { FormDialog, Button, FileUpload } from '@/components/core';
+import { downloadFile } from '@/features/files/api/filesApi';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,8 +25,10 @@ interface EvidenceModalProps {
   entry?: ScoreEntry;
   evidence: Evidence[];
   readonly?: boolean;
-  onSave?: (value: EvidenceFormValue) => boolean;
+  onSave?: (value: EvidenceFormValue) => boolean | Promise<boolean>;
   onDeleteEvidence?: (id: string) => void;
+  uploading?: boolean;
+  uploadProgress?: Record<string, number>;
 }
 
 export function EvidenceModal({
@@ -36,6 +40,8 @@ export function EvidenceModal({
   readonly = false,
   onSave,
   onDeleteEvidence,
+  uploading = false,
+  uploadProgress,
 }: EvidenceModalProps) {
   const [score, setScore] = useState('');
   const [bonus, setBonus] = useState('0');
@@ -43,6 +49,7 @@ export function EvidenceModal({
   const [file, setFile] = useState<File | null>(null);
   const [bonusFile, setBonusFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +59,7 @@ export function EvidenceModal({
     setFile(null);
     setBonusFile(null);
     setError('');
+    setSaving(false);
   }, [open, entry]);
 
   const maxScore = criterion?.maxScore ?? entry?.supplementaryMaxScore ?? 0;
@@ -65,7 +73,7 @@ export function EvidenceModal({
     [evidence],
   );
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (readonly || !onSave) {
       onOpenChange(false);
@@ -93,10 +101,18 @@ export function EvidenceModal({
       setError('Mỗi file bằng chứng không được vượt quá 20MB.');
       return;
     }
-    if (onSave({ proposedScore, proposedBonusScore, explanation: explanation.trim(), file, bonusFile })) {
-      onOpenChange(false);
-    } else {
-      setError('Không thể lưu. Tiêu chí có thể đã bị khóa hoặc hồ sơ không còn ở trạng thái được sửa.');
+    setSaving(true);
+    setError('');
+    try {
+      if (await onSave({ proposedScore, proposedBonusScore, explanation: explanation.trim(), file, bonusFile })) {
+        onOpenChange(false);
+      } else {
+        setError('Không thể lưu. Tiêu chí có thể đã bị khóa hoặc hồ sơ không còn ở trạng thái được sửa.');
+      }
+    } catch {
+      setError('Không thể lưu bằng chứng. Vui lòng kiểm tra file và thử lại.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -109,6 +125,7 @@ export function EvidenceModal({
       onSubmit={handleSubmit}
       submitLabel={readonly ? 'Đóng' : 'Lưu'}
       cancelLabel="Đóng"
+      submitDisabled={saving || uploading}
       size="max-w-2xl sm:max-w-2xl"
     >
       {!readonly && (
@@ -129,11 +146,11 @@ export function EvidenceModal({
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>File bằng chứng {!hasEvidence && <span className="text-destructive">*</span>}</Label>
-            <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} />
+            <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} disabled={saving} uploading={uploading} uploadProgress={uploadProgress} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Bằng chứng điểm thưởng</Label>
-            <FileUpload value={bonusFile ? [bonusFile] : []} onChange={(files) => setBonusFile(files[0] ?? null)} multiple={false} disabled={maxBonus === 0} />
+            <FileUpload value={bonusFile ? [bonusFile] : []} onChange={(files) => setBonusFile(files[0] ?? null)} multiple={false} disabled={maxBonus === 0 || saving} uploading={uploading} uploadProgress={uploadProgress} />
             <p className="text-xs text-muted-foreground">Không bắt buộc.</p>
           </div>
         </div>
@@ -158,7 +175,14 @@ export function EvidenceModal({
                 <p className="truncate text-sm font-medium">{item.fileName}</p>
                 <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {item.kind === 'BONUS' ? 'Điểm thưởng' : item.kind === 'SUPPLEMENTARY' ? 'Tiêu chí bổ sung' : 'Bằng chứng chính'}</p>
               </div>
-              <Button variant="ghost" size="icon-xs" title="Mở tệp"><Paperclip className="h-4 w-4" /></Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Tải file về máy"
+                onClick={() => { void downloadFile(item.id, item.fileName).catch(() => toast.error('Không thể tải file. Vui lòng thử lại.')); }}
+              >
+                <ArrowDownToLine className="h-4 w-4" />
+              </Button>
               {!readonly && onDeleteEvidence && (
                 <Button variant="ghost" size="icon-xs" title="Xóa tệp" className="text-destructive" onClick={() => onDeleteEvidence(item.id)}>
                   <Trash2 className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -105,6 +105,35 @@ const supplementarySchema = z.object({
 
 type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
+function createScoreSchema(item: SpecialistCriteriaItem) {
+  return z.object({
+    score: z.coerce
+      .number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' })
+      .min(0, 'Điểm chấm không được nhỏ hơn 0.')
+      .max(item.maxProposedScore, `Điểm chấm không được vượt quá ${item.maxProposedScore}.`),
+    bonusScore: z.coerce
+      .number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' })
+      .min(0, 'Điểm thưởng không được nhỏ hơn 0.')
+      .max(item.maxProposedBonusScore, `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.`),
+    scoreReason: z.string().trim(),
+  }).superRefine((value, context) => {
+    const scoreChanged = value.score !== item.proposedScore || value.bonusScore !== item.proposedBonusScore;
+    if (scoreChanged && !value.scoreReason) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Vui lòng nhập lý do khi điểm chấm khác điểm địa phương đề xuất.',
+        path: ['scoreReason'],
+      });
+    }
+  });
+}
+
+type ScoreForm = {
+  score: number;
+  bonusScore: number;
+  scoreReason: string;
+};
+
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -161,6 +190,81 @@ function SupplementaryDialog({
           maxSizeMb={20}
           error={form.formState.errors.file?.message}
         />
+      </div>
+    </FormDialog>
+  );
+}
+
+function ScoreDialog({
+  item,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  item: SpecialistCriteriaItem | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (values: ScoreForm) => void;
+}) {
+  const schema = useMemo(() => createScoreSchema(item ?? {
+    id: '', code: '', title: '', evidenceFiles: [], proposedScore: 0, proposedBonusScore: 0,
+    maxProposedScore: 0, maxProposedBonusScore: 0, explanation: '', officialScore: null,
+    officialBonusScore: null, scoreReason: '',
+  }), [item]);
+  const form = useForm<ScoreForm>({
+    resolver: zodResolver(schema),
+    defaultValues: { score: 0, bonusScore: 0, scoreReason: '' },
+  });
+
+  useEffect(() => {
+    if (!open || !item) return;
+    form.reset({
+      score: item.officialScore ?? item.proposedScore,
+      bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
+      scoreReason: item.scoreReason,
+    });
+  }, [form, item, open]);
+
+  if (!item) return null;
+
+  const isEditing = item.officialScore !== null || item.officialBonusScore !== null;
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEditing ? 'Sửa điểm chấm' : 'Chấm điểm'}
+      description={item.title}
+      onSubmit={form.handleSubmit((values) => {
+        onSave(values);
+        onOpenChange(false);
+      })}
+      submitLabel="Lưu điểm"
+      cancelLabel="Đóng"
+    >
+      <div className="rounded-md border border-border bg-muted/40 p-4 text-sm">
+        <p className="text-xs font-medium text-muted-foreground">Địa phương đề xuất</p>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <div><span className="text-xs text-muted-foreground">Điểm</span><p className="mt-0.5 font-semibold tabular-nums">{item.proposedScore} <span className="font-normal text-muted-foreground">/ {item.maxProposedScore}</span></p></div>
+          <div><span className="text-xs text-muted-foreground">Điểm thưởng</span><p className="mt-0.5 font-semibold tabular-nums">{item.proposedBonusScore} <span className="font-normal text-muted-foreground">/ {item.maxProposedBonusScore}</span></p></div>
+        </div>
+      </div>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="specialist-score">Điểm <span className="text-destructive">★</span></Label>
+          <Input id="specialist-score" type="number" min={0} max={item.maxProposedScore} step="0.25" className="text-right tabular-nums" {...form.register('score', { valueAsNumber: true })} />
+          {form.formState.errors.score && <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-destructive">★</span></Label>
+          <Input id="specialist-bonus-score" type="number" min={0} max={item.maxProposedBonusScore} step="0.25" className="text-right tabular-nums" {...form.register('bonusScore', { valueAsNumber: true })} />
+          {form.formState.errors.bonusScore && <p className="text-xs text-destructive">{form.formState.errors.bonusScore.message}</p>}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác điểm đề xuất)</span></Label>
+        <Textarea id="specialist-score-reason" rows={3} className="resize-y" placeholder="Ví dụ: Đối chiếu minh chứng thực tế, điều chỉnh điểm phù hợp." {...form.register('scoreReason')} />
+        {form.formState.errors.scoreReason && <p className="text-xs text-destructive">{form.formState.errors.scoreReason.message}</p>}
       </div>
     </FormDialog>
   );
@@ -225,13 +329,14 @@ function GroupStatusBadge({ status }: { status: SpecialistCriteriaGroup['status'
   return <Badge variant="secondary">Chưa nộp</Badge>;
 }
 
-function TableSectionHeader({ title, countLabel }: { title: string; countLabel: string }) {
+function TableSectionHeader({ title, countLabel, actions }: { title: string; countLabel: string; actions?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted/60 px-4 py-3 sm:px-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-5">
       <div className="flex items-baseline gap-2">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{countLabel}</span>
       </div>
+      {actions}
     </div>
   );
 }
@@ -269,79 +374,18 @@ function ProposedScoreSummary({ item }: { item: SpecialistCriteriaItem }) {
   return (
     <div className="grid grid-cols-2 gap-2" aria-label="Điểm địa phương đề xuất">
       <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5">
-        <p className="text-xs text-muted-foreground">Điểm</p>
+        <p className="min-h-8 text-xs leading-4 text-muted-foreground">Điểm</p>
         <p className="mt-1 font-semibold tabular-nums text-foreground">
           {item.proposedScore}
           <span className="ml-1 text-xs font-normal text-muted-foreground">/ {item.maxProposedScore}</span>
         </p>
       </div>
       <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5">
-        <p className="text-xs text-muted-foreground">Điểm thưởng</p>
+        <p className="min-h-8 text-xs leading-4 text-muted-foreground">Điểm thưởng</p>
         <p className="mt-1 font-semibold tabular-nums text-foreground">
           {item.proposedBonusScore}
           <span className="ml-1 text-xs font-normal text-muted-foreground">/ {item.maxProposedBonusScore}</span>
         </p>
-      </div>
-    </div>
-  );
-}
-
-function SpecialistScoreEditor({
-  item,
-  idPrefix,
-  onChange,
-}: {
-  item: SpecialistCriteriaItem;
-  idPrefix: string;
-  onChange: (values: Partial<SpecialistCriteriaItem>) => void;
-}) {
-  const scoreChanged = item.officialScore !== null && (
-    item.officialScore !== item.proposedScore || item.officialBonusScore !== item.proposedBonusScore
-  );
-  const reasonRequired = scoreChanged && !item.scoreReason.trim();
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-${item.id}-score`} className="text-xs">Điểm</Label>
-          <Input
-            id={`${idPrefix}-${item.id}-score`}
-            type="number"
-            min={0}
-            step="0.25"
-            value={item.officialScore ?? ''}
-            onChange={(event) => onChange({ officialScore: event.target.value === '' ? null : Number(event.target.value) })}
-            className="text-right tabular-nums"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-${item.id}-bonus`} className="text-xs">Điểm thưởng</Label>
-          <Input
-            id={`${idPrefix}-${item.id}-bonus`}
-            type="number"
-            min={0}
-            step="0.25"
-            value={item.officialBonusScore ?? ''}
-            onChange={(event) => onChange({ officialBonusScore: event.target.value === '' ? null : Number(event.target.value) })}
-            className="text-right tabular-nums"
-          />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-${item.id}-reason`} className="text-xs">
-          Lý do sửa điểm {scoreChanged && <span className="text-destructive">★</span>}
-        </Label>
-        <Textarea
-          id={`${idPrefix}-${item.id}-reason`}
-          rows={3}
-          value={item.scoreReason}
-          onChange={(event) => onChange({ scoreReason: event.target.value })}
-          aria-invalid={reasonRequired}
-          placeholder={scoreChanged ? 'Bắt buộc nhập khi sửa điểm' : 'Không bắt buộc nếu giữ nguyên điểm'}
-          className="min-h-20 resize-y"
-        />
-        {reasonRequired && <p className="text-xs text-destructive">Vui lòng nhập lý do sửa điểm.</p>}
       </div>
     </div>
   );
@@ -355,6 +399,10 @@ export default function SpecialistReviewPage() {
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
+  const [scoringCriterionId, setScoringCriterionId] = useState<string | null>(null);
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const allSubmissionsQuery = useQuery({
@@ -541,6 +589,7 @@ export default function SpecialistReviewPage() {
 
   if (!diaPhuongId) {
     const visibleRows = filteredLocalityRows;
+    const selectedLocality = visibleRows.find((row) => row.localityId === selectedLocalityId);
     if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
       return <div className="mx-auto w-full max-w-[1480px] space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
     }
@@ -551,10 +600,10 @@ export default function SpecialistReviewPage() {
     return (
       <div className="mx-auto w-full max-w-[1480px] space-y-6">
         <PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" />
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Hồ sơ địa phương" countLabel={`${visibleRows.length} địa phương`} />
           <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div className="relative w-full max-w-xl">
+            <div className="relative w-full max-w-xl sm:flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Tìm kiếm địa phương"
@@ -564,6 +613,13 @@ export default function SpecialistReviewPage() {
                 className="pl-9"
               />
             </div>
+            <Button
+              variant="info"
+              disabled={!selectedLocality}
+              onClick={() => selectedLocality && navigate(`/chuyen-vien/duyet/${selectedLocality.localityId}`)}
+            >
+              <Eye className="size-4" />Xem hồ sơ
+            </Button>
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">{visibleRows.length}</span> kết quả phù hợp
             </p>
@@ -572,31 +628,35 @@ export default function SpecialistReviewPage() {
           <div className="hidden xl:block">
             <Table className="w-full min-w-[1120px] table-fixed">
               <colgroup>
-                <col className="w-[22%]" />
-                <col className="w-[15%]" />
+                <col className="w-[25%]" />
                 <col className="w-[16%]" />
+                <col className="w-[17%]" />
                 <col className="w-[14%]" />
-                <col className="w-[13%]" />
-                <col className="w-[13%]" />
-                <col className="w-[7%]" />
+                <col className="w-[14%]" />
+                <col className="w-[14%]" />
               </colgroup>
               <TableHeader>
-                <TableRow className="bg-muted/55 hover:bg-muted/55">
-                  <TableHead className="whitespace-normal px-4 py-3 leading-5">Tên địa phương</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Nhóm tiêu chí đã hoàn thành</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Trạng thái hồ sơ</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Tiêu chí mới được nộp</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Yêu cầu chỉnh sửa</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Cập nhật thông tin mới</TableHead>
-                  <TableHead className="px-3 py-3 text-right">Hành động</TableHead>
+                <TableRow className="bg-primary hover:bg-primary">
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tên địa phương</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nhóm tiêu chí đã hoàn thành</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái hồ sơ</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Tiêu chí mới được nộp</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa</TableHead>
+                  <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Cập nhật thông tin mới</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visibleRows.map((row) => {
                   const newGroups = row.hasNewSubmissions ? 1 : 0;
                   return (
-                  <TableRow key={row.localityId} className="group cursor-pointer" onClick={() => navigate(`/chuyen-vien/duyet/${row.localityId}`)}>
-                    <TableCell className="whitespace-normal px-4 py-4">
+                  <TableRow
+                    key={row.localityId}
+                    aria-selected={selectedLocalityId === row.localityId}
+                    className={selectedLocalityId === row.localityId ? 'cursor-pointer bg-primary/10 hover:bg-primary/10' : 'cursor-pointer hover:bg-muted'}
+                    onClick={() => setSelectedLocalityId(row.localityId)}
+                    onDoubleClick={() => navigate(`/chuyen-vien/duyet/${row.localityId}`)}
+                  >
+                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4">
                       <div className="flex items-center gap-3">
                         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><MapPin className="size-4" /></span>
                         <div className="min-w-0">
@@ -605,20 +665,15 @@ export default function SpecialistReviewPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums">{row.completionRate}</span><span className="ml-1 text-xs text-muted-foreground">nhóm</span></TableCell>
-                    <TableCell className="px-4 py-4 text-center"><OverallStatusBadge status={row.overallStatus} /></TableCell>
-                    <TableCell className="px-4 py-4 text-center">{newGroups > 0 ? <Badge variant="secondary">{newGroups} nhóm</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell className="px-4 py-4 text-center">{row.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><span className="font-semibold tabular-nums">{row.completionRate}</span><span className="ml-1 text-xs text-muted-foreground">nhóm</span></TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><OverallStatusBadge status={row.overallStatus} /></TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center">{newGroups > 0 ? <Badge variant="secondary">{newGroups} nhóm</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center">{row.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
                     <TableCell className="px-4 py-4 text-center">{row.hasNewSubmissions ? <Badge variant="secondary">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
-                    <TableCell className="px-3 py-4 text-right">
-                      <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); navigate(`/chuyen-vien/duyet/${row.localityId}`); }}>
-                        <Eye className="size-4" /><span className="sr-only">Xem {row.localityName}</span>
-                      </Button>
-                    </TableCell>
                   </TableRow>
                   );
                 })}
-                {visibleRows.length === 0 && <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">Không có địa phương phù hợp.</TableCell></TableRow>}
+                {visibleRows.length === 0 && <TableRow><TableCell colSpan={6} className="h-28 text-center text-muted-foreground">Không có địa phương phù hợp.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
@@ -663,6 +718,7 @@ export default function SpecialistReviewPage() {
     const revisionGroups = localityGroups.filter((group) => group.hasModificationRequest).length;
     const totalCount = localityGroups.length;
     const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
+    const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
 
     return (
       <div className="mx-auto w-full max-w-[1480px] space-y-5">
@@ -702,10 +758,10 @@ export default function SpecialistReviewPage() {
           </div>
         </section>
 
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Nhóm tiêu chí thi đua" countLabel={`${filteredGroups.length} nhóm tiêu chí`} />
           <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div className="relative w-full max-w-xl">
+            <div className="relative w-full max-w-xl sm:flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Tìm kiếm nhóm tiêu chí"
@@ -715,6 +771,14 @@ export default function SpecialistReviewPage() {
                 placeholder="Tìm kiếm tên hoặc mã nhóm tiêu chí"
               />
             </div>
+            <Button
+              variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
+              disabled={!selectedGroupRow}
+              onClick={() => selectedGroupRow && navigate(`/chuyen-vien/duyet/${district.localityId}/${selectedGroupRow.id}`)}
+            >
+              {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
+              {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
+            </Button>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span><strong className="font-semibold text-success">{completedGroups}</strong> đã chấm</span>
               <span className="h-3 w-px bg-border" />
@@ -725,43 +789,41 @@ export default function SpecialistReviewPage() {
           <div className="hidden xl:block">
             <Table className="w-full min-w-[1180px] table-fixed">
               <colgroup>
-                <col className="w-[21%]" />
-                <col className="w-[27%]" />
-                <col className="w-[10%]" />
+                <col className="w-[23%]" />
+                <col className="w-[31%]" />
                 <col className="w-[11%]" />
-                <col className="w-[9%]" />
-                <col className="w-[10%]" />
+                <col className="w-[12%]" />
+                <col className="w-[11%]" />
                 <col className="w-[12%]" />
               </colgroup>
               <TableHeader>
-                <TableRow className="bg-muted/55 hover:bg-muted/55">
-                  <TableHead className="whitespace-normal px-4 py-3 leading-5">Nhóm tiêu chí</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 leading-5">Nội dung</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-right leading-5">Điểm đề xuất</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-right leading-5">Điểm thưởng</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Trạng thái</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-center leading-5">Yêu cầu sửa</TableHead>
-                  <TableHead className="whitespace-normal px-4 py-3 text-right leading-5">Hành động</TableHead>
+                <TableRow className="bg-primary hover:bg-primary">
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm thưởng</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái</TableHead>
+                  <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu sửa</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredGroups.map((group) => (
-                  <TableRow key={group.id} className="group cursor-pointer" onClick={() => navigate(`/chuyen-vien/duyet/${district.localityId}/${group.id}`)}>
-                    <TableCell className="whitespace-normal px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
-                    <TableCell className="whitespace-normal px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
-                    <TableCell className="px-4 py-4 text-right align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
-                    <TableCell className="px-4 py-4 text-right align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
-                    <TableCell className="px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
+                  <TableRow
+                    key={group.id}
+                    aria-selected={selectedGroupId === group.id}
+                    className={selectedGroupId === group.id ? 'cursor-pointer bg-primary/10 hover:bg-primary/10' : 'cursor-pointer hover:bg-muted'}
+                    onClick={() => setSelectedGroupId(group.id)}
+                    onDoubleClick={() => navigate(`/chuyen-vien/duyet/${district.localityId}/${group.id}`)}
+                  >
+                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
+                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-right align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-right align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
                     <TableCell className="px-4 py-4 text-center align-top">{group.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
-                    <TableCell className="px-4 py-4 text-right align-top">
-                      <Button variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} size="sm" onClick={(event) => { event.stopPropagation(); navigate(`/chuyen-vien/duyet/${district.localityId}/${group.id}`); }}>
-                        {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
-                        {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem'}
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))}
-                {filteredGroups.length === 0 && <TableRow><TableCell colSpan={7} className="h-28 text-center text-muted-foreground">Không có nhóm tiêu chí phù hợp.</TableCell></TableRow>}
+                {filteredGroups.length === 0 && <TableRow><TableCell colSpan={6} className="h-28 text-center text-muted-foreground">Không có nhóm tiêu chí phù hợp.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
@@ -800,6 +862,12 @@ export default function SpecialistReviewPage() {
   }
 
   const displayGroup = applyOverrides(selectedGroup);
+  const selectedCriterion = selectedCriterionId
+    ? displayGroup.items.find((item) => item.id === selectedCriterionId)
+    : undefined;
+  const scoringItem = scoringCriterionId
+    ? displayGroup.items.find((item) => item.id === scoringCriterionId)
+    : undefined;
 
   const copyProposedScores = () => {
     const newOverrides = new Map(scoreOverrides);
@@ -860,8 +928,22 @@ export default function SpecialistReviewPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <TableSectionHeader title="Chi tiết tiêu chí con" countLabel={`${selectedGroup.items.length} tiêu chí`} />
+      <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+        <TableSectionHeader
+          title="Chi tiết tiêu chí con"
+          countLabel={`${selectedGroup.items.length} tiêu chí`}
+          actions={(
+            <Button
+              size="sm"
+              variant={!selectedCriterion || selectedCriterion.officialScore === null ? 'default' : 'outline'}
+              disabled={!selectedCriterion}
+              onClick={() => selectedCriterion && setScoringCriterionId(selectedCriterion.id)}
+            >
+              <Edit3 className="size-4" />
+              {!selectedCriterion || selectedCriterion.officialScore === null ? 'Chấm điểm' : 'Sửa điểm'}
+            </Button>
+          )}
+        />
 
         <div className="hidden xl:block">
           <Table className="w-full min-w-[1240px] table-fixed">
@@ -873,27 +955,40 @@ export default function SpecialistReviewPage() {
               <col className="w-[28%]" />
             </colgroup>
             <TableHeader>
-              <TableRow className="bg-muted/55 hover:bg-muted/55">
-                <TableHead className="whitespace-normal px-4 py-3 leading-5">Tiêu chí con</TableHead>
-                <TableHead className="whitespace-normal px-4 py-3 leading-5">Minh chứng</TableHead>
-                <TableHead className="whitespace-normal px-4 py-3 leading-5">Địa phương đề xuất</TableHead>
-                <TableHead className="whitespace-normal px-4 py-3 leading-5">Nội dung diễn giải</TableHead>
-                <TableHead className="whitespace-normal px-4 py-3 leading-5">Chuyên viên chấm</TableHead>
+              <TableRow className="bg-primary hover:bg-primary">
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
+                <TableHead className="whitespace-normal bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayGroup.items.map((item) => (
-                <TableRow key={item.id} className="align-top">
-                  <TableCell className="whitespace-normal px-4 py-5">
+                <TableRow
+                  key={item.id}
+                  aria-selected={selectedCriterionId === item.id}
+                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/10 hover:bg-primary/10' : 'cursor-pointer align-top hover:bg-muted'}
+                  onClick={() => setSelectedCriterionId(item.id)}
+                  onDoubleClick={() => setScoringCriterionId(item.id)}
+                >
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
                     <p className="font-semibold leading-5 text-foreground">{item.title}</p>
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
                   </TableCell>
-                  <TableCell className="whitespace-normal px-4 py-5"><EvidenceList files={item.evidenceFiles} /></TableCell>
-                  <TableCell className="whitespace-normal px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
-                  <TableCell className="whitespace-normal px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><EvidenceList files={item.evidenceFiles} /></TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
                   <TableCell className="whitespace-normal px-4 py-5">
-                    <SpecialistScoreEditor item={item} idPrefix="desktop" onChange={(values) => updateCriterion(item.id, values)} />
+                    {item.officialScore === null || item.officialBonusScore === null ? (
+                      <p className="text-sm text-muted-foreground">Chưa chấm điểm</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm</p><p className="mt-1 font-semibold tabular-nums">{item.officialScore}</p></div>
+                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-1 font-semibold tabular-nums">{item.officialBonusScore}</p></div>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -929,8 +1024,18 @@ export default function SpecialistReviewPage() {
                     <div className="mt-2"><ProposedScoreSummary item={item} /></div>
                   </div>
                   <div className="border-t border-border pt-4">
-                    <h4 className="mb-3 text-xs font-semibold text-foreground">Chuyên viên chấm</h4>
-                    <SpecialistScoreEditor item={item} idPrefix="responsive" onChange={(values) => updateCriterion(item.id, values)} />
+                    <h4 className="text-xs font-semibold text-foreground">Chuyên viên chấm</h4>
+                    {item.officialScore === null || item.officialBonusScore === null ? (
+                      <p className="mt-2 text-sm text-muted-foreground">Chưa chấm điểm</p>
+                    ) : (
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-md border border-border bg-background px-3 py-2"><p className="text-xs text-muted-foreground">Điểm</p><p className="mt-1 font-semibold tabular-nums">{item.officialScore}</p></div>
+                        <div className="rounded-md border border-border bg-background px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-1 font-semibold tabular-nums">{item.officialBonusScore}</p></div>
+                      </div>
+                    )}
+                    <Button className="mt-3 w-full" variant={item.officialScore === null ? 'default' : 'outline'} onClick={() => setScoringCriterionId(item.id)}>
+                      <Edit3 className="size-4" />{item.officialScore === null ? 'Chấm điểm' : 'Sửa điểm'}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -950,6 +1055,23 @@ export default function SpecialistReviewPage() {
           <Button className="w-full lg:w-auto" onClick={openForwardDialog}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
         </div>
       </div>
+
+      <ScoreDialog
+        item={scoringItem}
+        open={Boolean(scoringItem)}
+        onOpenChange={(open) => {
+          if (!open) setScoringCriterionId(null);
+        }}
+        onSave={({ score, bonusScore, scoreReason }) => {
+          if (!scoringItem) return;
+          updateCriterion(scoringItem.id, {
+            officialScore: score,
+            officialBonusScore: bonusScore,
+            scoreReason,
+          });
+          toast.success('Đã lưu điểm chấm của Chuyên viên.');
+        }}
+      />
 
       <SupplementaryDialog
         open={supplementaryOpen}
