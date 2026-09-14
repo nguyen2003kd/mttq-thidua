@@ -25,7 +25,6 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
       .then(setUrl)
       .catch((error) => {
         if (!cancelled) {
-          // eslint-disable-next-line no-console
           console.warn('Không lấy được đường dẫn xem file:', error);
           onOpenChange(false);
         }
