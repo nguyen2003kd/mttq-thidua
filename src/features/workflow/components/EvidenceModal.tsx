@@ -12,8 +12,8 @@ export interface EvidenceFormValue {
   proposedScore: number;
   proposedBonusScore: number;
   explanation: string;
-  file: File | null;
-  bonusFile: File | null;
+  files: File[];
+  bonusFiles: File[];
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -46,8 +46,8 @@ export function EvidenceModal({
   const [score, setScore] = useState('');
   const [bonus, setBonus] = useState('0');
   const [explanation, setExplanation] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [bonusFile, setBonusFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [bonusFiles, setBonusFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -56,8 +56,8 @@ export function EvidenceModal({
     setScore(entry?.proposedScore?.toString() ?? '');
     setBonus(entry?.proposedBonusScore?.toString() ?? '0');
     setExplanation(entry?.explanation ?? '');
-    setFile(null);
-    setBonusFile(null);
+    setFiles([]);
+    setBonusFiles([]);
     setError('');
     setSaving(false);
   }, [open, entry]);
@@ -93,18 +93,18 @@ export function EvidenceModal({
       setError('Nội dung diễn giải là bắt buộc.');
       return;
     }
-    if (!hasEvidence && !file) {
+    if (!hasEvidence && files.length === 0) {
       setError('Vui lòng đính kèm ít nhất một file bằng chứng.');
       return;
     }
-    if ((file && file.size > MAX_FILE_SIZE) || (bonusFile && bonusFile.size > MAX_FILE_SIZE)) {
+    if ([...files, ...bonusFiles].some((f) => f.size > MAX_FILE_SIZE)) {
       setError('Mỗi file bằng chứng không được vượt quá 20MB.');
       return;
     }
     setSaving(true);
     setError('');
     try {
-      if (await onSave({ proposedScore, proposedBonusScore, explanation: explanation.trim(), file, bonusFile })) {
+      if (await onSave({ proposedScore, proposedBonusScore, explanation: explanation.trim(), files, bonusFiles })) {
         onOpenChange(false);
       } else {
         setError('Không thể lưu. Tiêu chí có thể đã bị khóa hoặc hồ sơ không còn ở trạng thái được sửa.');
@@ -146,11 +146,11 @@ export function EvidenceModal({
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>File bằng chứng {!hasEvidence && <span className="text-destructive">*</span>}</Label>
-            <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} disabled={saving} uploading={uploading} uploadProgress={uploadProgress} />
+            <FileUpload value={files} onChange={setFiles} multiple disabled={saving} uploading={uploading} uploadProgress={uploadProgress} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Bằng chứng điểm thưởng</Label>
-            <FileUpload value={bonusFile ? [bonusFile] : []} onChange={(files) => setBonusFile(files[0] ?? null)} multiple={false} disabled={maxBonus === 0 || saving} uploading={uploading} uploadProgress={uploadProgress} />
+            <FileUpload value={bonusFiles} onChange={setBonusFiles} multiple disabled={maxBonus === 0 || saving} uploading={uploading} uploadProgress={uploadProgress} />
             <p className="text-xs text-muted-foreground">Không bắt buộc.</p>
           </div>
         </div>

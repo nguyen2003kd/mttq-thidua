@@ -5,7 +5,6 @@ import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, ScoreStateBadge } from '@/components/core';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
-import { useFileUpload } from '@/hooks/useFileUpload';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
@@ -43,7 +42,6 @@ export default function LocalityCriteriaPage() {
   const [draftResults, setDraftResults] = useState<Map<string, EvidenceFormValue>>(new Map());
   const draftResultsRef = useRef<Map<string, EvidenceFormValue>>(draftResults);
   const scoreTableRef = useRef<LocalityScoreTableHandle>(null);
-  const { uploading: fileUploading, uploadFiles } = useFileUpload();
 
   // Danh sách nhóm tiêu chí được giao (backend trả về tất cả, lọc theo submission của locality)
   const groupsQuery = useQuery({
@@ -300,77 +298,34 @@ export default function LocalityCriteriaPage() {
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const notYetSubmitted = !submission;
   const canSubmit = notYetSubmitted || record.state === 'DRAFT';
-  const allCriteriaDrafted = detailTable.criteria.every((c) => {
-    const draft = draftResults.get(c.id);
-    return Boolean(draft?.explanation?.trim() && draft.proposedScore !== undefined && draft.file);
-  });
 
-  const save = async (criterion: CriteriaItem, value: EvidenceFormValue) => {
-    if (!user) return false;
-    const criterionId = criterion.id;
-
-    // Khi chưa có submission → lưu vào draft local
-    if (!submission) {
-      const next = new Map(draftResultsRef.current).set(criterionId, value);
-      draftResultsRef.current = next;
-      setDraftResults(next);
-      return true;
+  const uploadDraftFiles = (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
+    if (!result || !draft) return Promise.resolve([]);
+    const jobs: Promise<unknown>[] = [];
+    if (draft.files.length > 0) {
+      jobs.push(filesApi.uploadBulk(draft.files, { entityType: 'SubmissionResult', entityId: result.id, category: 'evidence' }));
     }
-
-    const resultItem = submissionDetailQuery.data?.results.find((r) => r.criteriaId === criterionId);
-    if (!resultItem) {
-      toast.error('Không tìm thấy kết quả tiêu chí để gắn file bằng chứng.');
-      return false;
+    if (draft.bonusFiles.length > 0) {
+      jobs.push(filesApi.uploadBulk(draft.bonusFiles, { entityType: 'SubmissionResult', entityId: result.id, category: 'bonus' }));
     }
-
-    await submitPointsMutation.mutateAsync({
-      submissionId: submission.id,
-      isDraft: true,
-      items: [{
-        submissionResultId: resultItem.id,
-        point: value.proposedScore,
-        bonusPoint: value.proposedBonusScore,
-        explanation: value.explanation,
-      }],
-    });
-    if (value.file) {
-      await uploadFiles([value.file], {
-        displayName: value.file.name,
-        entityType: 'SubmissionResult',
-        entityId: resultItem.id,
-        category: 'evidence',
-      });
-    }
-    if (value.bonusFile) {
-      await uploadFiles([value.bonusFile], {
-        displayName: value.bonusFile.name,
-        entityType: 'SubmissionResult',
-        entityId: resultItem.id,
-        category: 'bonus',
-      });
-    }
-    await queryClient.invalidateQueries({ queryKey: ['locality-evidence', resultItem.id] });
-    return true;
+    return Promise.allSettled(jobs);
   };
 
-  const uploadDraftFiles = async (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
-    if (!result || !draft) return;
-    if (draft.file) {
-      await uploadFiles([draft.file], {
-        displayName: draft.file.name,
-        entityType: 'SubmissionResult',
-        entityId: result.id,
-        category: 'evidence',
-      });
-    }
-    if (draft.bonusFile) {
-      await uploadFiles([draft.bonusFile], {
-        displayName: draft.bonusFile.name,
-        entityType: 'SubmissionResult',
-        entityId: result.id,
-        category: 'bonus',
-      });
-    }
+  /** Gom file đang chọn của các dòng vào các bulk-upload job chạy song song. */
+  const collectUploadJobs = (values: Map<string, EvidenceFormValue>) => {
+    const results = submissionDetailQuery.data?.results ?? [];
+    const jobs: Promise<unknown>[] = [];
+    values.forEach((v, criteriaId) => {
+      const r = results.find((item) => item.criteriaId === criteriaId);
+      if (!r) return;
+      if (v.files.length > 0) {
+        jobs.push(filesApi.uploadBulk(v.files, { entityType: 'SubmissionResult', entityId: r.id, category: 'evidence' }));
+      }
+      if (v.bonusFiles.length > 0) {
+        jobs.push(filesApi.uploadBulk(v.bonusFiles, { entityType: 'SubmissionResult', entityId: r.id, category: 'bonus' }));
+      }
+    });
+    return jobs;
   };
 
   const clearLocalDrafts = () => {
@@ -381,9 +336,13 @@ export default function LocalityCriteriaPage() {
   const handleSubmitResults = async () => {
     if (!id || !user) return;
     try {
+      const collected = scoreTableRef.current?.collectAll() ?? new Map<string, EvidenceFormValue>();
       if (!submission) {
+        // Gộp giá trị đang nhập vào draft local rồi tạo submission 1 lần
+        const merged = new Map(draftResultsRef.current);
+        collected.forEach((v, k) => merged.set(k, v));
         const items = detailTable.criteria.map((c) => {
-          const draft = draftResultsRef.current.get(c.id);
+          const draft = merged.get(c.id);
           return {
             criteriaId: c.id,
             point: draft?.proposedScore ?? 0,
@@ -393,33 +352,33 @@ export default function LocalityCriteriaPage() {
         });
         const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
         // Sau khi BE tạo SubmissionResult mới có thể gắn file đúng entityId.
-        for (const c of detailTable.criteria) {
+        await Promise.all(detailTable.criteria.map((c) => {
           const resultItem = result.results.find((item) => item.criteriaId === c.id);
-          if (!resultItem) continue;
-          await uploadDraftFiles(resultItem, draftResultsRef.current.get(c.id));
-        }
+          return resultItem ? uploadDraftFiles(resultItem, merged.get(c.id)) : Promise.resolve([]);
+        }));
         await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
       } else {
-        // Có bản nháp trên server: lưu toàn bộ hàng đang sửa rồi chuyển sang chờ chuyên viên
-        if (scoreTableRef.current && !(await scoreTableRef.current.saveAll())) {
-          toast.error('Vui lòng hoàn thiện các trường bắt buộc trước khi gửi yêu cầu.');
-          return;
-        }
-        const fresh = await queryClient.fetchQuery({
-          queryKey: ['locality-submission', submission.id],
-          queryFn: () => localityApi.getSubmission(submission.id),
-        });
-        await localityApi.submitPoints({
-          submissionId: submission.id,
-          isDraft: false,
-          items: fresh.results.map((r) => ({
+        // Có bản nháp trên server: upload file bulk song song + submitPoints 1 lần
+        const results = submissionDetailQuery.data?.results ?? [];
+        const uploadJobs = collectUploadJobs(collected);
+        const items = results.map((r) => {
+          const v = collected.get(r.criteriaId);
+          return {
             submissionResultId: r.id,
-            point: r.point,
-            bonusPoint: r.bonusPoint,
-            explanation: r.explanation,
-          })),
+            point: v?.proposedScore ?? r.point,
+            bonusPoint: v?.proposedBonusScore ?? r.bonusPoint,
+            explanation: v?.explanation ?? r.explanation,
+          };
         });
+        const settled = await Promise.allSettled(uploadJobs);
+        const failedUploads = settled.filter((s) => s.status === 'rejected').length;
+        if (failedUploads > 0) {
+          toast.warning(`${failedUploads} nhóm file tải lên thất bại — vẫn tiếp tục nộp điểm.`);
+        }
+        await localityApi.submitPoints({ submissionId: submission.id, isDraft: false, items });
         await queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
+        await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+        scoreTableRef.current?.markAllSaved();
       }
       clearLocalDrafts();
       toast.success('Đã nộp kết quả lên Chuyên viên');
@@ -433,34 +392,60 @@ export default function LocalityCriteriaPage() {
   const currentSelfScore = record.entries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
   const currentBonusScore = record.entries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
   const handleSaveAll = async () => {
-    if (!scoreTableRef.current) return;
+    if (!scoreTableRef.current || !user) return;
     setSavingAll(true);
     try {
-      if (!(await scoreTableRef.current.saveAll())) {
-        toast.error('Không thể lưu bản nháp. Vui lòng thử lại.');
+      const collected = scoreTableRef.current.collectAll();
+      if (!submission) {
+        // Gộp giá trị đang nhập vào draft local
+        const merged = new Map(draftResultsRef.current);
+        collected.forEach((v, k) => merged.set(k, v));
+        draftResultsRef.current = merged;
+        setDraftResults(merged);
+        // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
+        if (merged.size > 0) {
+          const items = detailTable.criteria.map((c) => {
+            const draft = merged.get(c.id);
+            return {
+              criteriaId: c.id,
+              point: draft?.proposedScore ?? 0,
+              bonusPoint: draft?.proposedBonusScore ?? 0,
+              explanation: draft?.explanation ?? '',
+            };
+          });
+          const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id!, isDraft: true, items });
+          await Promise.all(detailTable.criteria.map((c) => {
+            const resultItem = result.results.find((item) => item.criteriaId === c.id);
+            return resultItem ? uploadDraftFiles(resultItem, merged.get(c.id)) : Promise.resolve([]);
+          }));
+          await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+          clearLocalDrafts();
+        }
+        toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
         return;
       }
-      // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
-      if (!submission && draftResultsRef.current.size > 0) {
-        const items = detailTable.criteria.map((c) => {
-          const draft = draftResultsRef.current.get(c.id);
-          return {
-            criteriaId: c.id,
-            point: draft?.proposedScore ?? 0,
-            bonusPoint: draft?.proposedBonusScore ?? 0,
-            explanation: draft?.explanation ?? '',
-          };
-        });
-        const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id!, isDraft: true, items });
-        for (const c of detailTable.criteria) {
-          const resultItem = result.results.find((item) => item.criteriaId === c.id);
-          if (!resultItem) continue;
-          await uploadDraftFiles(resultItem, draftResultsRef.current.get(c.id));
-        }
-        await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
-        clearLocalDrafts();
+      // Đã có submission: 1 call submitPoints cho toàn bộ tiêu chí + bulk upload song song
+      const results = submissionDetailQuery.data?.results ?? [];
+      const items = collected.size > 0
+        ? results.flatMap((r) => {
+            const v = collected.get(r.criteriaId);
+            return v ? [{ submissionResultId: r.id, point: v.proposedScore, bonusPoint: v.proposedBonusScore, explanation: v.explanation }] : [];
+          })
+        : [];
+      if (items.length > 0) {
+        await submitPointsMutation.mutateAsync({ submissionId: submission.id, isDraft: true, items });
       }
-      toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
+      const settled = await Promise.allSettled(collectUploadJobs(collected));
+      const failedUploads = settled.filter((s) => s.status === 'rejected').length;
+      await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+      scoreTableRef.current.markAllSaved();
+      if (failedUploads > 0) {
+        toast.warning(`Đã lưu điểm — ${failedUploads} nhóm file tải lên thất bại.`);
+      } else {
+        toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
+      }
+    } catch (e) {
+      toast.error('Không thể lưu bản nháp. Vui lòng thử lại.', { description: getLocalityApiError(e) });
     } finally {
       setSavingAll(false);
     }
@@ -468,10 +453,6 @@ export default function LocalityCriteriaPage() {
   const openSubmitDialog = () => {
     if (!scoreTableRef.current?.validateAll()) {
       toast.error('Vui lòng hoàn thiện các trường bắt buộc trước khi gửi yêu cầu.');
-      return;
-    }
-    if (!submission && !allCriteriaDrafted) {
-      toast.error('Vui lòng bấm “Lưu tất cả” sau khi hoàn thiện hồ sơ trước khi gửi yêu cầu.');
       return;
     }
     setSubmitOpen(true);
@@ -501,7 +482,7 @@ export default function LocalityCriteriaPage() {
         actions={<div className="flex flex-wrap gap-2"><ScoreStateBadge state={record.state} /><Button variant="outline" render={<Link to={`/dia-phuong/tieu-chi/${detailTable.id}/lich-su`} />} nativeButton={false}><History className="size-4" />Lịch sử</Button><Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && <div className="max-w-xl rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi màu cam rồi nộp lại từ đầu chuỗi duyệt.</div>}
-      <LocalityScoreTable ref={scoreTableRef} criteria={detailTable.criteria} record={record} evidence={evidence} localityId={localityId} editable={editable} draftValues={draftResults} selectedCriterionId={selected?.criterion?.id} uploading={fileUploading} onSave={save} onSelect={(entry, criterion) => setSelected({ entry, criterion })} />
+      <LocalityScoreTable ref={scoreTableRef} criteria={detailTable.criteria} record={record} evidence={evidence} localityId={localityId} editable={editable} draftValues={draftResults} selectedCriterionId={selected?.criterion?.id} uploading={savingAll} onSelect={(entry, criterion) => setSelected({ entry, criterion })} onDeleteEvidence={(evidenceId) => { const target = evidence.find((item) => item.id === evidenceId); if (target) setDeleteTarget(target); }} />
 
       {(groupDetailQuery.data?.files ?? []).length > 0 && (
         <div className="overflow-hidden rounded-lg border bg-card">
@@ -544,7 +525,7 @@ export default function LocalityCriteriaPage() {
       <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center gap-2 border-t bg-card/95 px-4 py-3 shadow-[0_-6px_20px_rgba(31,27,26,0.08)] backdrop-blur">
         {selected && <Button variant="outline" onClick={() => setViewing(selected)}><FileText className="size-4" />Xem file</Button>}
         <Button variant="destructive" disabled={!editable} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
-        <div className="ml-auto flex gap-2"><Button disabled={!editable || savingAll || fileUploading} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll || fileUploading ? 'Đang lưu' : 'Lưu tất cả'}</Button><Button disabled={savingAll || !canSubmit} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button></div>
+        <div className="ml-auto flex gap-2"><Button disabled={!editable || savingAll} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button><Button disabled={savingAll || !canSubmit} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button></div>
       </div>
 
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />

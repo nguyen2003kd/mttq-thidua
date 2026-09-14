@@ -194,6 +194,7 @@ export interface ScoreStore {
   ) => void;
 
   uploadEvidence: (payload: {
+    id?: string;
     criteriaId: string;
     localityId: string;
     fileName: string;
@@ -877,11 +878,11 @@ export const useScoreStore = create<ScoreStore>()(
           };
         }),
 
-      uploadEvidence: ({ criteriaId, localityId, fileName, fileUrl, fileSize, description, kind }) => {
+      uploadEvidence: ({ id, criteriaId, localityId, fileName, fileUrl, fileSize, description, kind }) => {
         set((state) => {
           if ((fileSize ?? 0) > MAX_UPLOAD_SIZE) return state;
           const ev: Evidence = {
-            id: uid(),
+            id: id ?? uid(),
             criteriaId,
             localityId,
             fileName,
