@@ -31,6 +31,15 @@ export type SubmissionStage =
   | 'CommitteeFinalized'
   | 'RequiresRevision';
 
+export interface SubmissionResultFile {
+  id: string;
+  originalName: string;
+  displayName: string | null;
+  sizeBytes: number;
+  createdAt: string;
+  url: string | null;
+}
+
 export interface SubmissionResultItem {
   id: string;
   submissionId: string;
@@ -40,8 +49,12 @@ export interface SubmissionResultItem {
   snapshotMaxBonusPoint: number;
   point: number;
   bonusPoint: number;
+  officialPoint: number | null;
+  officialBonusPoint: number | null;
+  officialReason: string | null;
   explanation: string | null;
   reviewStatus: string;
+  files: SubmissionResultFile[];
   createdAt: string;
   updatedAt: string | null;
 }
@@ -88,5 +101,13 @@ export const specialistApi = {
       url: '/api/v1/submissions/approve',
       method: 'POST',
       data: { submissionId, action: 'Approve' },
+    }),
+
+  // UpdateScore — chuyên viên lưu nháp điểm chấm (giữ nguyên stage)
+  updateScores: (payload: { submissionId: string; reason: string; items: Array<{ submissionResultId: string; point: number; bonusPoint: number; reason?: string | null }> }) =>
+    request<{ processed: boolean; submissionId: string; action: string }>({
+      url: '/api/v1/submissions/approve',
+      method: 'POST',
+      data: { ...payload, action: 'UpdateScore' },
     }),
 };

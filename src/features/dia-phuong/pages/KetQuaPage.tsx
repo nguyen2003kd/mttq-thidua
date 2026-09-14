@@ -69,7 +69,7 @@ export default function KetQuaPage() {
   const submission = useMemo(() => {
     const items = mySubmissionsQuery.data?.items ?? [];
     // Ưu tiên submission đã công bố, nếu không có thì lấy submission đầu
-    return items.find((s) => s.stage === 'Published') ?? items[0];
+    return items.find((s) => s.currentStage === 'CommitteeFinalized') ?? items[0];
   }, [mySubmissionsQuery.data]);
 
   // Chi tiết submission

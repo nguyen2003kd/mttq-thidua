@@ -13,6 +13,7 @@ import {
   FilePlus2,
   FileText,
   MapPin,
+  Save,
   Search,
   Send,
   Sparkles,
@@ -26,7 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
-import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { specialistApi, type SubmissionApi, type SubmissionResultFile } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, getFilesApiError } from '@/features/files/api/filesApi';
 
 interface EvidenceFile {
@@ -138,6 +139,16 @@ type SupplementaryForm = z.infer<typeof supplementarySchema>;
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function toEvidenceFiles(files: SubmissionResultFile[] | undefined): EvidenceFile[] {
+  return (files ?? []).map((file) => ({
+    id: file.id,
+    fileName: file.displayName || file.originalName,
+    fileSize: formatFileSize(file.sizeBytes),
+    uploadedAt: new Intl.DateTimeFormat('vi-VN').format(new Date(file.createdAt)),
+    fileId: file.id,
+  }));
 }
 
 function SupplementaryDialog({
@@ -415,6 +426,7 @@ export default function SpecialistReviewPage() {
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
@@ -494,9 +506,9 @@ export default function SpecialistReviewPage() {
             maxProposedScore: c.maxPoint,
             maxProposedBonusScore: c.maxBonusPoint,
             explanation: result?.explanation ?? '',
-            officialScore: null,
-            officialBonusScore: null,
-            scoreReason: '',
+            officialScore: result?.officialPoint ?? null,
+            officialBonusScore: result?.officialBonusPoint ?? null,
+            scoreReason: result?.officialReason ?? '',
           };
         });
         return {
@@ -547,15 +559,15 @@ export default function SpecialistReviewPage() {
         id: c.id,
         code: `TC_${String(idx + 1).padStart(2, '0')}`,
         title: c.content,
-        evidenceFiles: [],
+        evidenceFiles: toEvidenceFiles(result?.files),
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: c.maxPoint,
         maxProposedBonusScore: c.maxBonusPoint,
         explanation: result?.explanation ?? '',
-        officialScore: null,
-        officialBonusScore: null,
-        scoreReason: '',
+        officialScore: result?.officialPoint ?? null,
+        officialBonusScore: result?.officialBonusPoint ?? null,
+        scoreReason: result?.officialReason ?? '',
       };
     });
     return {
@@ -927,6 +939,10 @@ export default function SpecialistReviewPage() {
       return;
     }
     try {
+      const items = buildScoreItems();
+      if (items.length > 0) {
+        await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', items });
+      }
       await specialistApi.approveSubmission(submission.id);
       await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
       await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
@@ -1123,7 +1139,10 @@ export default function SpecialistReviewPage() {
             <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}><AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa</Button>
           </div>
-          <Button className="w-full lg:w-auto" onClick={openForwardDialog}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
+          <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
+            <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
+          </div>
         </div>
       </div>
 

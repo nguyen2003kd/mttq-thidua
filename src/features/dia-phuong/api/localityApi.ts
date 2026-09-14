@@ -28,38 +28,39 @@ export { criteriaGroupsApi, type CriteriaGroupApi, type CriteriaApi, type PagedR
 
 export type SubmissionStage =
   | 'Draft'
-  | 'WaitingSpecialist'
-  | 'WaitingLeader'
-  | 'WaitingCouncil'
-  | 'WaitingCommittee'
-  | 'Published';
+  | 'LocalSubmitted'
+  | 'SpecialistApproved'
+  | 'LeaderApproved'
+  | 'CouncilApproved'
+  | 'CommitteeFinalized'
+  | 'RequiresRevision';
 
 export interface SubmissionResultItem {
   id: string;
   submissionId: string;
   criteriaId: string;
-  criteriaContent: string;
-  maxPoint: number;
-  maxBonusPoint: number;
-  point: number | null;
-  bonusPoint: number | null;
+  criteriaContent: string | null;
+  snapshotMaxPoint: number;
+  snapshotMaxBonusPoint: number;
+  point: number;
+  bonusPoint: number;
   explanation: string | null;
-  stage: SubmissionStage;
-  evidenceFileIds: string[];
+  reviewStatus: string;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 export interface SubmissionApi {
   id: string;
   criteriaGroupId: string;
-  criteriaGroupName: string;
-  localityId: string;
-  localityName: string;
-  stage: SubmissionStage;
-  totalPoint: number;
-  totalBonusPoint: number;
+  criteriaGroupName: string | null;
+  currentStage: SubmissionStage;
+  totalProposedPoint: number;
+  totalFinalPoint: number;
   submittedAt: string | null;
-  publishedAt: string | null;
-  revisionRequestedAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  createdBy: string | null;
   results: SubmissionResultItem[];
 }
 
@@ -110,12 +111,12 @@ export const localityApi = {
   listSubmissionsByGroup: (groupId: string, params?: { stage?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionApi>>({ url: `/api/v1/criteria-groups/${groupId}/submissions`, method: 'GET', params }),
 
-  // Submit points — tự đánh giá (cập nhật submission đã tồn tại)
-  submitPoints: (payload: { submissionId: string; items: Array<{ submissionResultId: string; point: number; bonusPoint?: number; explanation?: string | null }> }) =>
+  // Submit points — tự đánh giá (cập nhật submission đã tồn tại; isDraft=true giữ trạng thái Draft)
+  submitPoints: (payload: { submissionId: string; isDraft?: boolean; items: Array<{ submissionResultId: string; point: number; bonusPoint?: number; explanation?: string | null }> }) =>
     request<{ applied: true }>({ url: '/api/v1/submissions/submit-points', method: 'POST', data: payload }),
 
-  // Create submission — nộp kết quả lần đầu (tạo submission + submission_results)
-  createSubmission: (payload: { criteriaGroupId: string; items: Array<{ criteriaId: string; point: number; bonusPoint?: number; explanation?: string | null }> }) =>
+  // Create submission — nộp kết quả lần đầu (isDraft=true tạo bản nháp CurrentStage=Draft)
+  createSubmission: (payload: { criteriaGroupId: string; isDraft?: boolean; items: Array<{ criteriaId: string; point: number; bonusPoint?: number; explanation?: string | null }> }) =>
     request<SubmissionApi>({ url: '/api/v1/submissions', method: 'POST', data: payload }),
 
   // Finalize — nộp hồ sơ lên chuyên viên
@@ -162,11 +163,12 @@ export function getLocalityApiError(error: unknown) {
 
 const STAGE_TO_STATE: Record<SubmissionStage, ScoreState> = {
   Draft: 'DRAFT',
-  WaitingSpecialist: 'CHO_CHUYEN_VIEN',
-  WaitingLeader: 'CHO_DUYET_BAN',
-  WaitingCouncil: 'CHO_DUYET_HOI_DONG',
-  WaitingCommittee: 'CHO_DUYET_BTT',
-  Published: 'DA_CONG_BO',
+  LocalSubmitted: 'CHO_CHUYEN_VIEN',
+  SpecialistApproved: 'CHO_DUYET_BAN',
+  LeaderApproved: 'CHO_DUYET_HOI_DONG',
+  CouncilApproved: 'CHO_DUYET_BTT',
+  CommitteeFinalized: 'DA_CONG_BO',
+  RequiresRevision: 'DRAFT',
 };
 
 export function mapCriteriaGroupToTable(group: CriteriaGroupApi): CriteriaTable {
@@ -194,25 +196,26 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi): CriteriaTable 
 }
 
 export function mapSubmissionToRecord(submission: SubmissionApi): ScoreRecord {
+  const state = STAGE_TO_STATE[submission.currentStage] ?? 'DRAFT';
   return {
-    state: STAGE_TO_STATE[submission.stage] ?? 'DRAFT',
+    state,
     entries: (submission.results ?? []).map((r): ScoreEntry => ({
       id: r.id,
       criteriaId: r.criteriaId,
-      criteriaName: r.criteriaContent,
+      criteriaName: r.criteriaContent ?? '',
       value: r.point ?? 0,
-      state: STAGE_TO_STATE[r.stage] ?? 'DRAFT',
-      scoredBy: submission.localityName,
+      state,
+      scoredBy: '',
       scoredAt: submission.submittedAt ?? '',
-      evidenceCount: (r.evidenceFileIds ?? []).length,
+      evidenceCount: 0,
       proposedScore: r.point ?? undefined,
       proposedBonusScore: r.bonusPoint ?? undefined,
       explanation: r.explanation ?? undefined,
     })),
-    totalScore: submission.totalPoint,
+    totalScore: submission.totalProposedPoint,
     submittedAt: submission.submittedAt,
-    publishedAt: submission.publishedAt,
-    revisionRequestedAt: submission.revisionRequestedAt,
+    publishedAt: submission.currentStage === 'CommitteeFinalized' ? submission.updatedAt : null,
+    revisionRequestedAt: submission.currentStage === 'RequiresRevision' ? submission.updatedAt : null,
   };
 }
 
