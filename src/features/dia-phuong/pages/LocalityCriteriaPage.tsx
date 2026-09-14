@@ -515,7 +515,7 @@ export default function LocalityCriteriaPage() {
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" disabled={!selected} onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem file</Button>
+            <Button variant="outline" disabled={!selected} onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
             <Button variant="destructive" disabled={!editable || !selected} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button disabled={!editable || savingAll || fileUploading} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll || fileUploading ? 'Đang lưu' : 'Lưu tất cả'}</Button>
