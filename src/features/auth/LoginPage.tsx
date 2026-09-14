@@ -19,14 +19,6 @@ const APP_ROLES: Role[] = [
   'COMMITTEE',
 ];
 
-const DEMO_ACCOUNTS: { role: Role; label: string; name: string }[] = [
-  { role: 'LOCAL', label: 'Địa phương', name: 'Phường Bình Phước' },
-  { role: 'SPECIALIST', label: 'Chuyên viên', name: 'Chuyên viên Thi đua' },
-  { role: 'LEADER', label: 'Lãnh đạo', name: 'Lãnh đạo Ban' },
-  { role: 'COUNCIL', label: 'Hội đồng', name: 'Hội đồng Thi đua Khen thưởng' },
-  { role: 'COMMITTEE', label: 'Ủy ban', name: 'Ủy ban' },
-];
-
 /** Response envelope returned by Mttq.Tctd.Api's AuthController. */
 interface LoginApiResponse {
   success: boolean;
@@ -89,27 +81,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
-
-  const handleDemoLogin = (role: Role, name: string) => {
-    const demoUser = {
-      id: `demo-${role.toLowerCase()}`,
-      name,
-      role,
-      localityId: role === 'LOCAL' ? 'loc-25195' : undefined,
-      banId: role === 'LEADER' ? 'ban1' : undefined,
-    };
-    setStore({
-      isSignedIn: true,
-      id: demoUser.id,
-      username: demoUser.id,
-      roles: [role],
-      access_token: 'demo-access-token',
-      refresh_token: 'demo-refresh-token',
-      user: demoUser,
-    });
-    toast.success(`Đang vào vai ${name}`);
-    navigate(defaultRouteForRole(role, demoUser));
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,18 +315,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-3"><span className="h-px flex-1 bg-border" /><span className="text-[11px] font-semibold text-muted-foreground">Bản mô phỏng FSD</span><span className="h-px flex-1 bg-border" /></div>
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((account) => (
-                  <Button key={account.role} type="button" variant="outline" size="sm" className="justify-start text-xs" onClick={() => handleDemoLogin(account.role, account.name)}>
-                    {account.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
             {/* Footer note */}
             <p className="text-center text-xs text-muted-foreground">
               © {new Date().getFullYear()} Mặt trận Tổ quốc Việt Nam — Bản quyền nội bộ

@@ -23,6 +23,7 @@ const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListP
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
+const BanLeaderReviewDetailPage = lazy(() => import('@/features/duyet/pages/BanLeaderReviewDetailPage'));
 const CouncilApprovalPage = lazy(() => import('@/features/duyet/pages/CouncilApprovalPage'));
 const StandingCommitteePage = lazy(() => import('@/features/duyet/pages/StandingCommitteePage'));
 const MinhChungPage = lazy(() => import('@/features/dia-phuong/pages/MinhChungPage'));
@@ -186,6 +187,18 @@ export default function App() {
                   <RequireRole roles={['LEADER']}>
                     <AppLayout>
                       <BanLeaderApprovalPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/thi-dua/duyet/lanh-dao-ban/:banId/chi-tiet/:tableId/:localityId"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['LEADER']}>
+                    <AppLayout>
+                      <BanLeaderReviewDetailPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

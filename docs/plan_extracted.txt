@@ -1,0 +1,643 @@
+Plan Thi���t K��� H��� Th���ng - Ph��n H��� Qu���n L�� Thi ��ua
+Table of Contents
+TOC \o "1-3" \h \z \u
+PLAN THIẾT KẾ HỆ THỐNG — PHÂN HỆ QUẢN LÝ THI ĐUA
+Tài liệu nội bộ hợp nhất: Design System (component/giao diện/wireframe) + Đặc tả chi tiết từng màn hình & modal (field, kiểu dữ liệu, layout). Dev đọc file này để code trực tiếp, không cần suy đoán thêm.
+
+0. TỔNG QUAN SỐ LƯỢNG
+Màn hình & Modal (chi tiết ở Phần C)
+Nhóm chức năng
+Số màn hình full-page
+Số modal
+Ghi chú tái sử dụng
+Nền tảng (Auth + Quản lý người dùng)
+2
+3
+—
+COL.01.01 + 01.02 (Chuyên viên tạo & áp dụng tiêu chí)
+2
+8
+—
+COL.01.03 + 01.04 (Địa phương báo cáo & xem kết quả)
+5
+4
+—
+COL.01.05 + 01.06 (Chuyên viên chấm + lịch sử)
+4
+4
+Gốc của Generic Approval Screen
+COL.01.07 + 01.08 (Lãnh đạo ban + lịch sử)
+4
+4
+Tái dùng Generic Approval Screen (đổi config)
+COL.01.09 + 01.10 (Hội đồng + lịch sử)
+3
+3
+Tái dùng Generic Approval Screen (đổi config)
+COL.01.11 + 01.12 (Ủy ban + lịch sử)
+2
+2
+Biến thể Generic Approval Screen
+TỔNG
+~22 màn hình
+~28 modal
+Xem Mục C14 bản đồ tái sử dụng
+Component Design System (chi tiết ở Phần A)
+Cấp độ
+Số lượng
+Component Atom
+14
+Component Molecule
+10
+Component Organism
+9
+Mẫu Wireframe theo loại màn hình (Archetype)
+5 (Mục A7)
+TỔNG component tái sử dụng
+33
+Quy ước áp dụng cho MỌI màn hình danh sách (grid) ở Phần C, không lặp lại ở từng mục:
+Filter/Tìm kiếm: theo Địa phương, Trạng thái, Khoảng ngày (component Filter bar chuẩn — A4.3)
+Phân trang chuẩn (A4.4), mặc định 10 dòng/trang
+Field bắt buộc trong modal đánh dấu ★; field không có ★ là không bắt buộc — đúng ký hiệu FSD gốc
+Mỗi màn hình trong Phần C đều ghi rõ [Archetype X] ở đầu — tra layout chi tiết tại Mục A7
+
+PHẦN A — THIẾT KẾ HỆ THỐNG (DESIGN SYSTEM)
+A1. BỐI CẢNH THIẾT KẾ (đọc trước khi build)
+Đây là phần mềm nội bộ cho cán bộ (Địa phương, Chuyên viên, Lãnh đạo ban, Hội đồng, Ủy ban) — không phải trang giới thiệu/marketing. Ưu tiên theo thứ tự: rõ ràng khi đọc bảng dữ liệu dày đặc → thao tác nhanh (nhiều người dùng lớn tuổi, không rành công nghệ) → thẩm mỹ. Tránh bộ “SaaS-card mặc định” (card bo góc giống hệt nhau, shadow lặp lại vô nghĩa) và các “tell” của giao diện tạo tự động (ALL-CAPS, dấu — cách quãng, mũi tên → cuối nút).
+Điểm nhấn thiết kế riêng: Status Stepper (A4.9) — trực quan hóa hành trình 6 cấp duyệt của 1 hồ sơ, đúng bản chất nghiệp vụ cốt lõi.
+
+A2. DESIGN TOKENS
+A2.1. Màu sắc — chủ đạo Đỏ - Vàng - Trắng
+⚠️ Quy tắc quan trọng cần đọc kỹ trước khi code: Đỏ vừa là màu thương hiệu (header/sidebar/nút chính) vừa theo quy ước UI thông thường là màu “Lỗi/Nguy hiểm”. Để 2 vai trò này không đè lên nhau gây hiểu nhầm khi dev code, hệ thống dùng 2 tông đỏ khác nhau, không dùng chung 1 mã hex: đỏ thương hiệu (primary) sáng và bão hòa hơn, đỏ lỗi (danger) trầm/nâu hơn — không bao giờ hoán đổi 2 token này.
+Token
+Hex
+Dùng cho
+color-primary
+#A8202C (đỏ cờ, đã giảm độ chói so với đỏ thuần #DA251D để dùng làm nền lớn không gây mỏi mắt)
+Header, Sidebar nền, Nút hành động chính (Duyệt/Lưu/Gửi yêu cầu)
+color-primary-hover
+#8C1A24
+Trạng thái hover/active của các phần tử màu primary
+color-accent
+#E8B923 (vàng đồng, lấy cảm hứng từ ngôi sao vàng nhưng giảm độ chói để không chói mắt trên nền trắng lớn)
+Điểm nhấn: trạng thái “Đang chờ duyệt”, viền nút hiện tại trên Status Stepper, icon cảnh báo nhẹ
+color-bg
+#FFFFFF (trắng)
+Nền toàn bộ Content Area — trắng chiếm phần lớn diện tích để bảng dữ liệu dễ đọc, đỏ/vàng chỉ xuất hiện ở chrome và điểm nhấn, không tô nền lớn
+color-surface
+#FFFFFF
+Nền card/table/modal
+color-surface-muted
+#FAF7F5 (trắng ngà rất nhẹ)
+Nền hover dòng bảng, nền sidebar item chưa active
+color-border
+#E7E2DE
+Đường viền, chia cột — tông ấm nhẹ để hài hòa với đỏ/vàng thay vì xám lạnh thuần
+color-text
+#1F1B1A
+Văn bản chính
+color-text-muted
+#71685F
+Văn bản phụ, placeholder
+color-danger
+#8B2635 (đỏ-nâu thẫm, khác hẳn color-primary)
+Chỉ dùng cho Lỗi/Xóa/Từ chối — luôn đi kèm icon cảnh báo, không dựa vào màu đơn thuần
+Bảng màu trạng thái hồ sơ (dùng cho Badge và Status Stepper — nhất quán toàn bộ 22 màn hình):
+Trạng thái
+Màu
+Hex
+Ghi chú
+Nháp / Chưa gửi
+Xám
+#9CA3AF
+Trung tính, chưa có hành động
+Đang chờ duyệt
+Vàng (accent)
+#E8B923
+
+Yêu cầu chỉnh sửa
+Cam đất
+#D9773D
+Không dùng vàng/đỏ để tránh trùng 2 trạng thái khác
+Đã duyệt (từng cấp)
+Xanh lá
+#2E7D5B
+Màu duy nhất ngoài hệ đỏ-vàng-trắng — cố ý, để “tiến triển tích cực” nổi bật rõ ràng nhất trong bảng
+Đã công bố (khóa)
+Than đậm
+#2D2A26
+Khác hẳn mọi màu quy trình để nhấn “cuối cùng, bất biến”
+Lỗi / Từ chối
+color-danger
+#8B2635
+Luôn kèm icon ⚠, không dùng riêng màu
+A2.2. Typography
+Font chính: Be Vietnam Pro (Google Fonts) — hỗ trợ dấu tiếng Việt đầy đủ, phù hợp bối cảnh 100% nội dung tiếng Việt có dấu. 1 họ font duy nhất.
+Type scale: | Cấp | Size | Weight | Dùng cho | |—|—|—|—| | H1 | 24px | 600 | Tiêu đề trang | | H2 | 18px | 600 | Tiêu đề section/modal | | Body | 14px | 400 | Nội dung, bảng dữ liệu | | Label | 13px | 500 | Nhãn field trong form | | Caption | 12px | 400 | Ghi chú, timestamp |
+Không ALL-CAPS cho nhãn/cột bảng.
+A2.3. Spacing & Border-radius
+Spacing: bội số 4px (4/8/12/16/24/32)
+Border-radius phân theo cấp độ: Button/Input 6px — Card/Modal 10px — Badge pill (999px)
+Shadow: chỉ dùng cho Modal/Dropdown nổi lên, không rải shadow trang trí
+
+A3. COMPONENT ATOM (14)
+#
+Component
+Mô tả visual
+States
+1
+Button
+4 biến thể: Primary (nền primary đỏ — Duyệt/Lưu/Gửi), Accent (nền accent vàng — dùng riêng cho “Công bố kết quả” để tách biệt hành động không thể hoàn tác), Danger (nền danger — Xóa), Ghost (không viền — Đóng/Hủy)
+default, hover, active, disabled, loading
+2
+Input Text
+Viền border, bo 6px, label phía trên
+default, focus (viền primary), error (viền danger + text lỗi), disabled
+3
+Input Number
+Giống Input Text, căn phải số
+giống trên
+4
+Input Date/DateTime
+Text field + icon lịch
+giống trên
+5
+Textarea
+Tự giãn tối đa 4 dòng rồi scroll
+giống trên
+6
+Select/Dropdown
+Có ô tìm kiếm nếu >10 lựa chọn
+default, focus, disabled
+7
+Checkbox
+Dùng chọn nhiều dòng bảng
+checked, unchecked, indeterminate
+8
+Radio
+Lựa chọn nhị phân đặc biệt
+checked, unchecked
+9
+Badge/Tag trạng thái
+Pill nhỏ, nền màu nhạt 15% + chữ màu đậm cùng tông
+6 màu theo A2.1
+10
+Avatar
+Hình tròn, chữ cái đầu tên nếu không có ảnh
+—
+11
+Tooltip
+Nền primary, chữ trắng
+—
+12
+Divider
+Đường kẻ mảnh border
+ngang/dọc
+13
+Spinner
+Icon xoay
+—
+14
+Icon set
+1 bộ nhất quán (Lucide/Phosphor), stroke đồng nhất
+—
+
+A4. COMPONENT MOLECULE (10)
+A4.1 Form Field — Label (13px/500) + ★ đỏ nếu bắt buộc + Input + dòng lỗi danger phía dưới nếu có. A4.2 File Upload — Khung viền đứt nét, kéo-thả/click, hiện tên+dung lượng sau khi chọn, progress bar khi tải, cảnh báo rõ nếu vượt 20MB. A4.3 Filter bar chuẩn — 1 hàng: Dropdown Địa phương + Dropdown Trạng thái + Date range + nút Tìm kiếm (Primary nhỏ) + nút Xóa lọc (Ghost). A4.4 Pagination — Số trang + Trước/Sau + dropdown số dòng/trang. A4.5 Toast — Góc trên-phải, tự ẩn 4s: Thành công (viền xanh lá), Lỗi (viền danger), Thông tin (viền primary). A4.6 Confirm dialog — Icon cảnh báo + câu hỏi cụ thể + 2 nút Tiếp tục/Đóng. A4.7 Table row action — Icon Xem/Sửa/Xóa hoặc gộp nút “⋯”. A4.8 Score input group — Điểm đề xuất + Điểm thưởng đề xuất + Điểm tối đa (chữ mờ, không phải input) + Diễn giải + Upload bằng chứng. A4.9 ⭐ Status Stepper — 6 nút tròn nối đường kẻ: Địa phương—Chuyên viên—Lãnh đạo ban—Hội đồng—Ủy ban—Công bố. Nút đã qua: tô xanh lá + ✓. Nút hiện tại: viền accent vàng đậm + pulse nhẹ. Nút chưa tới: viền mờ. Khi có “yêu cầu chỉnh sửa”: vẽ đường cong cam đất từ cấp yêu cầu quay về nút “Chuyên viên” (đúng nguyên tắc Mục B0). A4.10 Breadcrumb — Danh sách địa phương / Tên địa phương / Nhóm tiêu chí X.
+
+A5. COMPONENT ORGANISM (9)
+A5.1 AppShell, A5.2 Sidebar Nav, A5.3 Header bar, A5.4 DataGrid/Table, A5.5 Modal wrapper, A5.6 Timeline/History list, A5.7 Generic Approval Screen, A5.8 Empty state, A5.9 Error state — mô tả chức năng giữ nguyên như bản trước; layout cụ thể xem Mục A7 (đã tách riêng thành wireframe chi tiết theo yêu cầu).
+
+A6. QUY TẮC RESPONSIVE & ACCESSIBILITY
+Breakpoint: Desktop ≥1280px (chính) → Tablet 768-1279px (sidebar thu icon) → Mobile <768px (bảng → danh sách card dọc)
+Focus bàn phím luôn hiện rõ (viền accent 2px)
+Tương phản WCAG AA tối thiểu (đặc biệt chữ trên Badge màu vàng — vàng sáng dễ vi phạm tương phản, đã chọn #E8B923 đủ tối để chữ đen đọc được, luôn dùng chữ #1F1B1A trên nền vàng, không dùng chữ trắng trên nền vàng)
+Tôn trọng prefers-reduced-motion
+
+A7. MẪU WIREFRAME THEO LOẠI MÀN HÌNH (Archetype) — tra cứu cho mọi màn ở Phần C
+Archetype 1 — Danh sách (List/Grid)
+Dùng cho: Quản lý người dùng, COL.01.01 Màn 1, COL.01.03 Màn 1, COL.01.04 Màn 1, COL.01.05 Màn 1, COL.01.07 Màn 1, COL.01.09 Màn 1, COL.01.11 Màn 1, và cả 4 màn Lịch sử (biến thể — xem Archetype 4).
+┌──────────────────────────────────────────────────┐│ Tên trang (H1)                    [+ Thêm mới]    │├──────────────────────────────────────────────────┤│ Địa phương▾ Trạng thái▾  Từ ngày  Đến ngày  [Tìm] │├──────────────────────────────────────────────────┤│ Cột text  │ Cột số │ ... │ Trạng thái │ Hành động │├───────────┼────────┼─────┼────────────┼───────────┤│ Giá trị   │    123 │ ... │  [Badge]   │  👁 ✎ 🗑   │├──────────────────────────────────────────────────┤│         [◀ Trước] 1 2 3 ... 8 [Sau ▶]  [10/trang] │└──────────────────────────────────────────────────┘
+Chú thích từng khối (trên xuống dưới):
+Page header — cao 56px, padding 24px, nút “Thêm mới” nằm phải
+Filter bar chuẩn (A4.3) — cao 48px
+Header cột bảng — chữ sentence case, không in hoa
+Dòng dữ liệu — cao 44px, hover đổi nền surface-muted
+Pagination — căn giữa
+Quy tắc: cột kiểu Text căn trái, cột Number/Điểm căn phải, cột Trạng thái căn giữa dạng Badge, cột Ngày giờ căn trái định dạng dd/mm/yyyy hh:mm. Cột “Hành động” luôn cuối cùng bên phải — dùng icon 20px nếu ≤3 hành động, gộp nút “⋯” nếu nhiều hơn (áp dụng cho hầu hết màn ở đây vì FSD có nhiều cột).
+Archetype 2 — Generic Approval Screen (3 lớp drill-down)
+Dùng cho: COL.01.05, COL.01.07, COL.01.09, COL.01.11 (toàn bộ 3 màn mỗi mục).
+Lớp 1 (DS địa phương): y hệt Archetype 1, click dòng hoặc nút Xem để sang Lớp 2.
+Lớp 2 (DS nhóm tiêu chí): có Breadcrumb, bảng như Archetype 1 nhưng bỏ Filter bar phức tạp (chỉ giữ ô tìm kiếm đơn giản).
+Lớp 3 (Chi tiết chấm điểm) — layout đầy đủ nhất:
+┌──────────────────────────────────────────────────┐│ DS địa phương / Phường Tân Mai / NTC An ninh      │├──────────────────────────────────────────────────┤│ ●──● Chuyên viên ─○ Lãnh đạo ─○ Hội đồng ─○ Ủy ban│├──────────────────────────────────────────────────┤│ Bằng chứng │ Điểm đề xuất │ Điểm thưởng │ Diễn giải│├──────────────────────────────────────────────────┤│ [+ Thêm TC] [Cho điểm theo đề xuất]               ││                  [Yêu cầu chỉnh sửa] [Gửi yêu cầu]│└──────────────────────────────────────────────────┘
+Chú thích từng khối:
+Breadcrumb (A4.10)
+Status Stepper (A4.9) — full-width
+Bảng Score input group (A4.8)
+Footer action bar — sticky ở đáy màn hình khi scroll
+Quy tắc: nút “Gửi yêu cầu” (hoặc “Duyệt”/“Công bố kết quả” tùy cấp) luôn là nút Primary/Accent nằm cuối cùng bên phải footer bar; “Yêu cầu chỉnh sửa” là nút Ghost/Secondary đứng cạnh bên trái nó — không đặt 2 nút này lẫn lộn vị trí giữa các cấp, để thao tác nhất quán khi người dùng quen tay.
+Archetype 3 — Modal Form (Thêm/Sửa)
+Dùng cho: toàn bộ 28 modal.
+┌────────────────────────────────────────┐│ Tiêu đề modal (H2)                  [✕]│├────────────────────────────────────────┤│ Field text dài (label + ★ nếu bắt buộc) ││ [______________________________]       ││                                         ││ Field ngắn 1 ★        Field ngắn 2     ││ [___________]         [📅___________]  ││                                         ││ Field textarea                         ││ [______________________________]       ││ [                              ]       │├────────────────────────────────────────┤│                          [Đóng]  [Lưu] │└────────────────────────────────────────┘
+Chú thích từng khối:
+Header modal — cao 56px
+Field full-width — chiếm 1 hàng riêng
+2 field ngắn dùng chung 1 hàng, chia đôi 50/50
+Textarea — cao tối đa 3 dòng
+Footer — nút chính luôn nằm bên phải, màu Primary
+Quy tắc thứ tự field: field bắt buộc (★) luôn đặt trước field không bắt buộc trong modal; field liên quan trực tiếp tới điểm số (Điểm đề xuất, Điểm thưởng) nhóm cạnh nhau; Upload file luôn đặt gần cuối, ngay trên Diễn giải/Ghi chú.
+Archetype 4 — Lịch sử/Timeline
+Dùng cho: COL.01.06, COL.01.08, COL.01.10, COL.01.12, Màn 3 COL.01.03.
+┌──────────────────────────────────────────────────┐│ Lịch sử chấm tiêu chí                             │├──────────────────────────────────────────────────┤│ Địa phương▾  Từ ngày  Đến ngày    [Tìm kiếm]      │├──────────────────────────────────────────────────┤│ 🟢 Nguyễn Văn A sửa điểm 8→9    12/09/2026 14:32  ││ │   Lý do: "Bổ sung minh chứng mới"               ││ 🟡 Trần Thị B gửi yêu cầu duyệt 12/09/2026 09:10  ││ 🟠 Lê Văn C yêu cầu chỉnh sửa   11/09/2026 16:45  ││ │   Lý do: "Minh chứng chưa rõ nét"               │└──────────────────────────────────────────────────┘
+Chú thích từng khối:
+Filter bar đơn giản (Địa phương, khoảng ngày)
+Mỗi dòng lịch sử: chấm tròn màu theo loại hành động (xanh lá=duyệt, vàng=gửi yêu cầu, cam=yêu cầu chỉnh sửa, xám=sửa điểm thường) + câu mô tả viết chủ động + timestamp căn phải cùng dòng
+Quy tắc: nội dung viết dạng câu hoàn chỉnh chủ động (“X đã làm Y”) thay vì bảng cột cứng khó đọc, đúng nguyên tắc viết UI ở Mục A1.
+Archetype 5 — Read-only Detail (Kết quả)
+Dùng cho: COL.01.04 (cả 2 màn).
+Giống Archetype 1 nhưng không có nút Thêm/Sửa/Xóa (chỉ Xem); cột “Quyết định kết quả” và “Kết quả xếp loại” hiển thị Badge cỡ lớn hơn 1 bậc so với badge thường vì đây là thông tin quan trọng nhất với người xem (Địa phương).
+
+PHẦN B — NGUYÊN TẮC NGHIỆP VỤ ÁP DỤNG XUYÊN SUỐT
+B0. NGUYÊN TẮC ĐIỀU HƯỚNG “YÊU CẦU CHỈNH SỬA / BỔ SUNG”
+Đã xác nhận với PM — quy tắc duy nhất và thống nhất cho mọi cấp:
+Ai được sửa điểm trực tiếp: chỉ Chuyên viên và Lãnh đạo ban. Hội đồng và Ủy ban không sửa điểm, chỉ “Gửi yêu cầu chỉnh sửa/bổ sung”.
+Đích đến duy nhất: dù bấm từ Lãnh đạo ban, Hội đồng, hay Ủy ban, tất cả đều đi tới Chuyên viên — không cấp nào gửi thẳng Địa phương ngoại trừ Chuyên viên.
+Không resume, duyệt lại từ đầu: sau khi Địa phương sửa và Chuyên viên gửi lại, hồ sơ duyệt lại từ đầu toàn chuỗi Lãnh đạo ban → Hội đồng → Ủy ban.
+Hệ quả kỹ thuật: transition “YeuCauChinhSua” chỉ cần 1 target state chung (Chuyên viên); vẫn lưu nguồn gốc yêu cầu vào LichSuThaoTac để 4 màn lịch sử hiển thị đúng.
+Modal “Yêu cầu chỉnh sửa/bổ sung” dùng chung 1 component cho 3 cấp Lãnh đạo ban/Hội đồng/Ủy ban.
+
+PHẦN C — ĐẶC TẢ TỪNG MÀN HÌNH & MODAL
+C1. NHÓM MÀN HÌNH NỀN TẢNG
+C1.1. Màn hình Đăng nhập
+/login — Không cần vai trò — [Không thuộc Archetype nào — layout riêng: form giữa màn hình, nền primary đỏ phủ 40% bên trái hoặc phía sau, logo MTTQ + form trắng nổi ở giữa/phải]
+Field
+Loại
+Bắt buộc
+Ví dụ/Placeholder
+Email
+Text (email)
+★
+nguyenvana@dongnai.gov.vn
+Mật khẩu
+Password
+★
+••••••••
+Nút: Đăng nhập (Primary, full-width trong form)
+C1.2. Màn hình Quản lý người dùng — [Archetype 1]
+/quan-tri/nguoi-dung — Vai trò: Chuyên viên
+Cột lưới: Họ tên (trái), Email (trái), Vai trò (giữa, Badge), Địa phương (trái, chỉ hiện nếu vai trò=Địa phương), Trạng thái (giữa, Badge Hoạt động/Đã khóa)
+Nút: Thêm mới, Sửa, Khóa/Mở khóa, Tìm kiếm (theo Họ tên/Email)
+Modal Thêm tài khoản — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ/Placeholder
+Họ tên
+Text
+★
+Nguyễn Văn A
+Email
+Text (email)
+★
+nguyenvana@dongnai.gov.vn
+Mật khẩu
+Password
+★
+(tối thiểu 8 ký tự)
+Vai trò
+Select (5 lựa chọn)
+★
+Địa phương / Chuyên viên / Lãnh đạo ban / Hội đồng thi đua / Ủy ban thường trực
+Địa phương
+Select
+★ (chỉ hiện khi Vai trò = Địa phương)
+Phường Tân Mai
+Layout: Họ tên full-width; Email + Vai trò 2 cột chung 1 hàng; Mật khẩu full-width; Địa phương full-width (ẩn/hiện động). Nút: Lưu / Đóng
+Modal Sửa tài khoản — [Archetype 3] Giống Thêm mới, bỏ field Mật khẩu, Email ở dạng disable (◎, không cho sửa). Nút: Lưu / Đóng
+Modal Khóa/Mở khóa — [Archetype 3, biến thể Confirm A4.6] Nội dung: “Bạn có chắc muốn khóa tài khoản [Họ tên]? Tài khoản đang có [X] hồ sơ xử lý dở.” (câu cảnh báo động theo dữ liệu thật, không phải câu chung chung) Nút: Tiếp tục (Danger) / Đóng
+
+C2. COL.01.01 — Quản lý tiêu chí thi đua (Chuyên viên) — [Archetype 1]
+Màn 1: Danh sách Nhóm tiêu chí
+/chuyen-vien/tieu-chi — Vai trò: Chuyên viên
+Cột lưới: Nhóm tiêu chí (trái), Nội dung tiêu chí (trái, cắt bớt “…” nếu dài), Hạn nộp (trái, dd/mm/yyyy), Tiêu chí con (giữa, dạng “3 tiêu chí”), Tổng điểm (phải, số), Ghi chú (trái), Trạng thái (giữa, Badge Đã/chưa áp dụng), Cập nhật lần cuối (trái, “bởi [tên] — dd/mm/yyyy hh:mm”)
+Nút: Thêm mới, Sửa, Xem, Xóa, Tìm kiếm, Áp dụng tiêu chí cho địa phương (→ Modal C3), Đặt thời gian gợi ý công bố kết quả
+Modal Thêm mới Nhóm tiêu chí — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ/Placeholder
+Nội dung
+Text
+★
+Xây dựng khu dân cư văn hóa kiểu mẫu
+Tổng điểm
+Number
+★
+100
+Nhóm tiêu chí
+Text
+★
+Công tác an ninh trật tự
+Hạn nộp
+Date
+—
+30/09/2026
+Ghi chú
+Textarea
+—
+Áp dụng từ quý IV/2026
+Tổng điểm thưởng tối đa được đề xuất
+Number
+—
+10
+Layout: Nội dung full-width; Tổng điểm + Hạn nộp 2 cột chung hàng; Nhóm tiêu chí full-width; Ghi chú + Tổng điểm thưởng tối đa 2 cột chung hàng. Nút: Lưu / Đóng
+Modal Sửa Nhóm tiêu chí — [Archetype 3] — field giống Thêm mới. Nút: Lưu / Đóng. Xử lý riêng: sau khi lưu, tự động tạo Notification tới các địa phương đang áp dụng tiêu chí này.
+Modal Xóa Nhóm tiêu chí — [Archetype 3, Confirm] — Nút: Tiếp tục / Đóng. Nếu “đã sử dụng” → không cho xóa, hiện Toast lỗi: “Không thể xóa — tiêu chí đang được áp dụng cho địa phương”.
+Modal Đặt thời gian gợi ý công bố kết quả — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Thời gian gợi ý công bố kết quả
+Date/time
+★
+15/10/2026 08:00
+Phạm vi: 1 mốc chung toàn hệ thống (System Setting, không lặp theo từng tiêu chí). Khi tới hạn: chỉ hiện Badge nhắc nhở trên Header hoặc đầu Màn 1 cho Chuyên viên, không gửi thông báo vai trò khác. Nút: Lưu / Đóng
+Màn 2: Danh sách Tiêu chí con (mở từ nút Xem ở Màn 1) — [Archetype 1, lồng trong 1]
+/chuyen-vien/tieu-chi/{id}/con — Vai trò: Chuyên viên
+Cột lưới: Điểm thưởng (phải), Nội dung tiêu chí con (trái), Hạn nộp (trái), Điểm (phải), Ghi chú (trái)
+Nút: Thêm mới, Sửa, Xem, Xóa, Tìm kiếm, Áp dụng tiêu chí cho địa phương, Lưu nhóm tiêu chí
+Modal Thêm/Sửa Tiêu chí con — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Nội dung
+Text
+★
+Tổ chức tuyên truyền pháp luật hàng quý
+Tổng Điểm
+Number
+★
+25
+Nhóm tiêu chí
+Text
+★ (chỉ ở modal Sửa)
+Công tác an ninh trật tự
+Hạn nộp
+Date
+—
+30/09/2026
+Ghi chú
+Textarea
+—
+—
+Điểm thưởng tối đa được đề xuất
+Number
+—
+5
+Modal Xem Tiêu chí con — giống Thêm mới, mọi field disable (◎). Modal Xóa Tiêu chí con — [Confirm] — Nút: Tiếp tục / Đóng. Chặn nếu đã sử dụng.
+
+C3. COL.01.02 — Áp dụng tiêu chí cho toàn địa phương
+Modal Áp dụng tiêu chí — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Địa phương
+Multi-select (hoặc chọn “Áp dụng toàn bộ”)
+★
+Phường Tân Mai, Phường Trảng Dài…
+Đính kèm file
+File upload (≤20MB)
+—
+—
+Nút: Áp dụng / Đóng. Xử lý: tạo HoSoThiDua cho từng địa phương chọn + Notification in-app.
+
+C4. COL.01.03 — Quản lý tiêu chí thi đua của Địa phương
+Màn 1: Danh sách Nhóm tiêu chí được giao — [Archetype 1]
+/dia-phuong/tieu-chi — Vai trò: Địa phương
+Cột lưới: Nội dung (trái), Điểm tổng (phải), Hạn nộp (trái), Tên nhóm tiêu chí (trái)
+Nút: Xem, Tìm kiếm
+Màn 2: Chi tiết tự chấm (mở từ Xem) — [Archetype 2, biến thể — chỉ 2 lớp vì Địa phương không cần drill-down qua “danh sách địa phương”]
+/dia-phuong/tieu-chi/{id} — Vai trò: Địa phương
+Cột lưới: Bằng chứng (icon file), Điểm đề xuất (phải), Điểm thưởng đề xuất (phải), Điểm tối đa được đề xuất (phải, chữ mờ), Điểm thưởng tối đa được đề xuất (phải, chữ mờ), Nội dung diễn giải (trái), Yêu cầu chỉnh sửa (Badge cam nếu có)
+Nút: Thêm mới, Sửa, Xóa, Ô điểm tự đánh giá (inline), Gửi yêu cầu, Lưu
+Modal Thêm bằng chứng — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Bằng chứng
+File upload (≤20MB)
+★
+anh-minh-chung.jpg
+Điểm đề xuất
+Number
+★
+8.5
+Điểm thưởng
+Number
+—
+1
+Bằng chứng điểm thưởng
+File upload (≤20MB)
+—
+—
+Diễn giải
+Textarea
+—
+Đã tổ chức 3 buổi tuyên truyền tại khu phố 2
+Nút: Lưu / Đóng
+Modal Sửa — field giống Thêm mới. Chỉ hiện khi hồ sơ ở trạng thái Nháp hoặc có “Yêu cầu chỉnh sửa”. Nút: Lưu / Đóng. Modal Xóa — [Confirm] — Nút: Tiếp tục / Đóng. Modal Gửi yêu cầu — [Confirm] — Nội dung: “Gửi hồ sơ này lên Chuyên viên cấp thành phố?” Nút: Tiếp tục / Đóng. Xử lý: transition Gui, khóa form (trừ khi có yêu cầu chỉnh sửa).
+Màn 3: Lịch sử chấm tiêu chí của Địa phương — [Archetype 4]
+/dia-phuong/tieu-chi/{id}/lich-su — Vai trò: Địa phương
+Nội dung dòng lịch sử: Bằng chứng, Điểm đề xuất, Điểm thưởng đề xuất, Nội dung diễn giải, Ngày giờ, Người dùng
+Nút: Xem, Tìm kiếm
+
+C5. COL.01.04 — Kết quả tiêu chí thi đua của Địa phương — [Archetype 5, read-only]
+Màn 1: Danh sách kết quả
+/dia-phuong/ket-qua — Vai trò: Địa phương
+Cột lưới: Nhóm tiêu chí (trái), Nội dung (trái), Tổng điểm đề xuất (phải), Tổng điểm thưởng (phải), Quyết định kết quả (giữa, Badge lớn), Tổng điểm (phải), Tổng điểm thưởng (phải), Kết quả xếp loại (giữa, Badge lớn), Thứ hạng (phải, “#3/15”)
+Nút: Xem, Tìm kiếm
+Màn 2: Chi tiết kết quả (mở từ Xem)
+/dia-phuong/ket-qua/{id} — Vai trò: Địa phương
+Cột lưới: Nhóm tiêu chí, Nội dung, Tổng điểm đề xuất, Tổng điểm thưởng, Quyết định kết quả
+Toàn bộ chỉ xem, chỉ hiện dữ liệu sau khi hồ sơ DaCongBo
+
+C6. COL.01.05 — Quản lý tiêu chí thi đua cấp Chuyên viên — [Archetype 2 — màn gốc build Generic Approval Screen]
+Màn 1: Danh sách Địa phương
+/chuyen-vien/duyet — Vai trò: Chuyên viên
+Cột lưới: Tên địa phương (trái), Nhóm tiêu chí đã hoàn thành (giữa, “1/9”), Trạng thái hồ sơ (giữa, Badge), Tiêu chí mới được nộp (Badge nhỏ), Yêu cầu chỉnh sửa (Có/Không, Badge cam nếu Có), Cập nhật thông tin mới (Có/Không)
+Nút: Xem, Tìm kiếm
+Màn 2: Danh sách Nhóm kết quả tiêu chí của Địa phương
+/chuyen-vien/duyet/{diaPhuongId} — Cột lưới: Nhóm tiêu chí, Nội dung, Tổng điểm đề xuất (phải), Tổng điểm thưởng (phải), Trạng thái (Badge Chấm/chưa chấm), Yêu cầu chỉnh sửa từ Lãnh đạo ban (Badge cam)
+Màn 3: Chi tiết kết quả tiêu chí (có Status Stepper)
+/chuyen-vien/duyet/{diaPhuongId}/{nhomTieuChiId} — Cột lưới: Bằng chứng, Điểm đề xuất (phải), Điểm thưởng đề xuất (phải), Điểm tối đa được đề xuất (phải, chữ mờ), Điểm thưởng tối đa được đề xuất (phải, chữ mờ), Nội dung diễn giải
+Nút footer: Thêm mới (tiêu chí bổ sung), Sửa (điểm), Xem (bằng chứng), Gửi yêu cầu, Yêu cầu địa phương chỉnh sửa, Cho điểm theo đề xuất (1-click, copy điểm đề xuất → điểm chính thức)
+Modal Thêm tiêu chí bổ sung — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Lí do
+Textarea
+★
+Bổ sung minh chứng còn thiếu theo yêu cầu đối chiếu
+File đính kèm
+File upload (≤20MB)
+—
+—
+Modal Sửa điểm — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Điểm
+Number
+★
+9
+Lý do (nếu khác điểm đề xuất)
+Textarea
+★ (điều kiện)
+Đối chiếu thực tế, minh chứng đầy đủ hơn đề xuất
+Modal Gửi yêu cầu — [Archetype 3, Confirm mở rộng]
+Field
+Loại
+Bắt buộc
+Đính kèm
+File upload
+—
+Diễn giải hồ sơ
+Textarea
+—
+Nút: Gửi yêu cầu / Đóng
+Modal Yêu cầu địa phương chỉnh sửa — [Archetype 3] (Sprint 3, xem B0)
+Field
+Loại
+Bắt buộc
+Ví dụ
+Lí do
+Textarea
+★
+Minh chứng chưa rõ nét, đề nghị bổ sung ảnh chụp thực tế
+Nút: Gửi yêu cầu / Đóng. Xử lý: mở lại quyền sửa cho Địa phương ở Màn 2 COL.01.03.
+
+C7. COL.01.06 — Lịch sử chấm tiêu chí thi đua của Chuyên viên — [Archetype 4]
+/chuyen-vien/lich-su — Nội dung dòng: Người chấm, Thay đổi, Ngày giờ thay đổi điểm, Ngày giờ gửi duyệt, Ngày giờ yêu cầu bổ sung, Lí do sửa điểm — Nút: Xem, Tìm kiếm
+
+C8. COL.01.07 — Quản lý tiêu chí thi đua của Địa phương cấp Lãnh đạo ban — [Archetype 2, tái dùng từ C6]
+Vai trò: ROLE_LANH_DAO_BAN (Trưởng + Phó Ban dùng chung)
+Màn 1: Danh sách Địa phương
+/lanh-dao-ban/duyet — Cột lưới: Tên địa phương, Tiêu chí mới được cập nhật (Badge), Yêu cầu chỉnh sửa (Có/Không), Điểm địa phương đề xuất (phải), Điểm chuyên viên chấm (phải), Điểm thưởng đề xuất (phải), Điểm thưởng chuyên viên chấm (phải), Tổng điểm chuyên viên chấm (phải), Tổng điểm đề xuất (phải), Cập nhật lần cuối, Trạng thái duyệt (Badge)
+Nút: Xem, Tìm kiếm, Duyệt
+Màn 2 & Màn 3: cấu trúc giống hệt C6 Màn 2/3, đổi field prefix “Lãnh đạo” thay “Chuyên viên” khi hiển thị người thực hiện
+Modal Thêm tiêu chí bổ sung / Sửa điểm / Gửi yêu cầu: field giống hệt C6 (dùng chung component) — chỉ khác route gọi và trạng thái tiếp theo (→ ChoDuyetHoiDong).
+Modal Yêu cầu chỉnh sửa — [Archetype 3] (xem B0)
+Field
+Loại
+Bắt buộc
+Ví dụ
+Lí do
+Textarea
+★
+Cần chuyên viên đối chiếu lại minh chứng điểm thưởng
+Nút: Gửi yêu cầu / Đóng. Xử lý: đi tới Chuyên viên (không đi thẳng Địa phương).
+
+C9. COL.01.08 — Lịch sử duyệt tiêu chí thi đua của Lãnh đạo — [Archetype 4]
+/lanh-dao-ban/lich-su — field giống hệt C7.
+
+C10. COL.01.09 — Quản lý tiêu chí thi đua của Địa phương cấp Hội đồng — [Archetype 2, tái dùng]
+Vai trò: ROLE_HOI_DONG_THI_DUA (Chủ tịch + Phó Chủ tịch dùng chung) ✅ Đã xác nhận: cấp này không có Sửa điểm.
+Màn 1: Danh sách Địa phương
+/hoi-dong/duyet — Cột lưới: Tổng điểm (phải), Tổng điểm đề xuất (phải)
+Nút: Xem, Tìm kiếm, Duyệt, Nhận xét, Yêu cầu chỉnh sửa
+Màn 2: Danh sách Nhóm tiêu chí — chỉ Xem, Tìm kiếm (không có Màn 3 riêng vì không sửa điểm)
+Modal Duyệt — [Confirm] — Nội dung: “Duyệt và gửi hồ sơ này lên Ủy ban thường trực?” — Nút: Gửi yêu cầu / Đóng
+Modal Nhận xét địa phương — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Lí do (nội dung nhận xét)
+Textarea
+★
+Địa phương thực hiện tốt công tác tuyên truyền, cần phát huy
+Nút: Gửi yêu cầu / Đóng
+Modal Yêu cầu chỉnh sửa — [Archetype 3] (xem B0) — field giống C8, đi tới Chuyên viên (không qua Lãnh đạo ban).
+
+C11. COL.01.10 — Lịch sử duyệt tiêu chí thi đua của Hội đồng — [Archetype 4]
+/hoi-dong/lich-su — Nội dung dòng: Ngày duyệt, Người duyệt — Nút: Xem, Tìm kiếm
+
+C12. COL.01.11 — Quản lý tiêu chí thi đua của Địa phương cấp Ủy ban — [Archetype 2, biến thể]
+Màn 1: Danh sách Địa phương
+/uy-ban/cong-bo — Cột lưới: Tổng điểm (phải), Tổng điểm đề xuất (phải), Tổng điểm thưởng (phải), Tổng điểm thưởng đề xuất (phải)
+Nút: Xem, Tìm kiếm, Công bố kết quả (nút màu accent vàng — tách biệt với nút Primary đỏ dùng ở các cấp khác, vì đây là hành động không thể hoàn tác)
+Modal Công bố kết quả — [Archetype 3]
+Field
+Loại
+Bắt buộc
+Ví dụ
+Nhận xét đính kèm kết quả cho địa phương
+Textarea
+—
+Chúc mừng địa phương hoàn thành xuất sắc chỉ tiêu thi đua năm 2026
+Đính kèm quyết định
+File upload (≤20MB)
+—
+quyet-dinh-cong-bo.pdf
+Nút: Công bố kết quả (Accent vàng, có Confirm 2 bước vì không thể hoàn tác) / Đóng. Xử lý: ChoCongBo → DaCongBo, khóa vĩnh viễn, đẩy dữ liệu sang COL.01.04.
+Modal Yêu cầu bổ sung — [Archetype 3] (mới, xem B0)
+Field
+Loại
+Bắt buộc
+Ví dụ
+Lí do
+Textarea
+★
+Cần rà soát lại tổng điểm thưởng trước khi công bố chính thức
+Nút: Gửi yêu cầu / Đóng. Xử lý: đi tới Chuyên viên (không qua Hội đồng, không qua Lãnh đạo ban).
+
+C13. COL.01.12 — Lịch sử duyệt tiêu chí thi đua của Ủy ban thường trực — [Archetype 4]
+/uy-ban/lich-su — Nội dung dòng: Người nhận xét, Thời gian nhận xét, Người công bố kết quả, Thời gian công bố kết quả
+
+C14. BẢN ĐỒ TÁI SỬ DỤNG COMPONENT
+Component
+Dùng cho
+Khác nhau ở đâu
+Generic Approval Screen (A5.7, Archetype 2)
+C6, C8, C10, 1 phần C12
+Cột hiển thị, nhãn nút, role check, trạng thái tiếp theo
+Modal “Yêu cầu chỉnh sửa/bổ sung” (đích luôn là Chuyên viên — B0)
+C6 (→Địa phương), C8/C10/C12 (→Chuyên viên)
+Nơi gọi và người nhận trong LichSuThaoTac
+Timeline lịch sử (A5.6, Archetype 4)
+C7, C9, C11, C13, C4-Màn 3
+Chỉ khác nội dung dòng hiển thị
+Modal xác nhận hành động (A4.6)
+C4, C6, C8, C10
+Label và trạng thái đích
+DataGrid + Filter bar (A5.4, A4.3, Archetype 1)
+Toàn bộ 22 màn hình
+—
+Upload file 20MB (A4.2)
+C2, C4, C6/C8, C12
+—
+Status Stepper (A4.9)
+Màn 3 của C6/C8/C10, và C12
+Vị trí hiện tại theo TrangThai
+
+PHẦN D — GHI CHÚ CHUNG & ĐIỂM ĐÃ CHỐT
+D1. Điểm đã xác nhận với PM
+☒ Vai trò Quản lý người dùng → Chuyên viên
+☒ Hội đồng không có Sửa điểm → đúng theo FSD
+☒ “Đặt thời gian gợi ý công bố kết quả” → chỉ Chuyên viên, 1 mốc toàn hệ thống, chỉ hiện badge nhắc nhở (C2)
+☒ Nguyên tắc điều hướng yêu cầu chỉnh sửa/bổ sung → B0
+☒ Font chữ → Be Vietnam Pro (A2.2)
+☒ Bảng màu → Đỏ - Vàng - Trắng, đã tách riêng đỏ thương hiệu (primary #A8202C) và đỏ lỗi (danger #8B2635) để tránh nhầm lẫn khi code (A2.1)
+D2. Ghi chú cho FE
+Xây đủ 33 component + 5 Archetype wireframe (Phần A) trước hoặc trong Sprint 1.
+Khai báo token Mục A2 thành theme config (Tailwind/CSS variables) ngay từ đầu — đặc biệt tách rõ primary và danger trong code để không ai lỡ dùng nhầm 1 biến cho cả 2 mục đích.
+Mỗi màn ở Phần C đều đã gắn nhãn [Archetype X] — implement đúng theo wireframe tương ứng ở Mục A7, không tự sáng tạo layout khác.
+File này thay thế toàn bộ các bản trước đó — chỉ dùng 1 file duy nhất này.

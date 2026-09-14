@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { ForwardSubmissionDialog, StatusStepper } from '@/features/workflow/components';
+import { ForwardSubmissionDialog } from '@/features/workflow/components';
 import { specialistApi, type SubmissionApi, type SubmissionResultFile } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, getFilesApiError } from '@/features/files/api/filesApi';
 
@@ -106,34 +106,35 @@ const supplementarySchema = z.object({
 
 type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
-function createScoreSchema(item: SpecialistCriteriaItem) {
-  return z.object({
-    score: z.coerce
-      .number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' })
-      .min(0, 'Điểm chấm không được nhỏ hơn 0.')
-      .max(item.maxProposedScore, `Điểm chấm không được vượt quá ${item.maxProposedScore}.`),
-    bonusScore: z.coerce
-      .number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' })
-      .min(0, 'Điểm thưởng không được nhỏ hơn 0.')
-      .max(item.maxProposedBonusScore, `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.`),
-    scoreReason: z.string().trim(),
-  }).superRefine((value, context) => {
-    const scoreChanged = value.score !== item.proposedScore || value.bonusScore !== item.proposedBonusScore;
-    if (scoreChanged && !value.scoreReason) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Vui lòng nhập lý do khi điểm chấm khác điểm địa phương đề xuất.',
-        path: ['scoreReason'],
-      });
-    }
-  });
-}
-
-type ScoreForm = {
-  score: number;
-  bonusScore: number;
-  scoreReason: string;
-};
+// function createScoreSchema(item: SpecialistCriteriaItem) {
+//   return z.object({
+//     score: z.coerce
+//       .number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' })
+//       .min(0, 'Điểm chấm không được nhỏ hơn 0.')
+//       .max(item.maxProposedScore, `Điểm chấm không được vượt quá ${item.maxProposedScore}.`),
+//     bonusScore: z.coerce
+//       .number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' })
+//       .min(0, 'Điểm thưởng không được nhỏ hơn 0.')
+//       .max(item.maxProposedBonusScore, `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.`),
+//     // scoreReason: z.string().trim(),
+//   });
+//   // }).superRefine((value, context) => {
+//   //   const scoreChanged = value.score !== item.proposedScore || value.bonusScore !== item.proposedBonusScore;
+//   //   if (scoreChanged && !value.scoreReason) {
+//   //     context.addIssue({
+//   //       code: z.ZodIssueCode.custom,
+//   //       message: 'Vui lòng nhập lý do khi điểm chấm khác điểm địa phương đề xuất.',
+//   //       path: ['scoreReason'],
+//   //     });
+//   //   }
+//   // });
+// }
+//
+// type ScoreForm = {
+//   score: number;
+//   bonusScore: number;
+//   // scoreReason: string;
+// };
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
@@ -206,84 +207,87 @@ function SupplementaryDialog({
   );
 }
 
-function ScoreDialog({
-  item,
-  open,
-  onOpenChange,
-  onSave,
-}: {
-  item: SpecialistCriteriaItem | undefined;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (values: ScoreForm) => void;
-}) {
-  const schema = useMemo(() => createScoreSchema(item ?? {
-    id: '', code: '', title: '', evidenceFiles: [], proposedScore: 0, proposedBonusScore: 0,
-    maxProposedScore: 0, maxProposedBonusScore: 0, explanation: '', officialScore: null,
-    officialBonusScore: null, scoreReason: '',
-  }), [item]);
-  const form = useForm<ScoreForm>({
-    resolver: zodResolver(schema),
-    defaultValues: { score: 0, bonusScore: 0, scoreReason: '' },
-  });
-
-  useEffect(() => {
-    if (!open || !item) return;
-    form.reset({
-      score: item.officialScore ?? item.proposedScore,
-      bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
-      scoreReason: item.scoreReason,
-    });
-  }, [form, item, open]);
-
-  if (!item) return null;
-
-  const isEditing = item.officialScore !== null || item.officialBonusScore !== null;
-
-  return (
-    <FormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={isEditing ? 'Sửa điểm chấm' : 'Chấm điểm'}
-      description={item.title}
-      onSubmit={form.handleSubmit((values) => {
-        onSave(values);
-        onOpenChange(false);
-      })}
-      submitLabel="Lưu điểm"
-      cancelLabel="Đóng"
-    >
-      <div className="rounded-md border border-border bg-muted/40 p-4 text-sm">
-        <p className="text-xs font-medium text-muted-foreground">Địa phương đề xuất</p>
-        <div className="mt-2 grid grid-cols-2 gap-3">
-          <div><span className="text-xs text-muted-foreground">Điểm</span><p className="mt-0.5 font-semibold tabular-nums">{item.proposedScore} <span className="font-normal text-muted-foreground">/ {item.maxProposedScore}</span></p></div>
-          <div><span className="text-xs text-muted-foreground">Điểm thưởng</span><p className="mt-0.5 font-semibold tabular-nums">{item.proposedBonusScore} <span className="font-normal text-muted-foreground">/ {item.maxProposedBonusScore}</span></p></div>
-        </div>
-      </div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="specialist-score">Điểm <span className="text-destructive">★</span></Label>
-          <Input id="specialist-score" type="number" min={0} max={item.maxProposedScore} step="0.25" className="text-right tabular-nums" {...form.register('score', { valueAsNumber: true })} />
-          {form.formState.errors.score && <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-destructive">★</span></Label>
-          <Input id="specialist-bonus-score" type="number" min={0} max={item.maxProposedBonusScore} step="0.25" className="text-right tabular-nums" {...form.register('bonusScore', { valueAsNumber: true })} />
-          {form.formState.errors.bonusScore && <p className="text-xs text-destructive">{form.formState.errors.bonusScore.message}</p>}
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác điểm đề xuất)</span></Label>
-        <Textarea id="specialist-score-reason" rows={3} className="resize-y" placeholder="Ví dụ: Đối chiếu minh chứng thực tế, điều chỉnh điểm phù hợp." {...form.register('scoreReason')} />
-        {form.formState.errors.scoreReason && <p className="text-xs text-destructive">{form.formState.errors.scoreReason.message}</p>}
-      </div>
-    </FormDialog>
-  );
-}
+// function ScoreDialog({
+//   item,
+//   open,
+//   onOpenChange,
+//   onSave,
+// }: {
+//   item: SpecialistCriteriaItem | undefined;
+//   open: boolean;
+//   onOpenChange: (open: boolean) => void;
+//   onSave: (values: ScoreForm) => void;
+// }) {
+//   const schema = useMemo(() => createScoreSchema(item ?? {
+//     id: '', code: '', title: '', evidenceFiles: [], proposedScore: 0, proposedBonusScore: 0,
+//     maxProposedScore: 0, maxProposedBonusScore: 0, explanation: '', officialScore: null,
+//     officialBonusScore: null, scoreReason: '',
+//   }), [item]);
+//   const form = useForm<ScoreForm>({
+//     resolver: zodResolver(schema),
+//     defaultValues: { score: 0, bonusScore: 0 /*, scoreReason: '' */ },
+//   });
+//
+//   useEffect(() => {
+//     if (!open || !item) return;
+//     form.reset({
+//       score: item.officialScore ?? item.proposedScore,
+//       bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
+//       // scoreReason: item.scoreReason,
+//     });
+//   }, [form, item, open]);
+//
+//   if (!item) return null;
+//
+//   const isEditing = item.officialScore !== null || item.officialBonusScore !== null;
+//
+//   return (
+//     <FormDialog
+//       open={open}
+//       onOpenChange={onOpenChange}
+//       title={isEditing ? 'Sửa điểm chấm' : 'Chấm điểm'}
+//       description={item.title}
+//       onSubmit={form.handleSubmit((values) => {
+//         onSave(values);
+//         onOpenChange(false);
+//       })}
+//       submitLabel="Lưu điểm"
+//       cancelLabel="Đóng"
+//     >
+//       <div className="rounded-md border border-border bg-muted/40 p-4 text-sm">
+//         <p className="text-xs font-medium text-muted-foreground">Địa phương đề xuất</p>
+//         <div className="mt-2 grid grid-cols-2 gap-3">
+//           <div><span className="text-xs text-muted-foreground">Điểm</span><p className="mt-0.5 font-semibold tabular-nums">{item.proposedScore} <span className="font-normal text-muted-foreground">/ {item.maxProposedScore}</span></p></div>
+//           <div><span className="text-xs text-muted-foreground">Điểm thưởng</span><p className="mt-0.5 font-semibold tabular-nums">{item.proposedBonusScore} <span className="font-normal text-muted-foreground">/ {item.maxProposedBonusScore}</span></p></div>
+//         </div>
+//       </div>
+//       <div className="grid gap-5 sm:grid-cols-2">
+//         <div className="space-y-1.5">
+//           <Label htmlFor="specialist-score">Điểm <span className="text-destructive">★</span></Label>
+//           <Input id="specialist-score" type="number" min={0} max={item.maxProposedScore} step="0.25" className="text-right tabular-nums" {...form.register('score', { valueAsNumber: true })} />
+//           {form.formState.errors.score && <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>}
+//         </div>
+//         <div className="space-y-1.5">
+//           <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-destructive">★</span></Label>
+//           <Input id="specialist-bonus-score" type="number" min={0} max={item.maxProposedBonusScore} step="0.25" className="text-right tabular-nums" {...form.register('bonusScore', { valueAsNumber: true })} />
+//           {form.formState.errors.bonusScore && <p className="text-xs text-destructive">{form.formState.errors.bonusScore.message}</p>}
+//         </div>
+//       </div>
+//       {/* <div className="space-y-1.5">
+//         <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác điểm đề xuất)</span></Label>
+//         <Textarea id="specialist-score-reason" rows={3} className="resize-y" placeholder="Ví dụ: Đối chiếu minh chứng thực tế, điều chỉnh điểm phù hợp." {...form.register('scoreReason')} />
+//         {form.formState.errors.scoreReason && <p className="text-xs text-destructive">{form.formState.errors.scoreReason.message}</p>}
+//       </div> */}
+//     </FormDialog>
+//   );
+// }
 
 const revisionSchema = z.object({
   reason: z.string().trim().min(1, 'Vui lòng nhập nội dung yêu cầu chỉnh sửa.'),
+  file: z.instanceof(File).nullable().refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
 });
+
+type RevisionForm = z.infer<typeof revisionSchema>;
 
 function RevisionDialog({
   open,
@@ -294,15 +298,16 @@ function RevisionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   localityName: string;
-  onSubmit: (reason: string) => void;
+  onSubmit: (reason: string, file: File | null) => void;
 }) {
-  const form = useForm<z.infer<typeof revisionSchema>>({
+  const form = useForm<RevisionForm>({
     resolver: zodResolver(revisionSchema),
-    defaultValues: { reason: '' },
+    defaultValues: { reason: '', file: null },
   });
+  const selectedFile = form.watch('file');
 
   useEffect(() => {
-    if (open) form.reset({ reason: '' });
+    if (open) form.reset({ reason: '', file: null });
   }, [form, open]);
 
   return (
@@ -311,8 +316,8 @@ function RevisionDialog({
       onOpenChange={onOpenChange}
       title="Yêu cầu địa phương chỉnh sửa"
       description={`Mở lại quyền sửa hồ sơ cho ${localityName}.`}
-      onSubmit={form.handleSubmit(({ reason }) => {
-        onSubmit(reason);
+      onSubmit={form.handleSubmit(({ reason, file }) => {
+        onSubmit(reason, file);
         onOpenChange(false);
       })}
       submitLabel="Gửi yêu cầu"
@@ -322,6 +327,16 @@ function RevisionDialog({
         <Label htmlFor="revision-reason">Nội dung yêu cầu chỉnh sửa <span className="text-destructive">★</span></Label>
         <Textarea id="revision-reason" rows={4} {...form.register('reason')} placeholder="Ví dụ: Minh chứng chưa rõ nét, đề nghị bổ sung ảnh chụp thực tế" />
         {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label>File đính kèm</Label>
+        <FileUpload
+          value={selectedFile ? [selectedFile] : []}
+          onChange={(files) => form.setValue('file', files[0] ?? null, { shouldValidate: true })}
+          multiple={false}
+          maxSizeMb={20}
+          error={form.formState.errors.file?.message}
+        />
       </div>
     </FormDialog>
   );
@@ -415,7 +430,6 @@ export default function SpecialistReviewPage() {
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
-  const [scoringCriterionId, setScoringCriterionId] = useState<string | null>(null);
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const allSubmissionsQuery = useQuery({
@@ -875,12 +889,9 @@ export default function SpecialistReviewPage() {
   }
 
   const displayGroup = applyOverrides(selectedGroup);
-  const selectedCriterion = selectedCriterionId
-    ? displayGroup.items.find((item) => item.id === selectedCriterionId)
-    : undefined;
-  const scoringItem = scoringCriterionId
-    ? displayGroup.items.find((item) => item.id === scoringCriterionId)
-    : undefined;
+  // const selectedCriterion = selectedCriterionId
+  //   ? displayGroup.items.find((item) => item.id === selectedCriterionId)
+  //   : undefined;
 
   const copyProposedScores = () => {
     const newOverrides = new Map(scoreOverrides);
@@ -889,7 +900,7 @@ export default function SpecialistReviewPage() {
         ...newOverrides.get(item.id),
         officialScore: item.proposedScore,
         officialBonusScore: item.proposedBonusScore,
-        scoreReason: item.isAddedBySpecialist ? item.scoreReason : '',
+        // scoreReason: item.isAddedBySpecialist ? item.scoreReason : '',
       });
     }
     setScoreOverrides(newOverrides);
@@ -906,57 +917,15 @@ export default function SpecialistReviewPage() {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
     }
-    const missingReason = displayGroup.items.some((item) => {
-      const changed = item.officialScore !== item.proposedScore || item.officialBonusScore !== item.proposedBonusScore;
-      return changed && !item.scoreReason.trim();
-    });
-    if (missingReason) {
-      toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
-      return;
-    }
+    // const missingReason = displayGroup.items.some((item) => {
+    //   const changed = item.officialScore !== item.proposedScore || item.officialBonusScore !== item.proposedBonusScore;
+    //   return changed && !item.scoreReason.trim();
+    // });
+    // if (missingReason) {
+    //   toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
+    //   return;
+    // }
     setForwardOpen(true);
-  };
-
-  const buildScoreItems = () => {
-    const results = selectedSubmissionDetailQuery.data?.results ?? [];
-    return displayGroup.items
-      .filter((item) => item.officialScore !== null && item.officialBonusScore !== null)
-      .map((item) => {
-        const result = results.find((r) => r.criteriaId === item.id);
-        if (!result) return null;
-        return {
-          submissionResultId: result.id,
-          point: item.officialScore!,
-          bonusPoint: item.officialBonusScore!,
-          reason: item.scoreReason.trim() || null,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-  };
-
-  const saveDraftScores = async () => {
-    const submission = submissionByGroup.get(selectedGroup.id);
-    if (!submission) {
-      toast.error('Nhóm này chưa có hồ sơ để chấm điểm.');
-      return;
-    }
-    const items = buildScoreItems();
-    if (items.length === 0) {
-      toast.info('Chưa có điểm nào để lưu nháp.');
-      return;
-    }
-    setSavingDraft(true);
-    try {
-      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', items });
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
-      setScoreOverrides(new Map());
-      toast.success('Đã lưu nháp điểm chấm.');
-    } catch (error) {
-      toast.error('Không lưu được bản nháp điểm chấm.', { description: getFilesApiError(error) });
-    } finally {
-      setSavingDraft(false);
-    }
   };
 
   const confirmForward = async () => {
@@ -1000,7 +969,7 @@ export default function SpecialistReviewPage() {
         actions={<Button variant="outline" render={<Link to={`/chuyen-vien/duyet/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
       />
 
-      <StatusStepper state="CHO_CHUYEN_VIEN" hasRevisionRequest={selectedGroup.hasModificationRequest} />
+      {/* <StatusStepper state="CHO_CHUYEN_VIEN" hasRevisionRequest={selectedGroup.hasModificationRequest} /> */}
 
       {selectedGroup.modificationNote && (
         <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
@@ -1013,17 +982,6 @@ export default function SpecialistReviewPage() {
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
           countLabel={`${selectedGroup.items.length} tiêu chí`}
-          actions={(
-            <Button
-              size="sm"
-              variant={!selectedCriterion || selectedCriterion.officialScore === null ? 'default' : 'outline'}
-              disabled={!selectedCriterion}
-              onClick={() => selectedCriterion && setScoringCriterionId(selectedCriterion.id)}
-            >
-              <Edit3 className="size-4" />
-              {!selectedCriterion || selectedCriterion.officialScore === null ? 'Chấm điểm' : 'Sửa điểm'}
-            </Button>
-          )}
         />
 
         <div className="hidden xl:block">
@@ -1051,7 +1009,6 @@ export default function SpecialistReviewPage() {
                   aria-selected={selectedCriterionId === item.id}
                   className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/10 hover:bg-primary/10' : 'cursor-pointer align-top hover:bg-muted'}
                   onClick={() => setSelectedCriterionId(item.id)}
-                  onDoubleClick={() => setScoringCriterionId(item.id)}
                 >
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
                     <p className="font-semibold leading-5 text-foreground">{item.title}</p>
@@ -1061,15 +1018,41 @@ export default function SpecialistReviewPage() {
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><EvidenceList files={item.evidenceFiles} /></TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
-                  <TableCell className="whitespace-normal px-4 py-5">
-                    {item.officialScore === null || item.officialBonusScore === null ? (
-                      <p className="text-sm text-muted-foreground">Chưa chấm điểm</p>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm</p><p className="mt-1 font-semibold tabular-nums">{item.officialScore}</p></div>
-                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-1 font-semibold tabular-nums">{item.officialBonusScore}</p></div>
+                  <TableCell className="whitespace-normal px-4 py-5" onClick={(event) => event.stopPropagation()}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Điểm</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.maxProposedScore}
+                          step="0.25"
+                          className="text-right tabular-nums"
+                          value={item.officialScore ?? ''}
+                          placeholder="—"
+                          onChange={(event) => {
+                            const value = event.target.value === '' ? null : Number(event.target.value);
+                            updateCriterion(item.id, { officialScore: value });
+                          }}
+                        />
                       </div>
-                    )}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Điểm thưởng</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.maxProposedBonusScore}
+                          step="0.25"
+                          className="text-right tabular-nums"
+                          value={item.officialBonusScore ?? ''}
+                          placeholder="—"
+                          onChange={(event) => {
+                            const value = event.target.value === '' ? null : Number(event.target.value);
+                            updateCriterion(item.id, { officialBonusScore: value });
+                          }}
+                        />
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1106,17 +1089,40 @@ export default function SpecialistReviewPage() {
                   </div>
                   <div className="border-t border-border pt-4">
                     <h4 className="text-xs font-semibold text-foreground">Chuyên viên chấm</h4>
-                    {item.officialScore === null || item.officialBonusScore === null ? (
-                      <p className="mt-2 text-sm text-muted-foreground">Chưa chấm điểm</p>
-                    ) : (
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                        <div className="rounded-md border border-border bg-background px-3 py-2"><p className="text-xs text-muted-foreground">Điểm</p><p className="mt-1 font-semibold tabular-nums">{item.officialScore}</p></div>
-                        <div className="rounded-md border border-border bg-background px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-1 font-semibold tabular-nums">{item.officialBonusScore}</p></div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Điểm</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.maxProposedScore}
+                          step="0.25"
+                          className="text-right tabular-nums"
+                          value={item.officialScore ?? ''}
+                          placeholder="—"
+                          onChange={(event) => {
+                            const value = event.target.value === '' ? null : Number(event.target.value);
+                            updateCriterion(item.id, { officialScore: value });
+                          }}
+                        />
                       </div>
-                    )}
-                    <Button className="mt-3 w-full" variant={item.officialScore === null ? 'default' : 'outline'} onClick={() => setScoringCriterionId(item.id)}>
-                      <Edit3 className="size-4" />{item.officialScore === null ? 'Chấm điểm' : 'Sửa điểm'}
-                    </Button>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Điểm thưởng</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={item.maxProposedBonusScore}
+                          step="0.25"
+                          className="text-right tabular-nums"
+                          value={item.officialBonusScore ?? ''}
+                          placeholder="—"
+                          onChange={(event) => {
+                            const value = event.target.value === '' ? null : Number(event.target.value);
+                            updateCriterion(item.id, { officialBonusScore: value });
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1139,23 +1145,6 @@ export default function SpecialistReviewPage() {
           </div>
         </div>
       </div>
-
-      <ScoreDialog
-        item={scoringItem}
-        open={Boolean(scoringItem)}
-        onOpenChange={(open) => {
-          if (!open) setScoringCriterionId(null);
-        }}
-        onSave={({ score, bonusScore, scoreReason }) => {
-          if (!scoringItem) return;
-          updateCriterion(scoringItem.id, {
-            officialScore: score,
-            officialBonusScore: bonusScore,
-            scoreReason,
-          });
-          toast.success('Đã lưu điểm chấm của Chuyên viên.');
-        }}
-      />
 
       <SupplementaryDialog
         open={supplementaryOpen}
@@ -1185,8 +1174,10 @@ export default function SpecialistReviewPage() {
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
         localityName={district.localityName}
-        onSubmit={(reason) => {
-          toast.info('Yêu cầu chỉnh sửa đã được ghi nhận cục bộ.', { description: reason });
+        onSubmit={(reason, file) => {
+          toast.info('Yêu cầu chỉnh sửa đã được ghi nhận cục bộ.', {
+            description: file ? `${reason} (kèm file: ${file.name})` : reason,
+          });
         }}
       />
       <ForwardSubmissionDialog
