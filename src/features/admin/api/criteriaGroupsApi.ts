@@ -78,12 +78,17 @@ export interface CriteriaGroupPayload {
 }
 
 export interface CriteriaPayload {
-  type: 'Standard';
+  type: 'Standard' | 'Supplementary';
   content: string;
   maxPoint: number;
   maxBonusPoint: number;
   deadline?: string | null;
   note?: string;
+}
+
+export interface CreateCriteriaPayload extends CriteriaPayload {
+  criteriaGroupId: string;
+  fileIds?: string[];
 }
 
 export type SortOrder = 'asc' | 'desc';
@@ -109,6 +114,8 @@ export const criteriaGroupsApi = {
   create: (payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: '/api/v1/criteria-groups', method: 'POST', data: payload }),
   update: (id: string, payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'PUT', data: payload }),
   apply: (criteriaGroupId: string) => request<{ applied: true; criteriaGroupIds: string[] }>({ url: '/api/v1/criteria-groups/apply', method: 'POST', data: { criteriaGroupIds: [criteriaGroupId] } }),
+  createCriteria: (payload: CreateCriteriaPayload) =>
+    request<CriteriaApi>({ url: '/api/v1/criteria', method: 'POST', data: payload }),
   listCriteria: (groupId: string, params?: {
     search?: string;
     type?: CriteriaApi['type'];

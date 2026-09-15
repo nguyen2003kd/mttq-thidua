@@ -18,11 +18,12 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Plus, Eye, Pencil, Send, Calendar, Info } from 'lucide-react';
+import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
@@ -32,7 +33,7 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   totalScore: group.maxPoint,
   content: group.content ?? undefined,
   status: toTableStatus(group.status),
-  criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
+  criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, type: criterion.type, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
   assignedLocalityCount: group.status === 'Applied' ? 1 : 0,
   openDate: group.createdAt,
   closeDate: group.deadline ?? '',
@@ -171,6 +172,29 @@ export default function CriteriaListPage() {
     setOpen(true);
   };
 
+  const openApplyDialog = async (table: CriteriaTable) => {
+    setSaving(true);
+    try {
+      const latestGroup = await criteriaGroupsApi.get(table.id);
+      const latestTable = toCriteriaTable(latestGroup);
+      const validation = validateCriteriaApplication(
+        latestTable.totalScore,
+        latestTable.criteria.map((item) => item.maxScore),
+      );
+      if (!validation.success) {
+        toast.error(validation.message);
+        return;
+      }
+      setApplyFiles([]);
+      setApplyError('');
+      setApplyTable(latestTable);
+    } catch (error) {
+      toast.error(getCriteriaApiError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsedTotalScore = Number(totalScore);
@@ -304,7 +328,7 @@ export default function CriteriaListPage() {
                 <Button
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT'}
                   title={selectedTable && selectedTable.status !== 'DRAFT' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.' : undefined}
-                  onClick={() => { if (selectedTable && selectedTable.status === 'DRAFT') { setApplyFiles([]); setApplyError(''); setApplyTable(selectedTable); } }}
+                  onClick={() => { if (selectedTable && selectedTable.status === 'DRAFT') void openApplyDialog(selectedTable); }}
                 >
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
@@ -386,13 +410,17 @@ export default function CriteriaListPage() {
           event.preventDefault();
           if (!applyTable) return;
           if (applyFiles.some((file) => file.size > 20 * 1024 * 1024)) { setApplyError('File thông báo không được vượt quá 20MB.'); return; }
-          const totalMax = applyTable.criteria.reduce((sum, item) => sum + (item.maxScore || 0), 0);
-          if (totalMax > applyTable.totalScore) {
-            setApplyError(`Tổng điểm tối đa của các tiêu chí (${totalMax.toFixed(2)}) vượt quá điểm tối đa của nhóm (${applyTable.totalScore.toFixed(2)}). Hãy chỉnh sửa điểm tiêu chí trước khi áp dụng.`);
-            return;
-          }
           setSaving(true);
           try {
+            const latestGroup = await criteriaGroupsApi.get(applyTable.id);
+            const validation = validateCriteriaApplication(
+              latestGroup.maxPoint,
+              latestGroup.criteria.map((item) => item.maxPoint),
+            );
+            if (!validation.success) {
+              setApplyError(validation.message ?? 'Không thể áp dụng nhóm tiêu chí.');
+              return;
+            }
             await criteriaGroupsApi.apply(applyTable.id);
             if (applyFiles.length > 0) {
               try {
@@ -412,8 +440,9 @@ export default function CriteriaListPage() {
         <div className="rounded-md border border-primary/20 bg-primary/[0.04] p-3"><p className="font-medium">Địa phương <span className="text-destructive">★</span></p><p className="mt-1 text-sm text-muted-foreground">Áp dụng toàn bộ {localities.length} địa phương</p></div>
         <div className="space-y-1.5">
           <Label>Đính kèm file thông báo</Label>
-          <FileUpload value={applyFiles} onChange={setApplyFiles} uploading={fileUploading} uploadProgress={fileProgress} error={applyError} />
+          <FileUpload value={applyFiles} onChange={(files) => { setApplyFiles(files); setApplyError(''); }} uploading={fileUploading} uploadProgress={fileProgress} />
         </div>
+        {applyError && <p role="alert" className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm font-medium text-danger"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{applyError}</p>}
       </FormDialog>
 
       <FormDialog

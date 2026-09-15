@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FileUpload, FormDialog, PageHeader } from '@/components/core';
+import { Button, EmptyState, FileUpload, FormDialog, PageHeader, PageLoading } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -190,6 +190,7 @@ function SupplementaryDialog({
       })}
       submitLabel="Lưu"
       cancelLabel="Đóng"
+      size="max-w-3xl sm:max-w-3xl"
     >
       <div className="space-y-1.5">
         <Label htmlFor="supplementary-reason">Lý do bổ sung <span className="text-destructive">★</span></Label>
@@ -477,6 +478,43 @@ function ProposedScoreSummary({ item }: { item: SpecialistCriteriaItem }) {
   );
 }
 
+function SpecialistScoreInput({
+  label,
+  value,
+  maximum,
+  onFocus,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  maximum: number;
+  onFocus: () => void;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <div className="min-w-0 max-w-[132px] space-y-1.5">
+      <Label className="block truncate text-[11px] font-medium leading-none text-muted-foreground">{label}</Label>
+      <div className="group relative flex h-9 min-w-[104px] items-center rounded-md border border-border bg-background transition-[border-color,box-shadow,background-color] duration-200 hover:border-primary/30 focus-within:border-primary focus-within:bg-primary/[0.02] focus-within:ring-2 focus-within:ring-primary/10">
+        <Input
+          aria-label={`${label}, tối đa ${maximum} điểm`}
+          type="number"
+          min={0}
+          max={maximum}
+          step="0.25"
+          className="h-full min-w-0 flex-1 appearance-none rounded-md border-0 bg-transparent py-0 pl-2.5 pr-14 text-right text-sm font-semibold tabular-nums text-foreground shadow-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          value={value ?? ''}
+          placeholder="—"
+          onFocus={onFocus}
+          onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
+        />
+        <span className="pointer-events-none absolute right-1.5 top-1/2 inline-flex -translate-y-1/2 items-center rounded-[4px] bg-success/10 px-1.5 py-1 text-[11px] font-semibold leading-none tabular-nums text-success transition-colors group-focus-within:bg-success/15">
+          /{maximum}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function SpecialistReviewPage() {
   const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
   const navigate = useNavigate();
@@ -679,7 +717,7 @@ export default function SpecialistReviewPage() {
     const visibleRows = filteredLocalityRows;
     const selectedLocality = visibleRows.find((row) => row.localityId === selectedLocalityId);
     if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
-      return <div className="mx-auto w-full max-w-[1480px] space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
+      return <div className="mx-auto w-full max-w-[1480px] space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
     }
     if (allSubmissionsQuery.isError || groupsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getFilesApiError(allSubmissionsQuery.error ?? groupsQuery.error)} />;
@@ -846,9 +884,9 @@ export default function SpecialistReviewPage() {
           </div>
         </section>
 
-        <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+        <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Nhóm tiêu chí thi đua" countLabel={`${filteredGroups.length} nhóm tiêu chí`} />
-          <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-4 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="relative w-full max-w-xl sm:flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -874,7 +912,7 @@ export default function SpecialistReviewPage() {
             </div>
           </div>
 
-          <div className="hidden xl:block">
+          <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
             <Table className="w-full min-w-[1180px] table-fixed">
               <colgroup>
                 <col className="w-[23%]" />
@@ -885,7 +923,7 @@ export default function SpecialistReviewPage() {
                 <col className="w-[12%]" />
               </colgroup>
               <TableHeader>
-                <TableRow className="bg-primary hover:bg-primary">
+                <TableRow className="sticky top-[73px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
@@ -1143,38 +1181,20 @@ export default function SpecialistReviewPage() {
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
                   <TableCell className="whitespace-normal px-4 py-5" onClick={(event) => event.stopPropagation()}>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Điểm</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={item.maxProposedScore}
-                          step="0.25"
-                          className="text-right tabular-nums"
-                          value={item.officialScore ?? ''}
-                          placeholder="—"
-                          onChange={(event) => {
-                            const value = event.target.value === '' ? null : Number(event.target.value);
-                            updateCriterion(item.id, { officialScore: value });
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Điểm thưởng</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={item.maxProposedBonusScore}
-                          step="0.25"
-                          className="text-right tabular-nums"
-                          value={item.officialBonusScore ?? ''}
-                          placeholder="—"
-                          onChange={(event) => {
-                            const value = event.target.value === '' ? null : Number(event.target.value);
-                            updateCriterion(item.id, { officialBonusScore: value });
-                          }}
-                        />
-                      </div>
+                      <SpecialistScoreInput
+                        label="Điểm"
+                        value={item.officialScore}
+                        maximum={item.maxProposedScore}
+                        onFocus={() => setSelectedCriterionId(item.id)}
+                        onChange={(value) => updateCriterion(item.id, { officialScore: value })}
+                      />
+                      <SpecialistScoreInput
+                        label="Điểm thưởng"
+                        value={item.officialBonusScore}
+                        maximum={item.maxProposedBonusScore}
+                        onFocus={() => setSelectedCriterionId(item.id)}
+                        onChange={(value) => updateCriterion(item.id, { officialBonusScore: value })}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1221,38 +1241,20 @@ export default function SpecialistReviewPage() {
                   <div className="border-t border-border pt-4">
                     <h4 className="text-xs font-semibold text-foreground">Chuyên viên chấm</h4>
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Điểm</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={item.maxProposedScore}
-                          step="0.25"
-                          className="text-right tabular-nums"
-                          value={item.officialScore ?? ''}
-                          placeholder="—"
-                          onChange={(event) => {
-                            const value = event.target.value === '' ? null : Number(event.target.value);
-                            updateCriterion(item.id, { officialScore: value });
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Điểm thưởng</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={item.maxProposedBonusScore}
-                          step="0.25"
-                          className="text-right tabular-nums"
-                          value={item.officialBonusScore ?? ''}
-                          placeholder="—"
-                          onChange={(event) => {
-                            const value = event.target.value === '' ? null : Number(event.target.value);
-                            updateCriterion(item.id, { officialBonusScore: value });
-                          }}
-                        />
-                      </div>
+                      <SpecialistScoreInput
+                        label="Điểm"
+                        value={item.officialScore}
+                        maximum={item.maxProposedScore}
+                        onFocus={() => setSelectedCriterionId(item.id)}
+                        onChange={(value) => updateCriterion(item.id, { officialScore: value })}
+                      />
+                      <SpecialistScoreInput
+                        label="Điểm thưởng"
+                        value={item.officialBonusScore}
+                        maximum={item.maxProposedBonusScore}
+                        onFocus={() => setSelectedCriterionId(item.id)}
+                        onChange={(value) => updateCriterion(item.id, { officialBonusScore: value })}
+                      />
                     </div>
                   </div>
                 </div>

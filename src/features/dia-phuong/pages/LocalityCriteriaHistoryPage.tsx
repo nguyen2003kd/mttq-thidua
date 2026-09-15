@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
-import { AuditTimeline, Button, EmptyState, PageHeader } from '@/components/core';
+import { AuditTimeline, Button, EmptyState, PageHeader, PageLoading } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/store/authStore';
 import type { AuditEntry } from '@/types/domain';
@@ -78,7 +78,7 @@ export default function LocalityCriteriaHistoryPage() {
   }
 
   if (groupQuery.isLoading) {
-    return <div className="space-y-5"><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
+    return <PageLoading label="Đang tải lịch sử tiêu chí…" />;
   }
 
   const table = groupQuery.data ? mapCriteriaGroupToTable(groupQuery.data) : null;

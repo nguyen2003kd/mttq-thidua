@@ -9,6 +9,7 @@ import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useScoreStore } from '@/store/scoreStore';
+import { GlobalApiLoading, PageLoading } from '@/components/core';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -41,14 +42,6 @@ const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/Local
 
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
 
-function Loading() {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  );
-}
-
 function ScoreRedirect() {
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const target = criteriaTables.find((t) => t.status === 'ACTIVE') ?? criteriaTables[0];
@@ -73,10 +66,11 @@ function AuthEvents() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <GlobalApiLoading />
       <BrowserRouter>
         <AuthEvents />
         <Toaster position="bottom-right" duration={4000} richColors closeButton />
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={<PageLoading label="Đang tải trang…" className="min-h-dvh" />}>
           <Routes>
             {/* Login */}
             <Route path={ROUTES.LOGIN} element={<LoginPage />} />

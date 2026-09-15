@@ -6,4 +6,6 @@ export interface ApprovalScoreItem {
   point?: number | null;
   /** @nullable */
   bonusPoint?: number | null;
+  /** @nullable */
+  reason?: string | null;
 }

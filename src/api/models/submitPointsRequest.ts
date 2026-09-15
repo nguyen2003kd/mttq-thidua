@@ -5,4 +5,5 @@ export interface SubmitPointsRequest {
   submissionId?: string;
   /** @nullable */
   items?: SubmitPointItem[] | null;
+  isDraft?: boolean;
 }

@@ -19,8 +19,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CreateSubmissionRequest,
   GetApiV1CriteriaGroupsGroupIdSubmissionsParams,
   GetApiV1MySubmissionsParams,
+  GetApiV1SubmissionsParams,
   SubmitPointsRequest
 } from '../models';
 
@@ -47,7 +49,155 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getApiV1SubmissionsId = (
+export const getApiV1Submissions = (
+    params?: GetApiV1SubmissionsParams,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/submissions`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getGetApiV1SubmissionsQueryKey = (params?: GetApiV1SubmissionsParams,) => {
+    return [
+    `/api/v1/submissions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetApiV1SubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Submissions>>, TError = unknown>(params?: GetApiV1SubmissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiV1SubmissionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1Submissions>>> = ({ signal }) => getApiV1Submissions(params, requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiV1SubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1Submissions>>>
+export type GetApiV1SubmissionsQueryError = unknown
+
+
+export function useGetApiV1Submissions<TData = Awaited<ReturnType<typeof getApiV1Submissions>>, TError = unknown>(
+ params: undefined |  GetApiV1SubmissionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiV1Submissions>>,
+          TError,
+          Awaited<ReturnType<typeof getApiV1Submissions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiV1Submissions<TData = Awaited<ReturnType<typeof getApiV1Submissions>>, TError = unknown>(
+ params?: GetApiV1SubmissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiV1Submissions>>,
+          TError,
+          Awaited<ReturnType<typeof getApiV1Submissions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiV1Submissions<TData = Awaited<ReturnType<typeof getApiV1Submissions>>, TError = unknown>(
+ params?: GetApiV1SubmissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetApiV1Submissions<TData = Awaited<ReturnType<typeof getApiV1Submissions>>, TError = unknown>(
+ params?: GetApiV1SubmissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiV1SubmissionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const postApiV1Submissions = (
+    createSubmissionRequest?: CreateSubmissionRequest,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/submissions`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: createSubmissionRequest, signal
+    },
+      options);
+    }
+
+
+
+
+export const getPostApiV1SubmissionsMutationKey = () => ['postApiV1Submissions'] as const;
+
+export const getPostApiV1SubmissionsMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1Submissions>>, TError,PostApiV1SubmissionsMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1Submissions>>, TError,PostApiV1SubmissionsMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1Submissions>>, PostApiV1SubmissionsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1Submissions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1Submissions>>>
+    export type PostApiV1SubmissionsMutationBody = CreateSubmissionRequest | undefined
+    export type PostApiV1SubmissionsMutationError = unknown
+    export type PostApiV1SubmissionsMutationVariables = {data?: CreateSubmissionRequest}
+
+    export const usePostApiV1Submissions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1Submissions>>, TError,PostApiV1SubmissionsMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1Submissions>>,
+        TError,
+        PostApiV1SubmissionsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsMutationOptions(options), queryClient);
+    }
+    export const getApiV1SubmissionsId = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
