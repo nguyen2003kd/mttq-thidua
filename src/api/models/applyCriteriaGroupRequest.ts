@@ -1,5 +1,6 @@
 /* eslint-disable */
 
 export interface ApplyCriteriaGroupRequest {
-  criteriaGroupId?: string;
+  /** @nullable */
+  criteriaGroupIds?: string[] | null;
 }

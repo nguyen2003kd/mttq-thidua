@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { PageHeader, AuditTimeline, EmptyState, StatCard, LocalityStatusBadge, Button } from '@/components/core';
+import { PageHeader, PageLoading, AuditTimeline, EmptyState, StatCard, LocalityStatusBadge, Button } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CriterionGrid } from '@/features/workflow/components';
 import { toLocalityStatus } from '@/lib/state-machine';
@@ -111,7 +111,7 @@ export default function KetQuaPage() {
   }
 
   if (mySubmissionsQuery.isLoading) {
-    return <div className="space-y-6"><PageHeader title={`Kết quả thi đua năm ${nam || new Date().getFullYear() + 1}`} description="Chi tiết điểm theo từng tiêu chí và lịch sử thay đổi." /><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
+    return <div className="space-y-6"><PageHeader title={`Kết quả thi đua năm ${nam || new Date().getFullYear() + 1}`} description="Chi tiết điểm theo từng tiêu chí và lịch sử thay đổi." /><PageLoading label="Đang tải kết quả thi đua…" /></div>;
   }
 
   if (mySubmissionsQuery.isError) {

@@ -20,6 +20,7 @@ import type {
 
 import type {
   BulkCreateCriteriaRequest,
+  BulkUpdateCriteriaStatusRequest,
   CreateCriteriaRequest,
   GetApiV1CriteriaGroupsGroupIdCriteriaParams,
   UpdateCriteriaRequest
@@ -169,6 +170,67 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getPostApiV1CriteriaBulkMutationOptions(options), queryClient);
+    }
+    export const putApiV1CriteriaBulk = (
+    bulkUpdateCriteriaStatusRequest?: BulkUpdateCriteriaStatusRequest,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/criteria/bulk`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: bulkUpdateCriteriaStatusRequest, signal
+    },
+      options);
+    }
+
+
+
+
+export const getPutApiV1CriteriaBulkMutationKey = () => ['putApiV1CriteriaBulk'] as const;
+
+export const getPutApiV1CriteriaBulkMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiV1CriteriaBulk>>, TError,PutApiV1CriteriaBulkMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof putApiV1CriteriaBulk>>, TError,PutApiV1CriteriaBulkMutationVariables, TContext> => {
+
+const mutationKey = getPutApiV1CriteriaBulkMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putApiV1CriteriaBulk>>, PutApiV1CriteriaBulkMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  putApiV1CriteriaBulk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutApiV1CriteriaBulkMutationResult = NonNullable<Awaited<ReturnType<typeof putApiV1CriteriaBulk>>>
+    export type PutApiV1CriteriaBulkMutationBody = BulkUpdateCriteriaStatusRequest | undefined
+    export type PutApiV1CriteriaBulkMutationError = unknown
+    export type PutApiV1CriteriaBulkMutationVariables = {data?: BulkUpdateCriteriaStatusRequest}
+
+    export const usePutApiV1CriteriaBulk = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiV1CriteriaBulk>>, TError,PutApiV1CriteriaBulkMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof putApiV1CriteriaBulk>>,
+        TError,
+        PutApiV1CriteriaBulkMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPutApiV1CriteriaBulkMutationOptions(options), queryClient);
     }
     export const putApiV1CriteriaId = (
     id: string,

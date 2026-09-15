@@ -5,7 +5,8 @@ export interface UpdateCriteriaRequest {
   content?: string | null;
   maxPoint?: number;
   maxBonusPoint?: number;
-  deadline?: string;
+  /** @nullable */
+  deadline?: string | null;
   /** @nullable */
   note?: string | null;
   /** @nullable */

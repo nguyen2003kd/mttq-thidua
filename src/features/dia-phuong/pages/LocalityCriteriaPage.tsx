@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, ScoreStateBadge } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -175,6 +175,7 @@ export default function LocalityCriteriaPage() {
     if (!group) return [];
     return group.criteria.map((c, idx): CriteriaItem => ({
       id: c.id,
+      type: c.type,
       name: c.content,
       maxScore: c.maxPoint,
       bonusScore: c.maxBonusPoint || undefined,
@@ -256,7 +257,7 @@ export default function LocalityCriteriaPage() {
   // ── List view ──────────────────────────────────────────────────────────────
   if (!id) {
     if (groupsQuery.isLoading || mySubmissionsQuery.isLoading) {
-      return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" /><p className="text-sm text-muted-foreground">Đang tải…</p></div>;
+      return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" /><PageLoading label="Đang tải danh sách tiêu chí…" /></div>;
     }
     if (groupsQuery.isError || mySubmissionsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(groupsQuery.error ?? mySubmissionsQuery.error)} />;
@@ -288,7 +289,7 @@ export default function LocalityCriteriaPage() {
   }
 
   // ── Detail view ────────────────────────────────────────────────────────────
-  if (groupDetailQuery.isLoading) return <div className="space-y-5"><p className="text-sm text-muted-foreground">Đang tải nhóm tiêu chí…</p></div>;
+  if (groupDetailQuery.isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (groupDetailQuery.isError) return <EmptyState title="Không tải được nhóm tiêu chí" description={getLocalityApiError(groupDetailQuery.error)} />;
 
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data) : table;
