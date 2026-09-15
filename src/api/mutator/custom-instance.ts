@@ -8,23 +8,27 @@ const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"]);
 const mainAxiosInstance = axios.create({
   baseURL: baseConfig.backendDomain,
   withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 installAuthInterceptors(mainAxiosInstance);
 export function mainInstance<T>(
   config: AxiosRequestConfig,
   options?: AxiosRequestConfig,
 ): Promise<T> {
+  // FormData: để axios tự sinh Content-Type multipart/form-data; boundary.
+  // JSON: set application/json (trước đây là default của instance).
+  const isFormData = config.data instanceof FormData || options?.data instanceof FormData;
+  const mergedHeaders: Record<string, string> = {
+    ...config.headers,
+    ...options?.headers,
+  } as Record<string, string>;
+  if (!isFormData && !mergedHeaders['Content-Type'] && !mergedHeaders['content-type']) {
+    mergedHeaders['Content-Type'] = 'application/json';
+  }
   return mainAxiosInstance
     .request<T>({
       ...config,
       ...options,
-      headers: {
-        ...config.headers,
-        ...options?.headers,
-      },
+      headers: mergedHeaders,
     })
     .then((response) => {
       // Most feature APIs call `mainInstance` directly instead of a generated

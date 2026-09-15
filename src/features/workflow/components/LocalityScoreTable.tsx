@@ -1,10 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { MessageSquareText, Upload } from 'lucide-react';
+import { ArrowDownToLine, FileText, MessageSquareText, Trash2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button, FileUpload, FormDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { downloadFile } from '@/features/files/api/filesApi';
 import { formatDate } from '@/lib/utils';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { EvidenceFormValue } from './EvidenceModal';
@@ -29,17 +31,21 @@ interface LocalityScoreTableProps {
   selectedCriterionId?: string;
   uploading?: boolean;
   toolbar?: ReactNode;
-  onSave: (criterion: CriteriaItem, value: EvidenceFormValue) => boolean | Promise<boolean>;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
+  onDeleteEvidence?: (id: string) => void;
 }
 
 export interface LocalityScoreTableHandle {
-  saveAll: () => Promise<boolean>;
+  /** Gom giá trị đang nhập của tất cả dòng (không gọi API) — null = có dòng bị khóa bỏ qua. */
+  collectAll: () => Map<string, EvidenceFormValue>;
+  /** Reset file đã chọn sau khi lưu thành công. */
+  markAllSaved: () => void;
   validateAll: () => boolean;
 }
 
 interface EditableRowHandle {
-  save: () => Promise<boolean>;
+  collect: () => EvidenceFormValue | null;
+  markSaved: () => void;
   validate: () => boolean;
 }
 
@@ -57,38 +63,67 @@ interface EvidenceUploadDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
-  value: File | null;
-  onConfirm: (file: File) => void;
+  value: File[];
+  uploadedFiles: Evidence[];
+  onConfirm: (files: File[]) => void;
+  onDeleteUploaded?: (id: string) => void;
 }
 
-function EvidenceUploadDialog({ open, onOpenChange, title, description, value, onConfirm }: EvidenceUploadDialogProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+function EvidenceUploadDialog({ open, onOpenChange, title, description, value, uploadedFiles, onConfirm, onDeleteUploaded }: EvidenceUploadDialogProps) {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setSelectedFile(value);
+    setSelectedFiles(value);
     setError('');
   }, [open, value]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedFile) {
-      setError('Vui lòng chọn file bằng chứng.');
+    if (selectedFiles.length === 0 && uploadedFiles.length === 0) {
+      setError('Vui lòng chọn ít nhất một file bằng chứng.');
       return;
     }
-    if (selectedFile.size > MAX_FILE_SIZE) {
-      setError('File bằng chứng không được vượt quá 20MB.');
+    if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
+      setError('Mỗi file bằng chứng không được vượt quá 20MB.');
       return;
     }
-    onConfirm(selectedFile);
+    onConfirm(selectedFiles);
     onOpenChange(false);
   };
 
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title={title} description={description} onSubmit={submit} submitLabel="Xác nhận file" cancelLabel="Đóng" size="max-w-xl sm:max-w-xl">
-      <FileUpload value={selectedFile ? [selectedFile] : []} onChange={(files) => { setSelectedFile(files[0] ?? null); setError(''); }} multiple={false} error={error} />
+      <FileUpload value={selectedFiles} onChange={(files) => { setSelectedFiles(files); setError(''); }} multiple error={error} />
       <p className="text-xs text-muted-foreground">File sẽ được tải lên hệ thống khi bạn bấm “Lưu tất cả” ở cuối trang.</p>
+      {uploadedFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">File đã tải lên ({uploadedFiles.length})</p>
+          {uploadedFiles.map((item) => (
+            <div key={item.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+              <FileText className="h-4 w-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{item.fileName}</p>
+                <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(item.uploadedAt)}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Tải file về máy"
+                onClick={() => { void downloadFile(item.id, item.fileName).catch(() => toast.error('Không thể tải file. Vui lòng thử lại.')); }}
+              >
+                <ArrowDownToLine className="h-4 w-4" />
+              </Button>
+              {onDeleteUploaded && (
+                <Button variant="ghost" size="icon-xs" title="Xóa tệp" className="text-destructive" onClick={() => onDeleteUploaded(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </FormDialog>
   );
 }
@@ -141,15 +176,14 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   state,
   editable,
   uploading = false,
-  onSave,
   onSelect,
+  onDeleteEvidence,
   selected = false,
 }, ref) {
   const [score, setScore] = useState('');
   const [bonusScore, setBonusScore] = useState('0');
   const [explanation, setExplanation] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [scoreError, setScoreError] = useState('');
   const [bonusScoreError, setBonusScoreError] = useState('');
@@ -160,7 +194,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     setScore(draft?.proposedScore.toString() ?? entry?.proposedScore?.toString() ?? '');
     setBonusScore(draft?.proposedBonusScore.toString() ?? entry?.proposedBonusScore?.toString() ?? '0');
     setExplanation(draft?.explanation ?? entry?.explanation ?? '');
-    setFile(draft?.file ?? null);
+    setSelectedFiles(draft?.files ?? []);
     setError('');
     setScoreError('');
     setBonusScoreError('');
@@ -194,11 +228,11 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       setError('Vui lòng nhập nội dung diễn giải.');
       return false;
     }
-    if (standardFiles.length === 0 && !file) {
+    if (standardFiles.length === 0 && selectedFiles.length === 0) {
       setError('Vui lòng chọn file bằng chứng.');
       return false;
     }
-    if (file && file.size > MAX_FILE_SIZE) {
+    if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
       setError('File không được vượt quá 20MB.');
       return false;
     }
@@ -206,40 +240,20 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     return true;
   };
 
-  const saveRow = async (): Promise<boolean> => {
-    if (locked) return true;
-    const proposedScore = Number(score || 0);
-    const proposedBonusScore = Number(bonusScore || 0);
-
-    setSaving(true);
-    setError('');
-    setScoreError('');
-    setBonusScoreError('');
-    try {
-      const saved = await onSave(criterion, {
-        proposedScore,
-        proposedBonusScore,
-        explanation: explanation.trim(),
-        file,
-        bonusFile: null,
-      });
-      if (!saved) {
-        setError('Không thể lưu tiêu chí. Vui lòng thử lại.');
-        return false;
-      }
-      if (!draft) {
-        setFile(null);
-      }
-      return true;
-    } catch {
-      setError('Không thể lưu điểm hoặc tải file. Vui lòng thử lại.');
-      return false;
-    } finally {
-      setSaving(false);
-    }
+  const collect = (): EvidenceFormValue | null => {
+    if (locked) return null;
+    return {
+      proposedScore: Number(score || 0),
+      proposedBonusScore: Number(bonusScore || 0),
+      explanation: explanation.trim(),
+      files: selectedFiles,
+      bonusFiles: [],
+    };
   };
 
-  useImperativeHandle(ref, () => ({ save: saveRow, validate: validateRow }));
+  const markSaved = () => { if (!draft) setSelectedFiles([]); };
+
+  useImperativeHandle(ref, () => ({ collect, markSaved, validate: validateRow }));
 
   return (
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
@@ -252,34 +266,34 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       </TableCell>
       <TableCell className="align-top">
         <div className="relative">
-          <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || saving} onChange={(event) => { setScore(event.target.value); setScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
+          <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => { setScore(event.target.value); setScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
         </div>
         {scoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{scoreError}</p>}
       </TableCell>
       <TableCell className="align-top">
         <div className="relative">
-          <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || saving} onChange={(event) => { setBonusScore(event.target.value); setBonusScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
+          <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => { setBonusScore(event.target.value); setBonusScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
         </div>
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}
       </TableCell>
       <TableCell className="align-top">
         <div className="flex min-w-0 flex-col gap-2">
-          <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || saving || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
+          <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
             <Upload className="size-4 shrink-0" />
-            <span className="truncate">{file?.name ?? (standardFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file')}</span>
+            <span className="truncate">{selectedFiles.length > 0 ? `${selectedFiles.length} file đã chọn` : (standardFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file')}</span>
           </Button>
         </div>
       </TableCell>
       <TableCell className="align-top">
-        <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || saving || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
+        <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
           <MessageSquareText className="size-4 shrink-0" />
           <span className="truncate">{explanation || 'Nhập nội dung diễn giải'}</span>
         </Button>
         {entry?.revisionRequest && <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs"><strong>Phản hồi:</strong> {entry.revisionRequest}</p>}
         {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
-        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file bằng chứng" description={criterion.name} value={file} onConfirm={setFile} />
+        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file bằng chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={setSelectedFiles} onDeleteUploaded={onDeleteEvidence} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={setExplanation} />
       </TableCell>
     </TableRow>
@@ -296,19 +310,22 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   selectedCriterionId,
   uploading,
   toolbar,
-  onSave,
   onSelect,
+  onDeleteEvidence,
 }, ref) {
   const rowRefs = useRef<Record<string, EditableRowHandle | null>>({});
 
   useImperativeHandle(ref, () => ({
-    saveAll: async () => {
-      let allSaved = true;
-      for (const criterion of criteria) {
-        const saved = await rowRefs.current[criterion.id]?.save();
-        if (saved === false) allSaved = false;
-      }
-      return allSaved;
+    collectAll: () => {
+      const map = new Map<string, EvidenceFormValue>();
+      criteria.forEach((criterion) => {
+        const value = rowRefs.current[criterion.id]?.collect();
+        if (value) map.set(criterion.id, value);
+      });
+      return map;
+    },
+    markAllSaved: () => {
+      criteria.forEach((criterion) => rowRefs.current[criterion.id]?.markSaved());
     },
     validateAll: () => criteria.every((criterion) => rowRefs.current[criterion.id]?.validate() ?? true),
   }));
@@ -352,8 +369,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
                 editable={editable}
                 selected={selectedCriterionId === criterion.id}
                 uploading={uploading}
-                onSave={onSave}
                 onSelect={onSelect}
+                onDeleteEvidence={onDeleteEvidence}
               />
             ))}
           </TableBody>

@@ -6,6 +6,7 @@ import { useScoreStore } from '@/store/scoreStore';
 import { PageHeader, EmptyState, Button, ConfirmDialog, ScoreStateBadge } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { CriterionGrid, EvidenceModal, type EvidenceFormValue } from '@/features/workflow/components';
+import { filesApi, getFilesApiError, type FileItemApi } from '@/features/files/api/filesApi';
 import type { CriteriaItem, Evidence, ScoreEntry } from '@/types/domain';
 
 interface EditingRow {
@@ -36,6 +37,7 @@ export default function MinhChungPage() {
   const [viewing, setViewing] = useState<EditingRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Evidence | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   if (!localityId) {
     return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương nào." icon={<MapPin className="h-8 w-8" />} />;
@@ -54,40 +56,57 @@ export default function MinhChungPage() {
   );
   const editable = record.state === 'DRAFT';
 
-  const save = (value: EvidenceFormValue) => {
+  const save = async (value: EvidenceFormValue) => {
     if (!editing?.criterion || !user) return false;
-    if (value.file) {
-      uploadEvidence({
-        criteriaId: editing.criterion.id,
-        localityId,
-        fileName: value.file.name,
-        fileUrl: URL.createObjectURL(value.file),
-        fileSize: value.file.size,
-        description: value.explanation,
-        kind: 'STANDARD',
-      });
+    const criterion = editing.criterion;
+    const toUpload: { file: File; kind: Evidence['kind'] }[] = [
+      ...value.files.map((file) => ({ file, kind: 'STANDARD' as const })),
+      ...value.bonusFiles.map((file) => ({ file, kind: 'BONUS' as const })),
+    ];
+
+    let uploaded: FileItemApi[] = [];
+    if (toUpload.length > 0) {
+      setUploading(true);
+      try {
+        uploaded = await filesApi.uploadBulk(
+          toUpload.map((item) => item.file),
+          {
+            entityType: 'Criteria',
+            entityId: criterion.id,
+            category: 'evidence',
+            description: value.explanation,
+          },
+        );
+      } catch (error) {
+        toast.error('Không thể tải lên file bằng chứng.', { description: getFilesApiError(error) });
+        return false;
+      } finally {
+        setUploading(false);
+      }
     }
-    if (value.bonusFile) {
+
+    uploaded.forEach((file, idx) => {
       uploadEvidence({
-        criteriaId: editing.criterion.id,
+        id: file.id,
+        criteriaId: criterion.id,
         localityId,
-        fileName: value.bonusFile.name,
-        fileUrl: URL.createObjectURL(value.bonusFile),
-        fileSize: value.bonusFile.size,
+        fileName: file.originalName,
+        fileUrl: file.url ?? '#',
+        fileSize: file.sizeBytes,
         description: value.explanation,
-        kind: 'BONUS',
+        kind: toUpload[idx]?.kind ?? 'STANDARD',
       });
-    }
+    });
     const ok = saveSelfAssessment({
       tableId: table.id,
       localityId,
-      criteriaId: editing.criterion.id,
+      criteriaId: criterion.id,
       proposedScore: value.proposedScore,
       proposedBonusScore: value.proposedBonusScore,
       explanation: value.explanation,
       actorName: user.name,
     });
-    if (ok) toast.success('Đã lưu bản nháp', { description: editing.criterion.name });
+    if (ok) toast.success('Đã lưu bản nháp', { description: criterion.name });
     return ok;
   };
 
@@ -152,6 +171,7 @@ export default function MinhChungPage() {
         entry={editing?.entry}
         evidence={filesFor(editing?.entry.criteriaId)}
         onSave={save}
+        uploading={uploading}
         onDeleteEvidence={(id) => setDeleteTarget(evidence.find((item) => item.id === id) ?? null)}
       />
       <EvidenceModal

@@ -18,7 +18,7 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Plus, Eye, Pencil, Send } from 'lucide-react';
+import { Plus, Eye, Pencil, Send, Calendar, Info } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -330,26 +330,45 @@ export default function CriteriaListPage() {
         submitLabel={editingTable ? 'Lưu thay đổi' : LABELS.CREATE}
         cancelLabel={LABELS.CANCEL}
         submitAction={editingTable ? 'edit' : 'create'}
-        size="w-[calc(100vw-4rem)] max-w-5xl sm:max-w-5xl"
+        size="w-[calc(100vw-2rem)] sm:max-w-[900px] rounded-[20px]"
       >
-        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
-          <div className="space-y-1.5">
-            <Label htmlFor="criteria-name">Nhóm tiêu chí <span className="text-destructive">*</span></Label>
-            <Input id="criteria-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Nhóm tiêu chí về công tác Mặt trận" />
+        <div className="space-y-6">
+          <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_200px]">
+            <div className="space-y-1.5">
+              <Label htmlFor="criteria-name" className="text-[13.5px] font-semibold">Nhóm tiêu chí <span className="text-destructive">*</span></Label>
+              <Input id="criteria-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nhập tên nhóm tiêu chí" className="h-11 bg-muted" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="criteria-total-score" className="text-[13.5px] font-semibold">Tổng điểm <span className="text-destructive">*</span></Label>
+              <div className="relative h-11 rounded-lg border border-input bg-muted focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+                <Input
+                  id="criteria-total-score"
+                  type="text"
+                  inputMode="decimal"
+                  value={totalScore}
+                  onChange={(e) => setTotalScore(e.target.value.replace(/[^0-9.]/g, ''))}
+                  placeholder="VD: 100"
+                  className="h-11 border-0 bg-transparent pr-14 text-right tabular-nums focus-visible:ring-0"
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center border-l border-input bg-muted/60 px-3 text-xs font-medium text-muted-foreground">điểm</span>
+              </div>
+            </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="criteria-total-score">Tổng điểm <span className="text-destructive">*</span></Label>
-            <Input id="criteria-total-score" type="number" min={1} value={totalScore} onChange={(e) => setTotalScore(e.target.value)} placeholder="VD: 100" />
+            <Label htmlFor="criteria-content" className="text-[13.5px] font-semibold">Nội dung <span className="text-destructive">*</span></Label>
+            <Textarea id="criteria-content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Mô tả nội dung, phạm vi và yêu cầu của nhóm tiêu chí" rows={3} className="min-h-[96px] resize-y bg-muted" />
           </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="criteria-content">Nội dung <span className="text-destructive">*</span></Label>
-          <Textarea id="criteria-content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Mô tả nội dung, phạm vi và yêu cầu của nhóm tiêu chí" rows={3} />
-        </div>
-        <div className="max-w-sm space-y-1.5">
-          <Label htmlFor="close-date">Hạn nộp</Label>
-          <Input id="close-date" type="datetime-local" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
-          <p className="text-xs text-muted-foreground">Có thể để trống nếu chưa quy định hạn nộp.</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span></Label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="close-date" type="datetime-local" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Info className="size-3.5" />
+              Có thể để trống nếu chưa quy định hạn nộp.
+            </p>
+          </div>
         </div>
       </FormDialog>
 

@@ -100,7 +100,6 @@ export const filesApi = {
       url: '/api/v1/files/upload',
       method: 'POST',
       data: form,
-      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (event) => {
         if (onProgress && event.total) onProgress(Math.round((event.loaded / event.total) * 100));
       },
@@ -115,7 +114,6 @@ export const filesApi = {
       url: '/api/v1/files/upload-bulk',
       method: 'POST',
       data: form,
-      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (event) => {
         if (onProgress && event.total) onProgress(Math.round((event.loaded / event.total) * 100));
       },
