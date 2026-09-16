@@ -47,6 +47,7 @@ export * from './getApiV1CriteriaGroupsGroupIdCriteriaParams.ts';
 export * from './getApiV1CriteriaGroupsGroupIdSubmissionsParams.ts';
 export * from './getApiV1CriteriaGroupsParams.ts';
 export * from './getApiV1ExternalProvincesCodeWardsParams.ts';
+export * from './getApiV1FilesBatchParams.ts';
 export * from './getApiV1FilesParams.ts';
 export * from './getApiV1MySubmissionsParams.ts';
 export * from './getApiV1NotificationsParams.ts';

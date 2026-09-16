@@ -19,6 +19,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GetApiV1FilesBatchParams,
   GetApiV1FilesParams,
   PostApiV1FilesUploadBody,
   PostApiV1FilesUploadBulkBody
@@ -301,6 +302,93 @@ export function useGetApiV1Files<TData = Awaited<ReturnType<typeof getApiV1Files
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetApiV1FilesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+export const getApiV1FilesBatch = (
+    params?: GetApiV1FilesBatchParams,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/files/batch`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getGetApiV1FilesBatchQueryKey = (params?: GetApiV1FilesBatchParams,) => {
+    return [
+    `/api/v1/files/batch`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetApiV1FilesBatchQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetApiV1FilesBatchQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1FilesBatch>>> = ({ signal }) => getApiV1FilesBatch(params, requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiV1FilesBatchQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1FilesBatch>>>
+export type GetApiV1FilesBatchQueryError = unknown
+
+
+export function useGetApiV1FilesBatch<TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(
+ params: undefined |  GetApiV1FilesBatchParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiV1FilesBatch>>,
+          TError,
+          Awaited<ReturnType<typeof getApiV1FilesBatch>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiV1FilesBatch<TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(
+ params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiV1FilesBatch>>,
+          TError,
+          Awaited<ReturnType<typeof getApiV1FilesBatch>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiV1FilesBatch<TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(
+ params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetApiV1FilesBatch<TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(
+ params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetApiV1FilesBatchQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

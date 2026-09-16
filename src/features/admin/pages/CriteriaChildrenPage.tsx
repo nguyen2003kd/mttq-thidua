@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { AlertTriangle, ArrowLeft, Eye, FilePlus2, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Eye, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -20,24 +17,9 @@ import { validateCriteriaApplication } from '@/features/admin/criteriaValidation
 import type { CriteriaItem } from '@/types/domain';
 
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
-  id: criterion.id, type: criterion.type, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
+  id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
   deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order, status: criterion.status,
 });
-
-const MAX_SUPPLEMENTARY_FILE_SIZE = 20 * 1024 * 1024;
-const supplementaryCriteriaSchema = z.object({
-  content: z.string().trim().min(1, 'Vui lòng nhập nội dung tiêu chí bổ sung.'),
-  deadline: z.string(),
-  reason: z.string().trim().min(1, 'Vui lòng nhập lý do thêm tiêu chí bổ sung.'),
-  files: z
-    .array(z.instanceof(File))
-    .min(1, 'Vui lòng đính kèm ít nhất một file.')
-    .refine(
-      (files) => files.every((file) => file.size <= MAX_SUPPLEMENTARY_FILE_SIZE),
-      'Mỗi file đính kèm không được vượt quá 20MB.',
-    ),
-});
-type SupplementaryCriteriaForm = z.infer<typeof supplementaryCriteriaSchema>;
 
 interface EditorProps {
   open: boolean; onOpenChange: (open: boolean) => void; item: CriteriaItem | null; readonly?: boolean;
@@ -65,88 +47,13 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, onSave
   </FormDialog>;
 }
 
-function SupplementaryCriteriaDialog({
-  open,
-  onOpenChange,
-  onSave,
-  saving,
-  uploadProgress,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (value: SupplementaryCriteriaForm) => Promise<void>;
-  saving: boolean;
-  uploadProgress: Record<string, number>;
-}) {
-  const form = useForm<SupplementaryCriteriaForm>({
-    resolver: zodResolver(supplementaryCriteriaSchema),
-    defaultValues: { content: '', deadline: '', reason: '', files: [] },
-  });
-  const files = form.watch('files');
-
-  useEffect(() => {
-    if (open) form.reset({ content: '', deadline: '', reason: '', files: [] });
-  }, [form, open]);
-
-  return (
-    <FormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Thêm tiêu chí bổ sung"
-      description="Yêu cầu địa phương bổ sung nội dung hoặc minh chứng mà không làm thay đổi tổng điểm nhóm."
-      onSubmit={form.handleSubmit((value) => void onSave(value))}
-      submitLabel="Thêm và gửi địa phương"
-      cancelLabel="Đóng"
-      submitDisabled={saving}
-      size="max-w-6xl"
-    >
-      <div className="flex items-start gap-3 rounded-md border border-accent/50 bg-accent/10 px-3 py-2.5">
-        <FilePlus2 className="mt-0.5 size-4 shrink-0 text-foreground" />
-        <div className="min-w-0">
-          <Badge className="bg-accent text-foreground">Tiêu chí bổ sung</Badge>
-          <p className="mt-1.5 text-xs leading-5 text-muted-foreground">Tiêu chí này không có điểm và không được cộng vào tổng điểm nhóm.</p>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="supplementary-content">Nội dung <span className="text-destructive">★</span></Label>
-        <Textarea id="supplementary-content" rows={3} placeholder="Nhập nội dung cần địa phương bổ sung" {...form.register('content')} />
-        {form.formState.errors.content && <p role="alert" className="text-xs font-medium text-destructive">{form.formState.errors.content.message}</p>}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="supplementary-deadline">Hạn nộp</Label>
-        <Input id="supplementary-deadline" type="datetime-local" {...form.register('deadline')} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="supplementary-reason">Lý do thêm tiêu chí bổ sung <span className="text-destructive">★</span></Label>
-        <Textarea id="supplementary-reason" rows={3} placeholder="Nêu rõ lý do yêu cầu địa phương bổ sung" {...form.register('reason')} />
-        {form.formState.errors.reason && <p role="alert" className="text-xs font-medium text-destructive">{form.formState.errors.reason.message}</p>}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>File đính kèm <span className="text-destructive">★</span></Label>
-        <FileUpload
-          value={files}
-          onChange={(value) => form.setValue('files', value, { shouldDirty: true, shouldValidate: true })}
-          maxSizeMb={20}
-          maxFiles={10}
-          uploading={saving}
-          uploadProgress={uploadProgress}
-          error={form.formState.errors.files?.message}
-        />
-      </div>
-    </FormDialog>
-  );
-}
-
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
   const [search, setSearch] = useState(''); const [type, setType] = useState<CriteriaApi['type'] | ''>(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
   const debouncedSearch = useDebounce(search, 300);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
-  const [applyOpen, setApplyOpen] = useState(false); const [supplementaryOpen, setSupplementaryOpen] = useState(false); const [saving, setSaving] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
+  const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
   const { uploading, uploadProgress, uploadFiles } = useFileUpload();
   const { data: group, isLoading, error } = useQuery({ queryKey: ['criteria-group', id], queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
@@ -167,22 +74,13 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'maxScore',
       header: 'Điểm chuẩn',
-      cell: ({ row }) => row.original.type === 'Supplementary' ? '—' : row.original.maxScore,
       meta: { align: 'right', list: { width: 'minmax(110px,0.7fr)' } },
     },
     {
       accessorKey: 'bonusScore',
       header: 'Điểm thưởng tối đa',
-      cell: ({ row }) => row.original.type === 'Supplementary' ? '—' : row.original.bonusScore ?? 0,
+      cell: ({ row }) => row.original.bonusScore ?? 0,
       meta: { align: 'right', list: { width: 'minmax(145px,0.85fr)' } },
-    },
-    {
-      accessorKey: 'type',
-      header: 'Loại tiêu chí',
-      cell: ({ row }) => row.original.type === 'Supplementary'
-        ? <Badge className="bg-accent/20 text-foreground">Tiêu chí bổ sung</Badge>
-        : <Badge variant="secondary">Tiêu chí thường</Badge>,
-      meta: { align: 'center', list: { width: 'minmax(145px,0.9fr)' } },
     },
     {
       accessorKey: 'deadline',
@@ -208,7 +106,7 @@ export default function CriteriaChildrenPage() {
   if (isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (!group) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description={error ? getCriteriaApiError(error) : 'Nhóm tiêu chí không tồn tại hoặc đã bị xóa.'} />;
   const saveItem = async (value: Omit<CriteriaItem, 'id' | 'order' | 'updatedAt'>) => {
-    const current = editor?.item; const siblingTotal = groupCriteria.filter((item) => item.type !== 'Supplementary' && item.id !== current?.id).reduce((sum, item) => sum + item.maxScore, 0);
+    const current = editor?.item; const siblingTotal = groupCriteria.filter((item) => item.id !== current?.id).reduce((sum, item) => sum + item.maxScore, 0);
     if (siblingTotal + value.maxScore > group.maxPoint) return toast.error(`Tổng điểm tiêu chí (${siblingTotal + value.maxScore}) không được vượt quá ${group.maxPoint} điểm của nhóm.`);
     setSaving(true);
     try {
@@ -221,40 +119,6 @@ export default function CriteriaChildrenPage() {
       ]);
       toast.success(current ? 'Đã cập nhật tiêu chí.' : 'Đã thêm tiêu chí.'); setEditor(null); setSelected(null);
     } catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
-  };
-  const saveSupplementaryCriteria = async (value: SupplementaryCriteriaForm) => {
-    setSaving(true);
-    try {
-      const uploadedFiles = await uploadFiles(value.files, {
-        category: 'supplementary-criteria',
-        note: value.reason,
-        visibility: 'Private',
-      });
-      if (uploadedFiles.length !== value.files.length) return;
-
-      await criteriaGroupsApi.createCriteria({
-        criteriaGroupId: group.id,
-        type: 'Supplementary',
-        content: value.content,
-        maxPoint: 0,
-        maxBonusPoint: 0,
-        deadline: value.deadline || null,
-        note: value.reason,
-        fileIds: uploadedFiles.map((file) => file.id),
-      });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-      ]);
-      setSupplementaryOpen(false);
-      setSelected(null);
-      toast.success('Đã thêm tiêu chí bổ sung và gửi thông báo đến các địa phương.');
-    } catch (apiError) {
-      toast.error(getCriteriaApiError(apiError));
-    } finally {
-      setSaving(false);
-    }
   };
   const apply = async () => {
     setSaving(true);
@@ -269,21 +133,35 @@ export default function CriteriaChildrenPage() {
         return;
       }
       await criteriaGroupsApi.apply(group.id);
+      if (applyFiles.length > 0) {
+        const uploadedFiles = await uploadFiles(applyFiles, {
+          entityType: 'CriteriaGroup',
+          entityId: group.id,
+          category: 'notice',
+        });
+        if (uploadedFiles.length !== applyFiles.length) {
+          toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
+        }
+      }
       await queryClient.invalidateQueries({ queryKey: ['criteria-group', id] });
       await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
       toast.success('Đã áp dụng nhóm tiêu chí cho các đơn vị địa phương.');
       setApplyOpen(false);
+      setApplyFiles([]);
+      setApplyError('');
     }
     catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
   };
   const openApplyDialog = () => {
     const validation = validateCriteriaApplication(group.maxPoint, groupCriteria.map((item) => item.maxScore));
     if (!validation.success) return toast.error(validation.message);
+    setApplyFiles([]);
+    setApplyError('');
     setApplyOpen(true);
   };
   return <div className="flex min-h-full flex-col gap-5">
     <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/chuyen-vien/tieu-chi" className="hover:text-primary">Quản lý tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{group.name}</span></div>
-    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${groupCriteria.filter((item) => item.type !== 'Supplementary').reduce((sum, item) => sum + item.maxScore, 0)}/${group.maxPoint} điểm`} actions={<Button variant="outline" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${groupCriteria.reduce((sum, item) => sum + item.maxScore, 0)}/${group.maxPoint} điểm`} actions={<Button variant="outline" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     <div className="flex-1 space-y-4">
       {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : 'đóng'} — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử.</div>}
       <section className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
@@ -320,20 +198,60 @@ export default function CriteriaChildrenPage() {
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="info" disabled={!selected} onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" disabled={!selected || selected.type === 'Supplementary'} title={selected?.type === 'Supplementary' ? 'Tiêu chí bổ sung không được sửa điểm.' : undefined} onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
+            <Button variant="warning" disabled={!selected} onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button variant="outline" disabled={!selected} className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
-            <Button disabled={group.status === 'Closed'} onClick={() => group.status === 'Applied' ? setSupplementaryOpen(true) : setEditor({ item: null, readonly: false })}>
-              {group.status === 'Applied' ? <FilePlus2 className="size-4" /> : <Plus className="size-4" />}
-              {group.status === 'Applied' ? 'Thêm tiêu chí bổ sung' : 'Thêm mới'}
+            <Button
+              disabled={group.status !== 'Draft'}
+              title={group.status !== 'Draft' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể thêm tiêu chí con.' : undefined}
+              onClick={() => setEditor({ item: null, readonly: false })}
+            ><Plus className="size-4" />Thêm mới</Button>
+            <Button
+              disabled={group.status !== 'Draft'}
+              title={group.status !== 'Draft' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.' : undefined}
+              onClick={() => { if (group.status === 'Draft') openApplyDialog(); }}
+            >
+              <Send className="size-4" />Áp dụng tiêu chí cho địa phương
             </Button>
-            <Button disabled={group.status !== 'Draft'} onClick={openApplyDialog}><Send className="size-4" />Áp dụng tiêu chí</Button>
           </div>
         )}
         emptyState={{ title: 'Chưa có tiêu chí con', description: 'Thêm tiêu chí con đầu tiên cho nhóm tiêu chí này.' }}
       />
     </div>
     <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} onSave={saveItem} saving={saving} />
-    <SupplementaryCriteriaDialog open={supplementaryOpen} onOpenChange={setSupplementaryOpen} onSave={saveSupplementaryCriteria} saving={saving || uploading} uploadProgress={uploadProgress} />
-    <FormDialog open={applyOpen} onOpenChange={setApplyOpen} title="Áp dụng tiêu chí cho địa phương" description="Hệ thống sẽ tạo phiếu chấm cho mỗi user cấp xã/phường." onSubmit={(event) => { event.preventDefault(); void apply(); }} submitLabel="Áp dụng" cancelLabel="Đóng" submitDisabled={saving}><p className="rounded-md border border-primary/20 bg-primary/[0.04] p-3 text-sm">Sau khi áp dụng, hệ thống sẽ tạo phiếu chấm cho mỗi user cấp xã/phường.</p></FormDialog>
+    <FormDialog
+      open={applyOpen}
+      onOpenChange={(open) => { setApplyOpen(open); if (!open) { setApplyFiles([]); setApplyError(''); } }}
+      title="Áp dụng tiêu chí cho địa phương"
+      description={`Bảng “${group.name}” sẽ được gửi đến toàn bộ địa phương trong hệ thống.`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (applyFiles.some((file) => file.size > 20 * 1024 * 1024)) {
+          setApplyError('File thông báo không được vượt quá 20MB.');
+          return;
+        }
+        void apply();
+      }}
+      submitLabel="Áp dụng"
+      cancelLabel="Đóng"
+      submitAction="assign"
+      submitDisabled={saving || uploading}
+      size="max-w-xl sm:max-w-xl"
+    >
+      <div className="rounded-md border border-primary/20 bg-primary/[0.04] p-3">
+        <p className="font-medium">Địa phương <span className="text-destructive">★</span></p>
+        <p className="mt-1 text-sm text-muted-foreground">Áp dụng cho toàn bộ địa phương trong hệ thống.</p>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Đính kèm file thông báo</Label>
+        <FileUpload
+          value={applyFiles}
+          onChange={(files) => { setApplyFiles(files); setApplyError(''); }}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          maxSizeMb={20}
+        />
+      </div>
+      {applyError && <p role="alert" className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm font-medium text-danger"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{applyError}</p>}
+    </FormDialog>
   </div>;
 }

@@ -107,9 +107,8 @@ const STAGE_TO_GROUP_STATUS: Record<string, SpecialistCriteriaGroup['status']> =
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const supplementarySchema = z.object({
-  content: z.string().trim().min(1, 'Vui lòng nhập nội dung tiêu chí bổ sung.'),
-  note: z.string().trim().min(1, 'Vui lòng nhập lý do thêm tiêu chí bổ sung.'),
-  deadline: z.string(),
+  name: z.string().trim().min(1, 'Vui lòng nhập tên tiêu chí bổ sung.'),
+  reason: z.string().trim().min(1, 'Vui lòng nhập lý do bổ sung.'),
   file: z.instanceof(File).nullable().refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
 });
 
@@ -167,17 +166,17 @@ function SupplementaryDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (value: SupplementaryForm) => Promise<void>;
+  onSave: (value: SupplementaryForm) => Promise<boolean>;
 }) {
   const form = useForm<SupplementaryForm>({
     resolver: zodResolver(supplementarySchema),
-    defaultValues: { content: '', deadline: '', note: '', file: null },
+    defaultValues: { name: '', reason: '', file: null },
   });
   const selectedFile = form.watch('file');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) form.reset({ content: '', deadline: '', note: '', file: null });
+    if (open) form.reset({ name: '', reason: '', file: null });
   }, [form, open]);
 
   return (
@@ -185,14 +184,11 @@ function SupplementaryDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Thêm tiêu chí bổ sung"
-      description="Bổ sung tiêu chí phát sinh trong quá trình thẩm định hồ sơ. Địa phương sẽ được yêu cầu bổ sung điểm cho tiêu chí này."
+      description="Bổ sung tiêu chí phát sinh trong quá trình thẩm định hồ sơ."
       onSubmit={form.handleSubmit(async (value) => {
+        setSaving(true);
         try {
-          setSaving(true);
-          await onSave(value);
-          onOpenChange(false);
-        } catch {
-          /* lỗi đã hiển thị toast, giữ dialog mở */
+          if (await onSave(value)) onOpenChange(false);
         } finally {
           setSaving(false);
         }
@@ -203,18 +199,14 @@ function SupplementaryDialog({
       size="max-w-3xl sm:max-w-3xl"
     >
       <div className="space-y-1.5">
-        <Label htmlFor="supplementary-content">Nội dung tiêu chí <span className="text-destructive">★</span></Label>
-        <Textarea id="supplementary-content" rows={3} {...form.register('content')} placeholder="Nhập nội dung tiêu chí bổ sung" />
-        {form.formState.errors.content && <p className="text-xs text-destructive">{form.formState.errors.content.message}</p>}
+        <Label htmlFor="supplementary-name">Tên tiêu chí bổ sung <span className="text-destructive">★</span></Label>
+        <Input id="supplementary-name" {...form.register('name')} placeholder="Nhập tên tiêu chí bổ sung" />
+        {form.formState.errors.name && <p role="alert" className="text-xs font-medium text-destructive">{form.formState.errors.name.message}</p>}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="supplementary-note">Lý do thêm tiêu chí bổ sung <span className="text-destructive">★</span></Label>
-        <Textarea id="supplementary-note" rows={2} placeholder="Nhập lý do cần bổ sung tiêu chí" {...form.register('note')} />
-        {form.formState.errors.note && <p className="text-xs text-destructive">{form.formState.errors.note.message}</p>}
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="supplementary-deadline">Hạn nộp</Label>
-        <Input id="supplementary-deadline" type="datetime-local" {...form.register('deadline')} />
+        <Label htmlFor="supplementary-reason">Lý do bổ sung <span className="text-destructive">★</span></Label>
+        <Textarea id="supplementary-reason" rows={3} {...form.register('reason')} placeholder="Nhập lý do cần bổ sung tiêu chí" />
+        {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
       </div>
       <div className="space-y-1.5">
         <Label>File đính kèm</Label>
@@ -625,7 +617,7 @@ export default function SpecialistReviewPage() {
             officialBonusScore: result?.officialBonusPoint ?? null,
             scoreReason: result?.officialReason ?? '',
           };
-        });
+          });
         return {
           id: g.id,
           code: g.name,
@@ -685,9 +677,8 @@ export default function SpecialistReviewPage() {
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,
         scoreReason: result?.officialReason ?? '',
-        isAddedBySpecialist: c.type === 'Supplementary',
       };
-    });
+      });
     return {
       id: group.id,
       code: group.name,
@@ -1300,33 +1291,38 @@ export default function SpecialistReviewPage() {
       <SupplementaryDialog
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
-        onSave={async ({ content, deadline, note, file }) => {
+        onSave={async ({ name, reason, file }) => {
           const submission = submissionByGroup.get(selectedGroup.id);
           if (!submission) {
             toast.error('Nhóm này chưa có hồ sơ để bổ sung tiêu chí.');
-            return;
+            return false;
           }
-          if (!['LocalSubmitted', 'SpecialistApproved', 'LeaderApproved'].includes(submission.currentStage)) {
-            toast.error('Chỉ có thể bổ sung tiêu chí khi hồ sơ đang chờ chấm hoặc đã được duyệt ở một cấp.');
-            return;
-          }
-          const response = await specialistApi.addSupplementaryCriteria({
-            submissionId: submission.id,
-            content: content.trim(),
-            deadline: deadline ? new Date(deadline).toISOString() : null,
-            note: note.trim(),
-          });
-          if (file) {
-            await filesApi.upload(file, {
-              displayName: file.name,
-              entityType: 'SubmissionResult',
-              entityId: response.submissionResultId,
-              category: 'supplementary',
+
+          try {
+            const response = await specialistApi.addSupplementaryCriteria({
+              submissionId: submission.id,
+              content: name.trim(),
+              note: reason.trim(),
             });
+            if (file) {
+              await filesApi.upload(file, {
+                displayName: file.name,
+                entityType: 'SubmissionResult',
+                entityId: response.submissionResultId,
+                category: 'supplementary',
+              });
+            }
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-group-detail'] }),
+            ]);
+            toast.success('Đã thêm tiêu chí bổ sung. Hồ sơ đã chuyển về địa phương để bổ sung.');
+            return true;
+          } catch (error) {
+            toast.error('Không thể thêm tiêu chí bổ sung.', { description: getFilesApiError(error) });
+            return false;
           }
-          await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
-          await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
-          toast.success('Đã thêm tiêu chí bổ sung. Hồ sơ chuyển về trạng thái chờ địa phương chỉnh sửa.');
         }}
       />
       <RevisionDialog
