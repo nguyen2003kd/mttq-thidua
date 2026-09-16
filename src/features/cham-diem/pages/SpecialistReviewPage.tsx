@@ -616,6 +616,7 @@ export default function SpecialistReviewPage() {
             officialScore: result?.officialPoint ?? null,
             officialBonusScore: result?.officialBonusPoint ?? null,
             scoreReason: result?.officialReason ?? '',
+            isAddedBySpecialist: c.type === 'Supplementary',
           };
           });
         return {
@@ -677,6 +678,7 @@ export default function SpecialistReviewPage() {
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,
         scoreReason: result?.officialReason ?? '',
+        isAddedBySpecialist: c.type === 'Supplementary',
       };
       });
     return {
