@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FileUpload, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,9 +34,11 @@ import {
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
-import { specialistApi, type SubmissionApi, type SubmissionResultFile } from '@/features/cham-diem/api/specialistApi';
+import { specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface EvidenceFile {
   id: string;
@@ -83,6 +85,51 @@ interface LocalityRow {
   hasNewSubmissions: boolean;
   hasModificationRequest: boolean;
   submissionIds: string[];
+}
+
+type SubmissionStageFilter = '' | SubmissionStage;
+type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
+
+const QUICK_STAGE_FILTERS: Array<{ value: '' | 'LocalSubmitted' | 'RequiresRevision' | 'SpecialistApproved'; label: string }> = [
+  { value: '', label: 'Tất cả' },
+  { value: 'LocalSubmitted', label: 'Chờ chuyên viên' },
+  { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+  { value: 'SpecialistApproved', label: 'Đã chuyển lãnh đạo' },
+];
+
+const GROUP_STATUS_FILTER_OPTIONS: Array<{ value: Exclude<GroupStatusFilter, ''>; label: string }> = [
+  { value: 'CHUA_NOP', label: 'Chưa nộp' },
+  { value: 'CHO_CHAM', label: 'Chờ chấm' },
+  { value: 'DA_CHAM', label: 'Đã chấm' },
+  { value: 'YEU_CAU_SUA', label: 'Yêu cầu chỉnh sửa' },
+];
+
+function getGroupStatusFilterLabel(status: GroupStatusFilter) {
+  return GROUP_STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ?? '';
+}
+
+async function listEverySubmission(stage: SubmissionStageFilter) {
+  const firstPage = await specialistApi.listAllSubmissions({
+    stage: stage || undefined,
+    page: 1,
+    pageSize: 100,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
+      stage: stage || undefined,
+      page: index + 2,
+      pageSize: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })),
+  );
+
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
 }
 
 const STAGE_TO_STATUS: Record<string, LocalityRow['overallStatus']> = {
@@ -529,7 +576,9 @@ export default function SpecialistReviewPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [localitySearch, setLocalitySearch] = useState('');
+  const [submissionStageFilter, setSubmissionStageFilter] = useState<SubmissionStageFilter>('');
   const [groupSearch, setGroupSearch] = useState('');
+  const [groupStatusFilter, setGroupStatusFilter] = useState<GroupStatusFilter>('');
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
@@ -538,11 +587,15 @@ export default function SpecialistReviewPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
+  const debouncedLocalitySearch = useDebounce(localitySearch, 300);
+  // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
+  // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
+  const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const allSubmissionsQuery = useQuery({
-    queryKey: ['specialist-submissions'],
-    queryFn: () => specialistApi.listAllSubmissions({ page: 1, pageSize: 200 }),
+    queryKey: ['specialist-submissions', { stage: activeSubmissionStage }],
+    queryFn: () => listEverySubmission(activeSubmissionStage),
   });
 
   const groupsQuery = useQuery({
@@ -714,19 +767,19 @@ export default function SpecialistReviewPage() {
 
   const filteredGroups = useMemo(() => {
     const keyword = groupSearch.trim().toLocaleLowerCase('vi');
-    if (!keyword) return localityGroups;
     return localityGroups.filter((group) =>
-      `${group.code} ${group.groupName} ${group.description}`.toLocaleLowerCase('vi').includes(keyword),
+      (!keyword || `${group.code} ${group.groupName} ${group.description}`.toLocaleLowerCase('vi').includes(keyword))
+      && (!groupStatusFilter || group.status === groupStatusFilter),
     );
-  }, [localityGroups, groupSearch]);
+  }, [localityGroups, groupSearch, groupStatusFilter]);
 
   const filteredLocalityRows = useMemo(() => {
-    const keyword = localitySearch.trim().toLocaleLowerCase('vi');
-    if (!keyword) return localityRows;
-    return localityRows.filter((row) =>
-      `${row.localityId} ${row.localityName}`.toLocaleLowerCase('vi').includes(keyword),
-    );
-  }, [localityRows, localitySearch]);
+    const keyword = debouncedLocalitySearch.trim().toLocaleLowerCase('vi');
+    return localityRows.filter((row) => {
+      const matchesSearch = !keyword || `${row.localityId} ${row.localityName}`.toLocaleLowerCase('vi').includes(keyword);
+      return matchesSearch;
+    });
+  }, [localityRows, debouncedLocalitySearch]);
 
   if (!diaPhuongId) {
     const visibleRows = filteredLocalityRows;
@@ -743,7 +796,28 @@ export default function SpecialistReviewPage() {
         <PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" />
         <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Hồ sơ địa phương" countLabel={`${visibleRows.length} địa phương`} />
-          <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="border-b border-border bg-[linear-gradient(135deg,rgba(168,32,44,0.035),transparent_42%)] px-4 py-3 sm:px-5">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <Tabs value={submissionStageFilter || 'ALL'} onValueChange={(value) => setSubmissionStageFilter(value === 'ALL' ? '' : value as SubmissionStageFilter)}>
+                <TabsList variant="line" className="h-auto w-full flex-wrap justify-start gap-1 pb-1">
+                  {QUICK_STAGE_FILTERS.map((filter) => (
+                    <TabsTrigger
+                      key={filter.value || 'ALL'}
+                      value={filter.value || 'ALL'}
+                      className="!flex-none h-9 rounded-md px-3 data-active:bg-primary/5 data-active:text-primary after:bg-primary"
+                    >
+                      {filter.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="size-1.5 rounded-full bg-primary" />
+                Lọc trạng thái được áp dụng từ máy chủ
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 border-b border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="relative w-full max-w-xl sm:flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -754,16 +828,19 @@ export default function SpecialistReviewPage() {
                 className="pl-9"
               />
             </div>
-            <Button
-              variant="info"
-              disabled={!selectedLocality}
-              onClick={() => selectedLocality && navigate(`/chuyen-vien/duyet/${selectedLocality.localityId}`)}
-            >
-              <Eye className="size-4" />Xem hồ sơ
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{visibleRows.length}</span> kết quả phù hợp
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="info"
+                disabled={!selectedLocality}
+                disabledReason="Chọn một địa phương trong bảng để xem hồ sơ."
+                onClick={() => selectedLocality && navigate(`/chuyen-vien/duyet/${selectedLocality.localityId}`)}
+              >
+                <Eye className="size-4" />Xem hồ sơ
+              </Button>
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                <span className="font-medium text-foreground">{visibleRows.length}</span> kết quả phù hợp
+              </p>
+            </div>
           </div>
 
           <div className="hidden xl:block">
@@ -912,18 +989,33 @@ export default function SpecialistReviewPage() {
                 placeholder="Tìm kiếm tên hoặc mã nhóm tiêu chí"
               />
             </div>
-            <Button
-              variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
-              disabled={!selectedGroupRow}
-              onClick={() => selectedGroupRow && navigate(`/chuyen-vien/duyet/${district.localityId}/${selectedGroupRow.id}`)}
-            >
-              {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
-              {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
-            </Button>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span><strong className="font-semibold text-success">{completedGroups}</strong> đã chấm</span>
-              <span className="h-3 w-px bg-border" />
-              <span><strong className="font-semibold text-warning-foreground">{revisionGroups}</strong> cần chỉnh sửa</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterDropdown
+                activeCount={groupStatusFilter ? 1 : 0}
+                activeFilters={groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : undefined}
+                onClear={() => setGroupStatusFilter('')}
+              >
+                <FilterSelect
+                  label="Trạng thái"
+                  value={groupStatusFilter}
+                  onChange={(value) => setGroupStatusFilter(value as GroupStatusFilter)}
+                  options={GROUP_STATUS_FILTER_OPTIONS}
+                />
+              </FilterDropdown>
+              <Button
+                variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
+                disabled={!selectedGroupRow}
+                disabledReason="Chọn một nhóm tiêu chí trong bảng để xem hoặc chấm điểm."
+                onClick={() => selectedGroupRow && navigate(`/chuyen-vien/duyet/${district.localityId}/${selectedGroupRow.id}`)}
+              >
+                {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
+                {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
+              </Button>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span><strong className="font-semibold text-success">{completedGroups}</strong> đã chấm</span>
+                <span className="h-3 w-px bg-border" />
+                <span><strong className="font-semibold text-warning-foreground">{revisionGroups}</strong> cần chỉnh sửa</span>
+              </div>
             </div>
           </div>
 
