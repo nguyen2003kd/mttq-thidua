@@ -1043,10 +1043,6 @@ export default function SpecialistReviewPage() {
       toast.error('Nhóm này chưa có hồ sơ để bổ sung tiêu chí.');
       return;
     }
-    if (!['LocalSubmitted', 'SpecialistApproved', 'LeaderApproved'].includes(submission.currentStage)) {
-      toast.error('Chỉ có thể bổ sung tiêu chí khi hồ sơ đang chờ chấm hoặc đã được duyệt ở một cấp.');
-      return;
-    }
     setSupplementaryOpen(true);
   };
 
