@@ -1,11 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowDownToLine, FileText, MessageSquareText, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, FileUpload, FormDialog } from '@/components/core';
+import { Button, DataTable, FileUpload, FormDialog, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableCell, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ColumnDef } from '@tanstack/react-table';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { formatDate } from '@/lib/utils';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
@@ -104,7 +106,7 @@ function EvidenceUploadDialog({ open, onOpenChange, title, description, value, u
             <div key={item.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
               <FileText className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{item.fileName}</p>
+                <TruncatedText as="p" value={item.fileName} className="text-sm font-medium" />
                 <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(item.uploadedAt)}</p>
               </div>
               <Button
@@ -201,7 +203,9 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   }, [draft, entry?.explanation, entry?.proposedBonusScore, entry?.proposedScore]);
 
   const maxBonus = criterion.bonusScore ?? 0;
-  const locked = Boolean(entry?.locked || !editable);
+  const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
+  const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= Date.now();
+  const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
     id: `empty-${criterion.id}`,
@@ -274,12 +278,22 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   return (
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
       <TableCell className="align-top">
-        <p className="whitespace-normal break-words font-medium leading-5">{criterion.name}</p>
+        <Tooltip>
+          <TooltipTrigger render={<p className="line-clamp-2 whitespace-normal break-words text-left font-medium leading-5" />}>
+            {criterion.name}
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm whitespace-normal break-words">{criterion.name}</TooltipContent>
+        </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
         {entry?.revisionRequest && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>
       <TableCell className="align-top text-sm text-muted-foreground">
-        {criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}
+        <Tooltip>
+          <TooltipTrigger render={<span className="block truncate" />}>
+            {criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}
+          </TooltipTrigger>
+          <TooltipContent>{criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}</TooltipContent>
+        </Tooltip>
       </TableCell>
       <TableCell className="align-top">
         {criterion.type === 'Supplementary' ? (
@@ -307,14 +321,14 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         <div className="flex min-w-0 flex-col gap-2">
           <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
             <Upload className="size-4 shrink-0" />
-            <span className="truncate">{selectedFiles.length > 0 ? `${selectedFiles.length} file đã chọn` : (standardFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file')}</span>
+            <TruncatedText value={selectedFiles.length > 0 ? `${selectedFiles.length} file đã chọn` : (standardFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file')} />
           </Button>
         </div>
       </TableCell>
       <TableCell className="align-top">
         <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
           <MessageSquareText className="size-4 shrink-0" />
-          <span className="truncate">{explanation || 'Nhập nội dung diễn giải'}</span>
+          <TruncatedText value={explanation || 'Nhập nội dung diễn giải'} />
         </Button>
         {entry?.revisionRequest && <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs"><strong>Phản hồi:</strong> {entry.revisionRequest}</p>}
         {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
@@ -339,6 +353,38 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   onDeleteEvidence,
 }, ref) {
   const rowRefs = useRef<Record<string, EditableRowHandle | null>>({});
+  const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
+    {
+      accessorKey: 'name',
+      header: 'Nội dung tiêu chí',
+      meta: { className: 'h-12 w-[250px] border-r border-white/30', disableTooltip: true },
+    },
+    {
+      accessorKey: 'deadline',
+      header: 'Hạn nộp',
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', disableTooltip: true },
+    },
+    {
+      id: 'proposedScore',
+      header: 'Điểm đề xuất ★',
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'right', disableTooltip: true },
+    },
+    {
+      id: 'bonusScore',
+      header: 'Điểm thưởng',
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'right', disableTooltip: true },
+    },
+    {
+      id: 'evidence',
+      header: 'File bằng chứng ★',
+      meta: { className: 'h-12 w-[180px] border-r border-white/30', disableTooltip: true },
+    },
+    {
+      id: 'explanation',
+      header: 'Nội dung diễn giải ★',
+      meta: { className: 'h-12 w-[280px]', disableTooltip: true },
+    },
+  ], []);
 
   useImperativeHandle(ref, () => ({
     collectAll: () => {
@@ -356,51 +402,45 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   }));
 
   return (
-    <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+    <div className="space-y-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-lg border border-primary bg-card px-4 py-3 shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         <div>
           <h2 className="text-sm font-semibold">Nội dung tự đánh giá</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">Nhập điểm trực tiếp; bằng chứng và diễn giải được bổ sung qua từng nút trên dòng.</p>
         </div>
         <Badge variant="outline">{criteria.length} tiêu chí</Badge>
       </div>
-      {toolbar && (
-        <div className="sticky top-0 z-20 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
-          {toolbar}
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <Table className="min-w-[1100px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0">
-          <TableHeader>
-            <TableRow className="bg-primary hover:bg-primary">
-              <TableHead className="h-12 w-[250px] border-r border-white/30 bg-primary text-primary-foreground">Nội dung tiêu chí</TableHead>
-              <TableHead className="h-12 w-[130px] border-r border-white/30 bg-primary text-primary-foreground">Hạn nộp</TableHead>
-              <TableHead className="h-12 w-[130px] border-r border-white/30 bg-primary text-right text-primary-foreground">Điểm đề xuất ★</TableHead>
-              <TableHead className="h-12 w-[130px] border-r border-white/30 bg-primary text-right text-primary-foreground">Điểm thưởng</TableHead>
-              <TableHead className="h-12 w-[180px] border-r border-white/30 bg-primary text-primary-foreground">File bằng chứng ★</TableHead>
-              <TableHead className="h-12 w-[280px] bg-primary text-primary-foreground">Nội dung diễn giải ★</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {criteria.map((criterion) => (
-              <EditableRow
-                key={criterion.id}
-                ref={(node) => { rowRefs.current[criterion.id] = node; }}
-                criterion={criterion}
-                entry={record.entries.find((item) => item.criteriaId === criterion.id)}
-                files={evidence.filter((item) => item.localityId === localityId && item.criteriaId === criterion.id)}
-                draft={draftValues?.get(criterion.id)}
-                state={record.state}
-                editable={editable}
-                selected={selectedCriterionId === criterion.id}
-                uploading={uploading}
-                onSelect={onSelect}
-                onDeleteEvidence={onDeleteEvidence}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={criteria}
+        pageSize={criteria.length || 10}
+        showPagination={false}
+        toolbar={toolbar}
+        getRowId={(criterion) => criterion.id}
+        selectedRowId={selectedCriterionId}
+        className="-mt-px"
+        tableWrapperClassName="!overflow-visible"
+        tableClassName="min-w-[1100px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"
+        renderRow={(row, { selected }) => {
+          const criterion = row.original;
+          return (
+            <EditableRow
+              key={row.id}
+              ref={(node) => { rowRefs.current[criterion.id] = node; }}
+              criterion={criterion}
+              entry={record.entries.find((item) => item.criteriaId === criterion.id)}
+              files={evidence.filter((item) => item.localityId === localityId && item.criteriaId === criterion.id)}
+              draft={draftValues?.get(criterion.id)}
+              state={record.state}
+              editable={editable}
+              selected={selected}
+              uploading={uploading}
+              onSelect={onSelect}
+              onDeleteEvidence={onDeleteEvidence}
+            />
+          );
+        }}
+      />
     </div>
   );
 });

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -114,9 +114,7 @@ export default function LocalityCriteriaPage() {
         accessorKey: 'content',
         header: 'Nội dung',
         cell: ({ row }) => (
-          <p className="truncate text-sm text-muted-foreground" title={row.original.content}>
-            {row.original.content || '—'}
-          </p>
+          <TruncatedText value={row.original.content} className="text-sm text-muted-foreground" />
         ),
         meta: { list: { label: 'Nội dung', width: 'minmax(260px, 1.7fr)' } },
       },
@@ -305,10 +303,18 @@ export default function LocalityCriteriaPage() {
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
-  const editable = record.state === 'DRAFT';
+  const parentDeadlineMs = detailTable.closeDate ? Date.parse(detailTable.closeDate) : Number.NaN;
+  const parentDeadlineExpired = Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= Date.now();
+  const editable = record.state === 'DRAFT' && !parentDeadlineExpired;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const notYetSubmitted = !submission;
-  const canSubmit = notYetSubmitted || record.state === 'DRAFT';
+  const canSubmit = (notYetSubmitted || record.state === 'DRAFT') && !parentDeadlineExpired;
+
+  const ensureParentDeadlineActive = () => {
+    if (!parentDeadlineExpired) return true;
+    toast.error('Nhóm tiêu chí đã hết hạn nộp. Không thể chỉnh sửa hoặc gửi hồ sơ.');
+    return false;
+  };
 
   const uploadDraftFiles = (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
     if (!result || !draft) return Promise.resolve([]);
@@ -346,6 +352,7 @@ export default function LocalityCriteriaPage() {
 
   const handleSubmitResults = async () => {
     if (!id || !user) return;
+    if (!ensureParentDeadlineActive()) return;
     try {
       const collected = scoreTableRef.current?.collectAll() ?? new Map<string, EvidenceFormValue>();
       if (!submission) {
@@ -400,10 +407,13 @@ export default function LocalityCriteriaPage() {
   };
 
   const requireSelection = (callback: () => void) => { if (!selected) { toast.info('Vui lòng chọn một dòng tiêu chí trước.'); return; } callback(); };
+  const selectedCriterionDeadlineMs = selected?.criterion?.deadline ? Date.parse(selected.criterion.deadline) : Number.NaN;
+  const selectedCriterionDeadlineExpired = Number.isFinite(selectedCriterionDeadlineMs) && selectedCriterionDeadlineMs <= Date.now();
   const currentSelfScore = record.entries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
   const currentBonusScore = record.entries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
   const handleSaveAll = async () => {
     if (!scoreTableRef.current || !user) return;
+    if (!ensureParentDeadlineActive()) return;
     setSavingAll(true);
     try {
       const collected = scoreTableRef.current.collectAll();
@@ -462,6 +472,7 @@ export default function LocalityCriteriaPage() {
     }
   };
   const openSubmitDialog = () => {
+    if (!ensureParentDeadlineActive()) return;
     if (!scoreTableRef.current?.validateAll()) {
       toast.error('Vui lòng hoàn thiện các trường bắt buộc trước khi gửi yêu cầu.');
       return;
@@ -504,14 +515,18 @@ export default function LocalityCriteriaPage() {
         selectedCriterionId={selected?.criterion?.id}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
-        onDeleteEvidence={(evidenceId) => { const target = evidence.find((item) => item.id === evidenceId); if (target) setDeleteTarget(target); }}
+        onDeleteEvidence={(evidenceId) => {
+          if (!ensureParentDeadlineActive()) return;
+          const target = evidence.find((item) => item.id === evidenceId);
+          if (target) setDeleteTarget(target);
+        }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" disabled={!selected} onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" disabled={!editable || !selected} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
+            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
+            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa bằng chứng.' : !selected ? 'Chọn một tiêu chí để xóa bằng chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.'} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có bằng chứng để xóa.'); })}><Trash2 className="size-4" />Xóa bằng chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button disabled={!editable || savingAll} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
-              <Button disabled={savingAll || !canSubmit} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
+              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.'} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
+              <Button disabled={savingAll || !canSubmit} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện chưa sẵn sàng để gửi.'} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
             </div>
           </div>
         )}
@@ -531,9 +546,7 @@ export default function LocalityCriteriaPage() {
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
                       <FileText className="h-4.5 w-4.5 text-primary" />
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground" title={file.displayName || file.originalName}>
-                      {file.displayName || file.originalName}
-                    </span>
+                    <TruncatedText value={file.displayName || file.originalName} className="flex-1 text-[13px] font-semibold text-foreground" />
                   </div>
                   <div className="flex items-center justify-between gap-2 border-t border-border/60 px-3 py-1.5">
                     <span className="truncate text-[11px] text-muted-foreground">
@@ -556,7 +569,10 @@ export default function LocalityCriteriaPage() {
       )}
 
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
-      <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => { if (deleteTarget) deleteFileMutation.mutate(deleteTarget.id); }} />
+      <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
+        if (!deleteTarget || !ensureParentDeadlineActive()) return;
+        deleteFileMutation.mutate(deleteTarget.id);
+      }} />
       <ConfirmDialog open={submitOpen} onOpenChange={setSubmitOpen} title="Gửi yêu cầu" description="Gửi hồ sơ tự đánh giá này lên Chuyên viên cấp thành phố?" confirmLabel="Tiếp tục" cancelLabel="Đóng" action="submit" state="DRAFT" onConfirm={handleSubmitResults} />
     </div>
   );

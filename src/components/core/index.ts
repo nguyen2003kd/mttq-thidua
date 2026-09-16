@@ -6,6 +6,7 @@ export {
   ActionBadge,
 } from './StatusBadge';
 export { Button, buttonVariants } from './Button';
+export { TruncatedText } from './TruncatedText';
 export { NavItem } from './NavItem';
 export { ConfirmDialog } from './ConfirmDialog';
 export { DetailDialog, type DetailDialogItem, type DetailDialogProps } from './DetailDialog';

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { AlertTriangle, ArrowDownToLine, FileText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { FormDialog, Button, FileUpload } from '@/components/core';
+import { FormDialog, Button, FileUpload, TruncatedText } from '@/components/core';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -172,7 +172,7 @@ export function EvidenceModal({
             <div key={item.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
               <FileText className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{item.fileName}</p>
+                <TruncatedText as="p" value={item.fileName} className="text-sm font-medium" />
                 <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {item.kind === 'BONUS' ? 'Điểm thưởng' : item.kind === 'SUPPLEMENTARY' ? 'Tiêu chí bổ sung' : 'Bằng chứng chính'}</p>
               </div>
               <Button
