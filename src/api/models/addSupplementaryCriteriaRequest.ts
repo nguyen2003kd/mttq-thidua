@@ -4,9 +4,8 @@ export interface AddSupplementaryCriteriaRequest {
   submissionId?: string;
   /** @nullable */
   content?: string | null;
-  maxPoint?: number;
-  maxBonusPoint?: number;
-  deadline?: string;
+  /** @nullable */
+  deadline?: string | null;
   /** @nullable */
   note?: string | null;
 }

@@ -10,7 +10,6 @@ import type {
 
 export interface CriteriaItem {
   id: string;
-  type?: 'Standard' | 'Supplementary' | string;
   name: string;
   maxScore: number;
   bonusScore?: number;
