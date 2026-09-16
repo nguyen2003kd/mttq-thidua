@@ -20,6 +20,7 @@ export interface ButtonProps
 
 export function Button({ action, state, scope, fallback, disabledReason, ...props }: ButtonProps) {
   const can = useCan();
+  const isFullWidth = typeof props.className === 'string' && /(?:^|\s)!?w-full(?:\s|$)/.test(props.className);
 
   if (action && !can(action, { state, scope })) {
     return fallback ? <>{fallback}</> : null;
@@ -33,7 +34,7 @@ export function Button({ action, state, scope, fallback, disabledReason, ...prop
   // button không nhận hover/focus, nên span là trigger để vẫn đọc được lý do.
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className="inline-flex cursor-not-allowed" />}>
+      <TooltipTrigger render={<span className={`inline-flex cursor-not-allowed ${isFullWidth ? 'w-full' : ''}`} />}>
         {button}
       </TooltipTrigger>
       {props.disabled && <TooltipContent className="max-w-sm whitespace-normal break-words">{reason}</TooltipContent>}
