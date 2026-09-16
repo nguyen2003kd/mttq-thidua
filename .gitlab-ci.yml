@@ -1,0 +1,77 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  IMAGE_FE: "mttq-tctd-uat-fe"
+  DEPLOY_PATH: "/opt/mttq-tctd-uat/fe"
+  DOCKER_BUILDKIT: "1"
+
+build:
+  stage: build
+  tags:
+    - runner-local-vpd
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  cache:
+    key: "pnpm-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .pnpm/store/
+  before_script:
+    - |
+      if ! command -v pnpm &>/dev/null; then
+        echo "pnpm not found, installing via corepack..."
+        corepack prepare pnpm@11.10.0 --activate --install-directory "$CI_PROJECT_DIR/.bin"
+        export PATH="$CI_PROJECT_DIR/.bin:$PATH"
+      fi
+      pnpm config set store-dir "$CI_PROJECT_DIR/.pnpm/store"
+  script:
+    - |
+      echo "Install dependencies"
+      pnpm install --frozen-lockfile
+
+      echo "Build FE"
+      pnpm build
+  only:
+    - release/uat
+
+deploy:
+  stage: deploy
+  tags:
+    - runner-local-vpd
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  script:
+    - |
+      echo "Prepare deploy folder"
+      mkdir -p "$DEPLOY_PATH"
+
+      echo "Copy .env from deploy folder into build context (Vite embeds env at build time)"
+      if [ -f "$DEPLOY_PATH/.env" ]; then
+        cp "$DEPLOY_PATH/.env" .env
+      else
+        echo "WARNING: $DEPLOY_PATH/.env not found — build will run without env vars"
+      fi
+
+      echo "Build FE image"
+      docker build -t "$IMAGE_FE:latest" -f Dockerfile .
+
+      cp docker-compose.yml "$DEPLOY_PATH/docker-compose.yml"
+
+      echo "Create deploy env"
+      echo "IMAGE_API=$IMAGE_FE:latest" > "$DEPLOY_PATH/.deploy.env"
+
+      echo "Restart services"
+      cd "$DEPLOY_PATH"
+      docker compose -f docker-compose.yml --env-file .env --env-file .deploy.env up -d --no-build --remove-orphans
+
+      echo "Service status"
+      docker compose -f docker-compose.yml --env-file .env --env-file .deploy.env ps
+  only:
+    - release/uat

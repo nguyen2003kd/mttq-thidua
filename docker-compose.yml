@@ -1,0 +1,13 @@
+services:
+  app:
+    image: ${IMAGE_API:-mttq-tctd-uat-fe}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mttq-tctd-uat-fe
+    ports:
+      - "3061:3061"
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
