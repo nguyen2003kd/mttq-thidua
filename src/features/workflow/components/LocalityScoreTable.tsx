@@ -201,6 +201,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   }, [draft, entry?.explanation, entry?.proposedBonusScore, entry?.proposedScore]);
 
   const maxBonus = criterion.bonusScore ?? 0;
+  const isSupplementary = criterion.type === 'Supplementary';
   const locked = Boolean(entry?.locked || !editable);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
@@ -216,8 +217,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const validateRow = () => {
     if (locked) return true;
-    const nextScoreError = validateScore(score, criterion.maxScore, 'Điểm đề xuất', true);
-    const nextBonusScoreError = validateScore(bonusScore, maxBonus, 'Điểm thưởng');
+    const nextScoreError = isSupplementary ? '' : validateScore(score, criterion.maxScore, 'Điểm đề xuất', true);
+    const nextBonusScoreError = isSupplementary ? '' : validateScore(bonusScore, maxBonus, 'Điểm thưởng');
     setScoreError(nextScoreError);
     setBonusScoreError(nextBonusScoreError);
     setError('');
@@ -243,8 +244,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const collect = (): EvidenceFormValue | null => {
     if (locked) return null;
     return {
-      proposedScore: Number(score || 0),
-      proposedBonusScore: Number(bonusScore || 0),
+      proposedScore: isSupplementary ? 0 : Number(score || 0),
+      proposedBonusScore: isSupplementary ? 0 : Number(bonusScore || 0),
       explanation: explanation.trim(),
       files: selectedFiles,
       bonusFiles: [],
@@ -259,23 +260,24 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
       <TableCell className="align-top">
         <p className="whitespace-normal break-words font-medium leading-5">{criterion.name}</p>
+        {isSupplementary && <Badge className="mt-2 bg-accent/20 text-foreground">Tiêu chí bổ sung</Badge>}
         {entry?.revisionRequest && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>
       <TableCell className="align-top text-sm text-muted-foreground">
         {criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}
       </TableCell>
       <TableCell className="align-top">
-        <div className="relative">
+        {isSupplementary ? <Badge variant="secondary">Không áp dụng</Badge> : <div className="relative">
           <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => { setScore(event.target.value); setScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
-        </div>
+        </div>}
         {scoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{scoreError}</p>}
       </TableCell>
       <TableCell className="align-top">
-        <div className="relative">
+        {isSupplementary ? <Badge variant="secondary">Không áp dụng</Badge> : <div className="relative">
           <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => { setBonusScore(event.target.value); setBonusScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
-        </div>
+        </div>}
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}
       </TableCell>
       <TableCell className="align-top">

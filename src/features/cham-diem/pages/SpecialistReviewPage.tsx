@@ -107,8 +107,8 @@ const STAGE_TO_GROUP_STATUS: Record<string, SpecialistCriteriaGroup['status']> =
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const supplementarySchema = z.object({
-  name: z.string().trim().min(1, 'Vui lòng nhập tên tiêu chí bổ sung.'),
   reason: z.string().trim().min(1, 'Vui lòng nhập lý do bổ sung.'),
+  score: z.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
   file: z.instanceof(File).nullable().refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
 });
 
@@ -170,12 +170,12 @@ function SupplementaryDialog({
 }) {
   const form = useForm<SupplementaryForm>({
     resolver: zodResolver(supplementarySchema),
-    defaultValues: { name: '', reason: '', file: null },
+    defaultValues: { reason: '', score: 0, file: null },
   });
   const selectedFile = form.watch('file');
 
   useEffect(() => {
-    if (open) form.reset({ name: '', reason: '', file: null });
+    if (open) form.reset({ reason: '', score: 0, file: null });
   }, [form, open]);
 
   return (
@@ -193,14 +193,14 @@ function SupplementaryDialog({
       size="max-w-3xl sm:max-w-3xl"
     >
       <div className="space-y-1.5">
-        <Label htmlFor="supplementary-name">Tên tiêu chí bổ sung <span className="text-destructive">★</span></Label>
-        <Input id="supplementary-name" {...form.register('name')} placeholder="Nhập tên tiêu chí bổ sung" />
-        {form.formState.errors.name && <p role="alert" className="text-xs font-medium text-destructive">{form.formState.errors.name.message}</p>}
-      </div>
-      <div className="space-y-1.5">
         <Label htmlFor="supplementary-reason">Lý do bổ sung <span className="text-destructive">★</span></Label>
         <Textarea id="supplementary-reason" rows={3} {...form.register('reason')} placeholder="Nhập lý do cần bổ sung tiêu chí" />
         {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="supplementary-score">Điểm chấm <span className="text-destructive">★</span></Label>
+        <Input id="supplementary-score" type="number" min={0} step="0.25" className="text-right" {...form.register('score', { valueAsNumber: true })} />
+        {form.formState.errors.score && <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>}
       </div>
       <div className="space-y-1.5">
         <Label>File đính kèm</Label>
@@ -1268,20 +1268,20 @@ export default function SpecialistReviewPage() {
       <SupplementaryDialog
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
-        onSave={({ name, reason, file }) => {
+        onSave={({ reason, score, file }) => {
           const now = new Date();
           const itemId = `CRIT_ADD_${now.getTime()}`;
           updateCriterion(itemId, {
             id: itemId,
             code: `TC_ADD_${displayGroup.items.length + 1}`,
-            title: name,
+            title: '[Tiêu chí bổ sung] Tiêu chí phát sinh trong quá trình thẩm định',
             evidenceFiles: file ? [{ id: `FILE_${now.getTime()}`, fileName: file.name, fileSize: formatFileSize(file.size), uploadedAt: new Intl.DateTimeFormat('vi-VN').format(now), fileId: `FILE_${now.getTime()}` }] : [],
             proposedScore: 0,
             proposedBonusScore: 0,
             maxProposedScore: 0,
             maxProposedBonusScore: 0,
             explanation: reason,
-            officialScore: 0,
+            officialScore: score,
             officialBonusScore: 0,
             scoreReason: reason,
             isAddedBySpecialist: true,

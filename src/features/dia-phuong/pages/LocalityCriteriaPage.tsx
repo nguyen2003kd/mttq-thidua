@@ -175,6 +175,7 @@ export default function LocalityCriteriaPage() {
     if (!group) return [];
     return group.criteria.map((c, idx): CriteriaItem => ({
       id: c.id,
+      type: c.type,
       name: c.content,
       maxScore: c.maxPoint,
       bonusScore: c.maxBonusPoint || undefined,
