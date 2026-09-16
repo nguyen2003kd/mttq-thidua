@@ -33,7 +33,7 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   totalScore: group.maxPoint,
   content: group.content ?? undefined,
   status: toTableStatus(group.status),
-  criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, type: criterion.type, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
+  criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
   assignedLocalityCount: group.status === 'Applied' ? 1 : 0,
   openDate: group.createdAt,
   closeDate: group.deadline ?? '',
@@ -404,12 +404,15 @@ export default function CriteriaListPage() {
         submitLabel="Áp dụng"
         cancelLabel="Đóng"
         submitAction="assign"
-        submitDisabled={saving}
+        submitDisabled={saving || fileUploading}
         size="max-w-xl sm:max-w-xl"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!applyTable) return;
-          if (applyFiles.some((file) => file.size > 20 * 1024 * 1024)) { setApplyError('File thông báo không được vượt quá 20MB.'); return; }
+          if (applyFiles.some((file) => file.size > 20 * 1024 * 1024)) {
+            setApplyError('File thông báo không được vượt quá 20MB.');
+            return;
+          }
           setSaving(true);
           try {
             const latestGroup = await criteriaGroupsApi.get(applyTable.id);
@@ -423,24 +426,39 @@ export default function CriteriaListPage() {
             }
             await criteriaGroupsApi.apply(applyTable.id);
             if (applyFiles.length > 0) {
-              try {
-                await uploadFiles(applyFiles, { entityType: 'CriteriaGroup', entityId: applyTable.id, category: 'notice' });
-              } catch {
-                // Áp dụng đã thành công — lỗi upload chỉ cảnh báo, không chặn luồng
+              const uploadedFiles = await uploadFiles(applyFiles, {
+                entityType: 'CriteriaGroup',
+                entityId: applyTable.id,
+                category: 'notice',
+              });
+              if (uploadedFiles.length !== applyFiles.length) {
+                toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
               }
             }
             await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
             setSelectedTable(null);
             setApplyTable(null);
             toast.success('Đã áp dụng nhóm tiêu chí cho các địa phương.');
-          } catch (error) { toast.error(getCriteriaApiError(error)); }
-          finally { setSaving(false); }
+          } catch (error) {
+            toast.error(getCriteriaApiError(error));
+          } finally {
+            setSaving(false);
+          }
         }}
       >
-        <div className="rounded-md border border-primary/20 bg-primary/[0.04] p-3"><p className="font-medium">Địa phương <span className="text-destructive">★</span></p><p className="mt-1 text-sm text-muted-foreground">Áp dụng toàn bộ {localities.length} địa phương</p></div>
+        <div className="rounded-md border border-primary/20 bg-primary/[0.04] p-3">
+          <p className="font-medium">Địa phương <span className="text-destructive">★</span></p>
+          <p className="mt-1 text-sm text-muted-foreground">Áp dụng toàn bộ {localities.length} địa phương</p>
+        </div>
         <div className="space-y-1.5">
           <Label>Đính kèm file thông báo</Label>
-          <FileUpload value={applyFiles} onChange={(files) => { setApplyFiles(files); setApplyError(''); }} uploading={fileUploading} uploadProgress={fileProgress} />
+          <FileUpload
+            value={applyFiles}
+            onChange={(files) => { setApplyFiles(files); setApplyError(''); }}
+            uploading={fileUploading}
+            uploadProgress={fileProgress}
+            maxSizeMb={20}
+          />
         </div>
         {applyError && <p role="alert" className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm font-medium text-danger"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{applyError}</p>}
       </FormDialog>
