@@ -2,7 +2,7 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
 import type { CriteriaTableAttachment } from '@/types/domain';
-import { Button, EmptyState, PageHeader } from '@/components/core';
+import { Button, EmptyState, PageHeader, TruncatedText } from '@/components/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -196,7 +196,7 @@ export default function AssignLocalityPage() {
                   {attachments.map((file) => (
                     <li key={file.id} className="flex items-center gap-2 rounded-md border bg-muted/30 p-2">
                       <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium" title={file.fileName}>{file.fileName}</span>
+                      <TruncatedText value={file.fileName} className="flex-1 text-xs font-medium" />
                       <Button
                         variant="ghost"
                         size="icon-xs"

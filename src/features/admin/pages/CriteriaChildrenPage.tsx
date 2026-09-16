@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle, ArrowLeft, Eye, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading } from '@/components/core';
+import { Button, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -68,7 +68,7 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'name',
       header: 'Nội dung tiêu chí con',
-      cell: ({ row }) => <p className="truncate font-medium" title={row.original.name}>{row.original.name}</p>,
+      cell: ({ row }) => <TruncatedText value={row.original.name} className="font-medium" />,
       meta: { list: { width: 'minmax(300px,2fr)' } },
     },
     {
@@ -99,7 +99,7 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'note',
       header: 'Ghi chú',
-      cell: ({ row }) => <p className="truncate text-muted-foreground" title={row.original.note}>{row.original.note || '—'}</p>,
+      cell: ({ row }) => <TruncatedText value={row.original.note} className="text-muted-foreground" />,
       meta: { list: { width: 'minmax(180px,1.1fr)' } },
     },
   ], []);
@@ -197,9 +197,9 @@ export default function CriteriaChildrenPage() {
         onClearFilters={type || sort !== 'createdAt-desc' ? () => { setType(''); setSort('createdAt-desc'); } : undefined}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="info" disabled={!selected} onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" disabled={!selected} onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
-            <Button variant="outline" disabled={!selected} className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
+            <Button variant="info" disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
+            <Button variant="warning" disabled={!selected} disabledReason="Chọn một tiêu chí con để chỉnh sửa." onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
+            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí con để xóa." className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
             <Button
               disabled={group.status !== 'Draft'}
               title={group.status !== 'Draft' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể thêm tiêu chí con.' : undefined}

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FileUpload, FormDialog, PageHeader, PageLoading } from '@/components/core';
+import { Button, EmptyState, FileUpload, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -434,7 +434,7 @@ function EvidenceFilesDialog({
                     <FileText className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground" title={file.fileName}>{file.fileName}</p>
+                    <TruncatedText as="p" value={file.fileName} className="text-sm font-medium text-foreground" />
                     <p className="mt-0.5 text-xs text-muted-foreground">{file.fileSize} · Nộp ngày {file.uploadedAt}</p>
                   </div>
                   <Button

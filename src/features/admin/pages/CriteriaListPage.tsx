@@ -8,6 +8,7 @@ import {
   FilterSelect,
   FormDialog,
   FileUpload,
+  TruncatedText,
 } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -102,9 +103,7 @@ export default function CriteriaListPage() {
         accessorFn: (row) => row.content ?? row.criteria.map((criteria) => criteria.name).join(' '),
         header: 'Nội dung tiêu chí',
         cell: ({ row }) => (
-          <p className="max-w-[280px] truncate text-sm text-muted-foreground" title={row.original.content}>
-            {row.original.content || '—'}
-          </p>
+          <TruncatedText value={row.original.content} className="max-w-[280px] text-sm text-muted-foreground" />
         ),
         meta: { list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
@@ -127,9 +126,7 @@ export default function CriteriaListPage() {
         accessorKey: 'note',
         header: 'Ghi chú',
         cell: ({ row }) => (
-          <p className="max-w-[180px] truncate text-sm text-muted-foreground" title={row.original.note}>
-            {row.original.note || '—'}
-          </p>
+          <TruncatedText value={row.original.note} className="max-w-[180px] text-sm text-muted-foreground" />
         ),
         meta: { list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
@@ -316,13 +313,13 @@ export default function CriteriaListPage() {
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
               <>
-                <Button variant="info" disabled={!selectedTable} onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="info" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" disabled={!selectedTable} onClick={() => selectedTable && openEditDialog(selectedTable)}>
+                <Button variant="warning" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
-                <Button variant="outline" disabled={!selectedTable} onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="outline" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
                 <Button

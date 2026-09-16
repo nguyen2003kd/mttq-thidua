@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { AlertTriangle, File as FileIcon, FileSpreadsheet, FileText, FileImage, Presentation, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TruncatedText } from './TruncatedText';
 
 export interface FileUploadProps {
   /** Danh sách file đang chọn (controlled) */
@@ -169,7 +170,7 @@ export function FileUpload({
                   <row.Icon className={cn('h-4 w-4', row.error ? 'text-destructive' : row.iconCls)} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block max-w-full truncate text-[13px] font-medium text-foreground" title={row.file.name}>{row.file.name}</span>
+                  <TruncatedText value={row.file.name} className="max-w-full text-[13px] font-medium text-foreground" />
                   <span className="block text-xs text-muted-foreground">
                     {formatSize(row.file.size)}
                     {row.error && <span className="text-destructive"> · {row.error}</span>}

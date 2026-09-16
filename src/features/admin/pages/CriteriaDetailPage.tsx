@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, MapPin } from 'lucide-react';
-import { Button, CriteriaStatusBadge, EmptyState, PageHeader } from '@/components/core';
+import { Button, CriteriaStatusBadge, EmptyState, PageHeader, TruncatedText } from '@/components/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ROUTES } from '@/constants/routes';
 import { formatDate } from '@/lib/utils';
@@ -127,7 +127,7 @@ export default function CriteriaDetailPage() {
               {table.assignmentAttachments.map((attachment) => (
                 <div key={attachment.id} className="flex items-center gap-2 rounded-md border border-border/70 p-3 text-sm">
                   <FileText className="size-4 shrink-0 text-primary" />
-                  <span className="min-w-0 truncate">{attachment.fileName}</span>
+                  <TruncatedText value={attachment.fileName} className="flex-1" />
                 </div>
               ))}
             </div>

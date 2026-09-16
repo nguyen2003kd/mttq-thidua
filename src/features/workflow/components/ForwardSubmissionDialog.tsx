@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { FileCheck2 } from 'lucide-react';
-import { FormDialog } from '@/components/core';
+import { FormDialog, TruncatedText } from '@/components/core';
 
 interface ForwardSubmissionDialogProps {
   open: boolean;
@@ -51,11 +51,11 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
       <dl className="grid grid-cols-2 gap-3 rounded-xl border bg-muted/30 p-4">
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">Địa phương</dt>
-          <dd className="mt-1 truncate font-semibold text-foreground">{localityName ?? '—'}</dd>
+          <TruncatedText as="dd" value={localityName} className="mt-1 font-semibold text-foreground" />
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">Nhóm tiêu chí</dt>
-          <dd className="mt-1 truncate font-semibold text-foreground">{groupName ?? '—'}</dd>
+          <TruncatedText as="dd" value={groupName} className="mt-1 font-semibold text-foreground" />
         </div>
       </dl>
     </FormDialog>

@@ -12,6 +12,7 @@ import {
   type SortingState,
   type RowSelectionState,
   type ColumnFiltersState,
+  type Row,
 } from '@tanstack/react-table';
 import {
   Table,
@@ -52,6 +53,8 @@ function extractCellText(node: ReactNode): string {
 export interface DataTableColumnMeta {
   className?: string;
   align?: 'left' | 'center' | 'right';
+  /** Không tự bọc Tooltip cho ô có input, button, hoặc nội dung tương tác. */
+  disableTooltip?: boolean;
   list?: {
     label?: string;
     width?: string;
@@ -75,6 +78,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   /** Hiện link "Xóa tất cả" cạnh hàng chip */
   onClearFilters?: () => void;
   pageSize?: number;
+  /** Ẩn phân trang cho bảng chi tiết cần hiển thị toàn bộ dữ liệu. */
+  showPagination?: boolean;
   enableRowSelection?: boolean;
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   emptyState?: { title: string; description?: string; icon?: ReactNode };
@@ -91,6 +96,16 @@ export interface DataTableProps<TData, TValue = unknown> {
   getRowId?: (row: TData) => string;
   /** Id của hàng đang được chọn (highlight nền primary nhạt) */
   selectedRowId?: string;
+  /** Class áp dụng cho thẻ table bên trong, ví dụ min-width / table-fixed. */
+  tableClassName?: string;
+  /** Class cho vùng cuộn ngang chỉ của bảng, không làm toolbar hay footer bị tràn. */
+  tableWrapperClassName?: string;
+  /** Class cho container được tạo bên trong component Table. */
+  tableContainerClassName?: string;
+  /** Thanh hành động dùng chung, có thể dính ở đáy bảng. */
+  footer?: ReactNode;
+  /** Render toàn bộ hàng cho bảng nghiệp vụ có ô nhập liệu phức tạp. */
+  renderRow?: (row: Row<TData>, context: { selected: boolean; index: number }) => ReactNode;
 }
 
 export function DataTable<TData, TValue = unknown>({
@@ -105,6 +120,7 @@ export function DataTable<TData, TValue = unknown>({
   activeFilters,
   onClearFilters,
   pageSize = 10,
+  showPagination = true,
   enableRowSelection = false,
   onRowSelectionChange,
   emptyState,
@@ -115,6 +131,11 @@ export function DataTable<TData, TValue = unknown>({
   onRowDoubleClick,
   getRowId,
   selectedRowId,
+  tableClassName,
+  tableWrapperClassName,
+  tableContainerClassName,
+  footer,
+  renderRow,
   stickyTitle,
   stickyDescription,
 }: DataTableProps<TData, TValue>) {
@@ -210,6 +231,12 @@ export function DataTable<TData, TValue = unknown>({
     initialState: { pagination: { pageSize } },
   });
 
+  // `initialState` của TanStack Table chỉ chạy ở lần mount. Đồng bộ page size
+  // khi dữ liệu/API đến muộn để bảng chi tiết không bị giữ lại số dòng cũ.
+  useEffect(() => {
+    table.setPageSize(pageSize);
+  }, [pageSize, table]);
+
   // Phát danh sách hàng đã chọn ra ngoài SAU khi state cập nhật (tránh lệch 1 nhịp)
   useEffect(() => {
     selectionCbRef.current?.(
@@ -241,7 +268,7 @@ export function DataTable<TData, TValue = unknown>({
   const endRow = Math.min((pageIndex + 1) * pageSizeState, totalRows);
 
   const renderPagination = () => {
-    if (loading || totalRows === 0) return null;
+    if (!showPagination || loading || totalRows === 0) return null;
     return (
       <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1">
         <div className="text-xs text-muted-foreground">
@@ -315,7 +342,16 @@ export function DataTable<TData, TValue = unknown>({
                     meta?.className,
                   )}
                 >
-                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  {header.isPlaceholder ? null : (() => {
+                    const headerContent = flexRender(header.column.columnDef.header, header.getContext());
+                    const headerText = extractCellText(headerContent).trim();
+                    return headerText ? (
+                      <Tooltip>
+                        <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                        <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
+                      </Tooltip>
+                    ) : headerContent;
+                  })()}
                   {idx < arr.length - 1 && (
                     <span className="absolute right-0 top-0 h-full border-r border-white/30" />
                   )}
@@ -380,7 +416,7 @@ export function DataTable<TData, TValue = unknown>({
                   const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
                   const list = meta?.list;
                   const value = flexRender(cell.column.columnDef.cell, cell.getContext());
-                  const text = extractCellText(value).trim();
+                  const text = meta?.disableTooltip ? '' : extractCellText(value).trim();
                   const isFirst = idx === 0;
 
                   return (
@@ -441,7 +477,7 @@ export function DataTable<TData, TValue = unknown>({
       <div ref={sentinelRef} className="absolute top-0 h-px w-full" aria-hidden="true" />
 
       {/* Unified container: toolbar + chips + table */}
-      <div className="overflow-clip rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+      <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
       {/* Toolbar */}
       {hasToolbar && (
         <div ref={toolbarRef} className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
@@ -479,7 +515,8 @@ export function DataTable<TData, TValue = unknown>({
       {/* Table */}
       {variant === 'list' ? renderList() : (
         <div>
-          <Table>
+          <div className={cn('overflow-visible', tableWrapperClassName)}>
+          <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} style={{ top: toolbarHeight }} className="sticky z-[5] border-border/40 bg-primary hover:bg-transparent">
@@ -499,7 +536,16 @@ export function DataTable<TData, TValue = unknown>({
                             )}
                             onClick={header.column.getToggleSortingHandler()}
                           >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {(() => {
+                              const headerContent = flexRender(header.column.columnDef.header, header.getContext());
+                              const headerText = extractCellText(headerContent).trim();
+                              return headerText ? (
+                                <Tooltip>
+                                  <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                                  <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
+                                </Tooltip>
+                              ) : headerContent;
+                            })()}
                             {header.column.getCanSort() && (
                               <span className="text-white/50">
                                 {header.column.getIsSorted() === 'asc' ? (
@@ -549,44 +595,55 @@ export function DataTable<TData, TValue = unknown>({
                   </TableCell>
                 </TableRow>
               ) : (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() || row.id === selectedRowId ? 'selected' : undefined}
-                    onClick={
-                      enableRowSelection
-                        ? () => row.toggleSelected()
-                        : onRowClick
-                        ? () => onRowClick(row.original)
-                        : undefined
-                    }
-                    onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row.original) : undefined}
-                    className={cn((enableRowSelection || onRowClick) && 'cursor-pointer')}
-                  >
-                    {row.getVisibleCells().map((cell, idx) => {
-                      const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
-                      const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
-                      const content = flexRender(cell.column.columnDef.cell, cell.getContext());
-                      const text = extractCellText(content).trim();
+                table.getRowModel().rows.map((row, index) => {
+                  const selected = row.getIsSelected() || row.id === selectedRowId;
+                  if (renderRow) return renderRow(row, { selected, index });
 
-                      return (
-                        <TableCell key={cell.id} className={cn(alignClass, meta?.className)}>
-                          {text ? (
-                            <Tooltip>
-                              <TooltipTrigger render={<span className="block" />}>{content}</TooltipTrigger>
-                              <TooltipContent className="max-w-80 whitespace-normal">{text}</TooltipContent>
-                            </Tooltip>
-                          ) : content}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={selected ? 'selected' : undefined}
+                      onClick={
+                        enableRowSelection
+                          ? () => row.toggleSelected()
+                          : onRowClick
+                          ? () => onRowClick(row.original)
+                          : undefined
+                      }
+                      onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row.original) : undefined}
+                      className={cn((enableRowSelection || onRowClick) && 'cursor-pointer')}
+                    >
+                      {row.getVisibleCells().map((cell, idx) => {
+                        const meta = cell.column.columnDef.meta as DataTableColumnMeta | undefined;
+                        const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+                        const content = flexRender(cell.column.columnDef.cell, cell.getContext());
+                        const text = meta?.disableTooltip ? '' : extractCellText(content).trim();
+
+                        return (
+                          <TableCell key={cell.id} className={cn(alignClass, meta?.className)}>
+                            {text ? (
+                              <Tooltip>
+                                <TooltipTrigger render={<span className="block" />}>{content}</TooltipTrigger>
+                                <TooltipContent className="max-w-80 whitespace-normal">{text}</TooltipContent>
+                              </Tooltip>
+                            ) : content}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
+          </div>
 
           {renderPagination()}
+          {footer && (
+            <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
+              {footer}
+            </div>
+          )}
         </div>
       )}
       </div>
