@@ -121,6 +121,13 @@ export const filesApi = {
   },
   list: (params: FileListParams = {}) =>
     request<PagedResult<FileItemApi>>({ url: '/api/v1/files', method: 'GET', params }),
+  /** Lấy file của nhiều entityId cùng lúc (tránh N+1) — trả về danh sách phẳng, mỗi item có entityId để group. */
+  listByEntities: (entityType: FileEntityTypeApi, entityIds: string[]) =>
+    request<FileItemApi[]>({
+      url: '/api/v1/files/batch',
+      method: 'GET',
+      params: { entityType, entityIds: entityIds.join(',') },
+    }),
   get: (id: string) => request<FileItemApi>({ url: `/api/v1/files/${id}`, method: 'GET' }),
   remove: (id: string) =>
     request<{ deleted: boolean; id: string }>({ url: `/api/v1/files/${id}`, method: 'DELETE' }),

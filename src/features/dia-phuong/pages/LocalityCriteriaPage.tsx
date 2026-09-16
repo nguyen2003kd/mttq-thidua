@@ -70,7 +70,7 @@ export default function LocalityCriteriaPage() {
     // Địa phương được giao = có submission thuộc group, hoặc group đã Applied
     return groups
       .filter((g) => g.status === 'Applied' || submissionByGroup.has(g.id))
-      .map(mapCriteriaGroupToTable);
+      .map((g) => mapCriteriaGroupToTable(g));
   }, [groupsQuery.data, submissionByGroup]);
 
   // API danh sách nhóm không trả tiêu chí con, nên cần lấy chi tiết để tính đúng tổng điểm thưởng.
@@ -162,12 +162,15 @@ export default function LocalityCriteriaPage() {
   });
 
   // File phải gắn theo từng SubmissionResult; BE không hỗ trợ entityType "submission".
-  const evidenceFileQueries = useQueries({
-    queries: (submissionDetailQuery.data?.results ?? []).map((result) => ({
-      queryKey: ['locality-evidence', result.id],
-      queryFn: () => filesApi.list({ entityType: 'SubmissionResult', entityId: result.id, page: 1, pageSize: 100 }),
-      enabled: Boolean(submission?.id),
-    })),
+  // 1 call batch cho toàn bộ result (tránh N+1), FE tự group theo entityId.
+  const submissionResultIds = useMemo(
+    () => (submissionDetailQuery.data?.results ?? []).map((result) => result.id),
+    [submissionDetailQuery.data],
+  );
+  const evidenceFilesQuery = useQuery({
+    queryKey: ['locality-evidence', submissionResultIds],
+    queryFn: () => filesApi.listByEntities('SubmissionResult', submissionResultIds),
+    enabled: submissionResultIds.length > 0,
   });
 
   const detailCriteria = useMemo(() => {
@@ -209,19 +212,26 @@ export default function LocalityCriteriaPage() {
     return { state: 'DRAFT', entries: draftEntries, totalScore, submittedAt: null, publishedAt: null };
   }, [submissionDetailQuery.data, draftResults, detailCriteria]);
 
-  const evidence: Evidence[] = (submissionDetailQuery.data?.results ?? []).flatMap((result, index) =>
-    (evidenceFileQueries[index]?.data?.items ?? []).map((file) => ({
-      id: file.id,
-      criteriaId: result.criteriaId,
-      localityId: localityId ?? '',
-      fileName: file.displayName || file.originalName,
-      fileUrl: file.url ?? '',
-      uploadedAt: file.createdAt,
-      fileSize: file.sizeBytes,
-      description: file.description ?? undefined,
-      kind: file.category?.toLowerCase() === 'bonus' ? 'BONUS' : 'STANDARD',
-    })),
-  );
+  const evidence: Evidence[] = useMemo(() => {
+    const criteriaIdByResultId = new Map(
+      (submissionDetailQuery.data?.results ?? []).map((result) => [result.id, result.criteriaId]),
+    );
+    return (evidenceFilesQuery.data ?? []).flatMap((file) => {
+      const criteriaId = file.entityId ? criteriaIdByResultId.get(file.entityId) : undefined;
+      if (!criteriaId) return [];
+      return [{
+        id: file.id,
+        criteriaId,
+        localityId: localityId ?? '',
+        fileName: file.displayName || file.originalName,
+        fileUrl: file.url ?? '',
+        uploadedAt: file.createdAt,
+        fileSize: file.sizeBytes,
+        description: file.description ?? undefined,
+        kind: file.category?.toLowerCase() === 'bonus' ? 'BONUS' : 'STANDARD',
+      }];
+    });
+  }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
   // Mutations
   const submitPointsMutation = useMutation({
@@ -292,7 +302,7 @@ export default function LocalityCriteriaPage() {
   if (groupDetailQuery.isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (groupDetailQuery.isError) return <EmptyState title="Không tải được nhóm tiêu chí" description={getLocalityApiError(groupDetailQuery.error)} />;
 
-  const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data) : table;
+  const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
   const editable = record.state === 'DRAFT';

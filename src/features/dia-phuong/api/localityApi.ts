@@ -171,14 +171,17 @@ const STAGE_TO_STATE: Record<SubmissionStage, ScoreState> = {
   RequiresRevision: 'DRAFT',
 };
 
-export function mapCriteriaGroupToTable(group: CriteriaGroupApi): CriteriaTable {
+export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissionId?: string): CriteriaTable {
   return {
     id: group.id,
     name: group.name,
     totalScore: group.maxPoint,
     content: group.content ?? undefined,
     status: group.status === 'Applied' ? 'ACTIVE' : group.status === 'Closed' ? 'EXPIRED' : 'DRAFT',
-    criteria: (group.criteria ?? []).map((c, idx): CriteriaItem => ({
+    criteria: (group.criteria ?? [])
+      // Tiêu chí bổ sung chỉ áp dụng cho submission được chỉ định (TargetSubmissionId)
+      .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === targetSubmissionId)
+      .map((c, idx): CriteriaItem => ({
       id: c.id,
       type: c.type,
       name: c.content,

@@ -36,7 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
 import { specialistApi, type SubmissionApi, type SubmissionResultFile } from '@/features/cham-diem/api/specialistApi';
-import { downloadFile, getFilesApiError } from '@/features/files/api/filesApi';
+import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
 
 interface EvidenceFile {
   id: string;
@@ -107,8 +107,9 @@ const STAGE_TO_GROUP_STATUS: Record<string, SpecialistCriteriaGroup['status']> =
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const supplementarySchema = z.object({
-  reason: z.string().trim().min(1, 'Vui lòng nhập lý do bổ sung.'),
-  score: z.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
+  content: z.string().trim().min(1, 'Vui lòng nhập nội dung tiêu chí bổ sung.'),
+  note: z.string().trim().min(1, 'Vui lòng nhập lý do thêm tiêu chí bổ sung.'),
+  deadline: z.string(),
   file: z.instanceof(File).nullable().refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
 });
 
@@ -166,16 +167,17 @@ function SupplementaryDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (value: SupplementaryForm) => void;
+  onSave: (value: SupplementaryForm) => Promise<void>;
 }) {
   const form = useForm<SupplementaryForm>({
     resolver: zodResolver(supplementarySchema),
-    defaultValues: { reason: '', score: 0, file: null },
+    defaultValues: { content: '', deadline: '', note: '', file: null },
   });
   const selectedFile = form.watch('file');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) form.reset({ reason: '', score: 0, file: null });
+    if (open) form.reset({ content: '', deadline: '', note: '', file: null });
   }, [form, open]);
 
   return (
@@ -183,24 +185,36 @@ function SupplementaryDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Thêm tiêu chí bổ sung"
-      description="Bổ sung tiêu chí phát sinh trong quá trình thẩm định hồ sơ."
-      onSubmit={form.handleSubmit((value) => {
-        onSave(value);
-        onOpenChange(false);
+      description="Bổ sung tiêu chí phát sinh trong quá trình thẩm định hồ sơ. Địa phương sẽ được yêu cầu bổ sung điểm cho tiêu chí này."
+      onSubmit={form.handleSubmit(async (value) => {
+        try {
+          setSaving(true);
+          await onSave(value);
+          onOpenChange(false);
+        } catch {
+          /* lỗi đã hiển thị toast, giữ dialog mở */
+        } finally {
+          setSaving(false);
+        }
       })}
-      submitLabel="Lưu"
+      submitLabel={saving ? 'Đang lưu…' : 'Lưu'}
+      submitDisabled={saving}
       cancelLabel="Đóng"
       size="max-w-3xl sm:max-w-3xl"
     >
       <div className="space-y-1.5">
-        <Label htmlFor="supplementary-reason">Lý do bổ sung <span className="text-destructive">★</span></Label>
-        <Textarea id="supplementary-reason" rows={3} {...form.register('reason')} placeholder="Nhập lý do cần bổ sung tiêu chí" />
-        {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
+        <Label htmlFor="supplementary-content">Nội dung tiêu chí <span className="text-destructive">★</span></Label>
+        <Textarea id="supplementary-content" rows={3} {...form.register('content')} placeholder="Nhập nội dung tiêu chí bổ sung" />
+        {form.formState.errors.content && <p className="text-xs text-destructive">{form.formState.errors.content.message}</p>}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="supplementary-score">Điểm chấm <span className="text-destructive">★</span></Label>
-        <Input id="supplementary-score" type="number" min={0} step="0.25" className="text-right" {...form.register('score', { valueAsNumber: true })} />
-        {form.formState.errors.score && <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>}
+        <Label htmlFor="supplementary-note">Lý do thêm tiêu chí bổ sung <span className="text-destructive">★</span></Label>
+        <Textarea id="supplementary-note" rows={2} placeholder="Nhập lý do cần bổ sung tiêu chí" {...form.register('note')} />
+        {form.formState.errors.note && <p className="text-xs text-destructive">{form.formState.errors.note.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="supplementary-deadline">Hạn nộp</Label>
+        <Input id="supplementary-deadline" type="datetime-local" {...form.register('deadline')} />
       </div>
       <div className="space-y-1.5">
         <Label>File đính kèm</Label>
@@ -593,7 +607,9 @@ export default function SpecialistReviewPage() {
       .filter((g) => g.status === 'Applied' || submissionByGroup.has(g.id))
       .map((g) => {
         const submission = submissionByGroup.get(g.id);
-        const items: SpecialistCriteriaItem[] = (g.criteria ?? []).map((c, idx) => {
+        const items: SpecialistCriteriaItem[] = (g.criteria ?? [])
+          .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === submission?.id)
+          .map((c, idx) => {
           const result = submission?.results.find((r) => r.criteriaId === c.id);
           return {
             id: c.id,
@@ -652,7 +668,9 @@ export default function SpecialistReviewPage() {
     const group = selectedGroupDetailQuery.data;
     if (!group) return undefined;
     const submission = selectedSubmissionDetailQuery.data;
-    const items: SpecialistCriteriaItem[] = (group.criteria ?? []).map((c, idx) => {
+    const items: SpecialistCriteriaItem[] = (group.criteria ?? [])
+      .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === submission?.id)
+      .map((c, idx) => {
       const result = submission?.results.find((r) => r.criteriaId === c.id);
       return {
         id: c.id,
@@ -667,6 +685,7 @@ export default function SpecialistReviewPage() {
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,
         scoreReason: result?.officialReason ?? '',
+        isAddedBySpecialist: c.type === 'Supplementary',
       };
     });
     return {
@@ -1027,6 +1046,19 @@ export default function SpecialistReviewPage() {
     setForwardOpen(true);
   };
 
+  const openSupplementaryDialog = () => {
+    const submission = submissionByGroup.get(selectedGroup.id);
+    if (!submission) {
+      toast.error('Nhóm này chưa có hồ sơ để bổ sung tiêu chí.');
+      return;
+    }
+    if (!['LocalSubmitted', 'SpecialistApproved', 'LeaderApproved'].includes(submission.currentStage)) {
+      toast.error('Chỉ có thể bổ sung tiêu chí khi hồ sơ đang chờ chấm hoặc đã được duyệt ở một cấp.');
+      return;
+    }
+    setSupplementaryOpen(true);
+  };
+
   const buildScoreItems = () => {
     const results = selectedSubmissionDetailQuery.data?.results ?? [];
     return displayGroup.items
@@ -1128,7 +1160,7 @@ export default function SpecialistReviewPage() {
         <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur lg:flex-row lg:items-center lg:justify-between sm:px-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
-            <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
+            <Button variant="outline" onClick={openSupplementaryDialog}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}><AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa</Button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
@@ -1268,25 +1300,33 @@ export default function SpecialistReviewPage() {
       <SupplementaryDialog
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
-        onSave={({ reason, score, file }) => {
-          const now = new Date();
-          const itemId = `CRIT_ADD_${now.getTime()}`;
-          updateCriterion(itemId, {
-            id: itemId,
-            code: `TC_ADD_${displayGroup.items.length + 1}`,
-            title: '[Tiêu chí bổ sung] Tiêu chí phát sinh trong quá trình thẩm định',
-            evidenceFiles: file ? [{ id: `FILE_${now.getTime()}`, fileName: file.name, fileSize: formatFileSize(file.size), uploadedAt: new Intl.DateTimeFormat('vi-VN').format(now), fileId: `FILE_${now.getTime()}` }] : [],
-            proposedScore: 0,
-            proposedBonusScore: 0,
-            maxProposedScore: 0,
-            maxProposedBonusScore: 0,
-            explanation: reason,
-            officialScore: score,
-            officialBonusScore: 0,
-            scoreReason: reason,
-            isAddedBySpecialist: true,
+        onSave={async ({ content, deadline, note, file }) => {
+          const submission = submissionByGroup.get(selectedGroup.id);
+          if (!submission) {
+            toast.error('Nhóm này chưa có hồ sơ để bổ sung tiêu chí.');
+            return;
+          }
+          if (!['LocalSubmitted', 'SpecialistApproved', 'LeaderApproved'].includes(submission.currentStage)) {
+            toast.error('Chỉ có thể bổ sung tiêu chí khi hồ sơ đang chờ chấm hoặc đã được duyệt ở một cấp.');
+            return;
+          }
+          const response = await specialistApi.addSupplementaryCriteria({
+            submissionId: submission.id,
+            content: content.trim(),
+            deadline: deadline ? new Date(deadline).toISOString() : null,
+            note: note.trim(),
           });
-          toast.success('Đã thêm tiêu chí bổ sung.');
+          if (file) {
+            await filesApi.upload(file, {
+              displayName: file.name,
+              entityType: 'SubmissionResult',
+              entityId: response.submissionResultId,
+              category: 'supplementary',
+            });
+          }
+          await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
+          await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+          toast.success('Đã thêm tiêu chí bổ sung. Hồ sơ chuyển về trạng thái chờ địa phương chỉnh sửa.');
         }}
       />
       <RevisionDialog
