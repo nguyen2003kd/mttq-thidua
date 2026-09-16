@@ -214,8 +214,24 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     evidenceCount: files.length,
   };
 
+  const isSupplementary = criterion.type === 'Supplementary';
+
   const validateRow = () => {
     if (locked) return true;
+    if (isSupplementary) {
+      setScoreError('');
+      setBonusScoreError('');
+      setError('');
+      if (!explanation.trim()) {
+        setError('Vui lòng nhập nội dung diễn giải.');
+        return false;
+      }
+      if (standardFiles.length === 0 && selectedFiles.length === 0) {
+        setError('Vui lòng chọn file bằng chứng.');
+        return false;
+      }
+      return true;
+    }
     const nextScoreError = validateScore(score, criterion.maxScore, 'Điểm đề xuất', true);
     const nextBonusScoreError = validateScore(bonusScore, maxBonus, 'Điểm thưởng');
     setScoreError(nextScoreError);
@@ -243,8 +259,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const collect = (): EvidenceFormValue | null => {
     if (locked) return null;
     return {
-      proposedScore: Number(score || 0),
-      proposedBonusScore: Number(bonusScore || 0),
+      proposedScore: isSupplementary ? 0 : Number(score || 0),
+      proposedBonusScore: isSupplementary ? 0 : Number(bonusScore || 0),
       explanation: explanation.trim(),
       files: selectedFiles,
       bonusFiles: [],
@@ -259,23 +275,32 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
       <TableCell className="align-top">
         <p className="whitespace-normal break-words font-medium leading-5">{criterion.name}</p>
+        {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
         {entry?.revisionRequest && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>
       <TableCell className="align-top text-sm text-muted-foreground">
         {criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}
       </TableCell>
       <TableCell className="align-top">
-        <div className="relative">
-          <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => { setScore(event.target.value); setScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
-        </div>
+        {criterion.type === 'Supplementary' ? (
+          <p className="text-sm text-muted-foreground">—</p>
+        ) : (
+          <div className="relative">
+            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => { setScore(event.target.value); setScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
+          </div>
+        )}
         {scoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{scoreError}</p>}
       </TableCell>
       <TableCell className="align-top">
-        <div className="relative">
-          <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => { setBonusScore(event.target.value); setBonusScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
-        </div>
+        {criterion.type === 'Supplementary' ? (
+          <p className="text-sm text-muted-foreground">—</p>
+        ) : (
+          <div className="relative">
+            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => { setBonusScore(event.target.value); setBonusScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
+          </div>
+        )}
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}
       </TableCell>
       <TableCell className="align-top">

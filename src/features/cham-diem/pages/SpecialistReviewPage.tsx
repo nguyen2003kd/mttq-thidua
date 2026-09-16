@@ -464,6 +464,9 @@ function EvidenceFilesDialog({
 }
 
 function ProposedScoreSummary({ item }: { item: SpecialistCriteriaItem }) {
+  if (item.isAddedBySpecialist) {
+    return <p className="text-sm text-muted-foreground">—</p>;
+  }
   return (
     <div className="grid grid-cols-2 gap-2" aria-label="Điểm địa phương đề xuất">
       <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5">
@@ -1007,6 +1010,7 @@ export default function SpecialistReviewPage() {
   const copyProposedScores = () => {
     const newOverrides = new Map(scoreOverrides);
     for (const item of displayGroup.items) {
+      if (item.isAddedBySpecialist) continue;
       newOverrides.set(item.id, {
         ...newOverrides.get(item.id),
         officialScore: item.proposedScore,
@@ -1023,7 +1027,7 @@ export default function SpecialistReviewPage() {
       toast.error('Nhóm tiêu chí chưa có tiêu chí con để gửi duyệt.');
       return;
     }
-    const missingScore = displayGroup.items.some((item) => item.officialScore === null || item.officialBonusScore === null);
+    const missingScore = displayGroup.items.some((item) => !item.isAddedBySpecialist && (item.officialScore === null || item.officialBonusScore === null));
     if (missingScore) {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
@@ -1201,6 +1205,9 @@ export default function SpecialistReviewPage() {
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
                   <TableCell className="whitespace-normal px-4 py-5" onClick={(event) => event.stopPropagation()}>
+                    {item.isAddedBySpecialist ? (
+                      <p className="text-sm text-muted-foreground">—</p>
+                    ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <SpecialistScoreInput
                         label="Điểm"
@@ -1217,6 +1224,7 @@ export default function SpecialistReviewPage() {
                         onChange={(value) => updateCriterion(item.id, { officialBonusScore: value })}
                       />
                     </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -1259,6 +1267,7 @@ export default function SpecialistReviewPage() {
                     <h4 className="text-xs font-semibold text-foreground">Địa phương đề xuất</h4>
                     <div className="mt-2"><ProposedScoreSummary item={item} /></div>
                   </div>
+                  {!item.isAddedBySpecialist && (
                   <div className="border-t border-border pt-4">
                     <h4 className="text-xs font-semibold text-foreground">Chuyên viên chấm</h4>
                     <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1278,6 +1287,7 @@ export default function SpecialistReviewPage() {
                       />
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             </article>
