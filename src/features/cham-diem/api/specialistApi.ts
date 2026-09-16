@@ -110,4 +110,12 @@ export const specialistApi = {
       method: 'POST',
       data: { ...payload, action: 'UpdateScore' },
     }),
+
+  // Supplementary criteria — chuyên viên bổ sung tiêu chí phát sinh (không có điểm, hồ sơ về RequiresRevision)
+  addSupplementaryCriteria: (payload: { submissionId: string; content: string; deadline?: string | null; note: string }) =>
+    request<{ added: boolean; submissionId: string; criteriaId: string; submissionResultId: string }>({
+      url: '/api/v1/submissions/supplementary-criteria',
+      method: 'POST',
+      data: payload,
+    }),
 };

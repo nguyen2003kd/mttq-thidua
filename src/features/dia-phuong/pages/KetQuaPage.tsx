@@ -128,7 +128,7 @@ export default function KetQuaPage() {
     );
   }
 
-  const table = groupQuery.data ? mapCriteriaGroupToTable(groupQuery.data) : null;
+  const table = groupQuery.data ? mapCriteriaGroupToTable(groupQuery.data, submissionQuery.data?.id) : null;
   const record = submissionQuery.data ? mapSubmissionToRecord(submissionQuery.data) : { state: 'DRAFT' as const, entries: [], totalScore: 0, submittedAt: null, publishedAt: null };
   const evidence = (filesQuery.data?.rows ?? []).map((f) => mapFileToEvidence(f, '', localityId));
   const totalMax = table?.totalScore ?? 0;
