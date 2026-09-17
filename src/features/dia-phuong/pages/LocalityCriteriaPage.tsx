@@ -231,6 +231,27 @@ export default function LocalityCriteriaPage() {
     });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
+  // Lấy lý do yêu cầu chỉnh sửa (ApprovalHistory có action = RequestRevision)
+  const isRevisionStage = submission?.currentStage === 'RequiresRevision';
+  const revisionHistoriesQuery = useQuery({
+    queryKey: ['locality-revision-histories', submission?.id],
+    queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 10 }),
+    enabled: Boolean(submission?.id) && isRevisionStage,
+  });
+
+  const latestRevisionReason = useMemo(() => {
+    const items = revisionHistoriesQuery.data?.items ?? [];
+    const revisionItem = items.find((item) => item.action?.toLowerCase() === 'requestrevision');
+    return revisionItem?.reason ?? null;
+  }, [revisionHistoriesQuery.data]);
+
+  // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
+  const revisionFilesQuery = useQuery({
+    queryKey: ['locality-revision-files', submission?.id],
+    queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 20 }),
+    enabled: Boolean(submission?.id) && isRevisionStage,
+  });
+
   // Mutations
   const submitPointsMutation = useMutation({
     mutationFn: localityApi.submitPoints,
@@ -503,7 +524,30 @@ export default function LocalityCriteriaPage() {
         )}
         actions={<div className="flex flex-wrap gap-2"><ScoreStateBadge state={record.state} /><Button variant="outline" render={<Link to={`/dia-phuong/tieu-chi/${detailTable.id}/lich-su`} />} nativeButton={false}><History className="size-4" />Lịch sử</Button><Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
-      {record.revisionRequestedAt && <div className="max-w-xl rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi màu cam rồi nộp lại từ đầu chuỗi duyệt.</div>}
+      {record.revisionRequestedAt && (
+        <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <p className="font-medium text-warning-foreground">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại từ đầu chuỗi duyệt.</p>
+          {latestRevisionReason && (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Lý do yêu cầu chỉnh sửa: </span>
+              <span className="italic">{latestRevisionReason}</span>
+            </div>
+          )}
+          {(revisionFilesQuery.data?.items ?? []).length > 0 && (
+            <div className="space-y-1">
+              <span className="text-muted-foreground">File đính kèm:</span>
+              <div className="flex flex-wrap gap-2">
+                {(revisionFilesQuery.data?.items ?? []).map((file) => (
+                  <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                    <FileText className="h-3 w-3 text-muted-foreground" />
+                    {file.displayName ?? file.originalName}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <LocalityScoreTable
         ref={scoreTableRef}
         criteria={detailTable.criteria}
