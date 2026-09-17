@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -813,8 +813,10 @@ function EvidenceFilesDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const files = item?.evidenceFiles ?? [];
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
 
   return (
+    <>
     <Dialog open={Boolean(item)} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="shrink-0 border-b border-border bg-muted/25 px-6 py-5 pr-12">
@@ -848,6 +850,16 @@ function EvidenceFilesDialog({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
+                    title={`Xem ${file.fileName}`}
+                    aria-label={`Xem ${file.fileName}`}
+                    onClick={() => setPreviewFile({ id: file.fileId, originalName: file.fileName })}
+                  >
+                    <Eye className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     title={`Tải xuống ${file.fileName}`}
                     aria-label={`Tải xuống ${file.fileName}`}
                     onClick={() => {
@@ -867,6 +879,8 @@ function EvidenceFilesDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
+    </>
   );
 }
 
@@ -1394,8 +1408,8 @@ export default function SpecialistReviewPage() {
                 <TableRow className="sticky top-[57px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[49px]">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm thưởng</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
+                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái</TableHead>
                   <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu sửa</TableHead>
                 </TableRow>
@@ -1411,8 +1425,8 @@ export default function SpecialistReviewPage() {
                   >
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
-                    <TableCell className="border-r border-primary/15 px-4 py-4 text-right align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
-                    <TableCell className="border-r border-primary/15 px-4 py-4 text-right align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
+                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
                     <TableCell className="px-4 py-4 text-center align-top">{group.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
                   </TableRow>

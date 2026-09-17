@@ -287,7 +287,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
         {entry?.revisionRequest && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>
-      <TableCell className="align-top text-sm text-muted-foreground">
+      <TableCell className="align-middle text-center text-sm text-muted-foreground">
         <Tooltip>
           <TooltipTrigger render={<span className="block truncate" />}>
             {criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}
@@ -317,16 +317,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         )}
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}
       </TableCell>
-      <TableCell className="align-top">
-        <div className="flex min-w-0 flex-col gap-2">
-          <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
-            <Upload className="size-4 shrink-0" />
-            <TruncatedText value={selectedFiles.length > 0 ? `${selectedFiles.length} file đã chọn` : (standardFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file')} />
-          </Button>
-        </div>
-      </TableCell>
-      <TableCell className="align-top">
-        <Button type="button" variant="outline" className="w-full justify-start overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
+      <TableCell className="align-middle">
+        <Button type="button" variant="outline" className="w-full justify-center overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
           <MessageSquareText className="size-4 shrink-0" />
           <TruncatedText value={explanation || 'Nhập nội dung diễn giải'} />
         </Button>
@@ -334,6 +326,14 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
         <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={setSelectedFiles} onDeleteUploaded={onDeleteEvidence} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={setExplanation} />
+      </TableCell>
+      <TableCell className="align-middle">
+        <div className="flex min-w-0 flex-col gap-2">
+          <Button type="button" variant="outline" className="w-full justify-center overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
+            <Upload className="size-4 shrink-0" />
+            <TruncatedText value={standardFiles.length + selectedFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file'} />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
@@ -367,22 +367,22 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
     {
       id: 'proposedScore',
       header: 'Điểm đề xuất ★',
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'right', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
     },
     {
       id: 'bonusScore',
       header: 'Điểm thưởng',
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'right', disableTooltip: true },
-    },
-    {
-      id: 'evidence',
-      header: 'File bằng chứng ★',
-      meta: { className: 'h-12 w-[180px] border-r border-white/30', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
     },
     {
       id: 'explanation',
       header: 'Nội dung diễn giải ★',
-      meta: { className: 'h-12 w-[280px]', disableTooltip: true },
+      meta: { className: 'h-12 w-[280px] border-r border-white/30', disableTooltip: true },
+    },
+    {
+      id: 'evidence',
+      header: 'File bằng chứng ★',
+      meta: { className: 'h-12 w-[180px]', disableTooltip: true },
     },
   ], []);
 
