@@ -78,7 +78,7 @@ export default function MinhChungPage() {
           },
         );
       } catch (error) {
-        toast.error('Không thể tải lên file bằng chứng.', { description: getFilesApiError(error) });
+        toast.error('Không thể tải lên file minh chứng.', { description: getFilesApiError(error) });
         return false;
       } finally {
         setUploading(false);
@@ -113,8 +113,8 @@ export default function MinhChungPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Tự đánh giá & nộp bằng chứng"
-        description="COL.01.02 · Nhập điểm đề xuất, diễn giải và file bằng chứng cho từng tiêu chí."
+        title="Tự đánh giá & nộp minh chứng"
+        description="COL.01.02 · Nhập điểm đề xuất, diễn giải và file minh chứng cho từng tiêu chí."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => toast.success('Đã lưu toàn bộ bản nháp')} disabled={!editable}>
@@ -186,7 +186,7 @@ export default function MinhChungPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-        title="Xóa bằng chứng"
+        title="Xóa minh chứng"
         description={`Xóa file “${deleteTarget?.fileName ?? ''}” khỏi bản tự đánh giá?`}
         confirmLabel="Tiếp tục"
         cancelLabel="Đóng"
@@ -194,7 +194,7 @@ export default function MinhChungPage() {
         onConfirm={() => {
           if (!deleteTarget) return;
           deleteEvidence(deleteTarget.id);
-          toast.success('Đã xóa bằng chứng');
+          toast.success('Đã xóa minh chứng');
           setDeleteTarget(null);
         }}
       />
@@ -203,7 +203,7 @@ export default function MinhChungPage() {
         open={submitOpen}
         onOpenChange={setSubmitOpen}
         title="Gửi yêu cầu"
-        description={complete ? 'Xác nhận nộp báo cáo tự đánh giá lên cấp chuyên viên?' : 'Chưa đủ điều kiện gửi: mỗi tiêu chí phải có điểm đề xuất, diễn giải và ít nhất một file bằng chứng.'}
+        description={complete ? 'Xác nhận nộp báo cáo tự đánh giá lên cấp chuyên viên?' : 'Chưa đủ điều kiện gửi: mỗi tiêu chí phải có điểm đề xuất, diễn giải và ít nhất một file minh chứng.'}
         confirmLabel="Tiếp tục"
         cancelLabel="Đóng"
         onConfirm={() => {

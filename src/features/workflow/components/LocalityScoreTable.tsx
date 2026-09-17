@@ -84,11 +84,11 @@ function EvidenceUploadDialog({ open, onOpenChange, title, description, value, u
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (selectedFiles.length === 0 && uploadedFiles.length === 0) {
-      setError('Vui lòng chọn ít nhất một file bằng chứng.');
+      setError('Vui lòng chọn ít nhất một file minh chứng.');
       return;
     }
     if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
-      setError('Mỗi file bằng chứng không được vượt quá 20MB.');
+      setError('Mỗi file minh chứng không được vượt quá 20MB.');
       return;
     }
     onConfirm(selectedFiles);
@@ -249,7 +249,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       return false;
     }
     if (standardFiles.length === 0 && selectedFiles.length === 0) {
-      setError('Vui lòng chọn file bằng chứng.');
+      setError('Vui lòng chọn file minh chứng.');
       return false;
     }
     if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
@@ -332,7 +332,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         </Button>
         {entry?.revisionRequest && <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs"><strong>Phản hồi:</strong> {entry.revisionRequest}</p>}
         {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
-        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file bằng chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={setSelectedFiles} onDeleteUploaded={onDeleteEvidence} />
+        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={setSelectedFiles} onDeleteUploaded={onDeleteEvidence} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={setExplanation} />
       </TableCell>
     </TableRow>
@@ -406,7 +406,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-lg border border-primary bg-card px-4 py-3 shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         <div>
           <h2 className="text-sm font-semibold">Nội dung tự đánh giá</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Nhập điểm trực tiếp; bằng chứng và diễn giải được bổ sung qua từng nút trên dòng.</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Nhập điểm trực tiếp; minh chứng và diễn giải được bổ sung qua từng nút trên dòng.</p>
         </div>
         <Badge variant="outline">{criteria.length} tiêu chí</Badge>
       </div>

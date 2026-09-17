@@ -158,7 +158,7 @@ export const localityApi = {
   listResultHistories: (resultId: string, params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionHistoryItem>>({ url: `/api/v1/submission-results/${resultId}/histories`, method: 'GET', params }),
 
-  // Files — bằng chứng
+  // Files — minh chứng
   uploadFile: (payload: { file: File; displayName?: string; title?: string; description?: string; note?: string; category?: string; entityType?: string; entityId?: string; visibility?: string }) => {
     const formData = new FormData();
     formData.append('File', payload.file);

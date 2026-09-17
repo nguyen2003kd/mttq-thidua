@@ -29,7 +29,7 @@ const actionSentence: Record<string, string> = {
   PUBLISH: 'đã công bố kết quả',
 };
 
-export function AuditTimeline({ entries }: { entries: AuditEntry[] }) {
+export function AuditTimeline({ entries, context }: { entries: AuditEntry[]; context?: (entry: AuditEntry) => string | undefined }) {
   if (entries.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
@@ -63,6 +63,9 @@ export function AuditTimeline({ entries }: { entries: AuditEntry[] }) {
             <p className="text-xs text-muted-foreground">
               {formatDateTime(entry.timestamp)}
             </p>
+            {context?.(entry) && (
+              <p className="text-xs text-muted-foreground">· {context(entry)}</p>
+            )}
             {entry.reason && (
               <p className="text-sm text-muted-foreground mt-1.5 italic">
                 "{entry.reason}"

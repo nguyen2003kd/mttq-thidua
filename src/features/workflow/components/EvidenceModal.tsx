@@ -64,7 +64,7 @@ export function EvidenceModal({
 
   const maxScore = criterion?.maxScore ?? entry?.supplementaryMaxScore ?? 0;
   const maxBonus = criterion?.bonusScore ?? 0;
-  const title = readonly ? 'Bằng chứng địa phương' : entry?.proposedScore === undefined ? 'Thêm mới bằng chứng' : 'Sửa bằng chứng';
+  const title = readonly ? 'Minh chứng địa phương' : entry?.proposedScore === undefined ? 'Thêm mới minh chứng' : 'Sửa minh chứng';
   const description = criterion?.name ?? entry?.criteriaName ?? '';
   const hasEvidence = evidence.length > 0;
 
@@ -94,11 +94,11 @@ export function EvidenceModal({
       return;
     }
     if (!hasEvidence && files.length === 0) {
-      setError('Vui lòng đính kèm ít nhất một file bằng chứng.');
+      setError('Vui lòng đính kèm ít nhất một file minh chứng.');
       return;
     }
     if ([...files, ...bonusFiles].some((f) => f.size > MAX_FILE_SIZE)) {
-      setError('Mỗi file bằng chứng không được vượt quá 20MB.');
+      setError('Mỗi file minh chứng không được vượt quá 20MB.');
       return;
     }
     setSaving(true);
@@ -110,7 +110,7 @@ export function EvidenceModal({
         setError('Không thể lưu. Tiêu chí có thể đã bị khóa hoặc hồ sơ không còn ở trạng thái được sửa.');
       }
     } catch {
-      setError('Không thể lưu bằng chứng. Vui lòng kiểm tra file và thử lại.');
+      setError('Không thể lưu minh chứng. Vui lòng kiểm tra file và thử lại.');
     } finally {
       setSaving(false);
     }
@@ -145,11 +145,11 @@ export function EvidenceModal({
             <Textarea id="evidence-explanation" rows={3} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Mô tả kết quả đạt được và căn cứ chấm điểm" />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>File bằng chứng {!hasEvidence && <span className="text-destructive">*</span>}</Label>
+            <Label>File minh chứng {!hasEvidence && <span className="text-destructive">*</span>}</Label>
             <FileUpload value={files} onChange={setFiles} multiple disabled={saving} uploading={uploading} uploadProgress={uploadProgress} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>Bằng chứng điểm thưởng</Label>
+            <Label>Minh chứng điểm thưởng</Label>
             <FileUpload value={bonusFiles} onChange={setBonusFiles} multiple disabled={maxBonus === 0 || saving} uploading={uploading} uploadProgress={uploadProgress} />
             <p className="text-xs text-muted-foreground">Không bắt buộc.</p>
           </div>
@@ -166,14 +166,14 @@ export function EvidenceModal({
       <div className="space-y-2">
         <p className="text-sm font-semibold">Danh sách file ({sortedEvidence.length})</p>
         {sortedEvidence.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Chưa có file bằng chứng.</div>
+          <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">Chưa có file minh chứng.</div>
         ) : (
           sortedEvidence.map((item) => (
             <div key={item.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
               <FileText className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <TruncatedText as="p" value={item.fileName} className="text-sm font-medium" />
-                <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {item.kind === 'BONUS' ? 'Điểm thưởng' : item.kind === 'SUPPLEMENTARY' ? 'Tiêu chí bổ sung' : 'Bằng chứng chính'}</p>
+                <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {item.kind === 'BONUS' ? 'Điểm thưởng' : item.kind === 'SUPPLEMENTARY' ? 'Tiêu chí bổ sung' : 'Minh chứng chính'}</p>
               </div>
               <Button
                 variant="ghost"
