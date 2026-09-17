@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, isValidElement, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useRef, isValidElement, type CSSProperties, type ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
@@ -323,8 +323,8 @@ export function DataTable<TData, TValue = unknown>({
       <div className="overflow-clip">
         {/* Header */}
         <div
-          className="sticky z-[5] grid gap-0 bg-primary text-xs font-semibold text-primary-foreground"
-          style={{ gridTemplateColumns: listGridTemplate, top: toolbarHeight }}
+          className="sticky top-[calc(var(--toolbar-height)-16px)] z-[5] grid gap-0 bg-primary text-xs font-semibold text-primary-foreground sm:top-[calc(var(--toolbar-height)-24px)]"
+          style={{ gridTemplateColumns: listGridTemplate, '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
         >
           {table.getHeaderGroups().map((headerGroup) =>
             headerGroup.headers.map((header, idx, arr) => {
@@ -480,7 +480,7 @@ export function DataTable<TData, TValue = unknown>({
       <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
       {/* Toolbar */}
       {hasToolbar && (
-        <div ref={toolbarRef} className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
+        <div ref={toolbarRef} className="sticky top-[-16px] z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:top-[-24px]">
           {searchable && (
             <div className="relative w-full max-w-[300px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -519,7 +519,7 @@ export function DataTable<TData, TValue = unknown>({
           <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} style={{ top: toolbarHeight }} className="sticky z-[5] border-border/40 bg-primary hover:bg-transparent">
+                <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[calc(var(--toolbar-height)-16px)] z-[5] border-border/40 bg-primary hover:bg-transparent sm:top-[calc(var(--toolbar-height)-24px)]">
                   {headerGroup.headers.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
