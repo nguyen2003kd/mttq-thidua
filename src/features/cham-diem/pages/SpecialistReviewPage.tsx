@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Download,
   Edit3,
   Eye,
   FilePlus2,
   FileText,
   MapPin,
+  Paperclip,
   Save,
   Search,
   Send,
@@ -37,7 +40,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
 import { specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import {
+  localityApi,
+  type ApprovalHistoryItem,
+  type SubmissionHistoryItem,
+  type FileSnapshotItem,
+} from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
+import { Card, CardContent } from '@/components/ui/card';
+import { formatDateTime, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 
 interface EvidenceFile {
@@ -194,6 +205,253 @@ type SupplementaryForm = z.infer<typeof supplementarySchema>;
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+const HISTORY_ACTION_LABELS: Record<string, string> = {
+  RequestRevision: 'Yêu cầu chỉnh sửa',
+  UpdateScore: 'Cập nhật điểm',
+  Approve: 'Duyệt hồ sơ',
+  AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
+};
+
+// Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
+function resolveHistoryAction(action: string | null, reason: string | null): string {
+  const key = action ?? '';
+  const isLegacySupplementary = key === 'RequestRevision'
+    && (reason?.startsWith('Added supplementary criteria:') || reason?.startsWith('Thêm tiêu chí bổ sung:'));
+  if (isLegacySupplementary) return 'AddSupplementaryCriteria';
+  return key;
+}
+
+function translateLegacyReason(reason: string | null): string | null {
+  if (reason?.startsWith('Added supplementary criteria:')) {
+    return `Thêm tiêu chí bổ sung: ${reason.slice('Added supplementary criteria:'.length).trim()}`;
+  }
+  return reason;
+}
+
+function parseFileSnapshot(oldFiles: string | null): FileSnapshotItem[] {
+  if (!oldFiles) return [];
+  try {
+    return JSON.parse(oldFiles) as FileSnapshotItem[];
+  } catch {
+    return [];
+  }
+}
+
+function SnapshotField({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium tabular-nums">{value ?? '—'}</span>
+    </div>
+  );
+}
+
+function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, currentExplanation }: {
+  item: SubmissionHistoryItem;
+  currentPoint: number;
+  currentBonusPoint: number;
+  currentExplanation: string | null;
+}) {
+  const files = parseFileSnapshot(item.oldFiles);
+  const resolvedAction = resolveHistoryAction(item.action, item.rejectReason);
+  const actionLabel = HISTORY_ACTION_LABELS[resolvedAction] ?? item.action ?? 'Không xác định';
+  const rejectReason = translateLegacyReason(item.rejectReason);
+  const pointChanged = item.oldPoint !== currentPoint;
+  const bonusChanged = item.oldBonusPoint !== currentBonusPoint;
+  const explanationChanged = (item.oldExplanation ?? '') !== (currentExplanation ?? '');
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+            resolvedAction === 'RequestRevision' && 'bg-destructive/10 text-destructive',
+            resolvedAction === 'UpdateScore' && 'bg-info/10 text-info',
+            resolvedAction === 'Approve' && 'bg-success/10 text-success',
+            resolvedAction === 'AddSupplementaryCriteria' && 'bg-primary/10 text-primary',
+            !resolvedAction && 'bg-muted text-muted-foreground',
+          )}>
+            {actionLabel}
+          </span>
+          <span className="text-xs text-muted-foreground">Vòng {item.revisionRound}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">{formatDateTime(item.createdAt)}</span>
+      </div>
+
+      {rejectReason && (
+        <p className="text-sm text-muted-foreground italic">"{rejectReason}"</p>
+      )}
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 rounded-md bg-background/60 px-3 py-2">
+        <SnapshotField label="Điểm tự đánh giá (cũ)" value={item.oldPoint} />
+        <SnapshotField label="Điểm thưởng (cũ)" value={item.oldBonusPoint} />
+        <SnapshotField label="Điểm chuyên viên (cũ)" value={item.oldOfficialPoint} />
+        <SnapshotField label="Điểm thưởng chuyên viên (cũ)" value={item.oldOfficialBonusPoint} />
+        <SnapshotField label="Trạng thái (cũ)" value={item.oldReviewStatus} />
+      </div>
+
+      {(pointChanged || bonusChanged || explanationChanged) && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {pointChanged && (
+            <span className="rounded-md bg-warning/10 px-2 py-0.5 text-warning-foreground">
+              Điểm: {item.oldPoint} → {currentPoint}
+            </span>
+          )}
+          {bonusChanged && (
+            <span className="rounded-md bg-warning/10 px-2 py-0.5 text-warning-foreground">
+              Điểm thưởng: {item.oldBonusPoint} → {currentBonusPoint}
+            </span>
+          )}
+          {explanationChanged && (
+            <span className="rounded-md bg-info/10 px-2 py-0.5 text-info">
+              Diễn giải đã thay đổi
+            </span>
+          )}
+        </div>
+      )}
+
+      {item.oldExplanation && (
+        <div className="text-xs">
+          <span className="text-muted-foreground">Diễn giải cũ: </span>
+          <span>{item.oldExplanation}</span>
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Paperclip className="h-3 w-3" />
+            File đính kèm cũ ({files.length})
+          </div>
+          <div className="space-y-1">
+            {files.map((f) => (
+              <div key={f.id} className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-xs">
+                <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="truncate">{f.displayName ?? f.originalName}</span>
+                <span className="text-muted-foreground shrink-0">{formatFileSize(f.sizeBytes)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RevisionHistorySection({ submissionId, results }: {
+  submissionId: string;
+  results: Array<{ id: string; criteriaId: string; criteriaContent: string | null; point: number; bonusPoint: number; explanation: string | null }>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const approvalHistoriesQuery = useQuery({
+    queryKey: ['specialist-approval-histories', submissionId],
+    queryFn: () => localityApi.listApprovalHistories(submissionId, { page: 1, pageSize: 100 }),
+    enabled: Boolean(submissionId),
+  });
+
+  const resultHistoriesQueries = useQueries({
+    queries: results.map((r) => ({
+      queryKey: ['specialist-result-histories', r.id],
+      queryFn: () => localityApi.listResultHistories(r.id, { page: 1, pageSize: 100 }),
+      enabled: expanded,
+    })),
+  });
+
+  const approvalHistories = approvalHistoriesQuery.data?.items ?? [];
+
+  if (approvalHistories.length === 0 && !expanded) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <div className="flex items-center gap-2">
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <h3 className="text-sm font-semibold">Lịch sử các lần nộp</h3>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {approvalHistories.length > 0 ? `${approvalHistories.length} sự kiện` : ''}
+          </span>
+        </button>
+
+        {expanded && (
+          <div className="mt-4 space-y-4">
+            {approvalHistories.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground">Timeline duyệt</h4>
+                {approvalHistories
+                  .slice()
+                  .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+                  .map((h: ApprovalHistoryItem) => {
+                    const resolvedAction = resolveHistoryAction(h.action, h.reason);
+                    const reason = translateLegacyReason(h.reason);
+                    return (
+                      <div key={h.id} className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                        <span className={cn(
+                          'inline-flex items-center rounded-full px-2 py-0.5 font-medium shrink-0',
+                          resolvedAction === 'RequestRevision' && 'bg-destructive/10 text-destructive',
+                          resolvedAction === 'UpdateScore' && 'bg-info/10 text-info',
+                          resolvedAction === 'Approve' && 'bg-success/10 text-success',
+                          resolvedAction === 'AddSupplementaryCriteria' && 'bg-primary/10 text-primary',
+                        )}>
+                          {HISTORY_ACTION_LABELS[resolvedAction] ?? h.action}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-muted-foreground">{h.actorName} · {formatDateTime(h.createdAt)}</span>
+                          {reason && <p className="mt-0.5 italic text-foreground">"{reason}"</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground">Lịch sử từng tiêu chí</h4>
+              {results.map((r, idx) => {
+                const histories = resultHistoriesQueries[idx]?.data?.items ?? [];
+                if (histories.length === 0) return null;
+                return (
+                  <div key={r.id} className="rounded-lg border">
+                    <div className="px-4 py-2 border-b bg-muted/20">
+                      <span className="text-sm font-medium">{r.criteriaContent ?? r.criteriaId}</span>
+                    </div>
+                    <div className="space-y-2 px-4 py-3">
+                      {histories
+                        .slice()
+                        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+                        .map((h) => (
+                          <SubmissionHistoryEntry
+                            key={h.id}
+                            item={h}
+                            currentPoint={r.point}
+                            currentBonusPoint={r.bonusPoint}
+                            currentExplanation={r.explanation}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {results.every((_, idx) => (resultHistoriesQueries[idx]?.data?.items ?? []).length === 0) && (
+                <p className="text-sm text-muted-foreground">Chưa có thay đổi nào.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function toEvidenceFiles(files: SubmissionResultFile[] | undefined): EvidenceFile[] {
@@ -360,12 +618,13 @@ function RevisionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   localityName: string;
-  onSubmit: (reason: string, file: File | null) => void;
+  onSubmit: (reason: string, file: File | null) => Promise<boolean>;
 }) {
   const form = useForm<RevisionForm>({
     resolver: zodResolver(revisionSchema),
     defaultValues: { reason: '', file: null },
   });
+  const [submitting, setSubmitting] = useState(false);
   const selectedFile = form.watch('file');
 
   useEffect(() => {
@@ -378,11 +637,13 @@ function RevisionDialog({
       onOpenChange={onOpenChange}
       title="Yêu cầu địa phương chỉnh sửa"
       description={`Mở lại quyền sửa hồ sơ cho ${localityName}.`}
-      onSubmit={form.handleSubmit(({ reason, file }) => {
-        onSubmit(reason, file);
-        onOpenChange(false);
+      onSubmit={form.handleSubmit(async ({ reason, file }) => {
+        setSubmitting(true);
+        const success = await onSubmit(reason, file);
+        setSubmitting(false);
+        if (success) onOpenChange(false);
       })}
-      submitLabel="Gửi yêu cầu"
+      submitLabel={submitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
       cancelLabel="Đóng"
     >
       <div className="space-y-1.5">
@@ -1388,6 +1649,20 @@ export default function SpecialistReviewPage() {
         </div>
       </div>
 
+      {selectedSubmission && (
+        <RevisionHistorySection
+          submissionId={selectedSubmission.id}
+          results={(selectedSubmissionDetailQuery.data?.results ?? []).map((r) => ({
+            id: r.id,
+            criteriaId: r.criteriaId,
+            criteriaContent: r.criteriaContent,
+            point: r.point,
+            bonusPoint: r.bonusPoint,
+            explanation: r.explanation,
+          }))}
+        />
+      )}
+
       <SupplementaryDialog
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
@@ -1429,10 +1704,27 @@ export default function SpecialistReviewPage() {
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
         localityName={district.localityName}
-        onSubmit={(reason, file) => {
-          toast.info('Yêu cầu chỉnh sửa đã được ghi nhận cục bộ.', {
-            description: file ? `${reason} (kèm file: ${file.name})` : reason,
-          });
+        onSubmit={async (reason, file) => {
+          const submission = submissionByGroup.get(selectedGroup.id);
+          if (!submission) {
+            toast.error('Nhóm này chưa có hồ sơ để yêu cầu chỉnh sửa.');
+            return false;
+          }
+          try {
+            if (file) {
+              await filesApi.upload(file, { entityType: 'Submission', entityId: submission.id, category: 'revision-attachment' });
+            }
+            await specialistApi.requestRevision({ submissionId: submission.id, reason });
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
+            ]);
+            toast.success('Đã gửi yêu cầu chỉnh sửa đến địa phương.');
+            return true;
+          } catch (error) {
+            toast.error('Không thể gửi yêu cầu chỉnh sửa.', { description: getFilesApiError(error) });
+            return false;
+          }
         }}
       />
       <ForwardSubmissionDialog
