@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -141,6 +141,14 @@ export default function CriteriaListPage() {
               : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Nháp</Badge>,
         meta: {
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
+        },
+      },
+      {
+        accessorKey: 'updatedAt',
+        header: 'Cập nhật lần cuối',
+        cell: ({ row }) => row.original.updatedAt ? formatDateTime(row.original.updatedAt) : 'Chưa cập nhật',
+        meta: {
+          list: { label: 'Cập nhật lần cuối', width: 'minmax(168px, 1fr)', valueClassName: 'text-muted-foreground tabular-nums' },
         },
       },
     ],

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,6 +14,7 @@ import {
   Eye,
   FilePlus2,
   FileText,
+  History,
   MapPin,
   Paperclip,
   Save,
@@ -214,6 +215,17 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
 };
 
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  Pending: 'Chờ chấm',
+  Accepted: 'Đã chấp nhận',
+  RequiresRevision: 'Yêu cầu chỉnh sửa',
+};
+
+function formatReviewStatus(status: string | null) {
+  if (!status) return '—';
+  return REVIEW_STATUS_LABELS[status] ?? status;
+}
+
 // Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
 function resolveHistoryAction(action: string | null, reason: string | null): string {
   const key = action ?? '';
@@ -241,9 +253,9 @@ function parseFileSnapshot(oldFiles: string | null): FileSnapshotItem[] {
 
 function SnapshotField({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
-    <div className="flex items-center justify-between gap-2 py-1 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium tabular-nums">{value ?? '—'}</span>
+    <div className="min-w-0 px-3 py-2.5">
+      <span className="block text-xs leading-5 text-muted-foreground">{label}</span>
+      <span className="mt-0.5 block text-sm font-semibold tabular-nums text-foreground">{value ?? '—'}</span>
     </div>
   );
 }
@@ -263,11 +275,20 @@ function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, current
   const explanationChanged = (item.oldExplanation ?? '') !== (currentExplanation ?? '');
 
   return (
-    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <article className="relative border-l-2 border-border pb-5 pl-5 last:pb-0">
+      <span className={cn(
+        'absolute -left-[7px] top-1.5 size-3 rounded-full border-2 border-background',
+        resolvedAction === 'RequestRevision' && 'bg-warning',
+        resolvedAction === 'UpdateScore' && 'bg-muted-foreground',
+        resolvedAction === 'Approve' && 'bg-success',
+        resolvedAction === 'AddSupplementaryCriteria' && 'bg-primary',
+        !resolvedAction && 'bg-muted-foreground',
+      )} />
+      <div className="space-y-3 rounded-md border border-border bg-muted/15 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
           <span className={cn(
-            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+            'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold',
             resolvedAction === 'RequestRevision' && 'bg-destructive/10 text-destructive',
             resolvedAction === 'UpdateScore' && 'bg-info/10 text-info',
             resolvedAction === 'Approve' && 'bg-success/10 text-success',
@@ -276,25 +297,27 @@ function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, current
           )}>
             {actionLabel}
           </span>
-          <span className="text-xs text-muted-foreground">Vòng {item.revisionRound}</span>
+          <span className="text-sm font-medium text-muted-foreground">Lần {item.revisionRound}</span>
+          </div>
+          <time className="text-xs font-medium text-muted-foreground">{formatDateTime(item.createdAt)}</time>
         </div>
-        <span className="text-xs text-muted-foreground">{formatDateTime(item.createdAt)}</span>
-      </div>
 
-      {rejectReason && (
-        <p className="text-sm text-muted-foreground italic">"{rejectReason}"</p>
-      )}
+        {rejectReason && (
+          <div className="rounded-md border-l-4 border-warning bg-warning/10 px-3 py-2 text-sm leading-6 text-foreground">
+            <span className="font-semibold">Lý do: </span>{rejectReason}
+          </div>
+        )}
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 rounded-md bg-background/60 px-3 py-2">
-        <SnapshotField label="Điểm tự đánh giá (cũ)" value={item.oldPoint} />
-        <SnapshotField label="Điểm thưởng (cũ)" value={item.oldBonusPoint} />
-        <SnapshotField label="Điểm chuyên viên (cũ)" value={item.oldOfficialPoint} />
-        <SnapshotField label="Điểm thưởng chuyên viên (cũ)" value={item.oldOfficialBonusPoint} />
-        <SnapshotField label="Trạng thái (cũ)" value={item.oldReviewStatus} />
-      </div>
+        <div className="grid overflow-hidden rounded-md border border-border bg-background sm:grid-cols-2 xl:grid-cols-5 [&>*]:border-b [&>*]:border-border sm:[&>*]:border-r xl:[&>*]:border-b-0">
+          <SnapshotField label="Điểm tự đánh giá cũ" value={item.oldPoint} />
+          <SnapshotField label="Điểm thưởng cũ" value={item.oldBonusPoint} />
+          <SnapshotField label="Điểm chuyên viên cũ" value={item.oldOfficialPoint} />
+          <SnapshotField label="Điểm thưởng CV cũ" value={item.oldOfficialBonusPoint} />
+          <SnapshotField label="Trạng thái cũ" value={formatReviewStatus(item.oldReviewStatus)} />
+        </div>
 
-      {(pointChanged || bonusChanged || explanationChanged) && (
-        <div className="flex flex-wrap gap-2 text-xs">
+        {(pointChanged || bonusChanged || explanationChanged) && (
+        <div className="flex flex-wrap gap-2 text-xs font-medium">
           {pointChanged && (
             <span className="rounded-md bg-warning/10 px-2 py-0.5 text-warning-foreground">
               Điểm: {item.oldPoint} → {currentPoint}
@@ -311,141 +334,217 @@ function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, current
             </span>
           )}
         </div>
-      )}
+        )}
 
-      {item.oldExplanation && (
-        <div className="text-xs">
-          <span className="text-muted-foreground">Diễn giải cũ: </span>
-          <span>{item.oldExplanation}</span>
+        {item.oldExplanation && (
+        <div className="text-sm leading-6">
+          <span className="font-medium text-muted-foreground">Diễn giải trước đó: </span>
+          <span className="text-foreground">{item.oldExplanation}</span>
         </div>
-      )}
+        )}
 
-      {files.length > 0 && (
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Paperclip className="h-3 w-3" />
+        {files.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <Paperclip className="size-4 text-primary" />
             File đính kèm cũ ({files.length})
           </div>
-          <div className="space-y-1">
+          <div className="divide-y divide-border overflow-hidden rounded-md border border-border bg-background">
             {files.map((f) => (
-              <div key={f.id} className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-xs">
-                <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                <span className="truncate">{f.displayName ?? f.originalName}</span>
-                <span className="text-muted-foreground shrink-0">{formatFileSize(f.sizeBytes)}</span>
+              <div key={f.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate font-medium">{f.displayName ?? f.originalName}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(f.sizeBytes)}</span>
               </div>
             ))}
           </div>
+        </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function CriterionHistoryPanel({
+  resultId,
+  currentPoint,
+  currentBonusPoint,
+  currentExplanation,
+}: {
+  resultId?: string;
+  currentPoint: number;
+  currentBonusPoint: number;
+  currentExplanation: string | null;
+}) {
+  const historiesQuery = useQuery({
+    queryKey: ['specialist-result-histories', resultId],
+    queryFn: () => localityApi.listResultHistories(resultId!, { page: 1, pageSize: 100 }),
+    enabled: Boolean(resultId),
+  });
+  const histories = historiesQuery.data?.items ?? [];
+
+  if (!resultId) return null;
+
+  return (
+    <div className="rounded-md border border-border bg-background p-4 sm:p-5" onClick={(event) => event.stopPropagation()}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <History className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Lịch sử của tiêu chí này</p>
+            <p className="text-xs text-muted-foreground">Mới nhất hiển thị trước</p>
+          </div>
+        </div>
+        {!historiesQuery.isLoading && <Badge variant="secondary">{histories.length} lần cập nhật</Badge>}
+      </div>
+      {historiesQuery.isLoading ? (
+        <div className="space-y-3" aria-label="Đang tải lịch sử tiêu chí">
+          <div className="h-20 animate-pulse rounded-md bg-muted" />
+          <div className="h-20 animate-pulse rounded-md bg-muted/70" />
+        </div>
+      ) : historiesQuery.isError ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          Không tải được lịch sử. Vui lòng đóng và mở lại để thử lại.
+        </div>
+      ) : histories.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm leading-6 text-muted-foreground">
+          Tiêu chí này chưa có lần cập nhật hoặc yêu cầu chỉnh sửa nào.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {histories
+            .slice()
+            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+            .map((history) => (
+              <SubmissionHistoryEntry
+                key={history.id}
+                item={history}
+                currentPoint={currentPoint}
+                currentBonusPoint={currentBonusPoint}
+                currentExplanation={currentExplanation}
+              />
+            ))}
         </div>
       )}
     </div>
   );
 }
 
-function RevisionHistorySection({ submissionId, results }: {
+function RevisionHistorySection({
+  submissionId,
+  results,
+}: {
   submissionId: string;
   results: Array<{ id: string; criteriaId: string; criteriaContent: string | null; point: number; bonusPoint: number; explanation: string | null }>;
 }) {
   const [expanded, setExpanded] = useState(false);
-
   const approvalHistoriesQuery = useQuery({
     queryKey: ['specialist-approval-histories', submissionId],
     queryFn: () => localityApi.listApprovalHistories(submissionId, { page: 1, pageSize: 100 }),
     enabled: Boolean(submissionId),
   });
-
+  const approvalHistories = approvalHistoriesQuery.data?.items ?? [];
   const resultHistoriesQueries = useQueries({
-    queries: results.map((r) => ({
-      queryKey: ['specialist-result-histories', r.id],
-      queryFn: () => localityApi.listResultHistories(r.id, { page: 1, pageSize: 100 }),
+    queries: results.map((result) => ({
+      queryKey: ['specialist-result-histories', result.id],
+      queryFn: () => localityApi.listResultHistories(result.id, { page: 1, pageSize: 100 }),
       enabled: expanded,
     })),
   });
 
-  const approvalHistories = approvalHistoriesQuery.data?.items ?? [];
-
-  if (approvalHistories.length === 0 && !expanded) {
-    return null;
-  }
-
   return (
-    <Card>
-      <CardContent className="p-5">
+    <Card className="overflow-hidden border-border border-t-2 border-t-primary shadow-none">
+      <CardContent className="p-0">
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-between gap-2 text-left"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
         >
-          <div className="flex items-center gap-2">
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <h3 className="text-sm font-semibold">Lịch sử các lần nộp</h3>
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <History className="size-5" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold">Lịch sử các lần nộp</h3>
+              <p className="mt-0.5 text-sm text-muted-foreground">Theo dõi các lần gửi và xử lý hồ sơ.</p>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {approvalHistories.length > 0 ? `${approvalHistories.length} sự kiện` : ''}
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge variant="secondary">{approvalHistories.length} sự kiện</Badge>
+            {expanded ? <ChevronDown className="size-5 text-muted-foreground" /> : <ChevronRight className="size-5 text-muted-foreground" />}
+          </div>
         </button>
 
         {expanded && (
-          <div className="mt-4 space-y-4">
-            {approvalHistories.length > 0 && (
+          <div className="border-t border-border px-4 py-5 sm:px-5">
+            <div className="mb-3">
+              <h4 className="text-sm font-semibold text-foreground">Quá trình xử lý hồ sơ</h4>
+              <p className="mt-1 text-sm text-muted-foreground">Các thao tác chung của hồ sơ theo thứ tự mới nhất.</p>
+            </div>
+            {approvalHistoriesQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Đang tải lịch sử hồ sơ…</p>
+            ) : approvalHistories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Hồ sơ này chưa có hoạt động xử lý nào.</p>
+            ) : (
               <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground">Timeline duyệt</h4>
                 {approvalHistories
                   .slice()
                   .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-                  .map((h: ApprovalHistoryItem) => {
-                    const resolvedAction = resolveHistoryAction(h.action, h.reason);
-                    const reason = translateLegacyReason(h.reason);
+                  .map((history: ApprovalHistoryItem) => {
+                    const action = resolveHistoryAction(history.action, history.reason);
+                    const reason = translateLegacyReason(history.reason);
                     return (
-                      <div key={h.id} className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
-                        <span className={cn(
-                          'inline-flex items-center rounded-full px-2 py-0.5 font-medium shrink-0',
-                          resolvedAction === 'RequestRevision' && 'bg-destructive/10 text-destructive',
-                          resolvedAction === 'UpdateScore' && 'bg-info/10 text-info',
-                          resolvedAction === 'Approve' && 'bg-success/10 text-success',
-                          resolvedAction === 'AddSupplementaryCriteria' && 'bg-primary/10 text-primary',
-                        )}>
-                          {HISTORY_ACTION_LABELS[resolvedAction] ?? h.action}
-                        </span>
+                      <div key={history.id} className="flex flex-col gap-2 border-l-2 border-border py-1 pl-4 text-sm sm:flex-row sm:items-start">
                         <div className="min-w-0 flex-1">
-                          <span className="text-muted-foreground">{h.actorName} · {formatDateTime(h.createdAt)}</span>
-                          {reason && <p className="mt-0.5 italic text-foreground">"{reason}"</p>}
+                          <p className="font-medium text-foreground">{history.actorName} đã {HISTORY_ACTION_LABELS[action] ?? history.action ?? 'thực hiện thao tác'}</p>
+                          {reason && <p className="mt-1 leading-6 text-muted-foreground">Lý do: {reason}</p>}
                         </div>
+                        <time className="shrink-0 text-xs font-medium text-muted-foreground">{formatDateTime(history.createdAt)}</time>
                       </div>
                     );
                   })}
               </div>
             )}
 
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground">Lịch sử từng tiêu chí</h4>
-              {results.map((r, idx) => {
-                const histories = resultHistoriesQueries[idx]?.data?.items ?? [];
-                if (histories.length === 0) return null;
-                return (
-                  <div key={r.id} className="rounded-lg border">
-                    <div className="px-4 py-2 border-b bg-muted/20">
-                      <span className="text-sm font-medium">{r.criteriaContent ?? r.criteriaId}</span>
-                    </div>
-                    <div className="space-y-2 px-4 py-3">
-                      {histories
-                        .slice()
-                        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-                        .map((h) => (
-                          <SubmissionHistoryEntry
-                            key={h.id}
-                            item={h}
-                            currentPoint={r.point}
-                            currentBonusPoint={r.bonusPoint}
-                            currentExplanation={r.explanation}
-                          />
-                        ))}
-                    </div>
-                  </div>
-                );
-              })}
-              {results.every((_, idx) => (resultHistoriesQueries[idx]?.data?.items ?? []).length === 0) && (
-                <p className="text-sm text-muted-foreground">Chưa có thay đổi nào.</p>
-              )}
+            <div className="mt-6 border-t border-border pt-5">
+              <h4 className="text-sm font-semibold text-foreground">Chi tiết theo từng tiêu chí</h4>
+              <p className="mt-1 text-sm text-muted-foreground">Mỗi mục cho biết đầy đủ các lần điểm, diễn giải hoặc minh chứng được cập nhật.</p>
+              <div className="mt-4 divide-y divide-border border-y border-border">
+                {results.map((result, index) => {
+                  const histories = resultHistoriesQueries[index]?.data?.items ?? [];
+                  return (
+                    <section key={result.id} className="py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <p className="max-w-4xl text-sm font-semibold leading-6 text-foreground">{result.criteriaContent ?? result.criteriaId}</p>
+                        {!resultHistoriesQueries[index]?.isLoading && <Badge variant="secondary">{histories.length} lần</Badge>}
+                      </div>
+                      {resultHistoriesQueries[index]?.isLoading ? (
+                        <p className="mt-2 text-sm text-muted-foreground">Đang tải lịch sử tiêu chí…</p>
+                      ) : histories.length === 0 ? (
+                        <p className="mt-2 text-sm text-muted-foreground">Chưa có lần cập nhật nào.</p>
+                      ) : (
+                        <div className="mt-4 space-y-3">
+                          {histories
+                            .slice()
+                            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+                            .map((history) => (
+                              <SubmissionHistoryEntry
+                                key={history.id}
+                                item={history}
+                                currentPoint={result.point}
+                                currentBonusPoint={result.bonusPoint}
+                                currentExplanation={result.explanation}
+                              />
+                            ))}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -680,10 +779,10 @@ function GroupStatusBadge({ status }: { status: SpecialistCriteriaGroup['status'
 
 function TableSectionHeader({ title, countLabel, actions }: { title: string; countLabel: string; actions?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-4 sm:px-5">
       <div className="flex items-baseline gap-2">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        <span className="rounded-full border border-border bg-background px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{countLabel}</span>
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        <span className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-medium tabular-nums text-primary">{countLabel}</span>
       </div>
       {actions}
     </div>
@@ -847,6 +946,7 @@ export default function SpecialistReviewPage() {
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
+  const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
@@ -1239,7 +1339,7 @@ export default function SpecialistReviewPage() {
 
         <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Nhóm tiêu chí thi đua" countLabel={`${filteredGroups.length} nhóm tiêu chí`} />
-          <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-4 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-4 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:top-[-24px] sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="relative w-full max-w-xl sm:flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -1291,7 +1391,7 @@ export default function SpecialistReviewPage() {
                 <col className="w-[12%]" />
               </colgroup>
               <TableHeader>
-                <TableRow className="sticky top-[73px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary">
+                <TableRow className="sticky top-[57px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[49px]">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
@@ -1356,6 +1456,15 @@ export default function SpecialistReviewPage() {
   }
 
   const displayGroup = applyOverrides(selectedGroup);
+  const resultByCriteriaId = new Map(
+    (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
+  );
+  const scoredItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist);
+  const scoredCount = scoredItems.filter((item) => item.officialScore !== null && item.officialBonusScore !== null).length;
+  const maximumScore = scoredItems.reduce((sum, item) => sum + item.maxProposedScore, 0);
+  const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
+  const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
+  const specialistBonusScore = scoredItems.reduce((sum, item) => sum + (item.officialBonusScore ?? 0), 0);
   // const selectedCriterion = selectedCriterionId
   //   ? displayGroup.items.find((item) => item.id === selectedCriterionId)
   //   : undefined;
@@ -1484,11 +1593,36 @@ export default function SpecialistReviewPage() {
       </div>
       <PageHeader
         title="Chi tiết chấm điểm kết quả tiêu chí"
-        description={`${selectedGroup.code} · ${selectedGroup.groupName}`}
+        description={`${district.localityName} · ${selectedGroup.groupName}`}
         actions={<Button variant="outline" render={<Link to={`/chuyen-vien/duyet/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
       />
 
-      {/* <StatusStepper state="CHO_CHUYEN_VIEN" hasRevisionRequest={selectedGroup.hasModificationRequest} /> */}
+      <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm">
+        <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
+          <div className="bg-card px-4 py-3.5 sm:col-span-2 xl:col-span-1">
+            <p className="text-xs font-medium text-muted-foreground">Địa phương</p>
+            <p className="mt-1 truncate text-sm font-semibold text-foreground">{district.localityName}</p>
+          </div>
+          <div className="bg-card px-4 py-3.5">
+            <p className="text-xs font-medium text-muted-foreground">Trạng thái</p>
+            <div className="mt-1"><GroupStatusBadge status={displayGroup.status} /></div>
+          </div>
+          <div className="bg-card px-4 py-3.5">
+            <p className="text-xs font-medium text-muted-foreground">Đã chấm</p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">{scoredCount}<span className="text-sm font-normal text-muted-foreground"> / {scoredItems.length} tiêu chí</span></p>
+          </div>
+          <div className="bg-card px-4 py-3.5">
+            <p className="text-xs font-medium text-muted-foreground">Điểm chuyên viên</p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">{specialistScore}<span className="text-sm font-normal text-success"> / {maximumScore}</span></p>
+          </div>
+          <div className="bg-card px-4 py-3.5">
+            <p className="text-xs font-medium text-muted-foreground">Điểm thưởng</p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">{specialistBonusScore}<span className="text-sm font-normal text-success"> / {maximumBonusScore}</span></p>
+          </div>
+        </div>
+      </section>
+
+      {/* <StatusStepper state={stepperState} hasRevisionRequest={selectedGroup.hasModificationRequest} revisionTarget="LOCAL" /> */}
 
       {selectedGroup.modificationNote && (
         <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
@@ -1497,13 +1631,13 @@ export default function SpecialistReviewPage() {
         </div>
       )}
 
-      <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+      <div className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card">
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
           countLabel={`${selectedGroup.items.length} tiêu chí`}
         />
 
-        <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur lg:flex-row lg:items-center lg:justify-between sm:px-5">
+        <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
             <Button variant="outline" onClick={openSupplementaryDialog}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
@@ -1516,16 +1650,16 @@ export default function SpecialistReviewPage() {
         </div>
 
         <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
-          <Table className="w-full min-w-[1240px] table-fixed">
+          <Table className="w-full min-w-[1280px] table-fixed">
             <colgroup>
-              <col className="w-[20%]" />
-              <col className="w-[16%]" />
-              <col className="w-[15%]" />
-              <col className="w-[21%]" />
-              <col className="w-[28%]" />
+              <col className="w-[24%]" />
+              <col className="w-[12%]" />
+              <col className="w-[18%]" />
+              <col className="w-[22%]" />
+              <col className="w-[24%]" />
             </colgroup>
             <TableHeader>
-              <TableRow className="sticky top-[61px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary">
+              <TableRow className="sticky top-[45px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[37px]">
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
@@ -1534,17 +1668,36 @@ export default function SpecialistReviewPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayGroup.items.map((item) => (
-                <TableRow
-                  key={item.id}
+              {displayGroup.items.map((item) => {
+                const result = resultByCriteriaId.get(item.id);
+                const historyExpanded = expandedCriterionHistoryId === item.id;
+                return (
+                  <Fragment key={item.id}>
+                  <TableRow
                   aria-selected={selectedCriterionId === item.id}
-                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/10 hover:bg-primary/10' : 'cursor-pointer align-top hover:bg-muted'}
+                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}
                   onClick={() => setSelectedCriterionId(item.id)}
                 >
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
                     <p className="font-semibold leading-5 text-foreground">{item.title}</p>
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+                    {result && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                        aria-expanded={historyExpanded}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedCriterionHistoryId(historyExpanded ? null : item.id);
+                        }}
+                      >
+                        {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
+                        {historyExpanded ? 'Ẩn lịch sử' : 'Xem lịch sử'}
+                      </Button>
+                    )}
                   </TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
                     <EvidenceButton
@@ -1579,15 +1732,32 @@ export default function SpecialistReviewPage() {
                     </div>
                     )}
                   </TableCell>
-                </TableRow>
-              ))}
+                  </TableRow>
+                  {historyExpanded && (
+                  <TableRow className="bg-muted/20 hover:bg-muted/20">
+                    <TableCell colSpan={5} className="px-4 py-3">
+                      <CriterionHistoryPanel
+                        resultId={result?.id}
+                        currentPoint={item.proposedScore}
+                        currentBonusPoint={item.proposedBonusScore}
+                        currentExplanation={item.explanation || null}
+                      />
+                    </TableCell>
+                  </TableRow>
+                  )}
+                  </Fragment>
+                );
+              })}
               {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
 
         <div className="divide-y divide-border xl:hidden">
-          {displayGroup.items.map((item) => (
+          {displayGroup.items.map((item) => {
+            const result = resultByCriteriaId.get(item.id);
+            const historyExpanded = expandedCriterionHistoryId === item.id;
+            return (
             <article key={item.id} className="p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
                 <div className="min-w-0 flex-1">
@@ -1643,8 +1813,33 @@ export default function SpecialistReviewPage() {
                   )}
                 </div>
               </div>
+              {result && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    aria-expanded={historyExpanded}
+                    onClick={() => setExpandedCriterionHistoryId(historyExpanded ? null : item.id)}
+                  >
+                    {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
+                    {historyExpanded ? 'Ẩn lịch sử tiêu chí' : 'Xem lịch sử tiêu chí'}
+                  </Button>
+                  {historyExpanded && (
+                    <div className="mt-3">
+                      <CriterionHistoryPanel
+                        resultId={result.id}
+                        currentPoint={item.proposedScore}
+                        currentBonusPoint={item.proposedBonusScore}
+                        currentExplanation={item.explanation || null}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </article>
-          ))}
+            );
+          })}
           {displayGroup.items.length === 0 && <p className="px-4 py-12 text-center text-sm text-muted-foreground">Nhóm này chưa có tiêu chí con.</p>}
         </div>
       </div>
@@ -1652,13 +1847,13 @@ export default function SpecialistReviewPage() {
       {selectedSubmission && (
         <RevisionHistorySection
           submissionId={selectedSubmission.id}
-          results={(selectedSubmissionDetailQuery.data?.results ?? []).map((r) => ({
-            id: r.id,
-            criteriaId: r.criteriaId,
-            criteriaContent: r.criteriaContent,
-            point: r.point,
-            bonusPoint: r.bonusPoint,
-            explanation: r.explanation,
+          results={(selectedSubmissionDetailQuery.data?.results ?? []).map((result) => ({
+            id: result.id,
+            criteriaId: result.criteriaId,
+            criteriaContent: result.criteriaContent,
+            point: result.point,
+            bonusPoint: result.bonusPoint,
+            explanation: result.explanation,
           }))}
         />
       )}
