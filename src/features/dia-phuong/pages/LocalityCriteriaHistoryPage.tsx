@@ -15,6 +15,7 @@ import {
   type SubmissionHistoryItem,
   type FileSnapshotItem,
 } from '@/features/dia-phuong/api/localityApi';
+import { filesApi } from '@/features/files/api/filesApi';
 import { formatDateTime, cn } from '@/lib/utils';
 
 const ACTION_MAP: Record<string, ActionType> = {
@@ -38,19 +39,37 @@ const ACTION_LABELS_VI: Record<string, string> = {
   RequestRevision: 'Yêu cầu chỉnh sửa',
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
+  AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
 };
 
+// Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
+function resolveHistoryAction(action: string | null, reason: string | null): string {
+  const key = action ?? '';
+  const isLegacySupplementary = key === 'RequestRevision'
+    && (reason?.startsWith('Added supplementary criteria:') || reason?.startsWith('Thêm tiêu chí bổ sung:'));
+  if (isLegacySupplementary) return 'AddSupplementaryCriteria';
+  return key;
+}
+
+function translateLegacyReason(reason: string | null): string | null {
+  if (reason?.startsWith('Added supplementary criteria:')) {
+    return `Thêm tiêu chí bổ sung: ${reason.slice('Added supplementary criteria:'.length).trim()}`;
+  }
+  return reason;
+}
+
 function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
+  const resolvedAction = resolveHistoryAction(item.action, item.reason);
   return {
     id: item.id,
     timestamp: item.createdAt,
     actorName: item.actorName,
     actorRole: ROLE_MAP[item.actorRole] ?? 'LOCAL',
-    action: ACTION_MAP[item.action?.toLowerCase()] ?? 'EDIT',
+    action: ACTION_MAP[resolvedAction?.toLowerCase()] ?? 'EDIT',
     fieldName: item.submissionId,
     oldValue: item.fromStage ?? null,
     newValue: item.toStage ?? item.action,
-    reason: item.reason,
+    reason: translateLegacyReason(item.reason),
   };
 }
 
@@ -220,6 +239,14 @@ export default function LocalityCriteriaHistoryPage() {
     enabled: Boolean(submission?.id),
   });
 
+  // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
+  const revisionFilesQuery = useQuery({
+    queryKey: ['locality-revision-files-history', submission?.id],
+    queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
+    enabled: Boolean(submission?.id),
+  });
+  const revisionFiles = revisionFilesQuery.data?.items ?? [];
+
   if (!id || !user?.localityId) {
     return <EmptyState title="Không tìm thấy lịch sử" description="Nhóm tiêu chí hoặc địa phương không hợp lệ." />;
   }
@@ -255,6 +282,23 @@ export default function LocalityCriteriaHistoryPage() {
         <CardContent className="p-5">
           <h3 className="text-sm font-semibold mb-3">Lịch sử duyệt</h3>
           <AuditTimeline entries={entries} />
+          {revisionFiles.length > 0 && (
+            <div className="mt-4 space-y-2 rounded-md border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Paperclip className="h-3 w-3" />
+                File đính kèm yêu cầu chỉnh sửa ({revisionFiles.length})
+              </div>
+              <div className="space-y-1">
+                {revisionFiles.map((file) => (
+                  <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-xs hover:bg-muted">
+                    <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="truncate">{file.displayName ?? file.originalName}</span>
+                    <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
