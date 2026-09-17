@@ -18,7 +18,8 @@ import type { CriteriaItem } from '@/types/domain';
 
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
   id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
-  deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order, status: criterion.status,
+  deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order,
+  type: criterion.type === 'Supplementary' ? 'Supplementary' : 'Standard', status: criterion.status,
 });
 
 interface EditorProps {
@@ -49,7 +50,7 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, onSave
 
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
-  const [search, setSearch] = useState(''); const [type, setType] = useState<CriteriaApi['type'] | ''>(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
+  const [search, setSearch] = useState(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
   const debouncedSearch = useDebounce(search, 300);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
@@ -58,11 +59,11 @@ export default function CriteriaChildrenPage() {
   const { data: group, isLoading, error } = useQuery({ queryKey: ['criteria-group', id], queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
   const { data: criteriaPage, isLoading: isLoadingCriteria } = useQuery({
-    queryKey: ['criteria', id, { search: debouncedSearch, type, sortBy, sortOrder }],
-    queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: debouncedSearch || undefined, type: type || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
+    queryKey: ['criteria', id, { search: debouncedSearch, type: 'Standard', sortBy, sortOrder }],
+    queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: debouncedSearch || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
     enabled: Boolean(id),
   });
-  const groupCriteria = useMemo(() => group?.criteria.map(toItem) ?? [], [group]);
+  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard').map(toItem) ?? [], [group]);
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
@@ -186,15 +187,13 @@ export default function CriteriaChildrenPage() {
         onRowClick={setSelected}
         filters={(
           <>
-            <FilterSelect label="Loại" value={type} onChange={setType} options={[{ value: 'Standard', label: 'Tiêu chuẩn' }, { value: 'Supplementary', label: 'Bổ sung' }]} />
             <FilterSelect label="Sắp xếp" value={sort} onChange={setSort} allLabel="Mới nhất" options={[{ value: 'content-asc', label: 'Nội dung A–Z' }, { value: 'maxPoint-desc', label: 'Điểm cao nhất' }, { value: 'deadline-asc', label: 'Hạn nộp gần nhất' }]} />
           </>
         )}
         activeFilters={[
-          ...(type ? [{ label: 'Loại', value: type === 'Standard' ? 'Tiêu chuẩn' : 'Bổ sung', onClear: () => setType('') }] : []),
           ...(sort !== 'createdAt-desc' ? [{ label: 'Sắp xếp', value: sort === 'content-asc' ? 'Nội dung A–Z' : sort === 'maxPoint-desc' ? 'Điểm cao nhất' : 'Hạn nộp gần nhất', onClear: () => setSort('createdAt-desc') }] : []),
         ]}
-        onClearFilters={type || sort !== 'createdAt-desc' ? () => { setType(''); setSort('createdAt-desc'); } : undefined}
+        onClearFilters={sort !== 'createdAt-desc' ? () => setSort('createdAt-desc') : undefined}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="info" disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
