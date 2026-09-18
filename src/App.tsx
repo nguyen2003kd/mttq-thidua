@@ -25,11 +25,13 @@ const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListP
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
+const BanLeaderCriteriaGroupsPage = lazy(() => import('@/features/duyet/pages/BanLeaderCriteriaGroupsPage'));
 const BanLeaderReviewDetailPage = lazy(() => import('@/features/duyet/pages/BanLeaderReviewDetailPage'));
 const BanLeaderHistoryPage = lazy(() => import('@/features/duyet/pages/BanLeaderHistoryPage'));
 const CouncilApprovalPage = lazy(() => import('@/features/duyet/pages/CouncilApprovalPage'));
+const CouncilCriteriaGroupsPage = lazy(() => import('@/features/duyet/pages/CouncilCriteriaGroupsPage'));
 const CouncilHistoryPage = lazy(() => import('@/features/duyet/pages/CouncilHistoryPage'));
-const StandingCommitteePage = lazy(() => import('@/features/duyet/pages/StandingCommitteePage'));
+const CommitteeApprovalPage = lazy(() => import('@/features/duyet/pages/CommitteeApprovalPage'));
 const CommitteeHistoryPage = lazy(() => import('@/features/duyet/pages/CommitteeHistoryPage'));
 const MinhChungPage = lazy(() => import('@/features/dia-phuong/pages/MinhChungPage'));
 const TrangThaiPage = lazy(() => import('@/features/dia-phuong/pages/TrangThaiPage'));
@@ -198,6 +200,18 @@ export default function App() {
               }
             />
             <Route
+              path="/thi-dua/duyet/lanh-dao-ban/:banId/:localityId"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['LEADER']}>
+                    <AppLayout>
+                      <BanLeaderCriteriaGroupsPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/thi-dua/duyet/lanh-dao-ban/:banId/chi-tiet/:tableId/:localityId"
               element={
                 <RequireAuth>
@@ -234,6 +248,18 @@ export default function App() {
               }
             />
             <Route
+              path="/thi-dua/duyet/hoi-dong-tdkt/:localityId"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['COUNCIL']}>
+                    <AppLayout>
+                      <CouncilCriteriaGroupsPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/hoi-dong/lich-su"
               element={
                 <RequireAuth>
@@ -251,7 +277,7 @@ export default function App() {
                 <RequireAuth>
                   <RequireRole roles={['COMMITTEE']}>
                     <AppLayout>
-                      <StandingCommitteePage />
+                      <CommitteeApprovalPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

@@ -73,6 +73,7 @@ export default function BanLeaderReviewDetailPage() {
   const locality = localities.find((item) => item.id === localityId);
   const record = table && localityId ? (scores[table.id]?.[localityId] ?? emptyRecord) : emptyRecord;
   const canProcess = record.state === 'CHO_DUYET_BAN';
+  const backToGroups = `/thi-dua/duyet/lanh-dao-ban/${banId}/${localityId}`;
   const backToList = `/thi-dua/duyet/lanh-dao-ban/${banId}`;
 
   const reviewRows = useMemo(() => {
@@ -155,7 +156,7 @@ export default function BanLeaderReviewDetailPage() {
       <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb">
         <Link to={backToList} className="hover:text-primary">Danh sách địa phương</Link>
         <span>/</span>
-        <span>{locality.name}</span>
+        <Link to={backToGroups} className="hover:text-primary">{locality.name}</Link>
         <span>/</span>
         <span className="font-medium text-foreground">{table.name}</span>
       </nav>
@@ -163,7 +164,7 @@ export default function BanLeaderReviewDetailPage() {
       <PageHeader
         title="Thẩm định hồ sơ địa phương"
         description={`${locality.fullName} · ${table.name} · Đối chiếu kết quả trước khi trình Hội đồng.`}
-        actions={<div className="flex flex-wrap gap-2"><Button variant="outline" render={<Link to={`${backToList}/lich-su`} />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử</Button><Button variant="outline" render={<Link to={backToList} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button></div>}
+        actions={<div className="flex flex-wrap gap-2"><Button variant="outline" render={<Link to={`${backToList}/lich-su`} />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử</Button><Button variant="outline" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button></div>}
       />
 
       <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ thẩm định">
