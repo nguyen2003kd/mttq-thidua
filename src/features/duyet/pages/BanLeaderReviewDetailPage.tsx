@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FilePlus2, FileText, History, MessageSquareWarning, Send, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Edit3, FilePlus2, FileText, History, MessageSquareWarning, Save, Send, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import { Button, ConfirmDialog, EmptyState, PageHeader } from '@/components/core';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import {
   EvidenceModal,
+  ReviewScoreModal,
   StatusStepper,
   SupplementaryCriterionModal,
 } from '@/features/workflow/components';
@@ -36,18 +35,6 @@ function ScoreView({ label, score, maximum }: { label: string; score: number; ma
   );
 }
 
-function LeaderScoreInput({ label, value, maximum, disabled, onChange }: { label: string; value: string; maximum: number; disabled: boolean; onChange: (value: string) => void }) {
-  return (
-    <div className="min-w-0 space-y-1.5">
-      <p className="truncate text-[11px] font-medium leading-none text-muted-foreground">{label}</p>
-      <div className="group relative flex h-9 min-w-[104px] items-center rounded-md border border-border bg-background transition-[border-color,box-shadow,background-color] duration-200 hover:border-primary/30 focus-within:border-primary focus-within:bg-primary/[0.02] focus-within:ring-2 focus-within:ring-primary/10">
-        <Input aria-label={`${label} Lãnh đạo, tối đa ${maximum} điểm`} className="h-full min-w-0 flex-1 appearance-none rounded-md border-0 bg-transparent py-0 pl-2.5 pr-14 text-right text-sm font-semibold tabular-nums text-foreground shadow-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" type="number" min={0} max={maximum} step="0.25" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
-        <span className="pointer-events-none absolute right-1.5 top-1/2 inline-flex -translate-y-1/2 items-center rounded-[4px] bg-success/10 px-1.5 py-1 text-[11px] font-semibold leading-none tabular-nums text-success transition-colors group-focus-within:bg-success/15">/{maximum}</span>
-      </div>
-    </div>
-  );
-}
-
 export default function BanLeaderReviewDetailPage() {
   const { banId = 'ban1', tableId, localityId } = useParams<{ banId?: string; tableId?: string; localityId?: string }>();
   const navigate = useNavigate();
@@ -67,6 +54,7 @@ export default function BanLeaderReviewDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
+  const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, LeaderDraft>>({});
   const [draftErrors, setDraftErrors] = useState<Record<string, string>>({});
 
@@ -190,8 +178,14 @@ export default function BanLeaderReviewDetailPage() {
           <Button variant="outline" disabled={!canProcess} onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="mr-1.5 size-4" />Thêm tiêu chí bổ sung</Button>
           <div className="flex flex-col gap-2 sm:flex-row">
             {selectedReviewRow && (
+              <Button variant="outline" disabled={!canProcess || !selectedReviewRow.entry} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>
+            )}
+            {selectedReviewRow && (
               <Button variant="outline" disabled={!canProcess} className="border-warning text-warning-foreground hover:bg-warning/10" onClick={() => setRejectOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu Chuyên viên bổ sung</Button>
             )}
+            <Button variant="outline" disabled={!canProcess} disabledReason="Hồ sơ đã được chuyển tiếp nên không thể lưu thêm thay đổi." onClick={() => {
+              if (saveLeaderScores()) toast.success('Đã lưu tất cả điểm Lãnh đạo.');
+            }}><Save className="mr-1.5 size-4" />Lưu tất cả</Button>
             <Button disabled={!canProcess} onClick={() => { if (validateLeaderScores()) setApproveOpen(true); }}><Send className="mr-1.5 size-4" />Duyệt &amp; Trình Hội đồng</Button>
           </div>
         </div>
@@ -211,7 +205,7 @@ export default function BanLeaderReviewDetailPage() {
                 const specialistBonus = specialist?.bonusScore ?? proposedBonus;
                 const maxScore = criterion?.maxScore ?? entry?.supplementaryMaxScore ?? 0;
                 const maxBonus = criterion?.bonusScore ?? 0;
-                return <TableRow key={criteriaId} aria-selected={selectedCriteriaId === criteriaId} onClick={() => setSelectedCriteriaId(criteriaId)} className={selectedCriteriaId === criteriaId ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}><TableCell className="border-r border-primary/15 px-4 py-5"><p className="font-semibold leading-5 text-foreground">{criterion?.name ?? entry?.criteriaName}</p><p className="mt-2 text-xs font-medium text-muted-foreground">{entry?.isSupplementary ? 'Tiêu chí bổ sung' : `Mã tiêu chí: ${criteriaId}`}</p></TableCell><TableCell className="border-r border-primary/15 px-4 py-5">{files.length ? <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); if (entry) setViewing({ entry, criterion }); }}><FileText className="size-4" />Xem file <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">{files.length}</span></Button> : <span className="text-xs text-muted-foreground">Chưa có minh chứng</span>}</TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreView label="Điểm" score={proposedScore} maximum={maxScore} /><ScoreView label="Điểm thưởng" score={proposedBonus} maximum={maxBonus} /></div></TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreView label="Điểm" score={specialistScore} maximum={maxScore} /><ScoreView label="Điểm thưởng" score={specialistBonus} maximum={maxBonus} /></div></TableCell><TableCell className="border-r border-primary/15 px-4 py-5" onClick={(event) => event.stopPropagation()}><div className="grid grid-cols-2 gap-2"><LeaderScoreInput label="Điểm" maximum={maxScore} value={draft.score} disabled={!canProcess || !entry} onChange={(value) => updateDraft(criteriaId, { score: value })} /><LeaderScoreInput label="Điểm thưởng" maximum={maxBonus} value={draft.bonusScore} disabled={!canProcess || !entry} onChange={(value) => updateDraft(criteriaId, { bonusScore: value })} /></div></TableCell><TableCell className="px-4 py-5" onClick={(event) => event.stopPropagation()}><Textarea aria-label={`Lý do sửa điểm ${criterion?.name ?? entry?.criteriaName}`} rows={3} value={draft.reason} disabled={!canProcess || !entry} placeholder="Bắt buộc nếu điểm khác Chuyên viên" onFocus={() => setSelectedCriteriaId(criteriaId)} onChange={(event) => updateDraft(criteriaId, { reason: event.target.value })} />{draftErrors[criteriaId] && <p className="mt-1 text-xs font-medium text-destructive">{draftErrors[criteriaId]}</p>}</TableCell></TableRow>;
+                return <TableRow key={criteriaId} aria-selected={selectedCriteriaId === criteriaId} onClick={() => setSelectedCriteriaId(criteriaId)} className={selectedCriteriaId === criteriaId ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}><TableCell className="border-r border-primary/15 px-4 py-5"><p className="font-semibold leading-5 text-foreground">{criterion?.name ?? entry?.criteriaName}</p><p className="mt-2 text-xs font-medium text-muted-foreground">{entry?.isSupplementary ? 'Tiêu chí bổ sung' : `Mã tiêu chí: ${criteriaId}`}</p></TableCell><TableCell className="border-r border-primary/15 px-4 py-5">{files.length ? <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); if (entry) setViewing({ entry, criterion }); }}><FileText className="size-4" />Xem file <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">{files.length}</span></Button> : <span className="text-xs text-muted-foreground">Chưa có minh chứng</span>}</TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreView label="Điểm" score={proposedScore} maximum={maxScore} /><ScoreView label="Điểm thưởng" score={proposedBonus} maximum={maxBonus} /></div></TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreView label="Điểm" score={specialistScore} maximum={maxScore} /><ScoreView label="Điểm thưởng" score={specialistBonus} maximum={maxBonus} /></div></TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreView label="Điểm" score={Number(draft.score) || 0} maximum={maxScore} /><ScoreView label="Điểm thưởng" score={Number(draft.bonusScore) || 0} maximum={maxBonus} /></div></TableCell><TableCell className="px-4 py-5"><p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{draft.reason || '—'}</p>{draftErrors[criteriaId] && <p className="mt-1 text-xs font-medium text-destructive">{draftErrors[criteriaId]}</p>}</TableCell></TableRow>;
               })}
             </TableBody>
           </Table>
@@ -219,6 +213,26 @@ export default function BanLeaderReviewDetailPage() {
       </section>
 
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
+      <ReviewScoreModal
+        open={scoreEditOpen}
+        onOpenChange={setScoreEditOpen}
+        entry={selectedReviewRow?.entry}
+        criterion={selectedReviewRow?.criterion}
+        title="Sửa điểm Lãnh đạo ban"
+        referenceLabel="Điểm Chuyên viên chấm"
+        referenceScore={selectedReviewRow?.entry?.stageScores?.SPECIALIST?.score ?? selectedReviewRow?.entry?.proposedScore ?? 0}
+        referenceBonusScore={selectedReviewRow?.entry?.stageScores?.SPECIALIST?.bonusScore ?? selectedReviewRow?.entry?.proposedBonusScore ?? 0}
+        initialScore={selectedReviewRow ? Number(drafts[selectedReviewRow.entry?.criteriaId ?? '']?.score) : undefined}
+        initialBonusScore={selectedReviewRow ? Number(drafts[selectedReviewRow.entry?.criteriaId ?? '']?.bonusScore) : undefined}
+        initialReason={selectedReviewRow ? drafts[selectedReviewRow.entry?.criteriaId ?? '']?.reason : undefined}
+        onSave={({ score, bonusScore, reason }) => {
+          const criteriaId = selectedReviewRow?.entry?.criteriaId;
+          if (!criteriaId) return false;
+          updateDraft(criteriaId, { score: String(score), bonusScore: String(bonusScore), reason: reason ?? '' });
+          toast.success('Đã cập nhật điểm Lãnh đạo.');
+          return true;
+        }}
+      />
       <SupplementaryCriterionModal
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
