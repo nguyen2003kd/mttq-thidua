@@ -16,6 +16,20 @@ import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/feat
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 import type { CriteriaItem } from '@/types/domain';
 
+const toDateTimeInput = (value?: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+};
+
+const getCurrentLocalDateTime = () => {
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localNow.toISOString().slice(0, 16);
+};
+
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
   id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
   deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order,
@@ -24,25 +38,31 @@ const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
 
 interface EditorProps {
   open: boolean; onOpenChange: (open: boolean) => void; item: CriteriaItem | null; readonly?: boolean;
+  parentDeadline?: string | null;
   onSave: (value: Omit<CriteriaItem, 'id' | 'order' | 'updatedAt'>) => void; saving: boolean;
 }
 
-function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, onSave, saving }: EditorProps) {
+function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parentDeadline, onSave, saving }: EditorProps) {
   const [name, setName] = useState(''); const [score, setScore] = useState(''); const [bonus, setBonus] = useState('0');
   const [deadline, setDeadline] = useState(''); const [note, setNote] = useState(''); const [error, setError] = useState('');
-  useEffect(() => { if (!open) return; setName(item?.name ?? ''); setScore(item?.maxScore?.toString() ?? ''); setBonus(item?.bonusScore?.toString() ?? '0'); setDeadline(item?.deadline?.slice(0, 16) ?? ''); setNote(item?.note ?? ''); setError(''); }, [open, item]);
+  const parentDeadlineInput = toDateTimeInput(parentDeadline);
+  useEffect(() => { if (!open) return; setName(item?.name ?? ''); setScore(item?.maxScore?.toString() ?? ''); setBonus(item?.bonusScore?.toString() ?? '0'); setDeadline(toDateTimeInput(item?.deadline)); setNote(item?.note ?? ''); setError(''); }, [open, item]);
   const submit = (event: FormEvent) => {
     event.preventDefault(); if (readonly) return onOpenChange(false);
     const maxScore = Number(score); const bonusScore = Number(bonus || 0);
     if (!name.trim()) return setError('Nội dung tiêu chí là bắt buộc.');
     if (!Number.isFinite(maxScore) || maxScore <= 0) return setError('Điểm chuẩn phải lớn hơn 0.');
     if (!Number.isFinite(bonusScore) || bonusScore < 0) return setError('Điểm thưởng tối đa không hợp lệ.');
+    if (deadline && new Date(deadline).getTime() < Date.now()) return setError('Hạn nộp không được ở thời gian quá khứ.');
+    if (deadline && parentDeadline && new Date(deadline).getTime() > new Date(parentDeadline).getTime()) {
+      return setError('Hạn nộp của tiêu chí con không được vượt quá hạn nộp của tiêu chí cha.');
+    }
     onSave({ name: name.trim(), maxScore, bonusScore, deadline: deadline || undefined, note: note.trim() || undefined });
   };
   return <FormDialog open={open} onOpenChange={onOpenChange} title={readonly ? 'Xem tiêu chí con' : item ? 'Sửa tiêu chí con' : 'Thêm mới tiêu chí con'} description="Nhập thông tin tiêu chí con." onSubmit={submit} submitLabel={readonly ? 'Đóng' : 'Lưu'} cancelLabel="Đóng" submitDisabled={saving}>
     <div className="space-y-1.5"><Label htmlFor="child-name">Nội dung <span className="text-destructive">★</span></Label><Input id="child-name" value={name} onChange={(event) => setName(event.target.value)} disabled={readonly || saving} /></div>
     <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="child-score">Điểm chuẩn <span className="text-destructive">★</span></Label><Input id="child-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} disabled={readonly || saving} /></div><div className="space-y-1.5"><Label htmlFor="child-bonus">Điểm thưởng tối đa</Label><Input id="child-bonus" type="number" min={0} step="0.25" value={bonus} onChange={(event) => setBonus(event.target.value)} disabled={readonly || saving} /></div></div>
-    <div className="space-y-1.5"><Label htmlFor="child-deadline">Hạn nộp</Label><Input id="child-deadline" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={readonly || saving} /></div>
+    <div className="space-y-1.5"><Label htmlFor="child-deadline">Hạn nộp</Label><Input id="child-deadline" type="datetime-local" min={getCurrentLocalDateTime()} max={parentDeadlineInput || undefined} value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={readonly || saving} /><p className="text-xs text-muted-foreground">Không được quá hạn nộp của tiêu chí cha{parentDeadlineInput ? ` (${parentDeadlineInput.replace('T', ' ')})` : ''}.</p></div>
     <div className="space-y-1.5"><Label htmlFor="child-note">Ghi chú</Label><Textarea id="child-note" rows={3} value={note} onChange={(event) => setNote(event.target.value)} disabled={readonly || saving} /></div>
     {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
   </FormDialog>;
@@ -216,7 +236,7 @@ export default function CriteriaChildrenPage() {
         emptyState={{ title: 'Chưa có tiêu chí con', description: 'Thêm tiêu chí con đầu tiên cho nhóm tiêu chí này.' }}
       />
     </div>
-    <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} onSave={saveItem} saving={saving} />
+    <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} parentDeadline={group.deadline} onSave={saveItem} saving={saving} />
     <FormDialog
       open={applyOpen}
       onOpenChange={(open) => { setApplyOpen(open); if (!open) { setApplyFiles([]); setApplyError(''); } }}
