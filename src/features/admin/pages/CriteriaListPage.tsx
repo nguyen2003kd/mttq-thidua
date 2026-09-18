@@ -27,6 +27,11 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
+const getCurrentLocalDateTime = () => {
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localNow.toISOString().slice(0, 16);
+};
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
 const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   id: group.id,
@@ -205,6 +210,12 @@ export default function CriteriaListPage() {
     const parsedTotalScore = Number(totalScore);
     if (!name.trim() || !content.trim() || !Number.isFinite(parsedTotalScore) || parsedTotalScore <= 0) {
       toast.error('Vui lòng nhập Nhóm tiêu chí, Tổng điểm lớn hơn 0 và Nội dung tiêu chí.');
+      return;
+    }
+
+    const originalCloseDate = editingTable ? toDateTimeInput(editingTable.closeDate) : '';
+    if (closeDate && closeDate !== originalCloseDate && new Date(closeDate).getTime() < Date.now()) {
+      toast.error('Hạn nộp không được ở thời gian quá khứ.');
       return;
     }
 
@@ -391,7 +402,7 @@ export default function CriteriaListPage() {
             <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span></Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="close-date" type="datetime-local" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
+              <Input id="close-date" type="datetime-local" min={getCurrentLocalDateTime()} value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Info className="size-3.5" />
