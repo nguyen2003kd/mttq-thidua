@@ -11,6 +11,11 @@ interface ReviewScoreModalProps {
   onOpenChange: (open: boolean) => void;
   entry?: ScoreEntry;
   criterion?: CriteriaItem;
+  /** Dùng cho các màn gọi API có kiểu kết quả khác ScoreEntry. */
+  criterionName?: string;
+  maxScoreOverride?: number;
+  maxBonusOverride?: number;
+  isSupplementary?: boolean;
   title?: string;
   referenceLabel?: string;
   referenceScore?: number;
@@ -26,6 +31,10 @@ export function ReviewScoreModal({
   onOpenChange,
   entry,
   criterion,
+  criterionName,
+  maxScoreOverride,
+  maxBonusOverride,
+  isSupplementary,
   title = 'Sửa điểm bản ghi tiêu chí',
   referenceLabel = 'Địa phương đề xuất',
   referenceScore,
@@ -48,10 +57,11 @@ export function ReviewScoreModal({
     setError('');
   }, [open, entry, initialScore, initialBonusScore, initialReason]);
 
-  const maxScore = criterion?.maxScore ?? entry?.supplementaryMaxScore ?? entry?.value ?? 0;
-  const maxBonus = criterion?.bonusScore ?? 0;
+  const maxScore = maxScoreOverride ?? criterion?.maxScore ?? entry?.supplementaryMaxScore ?? entry?.value ?? 0;
+  const maxBonus = maxBonusOverride ?? criterion?.bonusScore ?? 0;
   const baseScore = referenceScore ?? entry?.proposedScore ?? 0;
   const baseBonus = referenceBonusScore ?? entry?.proposedBonusScore ?? 0;
+  const supplementary = isSupplementary ?? entry?.isSupplementary ?? false;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -66,7 +76,7 @@ export function ReviewScoreModal({
       return;
     }
     const differs = nextScore !== baseScore || nextBonus !== baseBonus;
-    if ((differs || entry?.isSupplementary) && !reason.trim()) {
+    if ((differs || supplementary) && !reason.trim()) {
       setError(`Bắt buộc nhập lý do khi điểm chấm lệch với ${referenceLabel.toLocaleLowerCase('vi')}.`);
       return;
     }
@@ -82,14 +92,14 @@ export function ReviewScoreModal({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      description={entry?.criteriaName}
+      description={criterionName ?? entry?.criteriaName}
       onSubmit={submit}
       submitLabel="Lưu"
       cancelLabel="Đóng"
     >
       <div className="rounded-lg border bg-muted/30 p-3 text-sm">
         <span className="text-muted-foreground">{referenceLabel}: </span>
-        <strong>{entry?.isSupplementary ? 'Không có' : `${baseScore} điểm${baseBonus ? ` + ${baseBonus} thưởng` : ''}`}</strong>
+        <strong>{supplementary ? 'Không có' : `${baseScore} điểm${baseBonus ? ` + ${baseBonus} thưởng` : ''}`}</strong>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -104,7 +114,7 @@ export function ReviewScoreModal({
         </div>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="review-reason">Lý do {(Number(score) !== baseScore || Number(bonus) !== baseBonus || entry?.isSupplementary) && <span className="text-destructive">*</span>}</Label>
+        <Label htmlFor="review-reason">Lý do {(Number(score) !== baseScore || Number(bonus) !== baseBonus || supplementary) && <span className="text-destructive">*</span>}</Label>
         <Textarea id="review-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Nhập căn cứ điều chỉnh điểm" />
       </div>
       {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}

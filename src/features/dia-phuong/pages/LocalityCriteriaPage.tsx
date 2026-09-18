@@ -4,6 +4,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
+import { Badge } from '@/components/ui/badge';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -16,6 +17,7 @@ import {
   mapSubmissionToRecord,
   getLocalityApiError,
   type SubmissionApi,
+  type SubmissionStage,
 } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
 
@@ -24,6 +26,20 @@ interface SelectedRow { entry: ScoreEntry; criterion?: CriteriaItem }
 interface LocalityCriteriaListRow extends CriteriaTable {
   totalBonusScore: number;
   totalWithBonus: number;
+  submissionStage: SubmissionStage | null;
+}
+
+function getSubmissionStageLabel(stage: SubmissionStage | null) {
+  switch (stage) {
+    case 'Draft': return 'Bản nháp';
+    case 'LocalSubmitted': return 'Đã nộp';
+    case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
+    case 'SpecialistApproved': return 'Chuyên viên đã duyệt';
+    case 'LeaderApproved': return 'Lãnh đạo ban đã duyệt';
+    case 'CouncilApproved': return 'Hội đồng đã duyệt';
+    case 'CommitteeFinalized': return 'Đã công bố';
+    default: return 'Chưa nộp';
+  }
 }
 
 export default function LocalityCriteriaPage() {
@@ -98,9 +114,10 @@ export default function LocalityCriteriaPage() {
         ...assignedTable,
         totalBonusScore,
         totalWithBonus: assignedTable.totalScore + totalBonusScore,
+        submissionStage: submissionByGroup.get(assignedTable.id)?.currentStage ?? null,
       };
     }),
-    [assignedTables, bonusScoreByGroupId],
+    [assignedTables, bonusScoreByGroupId, submissionByGroup],
   );
 
   const localityListColumns = useMemo<ColumnDef<LocalityCriteriaListRow>[]>(
@@ -117,6 +134,17 @@ export default function LocalityCriteriaPage() {
           <TruncatedText value={row.original.content} className="text-sm text-muted-foreground" />
         ),
         meta: { list: { label: 'Nội dung', width: 'minmax(260px, 1.7fr)' } },
+      },
+      {
+        id: 'submissionStage',
+        accessorFn: (row) => getSubmissionStageLabel(row.submissionStage),
+        header: 'Trạng thái hồ sơ',
+        cell: ({ row }) => (
+          <Badge variant={row.original.submissionStage === 'RequiresRevision' ? 'warning' : row.original.submissionStage ? 'secondary' : 'outline'}>
+            {getSubmissionStageLabel(row.original.submissionStage)}
+          </Badge>
+        ),
+        meta: { list: { label: 'Trạng thái hồ sơ', width: 'minmax(170px, 1fr)' } },
       },
       {
         accessorKey: 'closeDate',
