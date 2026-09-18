@@ -7,8 +7,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from './Button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import type { Action } from '@/lib/rbac';
 import type { ScoreState, Scope } from '@/types/rbac';
 
 export interface RejectDialogProps {
@@ -23,6 +24,13 @@ export interface RejectDialogProps {
   onConfirm: (reason: string) => void;
   title?: string;
   confirmLabel?: string;
+  /** Mô tả riêng cho các luồng không phải "trả lại" (ví dụ: nhận xét). */
+  description?: string;
+  reasonLabel?: string;
+  reasonPlaceholder?: string;
+  /** Mặc định dùng quyền `reject`; nhận xét có thể tái dùng quyền duyệt. */
+  submitAction?: Action;
+  confirmVariant?: 'default' | 'destructive';
 }
 
 export function RejectDialog({
@@ -34,6 +42,11 @@ export function RejectDialog({
   onConfirm,
   title = 'Trả lại hồ sơ',
   confirmLabel = 'Trả lại',
+  description,
+  reasonLabel = 'Lý do trả lại',
+  reasonPlaceholder = 'Nhập lý do trả lại',
+  submitAction = 'reject',
+  confirmVariant = 'destructive',
 }: RejectDialogProps) {
   const [reason, setReason] = useState('');
 
@@ -63,18 +76,19 @@ export function RejectDialog({
         </DialogHeader>
         <div className="space-y-3 py-2">
           <p className="text-sm text-muted-foreground">
-            {localityName
+            {description ?? (localityName
               ? `Trả lại bảng điểm của ${localityName}. Vui lòng nhập lý do.`
-              : 'Vui lòng nhập lý do trả lại.'}
+              : 'Vui lòng nhập lý do trả lại.')}
           </p>
           <div className="space-y-1.5">
-            <Label htmlFor="reject-reason">Lý do trả lại</Label>
-            <Input
+            <Label htmlFor="reject-reason">{reasonLabel} <span className="text-destructive">*</span></Label>
+            <Textarea
               id="reject-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Nhập lý do trả lại"
+              placeholder={reasonPlaceholder}
               autoComplete="off"
+              rows={3}
             />
           </div>
         </div>
@@ -83,8 +97,8 @@ export function RejectDialog({
             Hủy
           </Button>
           <Button
-            variant="destructive"
-            action="reject"
+            variant={confirmVariant}
+            action={submitAction}
             state={state}
             scope={scope}
             onClick={handleConfirm}

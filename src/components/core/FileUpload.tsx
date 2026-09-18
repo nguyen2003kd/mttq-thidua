@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, File as FileIcon, FileSpreadsheet, FileText, FileImage, Presentation, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TruncatedText } from './TruncatedText';
 
 export interface FileUploadProps {
   /** Danh sách file đang chọn (controlled) */
@@ -35,6 +36,18 @@ function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Thumbnail nhỏ cho file ảnh đang chọn — object URL tự revoke khi unmount/đổi file. */
+function ImageThumb({ file }: { file: File }) {
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  if (!src) return null;
+  return <img src={src} alt={file.name} className="h-8 w-8 rounded-md object-cover" />;
 }
 
 function fileTypeIcon(name: string, mimeType: string) {
@@ -165,11 +178,13 @@ export function FileUpload({
                   row.error ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card',
                 )}
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-muted">
-                  <row.Icon className={cn('h-4 w-4', row.error ? 'text-destructive' : row.iconCls)} />
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
+                  {row.file.type.startsWith('image/')
+                    ? <ImageThumb file={row.file} />
+                    : <row.Icon className={cn('h-4 w-4', row.error ? 'text-destructive' : row.iconCls)} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block max-w-full truncate text-[13px] font-medium text-foreground" title={row.file.name}>{row.file.name}</span>
+                  <TruncatedText value={row.file.name} className="max-w-full text-[13px] font-medium text-foreground" />
                   <span className="block text-xs text-muted-foreground">
                     {formatSize(row.file.size)}
                     {row.error && <span className="text-destructive"> · {row.error}</span>}

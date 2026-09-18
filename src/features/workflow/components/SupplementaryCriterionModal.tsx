@@ -9,11 +9,13 @@ interface SupplementaryCriterionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (value: { name: string; score: number; reason: string; file: File }) => boolean;
+  /** Lãnh đạo chỉ tạo yêu cầu bổ sung minh chứng, không cộng điểm vào nhóm. */
+  showScore?: boolean;
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
-export function SupplementaryCriterionModal({ open, onOpenChange, onSave }: SupplementaryCriterionModalProps) {
+export function SupplementaryCriterionModal({ open, onOpenChange, onSave, showScore = true }: SupplementaryCriterionModalProps) {
   const [name, setName] = useState('');
   const [score, setScore] = useState('');
   const [reason, setReason] = useState('');
@@ -31,9 +33,9 @@ export function SupplementaryCriterionModal({ open, onOpenChange, onSave }: Supp
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const nextScore = Number(score);
+    const nextScore = showScore ? Number(score) : 0;
     if (!name.trim()) return setError('Nội dung tiêu chí bổ sung là bắt buộc.');
-    if (!Number.isFinite(nextScore) || nextScore < 0) return setError('Điểm chấm phải là số không âm.');
+    if (showScore && (!Number.isFinite(nextScore) || nextScore < 0)) return setError('Điểm chấm phải là số không âm.');
     if (!reason.trim()) return setError('Lý do là bắt buộc.');
     if (!file) return setError('File đính kèm là bắt buộc.');
     if (file.size > MAX_FILE_SIZE) return setError('File đính kèm không được vượt quá 20MB.');
@@ -42,7 +44,7 @@ export function SupplementaryCriterionModal({ open, onOpenChange, onSave }: Supp
   };
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title="Thêm tiêu chí bổ sung" description="Tiêu chí bổ sung không có điểm tự đề xuất; người chấm cho điểm trực tiếp." onSubmit={submit} submitLabel="Lưu" cancelLabel="Đóng">
+    <FormDialog open={open} onOpenChange={onOpenChange} title="Thêm tiêu chí bổ sung" description={showScore ? 'Tiêu chí bổ sung không có điểm tự đề xuất; người chấm cho điểm trực tiếp.' : 'Tiêu chí này chỉ yêu cầu bổ sung minh chứng, không làm thay đổi tổng điểm của nhóm.'} onSubmit={submit} submitLabel="Lưu" cancelLabel="Đóng">
       <div className="space-y-1.5">
         <Label htmlFor="supplementary-name">Nội dung tiêu chí <span className="text-destructive">*</span></Label>
         <Input id="supplementary-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nhập nội dung tiêu chí bổ sung" />
@@ -55,10 +57,12 @@ export function SupplementaryCriterionModal({ open, onOpenChange, onSave }: Supp
         <Label>File đính kèm <span className="text-destructive">*</span></Label>
         <FileUpload value={file ? [file] : []} onChange={(files) => setFile(files[0] ?? null)} multiple={false} />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="supplementary-score">Điểm chấm <span className="text-destructive">*</span></Label>
-        <Input id="supplementary-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} />
-      </div>
+      {showScore && (
+        <div className="space-y-1.5">
+          <Label htmlFor="supplementary-score">Điểm chấm <span className="text-destructive">*</span></Label>
+          <Input id="supplementary-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} />
+        </div>
+      )}
       {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
     </FormDialog>
   );

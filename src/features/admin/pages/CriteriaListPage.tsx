@@ -8,6 +8,7 @@ import {
   FilterSelect,
   FormDialog,
   FileUpload,
+  TruncatedText,
 } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -26,6 +27,11 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
+const getCurrentLocalDateTime = () => {
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localNow.toISOString().slice(0, 16);
+};
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
 const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   id: group.id,
@@ -82,6 +88,13 @@ export default function CriteriaListPage() {
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
   const [applyFiles, setApplyFiles] = useState<File[]>([]);
   const [applyError, setApplyError] = useState('');
+  const [applyValidationError, setApplyValidationError] = useState<{
+    groupId: string;
+    groupName: string;
+    childTotal: number;
+    totalScore: number;
+    message: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
@@ -102,9 +115,7 @@ export default function CriteriaListPage() {
         accessorFn: (row) => row.content ?? row.criteria.map((criteria) => criteria.name).join(' '),
         header: 'Nội dung tiêu chí',
         cell: ({ row }) => (
-          <p className="max-w-[280px] truncate text-sm text-muted-foreground" title={row.original.content}>
-            {row.original.content || '—'}
-          </p>
+          <TruncatedText value={row.original.content} className="max-w-[280px] text-sm text-muted-foreground" />
         ),
         meta: { list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
@@ -127,9 +138,7 @@ export default function CriteriaListPage() {
         accessorKey: 'note',
         header: 'Ghi chú',
         cell: ({ row }) => (
-          <p className="max-w-[180px] truncate text-sm text-muted-foreground" title={row.original.note}>
-            {row.original.note || '—'}
-          </p>
+          <TruncatedText value={row.original.note} className="max-w-[180px] text-sm text-muted-foreground" />
         ),
         meta: { list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
@@ -144,6 +153,14 @@ export default function CriteriaListPage() {
               : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Nháp</Badge>,
         meta: {
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
+        },
+      },
+      {
+        accessorKey: 'updatedAt',
+        header: 'Cập nhật lần cuối',
+        cell: ({ row }) => row.original.updatedAt ? formatDateTime(row.original.updatedAt) : 'Chưa cập nhật',
+        meta: {
+          list: { label: 'Cập nhật lần cuối', width: 'minmax(168px, 1fr)', valueClassName: 'text-muted-foreground tabular-nums' },
         },
       },
     ],
@@ -182,9 +199,16 @@ export default function CriteriaListPage() {
         latestTable.criteria.map((item) => item.maxScore),
       );
       if (!validation.success) {
-        toast.error(validation.message);
+        setApplyValidationError({
+          groupId: latestTable.id,
+          groupName: latestTable.name,
+          childTotal: validation.childTotal,
+          totalScore: latestTable.totalScore,
+          message: validation.message ?? 'Không thể áp dụng nhóm tiêu chí.',
+        });
         return;
       }
+      setApplyValidationError(null);
       setApplyFiles([]);
       setApplyError('');
       setApplyTable(latestTable);
@@ -200,6 +224,12 @@ export default function CriteriaListPage() {
     const parsedTotalScore = Number(totalScore);
     if (!name.trim() || !content.trim() || !Number.isFinite(parsedTotalScore) || parsedTotalScore <= 0) {
       toast.error('Vui lòng nhập Nhóm tiêu chí, Tổng điểm lớn hơn 0 và Nội dung tiêu chí.');
+      return;
+    }
+
+    const originalCloseDate = editingTable ? toDateTimeInput(editingTable.closeDate) : '';
+    if (closeDate && closeDate !== originalCloseDate && new Date(closeDate).getTime() < Date.now()) {
+      toast.error('Hạn nộp không được ở thời gian quá khứ.');
       return;
     }
 
@@ -238,6 +268,22 @@ export default function CriteriaListPage() {
         actions={new Date(deadline).getTime() <= Date.now() ? <Badge className="h-7 bg-accent/20 px-3 text-foreground">Đến hạn gợi ý công bố</Badge> : undefined}
       />
 
+      {applyValidationError && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 border-l-4 border-danger bg-[#FFF8F8] px-4 py-3 text-sm text-danger">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">Không thể áp dụng nhóm tiêu chí “{applyValidationError.groupName}”</p>
+              <p className="mt-0.5 text-danger/90">{applyValidationError.message}</p>
+            </div>
+          </div>
+          <div className="shrink-0 border-l border-danger/20 pl-4 text-right">
+            <p className="text-xs text-muted-foreground">Tổng điểm tiêu chí con</p>
+            <p className="mt-0.5 font-semibold tabular-nums text-danger">{applyValidationError.childTotal}/{applyValidationError.totalScore} điểm</p>
+          </div>
+        </div>
+      )}
+
       <DataTable
         data={filteredTables}
         loading={isLoading}
@@ -250,7 +296,7 @@ export default function CriteriaListPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
-        onRowClick={(row) => setSelectedTable(row)}
+        onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
         filters={
           <>
@@ -316,19 +362,29 @@ export default function CriteriaListPage() {
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
               <>
-                <Button variant="info" disabled={!selectedTable} onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="info" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" disabled={!selectedTable} onClick={() => selectedTable && openEditDialog(selectedTable)}>
+                <Button variant="warning" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
-                <Button variant="outline" disabled={!selectedTable} onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="outline" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
                 <Button
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT'}
-                  title={selectedTable && selectedTable.status !== 'DRAFT' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.' : undefined}
-                  onClick={() => { if (selectedTable && selectedTable.status === 'DRAFT') void openApplyDialog(selectedTable); }}
+                  disabledReason={
+                    !selectedTable
+                      ? 'Chọn một nhóm tiêu chí để áp dụng.'
+                      : selectedTable.status !== 'DRAFT'
+                        ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.'
+                        : undefined
+                  }
+                  onClick={() => {
+                    if (selectedTable && selectedTable.status === 'DRAFT') {
+                      void openApplyDialog(selectedTable);
+                    }
+                  }}
                 >
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
@@ -386,7 +442,7 @@ export default function CriteriaListPage() {
             <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span></Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="close-date" type="datetime-local" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
+              <Input id="close-date" type="datetime-local" min={getCurrentLocalDateTime()} value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Info className="size-3.5" />

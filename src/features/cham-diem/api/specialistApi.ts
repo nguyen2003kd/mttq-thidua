@@ -96,11 +96,11 @@ export const specialistApi = {
     request<SubmissionApi>({ url: `/api/v1/submissions/${id}`, method: 'GET' }),
 
   // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
-  approveSubmission: (submissionId: string) =>
+  approveSubmission: (submissionId: string, reason?: string) =>
     request<{ processed: boolean; submissionId: string; action: string }>({
       url: '/api/v1/submissions/approve',
       method: 'POST',
-      data: { submissionId, action: 'Approve' },
+      data: { submissionId, action: 'Approve', reason: reason || null },
     }),
 
   // UpdateScore — chuyên viên lưu nháp điểm chấm (giữ nguyên stage)
@@ -117,5 +117,13 @@ export const specialistApi = {
       url: '/api/v1/submissions/supplementary-criteria',
       method: 'POST',
       data: payload,
+    }),
+
+  // RequestRevision — chuyên viên yêu cầu địa phương chỉnh sửa hồ sơ
+  requestRevision: (payload: { submissionId: string; reason: string }) =>
+    request<{ processed: boolean; submissionId: string; action: string }>({
+      url: '/api/v1/submissions/approve',
+      method: 'POST',
+      data: { ...payload, action: 'RequestRevision' },
     }),
 };

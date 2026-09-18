@@ -40,7 +40,7 @@ export function CriterionGrid({
           <TableHeader>
             <TableRow className="bg-muted/45">
               <TableHead className="min-w-[260px]">Nội dung tiêu chí</TableHead>
-              <TableHead className="min-w-[160px]">Bằng chứng</TableHead>
+              <TableHead className="min-w-[160px]">Minh chứng</TableHead>
               <TableHead className="text-center">Điểm đề xuất</TableHead>
               <TableHead className="text-center">Điểm thưởng</TableHead>
               <TableHead className="text-center">Điểm tối đa</TableHead>
@@ -122,7 +122,7 @@ export function CriterionGrid({
                         <Button
                           size="icon-xs"
                           variant="ghost"
-                          title="Xem bằng chứng"
+                          title="Xem minh chứng"
                           onClick={() => onEvidence?.(placeholderEntry, criterion)}
                         >
                           <Eye className="h-4 w-4" />

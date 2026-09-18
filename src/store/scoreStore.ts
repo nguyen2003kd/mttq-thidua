@@ -20,6 +20,15 @@ const MAX_UPLOAD_SIZE = 20 * 1024 * 1024;
 
 export type { ScoreRecord } from '@/types/domain';
 
+/** Nhận xét Ban thường trực gửi chung đến tất cả địa phương. */
+export interface GeneralCommitteeComment {
+  id: string;
+  content: string;
+  attachment?: CriteriaTableAttachment;
+  sentAt: string;
+  actorName: string;
+}
+
 function makeAudit(
   action: 'SCORE' | 'EDIT' | 'APPROVE' | 'REJECT' | 'PUBLISH',
   actorName: string,
@@ -103,6 +112,7 @@ export interface ScoreStore {
   localities: Locality[];
   evidence: Evidence[];
   audits: AuditEntry[];
+  generalCommitteeComments: GeneralCommitteeComment[];
   deadline: string;
   scores: Record<string, Record<string, ScoreRecord>>; // tableId -> localityId -> record
   assignments: Record<string, string[]>; // tableId -> localityIds
@@ -182,6 +192,21 @@ export interface ScoreStore {
     actorName: string,
     actorRole: Role,
   ) => boolean;
+  /** Lưu nhận xét không làm thay đổi trạng thái hồ sơ. */
+  addComment: (
+    tableId: string,
+    localityId: string,
+    comment: string,
+    actorName: string,
+    actorRole: Role,
+  ) => boolean;
+  /** Lưu nhận xét chung và ghi nhận việc gửi đến toàn bộ địa phương. */
+  sendGeneralCommitteeComment: (payload: {
+    content: string;
+    attachment?: CriteriaTableAttachment;
+    actorName: string;
+    actorRole: Role;
+  }) => boolean;
   submit: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
   approve: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
   reject: (tableId: string, localityId: string, reason: string, actorName: string, actorRole: Role) => void;
@@ -191,6 +216,8 @@ export interface ScoreStore {
     actorName: string,
     actorRole: Role,
     decisionAttachments?: CriteriaTableAttachment[],
+    /** Nhận xét công bố hiển thị lại trong lịch sử và kết quả địa phương. */
+    publicationComment?: string,
   ) => void;
 
   uploadEvidence: (payload: {
@@ -353,6 +380,7 @@ export const useScoreStore = create<ScoreStore>()(
       localities: initialLocalities,
       evidence: initialEvidence,
       audits: initialAudits,
+      generalCommitteeComments: [],
       deadline: defaultDeadline,
       scores: initialScores,
       assignments: { tc1: ['loc-25195', 'loc-26068', 'loc-25210', 'loc-25222', 'loc-25217', 'loc-25220'] },
@@ -837,6 +865,53 @@ export const useScoreStore = create<ScoreStore>()(
         return true;
       },
 
+      addComment: (tableId, localityId, comment, actorName, actorRole) => {
+        const reason = comment.trim();
+        const record = get().scores[tableId]?.[localityId];
+        if (!record || !reason || record.state === 'DA_CONG_BO') return false;
+
+        set((state) => ({
+          audits: [
+            ...state.audits,
+            makeAudit(
+              'EDIT',
+              actorName,
+              actorRole,
+              `Nhận xét Hội đồng - ${localityId}`,
+              null,
+              'Đã gửi nhận xét',
+              reason,
+            ),
+          ],
+        }));
+        return true;
+      },
+
+      sendGeneralCommitteeComment: ({ content, attachment, actorName, actorRole }) => {
+        const message = content.trim();
+        if (!message) return false;
+        const sentAt = now();
+        set((state) => ({
+          generalCommitteeComments: [
+            ...state.generalCommitteeComments,
+            { id: uid(), content: message, attachment, sentAt, actorName },
+          ],
+          audits: [
+            ...state.audits,
+            ...state.localities.map((locality) => makeAudit(
+              'EDIT',
+              actorName,
+              actorRole,
+              `Nhận xét chung phong trào thi đua - ${locality.id}`,
+              null,
+              'Đã gửi thông báo đến địa phương',
+              attachment ? `${message}\n\nTập tin đính kèm: ${attachment.fileName}` : message,
+            )),
+          ],
+        }));
+        return true;
+      },
+
       submit: (tableId, localityId, actorName, actorRole) =>
         set((s) => runTransition(s, tableId, localityId, 'submit', { name: actorName, role: actorRole }) ?? s),
 
@@ -861,9 +936,16 @@ export const useScoreStore = create<ScoreStore>()(
           };
         }),
 
-      publish: (tableId, localityId, actorName, actorRole, decisionAttachments) =>
+      publish: (tableId, localityId, actorName, actorRole, decisionAttachments, publicationComment) =>
         set((s) => {
-          const patch = runTransition(s, tableId, localityId, 'publish', { name: actorName, role: actorRole });
+          const patch = runTransition(
+            s,
+            tableId,
+            localityId,
+            'publish',
+            { name: actorName, role: actorRole },
+            publicationComment?.trim() || null,
+          );
           if (!patch) return s;
           const record = patch.scores[tableId][localityId];
           return {
@@ -1004,6 +1086,7 @@ export const useScoreStore = create<ScoreStore>()(
           criteriaTables: previous.criteriaTables ?? initialTables,
           localities: previous.localities ?? initialLocalities,
           audits: previous.audits ?? initialAudits,
+          generalCommitteeComments: previous.generalCommitteeComments ?? [],
           deadline: previous.deadline ?? defaultDeadline,
           scores: initialScores,
           evidence: initialEvidence,
@@ -1016,6 +1099,7 @@ export const useScoreStore = create<ScoreStore>()(
         localities: s.localities,
         evidence: s.evidence,
         audits: s.audits,
+        generalCommitteeComments: s.generalCommitteeComments,
         deadline: s.deadline,
         scores: s.scores,
         assignments: s.assignments,

@@ -35,7 +35,7 @@ export function ScoreGroupInput({
           <TableHeader>
             <TableRow className="bg-muted/70">
               <TableHead className="min-w-[230px]">Nội dung tiêu chí</TableHead>
-              <TableHead className="min-w-[120px]">Bằng chứng</TableHead>
+              <TableHead className="min-w-[120px]">Minh chứng</TableHead>
               <TableHead className="text-right">Điểm đề xuất</TableHead>
               <TableHead className="text-right">Điểm thưởng đề xuất</TableHead>
               <TableHead className="text-right text-muted-foreground">Điểm tối đa ◎</TableHead>
@@ -92,7 +92,7 @@ export function ScoreGroupInput({
                   {mode !== 'result' && (
                     <TableCell className="text-right align-top">
                       <div className="flex justify-end gap-1">
-                        <Button size="icon-xs" variant="ghost" title="Xem bằng chứng" onClick={(event) => { event.stopPropagation(); onEvidence?.(placeholder, criterion); }}><Eye className="size-4" /></Button>
+                        <Button size="icon-xs" variant="ghost" title="Xem minh chứng" onClick={(event) => { event.stopPropagation(); onEvidence?.(placeholder, criterion); }}><Eye className="size-4" /></Button>
                         {onEdit && <Button size="icon-xs" variant="ghost" title={locked ? 'Tiêu chí đã khóa' : 'Sửa điểm'} disabled={locked || record.state === 'DA_CONG_BO'} onClick={(event) => { event.stopPropagation(); onEdit(placeholder, criterion); }}><Pencil className="size-4" /></Button>}
                       </div>
                     </TableCell>

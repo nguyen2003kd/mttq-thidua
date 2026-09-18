@@ -76,6 +76,33 @@ export interface ApprovalHistoryItem {
   createdAt: string;
 }
 
+export interface SubmissionHistoryItem {
+  id: string;
+  submissionResultId: string;
+  revisionRound: number;
+  action: string | null;
+  oldPoint: number;
+  oldBonusPoint: number;
+  oldOfficialPoint: number | null;
+  oldOfficialBonusPoint: number | null;
+  oldOfficialReason: string | null;
+  oldExplanation: string | null;
+  oldReviewStatus: string | null;
+  oldFiles: string | null;
+  requestedByUserId: string;
+  rejectReason: string | null;
+  createdAt: string;
+}
+
+export interface FileSnapshotItem {
+  id: string;
+  originalName: string;
+  displayName: string | null;
+  sizeBytes: number;
+  mimeType: string;
+  category: string | null;
+}
+
 // ── File types ────────────────────────────────────────────────────────────────
 
 export interface FileItem {
@@ -127,11 +154,11 @@ export const localityApi = {
   listApprovalHistories: (submissionId: string, params?: { action?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<ApprovalHistoryItem>>({ url: `/api/v1/submissions/${submissionId}/approval-histories`, method: 'GET', params }),
 
-  // Submission result histories — lịch sử kết quả
+  // Submission result histories — lịch sử kết quả (snapshot chi tiết)
   listResultHistories: (resultId: string, params?: { page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
-    request<PagedResult<ApprovalHistoryItem>>({ url: `/api/v1/submission-results/${resultId}/histories`, method: 'GET', params }),
+    request<PagedResult<SubmissionHistoryItem>>({ url: `/api/v1/submission-results/${resultId}/histories`, method: 'GET', params }),
 
-  // Files — bằng chứng
+  // Files — minh chứng
   uploadFile: (payload: { file: File; displayName?: string; title?: string; description?: string; note?: string; category?: string; entityType?: string; entityId?: string; visibility?: string }) => {
     const formData = new FormData();
     formData.append('File', payload.file);
@@ -183,6 +210,7 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissio
       .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === targetSubmissionId)
       .map((c, idx): CriteriaItem => ({
       id: c.id,
+      type: c.type as 'Standard' | 'Supplementary',
       name: c.content,
       maxScore: c.maxPoint,
       bonusScore: c.maxBonusPoint || undefined,

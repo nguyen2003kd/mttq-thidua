@@ -5,6 +5,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { FilePreviewDialog } from './FilePreviewDialog';
 import { FileUpload } from './FileUpload';
 import { FormDialog } from './FormDialog';
+import { TruncatedText } from './TruncatedText';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { downloadFile, filesApi, getFilesApiError, type FileEntityTypeApi, type FileItemApi } from '@/features/files/api/filesApi';
@@ -137,9 +138,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
                     <Icon className={cn('h-4.5 w-4.5', iconCls)} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground" title={file.displayName || file.originalName}>
-                    {file.displayName || file.originalName}
-                  </span>
+                  <TruncatedText value={file.displayName || file.originalName} className="flex-1 text-[13px] font-semibold text-foreground" />
                 </div>
                 <div className="flex items-center justify-between gap-2 border-t border-border/60 px-3 py-1.5">
                   <span className="truncate text-[11px] text-muted-foreground">

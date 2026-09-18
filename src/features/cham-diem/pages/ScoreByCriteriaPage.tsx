@@ -38,7 +38,7 @@ export default function ScoreByCriteriaPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Chọn địa phương để xem nhóm tiêu chí, bằng chứng và thực hiện chấm điểm." />
+      <PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Chọn địa phương để xem nhóm tiêu chí, minh chứng và thực hiện chấm điểm." />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Địa phương đã áp dụng</p><p className="mt-1 text-2xl font-bold">{rows.length}</p></CardContent></Card>
