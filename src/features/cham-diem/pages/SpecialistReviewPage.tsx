@@ -1706,7 +1706,9 @@ export default function SpecialistReviewPage() {
           submissionResultId: result.id,
           point: item.officialScore!,
           bonusPoint: item.officialBonusScore!,
-          reason: null,
+          // Chuyên viên so sánh và điều chỉnh trên điểm Địa phương đề xuất.
+          // Lưu lý do theo từng tiêu chí để cấp Lãnh đạo kế thừa được đầy đủ lịch sử.
+          reason: item.scoreReason.trim() || null,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
