@@ -75,6 +75,7 @@ export default function CriteriaChildrenPage() {
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
   const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
+  const [applyValidationMessage, setApplyValidationMessage] = useState('');
   const { uploading, uploadProgress, uploadFiles } = useFileUpload();
   const { data: group, isLoading, error } = useQuery({ queryKey: ['criteria-group', id], queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
@@ -126,6 +127,7 @@ export default function CriteriaChildrenPage() {
   ], []);
   if (isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (!group) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description={error ? getCriteriaApiError(error) : 'Nhóm tiêu chí không tồn tại hoặc đã bị xóa.'} />;
+  const pointValidation = validateCriteriaApplication(group.maxPoint, groupCriteria.map((item) => item.maxScore));
   const saveItem = async (value: Omit<CriteriaItem, 'id' | 'order' | 'updatedAt'>) => {
     const current = editor?.item; const siblingTotal = groupCriteria.filter((item) => item.id !== current?.id).reduce((sum, item) => sum + item.maxScore, 0);
     if (siblingTotal + value.maxScore > group.maxPoint) return toast.error(`Tổng điểm tiêu chí (${siblingTotal + value.maxScore}) không được vượt quá ${group.maxPoint} điểm của nhóm.`);
@@ -138,7 +140,7 @@ export default function CriteriaChildrenPage() {
         queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
         queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
       ]);
-      toast.success(current ? 'Đã cập nhật tiêu chí.' : 'Đã thêm tiêu chí.'); setEditor(null); setSelected(null);
+      toast.success(current ? 'Đã cập nhật tiêu chí.' : 'Đã thêm tiêu chí.'); setEditor(null); setSelected(null); setApplyValidationMessage('');
     } catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
   };
   const apply = async () => {
@@ -175,15 +177,31 @@ export default function CriteriaChildrenPage() {
   };
   const openApplyDialog = () => {
     const validation = validateCriteriaApplication(group.maxPoint, groupCriteria.map((item) => item.maxScore));
-    if (!validation.success) return toast.error(validation.message);
+    if (!validation.success) {
+      setApplyValidationMessage(validation.message ?? 'Không thể áp dụng nhóm tiêu chí.');
+      return;
+    }
+    setApplyValidationMessage('');
     setApplyFiles([]);
     setApplyError('');
     setApplyOpen(true);
   };
   return <div className="flex min-h-full flex-col gap-5">
     <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/chuyen-vien/tieu-chi" className="hover:text-primary">Quản lý tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{group.name}</span></div>
-    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${groupCriteria.reduce((sum, item) => sum + item.maxScore, 0)}/${group.maxPoint} điểm`} actions={<Button variant="outline" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${pointValidation.childTotal}/${group.maxPoint} điểm`} actions={<Button variant="outline" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     <div className="flex-1 space-y-4">
+      {applyValidationMessage && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-sm text-danger">
+          <div className="flex min-w-0 items-start gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">Không thể áp dụng nhóm tiêu chí</p>
+              <p className="mt-0.5 text-danger/90">{applyValidationMessage}</p>
+            </div>
+          </div>
+          <Badge className="shrink-0 border border-danger/25 bg-background text-danger">{pointValidation.childTotal}/{group.maxPoint} điểm</Badge>
+        </div>
+      )}
       {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : 'đóng'} — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử.</div>}
       <section className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         <div className="bg-primary px-4 py-3 text-primary-foreground">
@@ -226,7 +244,11 @@ export default function CriteriaChildrenPage() {
             ><Plus className="size-4" />Thêm mới</Button>
             <Button
               disabled={group.status !== 'Draft'}
-              title={group.status !== 'Draft' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.' : undefined}
+              disabledReason={
+                group.status !== 'Draft'
+                  ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.'
+                  : undefined
+              }
               onClick={() => { if (group.status === 'Draft') openApplyDialog(); }}
             >
               <Send className="size-4" />Áp dụng tiêu chí cho địa phương

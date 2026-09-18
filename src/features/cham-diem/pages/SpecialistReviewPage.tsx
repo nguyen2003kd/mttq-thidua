@@ -173,6 +173,14 @@ const supplementarySchema = z.object({
 
 type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
+const scoreEditSchema = z.object({
+  score: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
+  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.'),
+  reason: z.string().trim(),
+});
+
+type ScoreEditForm = z.infer<typeof scoreEditSchema>;
+
 // function createScoreSchema(item: SpecialistCriteriaItem) {
 //   return z.object({
 //     score: z.coerce
@@ -712,11 +720,13 @@ function RevisionDialog({
   open,
   onOpenChange,
   localityName,
+  criterionLabel,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   localityName: string;
+  criterionLabel?: string;
   onSubmit: (reason: string, file: File | null) => Promise<boolean>;
 }) {
   const form = useForm<RevisionForm>({
@@ -735,7 +745,9 @@ function RevisionDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Yêu cầu địa phương chỉnh sửa"
-      description={`Mở lại quyền sửa hồ sơ cho ${localityName}.`}
+      description={criterionLabel
+        ? `Yêu cầu ${localityName} bổ sung/chỉnh sửa tiêu chí: ${criterionLabel}.`
+        : `Mở lại quyền sửa hồ sơ cho ${localityName}.`}
       onSubmit={form.handleSubmit(async ({ reason, file }) => {
         setSubmitting(true);
         const success = await onSubmit(reason, file);
@@ -945,6 +957,159 @@ function SpecialistScoreInput({
   );
 }
 
+function CriterionDetailDialog({
+  item,
+  open,
+  onOpenChange,
+  onViewEvidence,
+  onEdit,
+}: {
+  item: SpecialistCriteriaItem | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onViewEvidence: (item: SpecialistCriteriaItem) => void;
+  onEdit: (item: SpecialistCriteriaItem) => void;
+}) {
+  if (!item) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b border-border bg-muted/25 px-6 py-5 pr-12">
+          <DialogTitle>Chi tiết tiêu chí con</DialogTitle>
+          <DialogDescription>{item.code}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5 px-6 py-5">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p>
+            <p className="mt-1.5 text-sm font-semibold leading-6 text-foreground">{item.title}</p>
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-border overflow-hidden rounded-lg border border-border sm:grid-cols-4">
+            <SnapshotField label="Địa phương đề xuất" value={`${item.proposedScore} / ${item.maxProposedScore}`} />
+            <SnapshotField label="Điểm thưởng đề xuất" value={`${item.proposedBonusScore} / ${item.maxProposedBonusScore}`} />
+            <SnapshotField label="Chuyên viên chấm" value={item.officialScore === null ? 'Chưa chấm' : `${item.officialScore} / ${item.maxProposedScore}`} />
+            <SnapshotField label="Điểm thưởng chấm" value={item.officialBonusScore === null ? 'Chưa chấm' : `${item.officialBonusScore} / ${item.maxProposedBonusScore}`} />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p>
+            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.explanation || 'Chưa có diễn giải.'}</p>
+          </div>
+          {item.scoreReason && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Lý do sửa điểm</p>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.scoreReason}</p>
+            </div>
+          )}
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{item.evidenceFiles.length} file đính kèm</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => onViewEvidence(item)}>
+              <FileText className="size-4" />Xem file
+            </Button>
+          </div>
+        </div>
+        <DialogFooter className="border-t border-border px-6 py-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
+          {!item.isAddedBySpecialist && (
+            <Button type="button" onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScoreEditDialog({
+  item,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  item: SpecialistCriteriaItem | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (values: ScoreEditForm) => void;
+}) {
+  const form = useForm<ScoreEditForm>({
+    resolver: zodResolver(scoreEditSchema),
+    defaultValues: { score: 0, bonusScore: 0, reason: '' },
+  });
+
+  useEffect(() => {
+    if (item && open) {
+      form.reset({
+        score: item.officialScore ?? item.proposedScore,
+        bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
+        reason: item.scoreReason,
+      });
+    }
+  }, [form, item, open]);
+
+  if (!item) return null;
+
+  const submit = (values: ScoreEditForm) => {
+    const scoreChanged = values.score !== item.proposedScore || values.bonusScore !== item.proposedBonusScore;
+    if (scoreChanged && !values.reason.trim()) {
+      form.setError('reason', { message: 'Vui lòng nhập lý do khi điểm chấm khác điểm địa phương đề xuất.' });
+      return;
+    }
+    if (values.score > item.maxProposedScore) {
+      form.setError('score', { message: `Điểm chấm không được vượt quá ${item.maxProposedScore}.` });
+      return;
+    }
+    if (values.bonusScore > item.maxProposedBonusScore) {
+      form.setError('bonusScore', { message: `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.` });
+      return;
+    }
+    onSave(values);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="border-b border-border bg-muted/25 px-6 py-5 pr-12">
+          <DialogTitle>Sửa điểm chuyên viên</DialogTitle>
+          <DialogDescription className="line-clamp-2">{item.code} · {item.title}</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={form.handleSubmit(submit)}>
+          <div className="space-y-5 px-6 py-5">
+            <div className="grid grid-cols-2 divide-x divide-border overflow-hidden rounded-lg border border-border">
+              <SnapshotField label="Địa phương đề xuất" value={`${item.proposedScore} / ${item.maxProposedScore}`} />
+              <SnapshotField label="Điểm thưởng đề xuất" value={`${item.proposedBonusScore} / ${item.maxProposedBonusScore}`} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="specialist-score">Điểm chuyên viên <span className="text-danger">★</span></Label>
+                <Input id="specialist-score" type="number" min={0} max={item.maxProposedScore} step="0.25" {...form.register('score')} />
+                <p className="text-xs text-muted-foreground">Tối đa {item.maxProposedScore} điểm</p>
+                {form.formState.errors.score && <p className="text-xs text-danger">{form.formState.errors.score.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-danger">★</span></Label>
+                <Input id="specialist-bonus-score" type="number" min={0} max={item.maxProposedBonusScore} step="0.25" {...form.register('bonusScore')} />
+                <p className="text-xs text-muted-foreground">Tối đa {item.maxProposedBonusScore} điểm</p>
+                {form.formState.errors.bonusScore && <p className="text-xs text-danger">{form.formState.errors.bonusScore.message}</p>}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác đề xuất)</span></Label>
+              <Textarea id="specialist-score-reason" rows={3} placeholder="Nhập lý do điều chỉnh điểm..." {...form.register('reason')} />
+              {form.formState.errors.reason && <p className="text-xs text-danger">{form.formState.errors.reason.message}</p>}
+            </div>
+          </div>
+          <DialogFooter className="border-t border-border px-6 py-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
+            <Button type="submit"><Save className="size-4" />Áp dụng điểm</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SpecialistReviewPage() {
   const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
   const navigate = useNavigate();
@@ -960,6 +1125,8 @@ export default function SpecialistReviewPage() {
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
+  const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
+  const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
@@ -1479,9 +1646,9 @@ export default function SpecialistReviewPage() {
   const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
   const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
   const specialistBonusScore = scoredItems.reduce((sum, item) => sum + (item.officialBonusScore ?? 0), 0);
-  // const selectedCriterion = selectedCriterionId
-  //   ? displayGroup.items.find((item) => item.id === selectedCriterionId)
-  //   : undefined;
+  const selectedCriterion = selectedCriterionId
+    ? displayGroup.items.find((item) => item.id === selectedCriterionId)
+    : undefined;
 
   const copyProposedScores = () => {
     const newOverrides = new Map(scoreOverrides);
@@ -1653,9 +1820,24 @@ export default function SpecialistReviewPage() {
 
         <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+            <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
+              <Eye className="size-4" />Xem chi tiết
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist}
+              title={selectedCriterion?.isAddedBySpecialist ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.' : undefined}
+              onClick={() => setScoreEditOpen(true)}
+            >
+              <Edit3 className="size-4" />Sửa điểm
+            </Button>
             <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
             <Button variant="outline" onClick={openSupplementaryDialog}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
-            <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}><AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa</Button>
+            {selectedCriterion && (
+              <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}>
+                <AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa
+              </Button>
+            )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
             <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
@@ -1693,7 +1875,14 @@ export default function SpecialistReviewPage() {
                   onClick={() => setSelectedCriterionId(item.id)}
                 >
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
-                    <p className="font-semibold leading-5 text-foreground">{item.title}</p>
+                    <TruncatedText
+                      as="p"
+                      value={item.title}
+                      maxLines={4}
+                      tooltipClassName="max-w-md p-3 text-sm leading-5"
+                      className="font-semibold leading-5 text-foreground"
+                      aria-label={`Xem đầy đủ tiêu chí: ${item.title}`}
+                    />
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
                     {result && (
@@ -1909,10 +2098,39 @@ export default function SpecialistReviewPage() {
           }
         }}
       />
+      <CriterionDetailDialog
+        item={selectedCriterion}
+        open={criterionDetailOpen}
+        onOpenChange={setCriterionDetailOpen}
+        onViewEvidence={(item) => {
+          setCriterionDetailOpen(false);
+          setViewingEvidenceItem(item);
+        }}
+        onEdit={(item) => {
+          setCriterionDetailOpen(false);
+          setSelectedCriterionId(item.id);
+          setScoreEditOpen(true);
+        }}
+      />
+      <ScoreEditDialog
+        item={selectedCriterion}
+        open={scoreEditOpen}
+        onOpenChange={setScoreEditOpen}
+        onSave={(values) => {
+          if (!selectedCriterion) return;
+          updateCriterion(selectedCriterion.id, {
+            officialScore: values.score,
+            officialBonusScore: values.bonusScore,
+            scoreReason: values.reason.trim(),
+          });
+          toast.success('Đã cập nhật điểm chấm. Nhấn “Lưu nháp” để lưu vào hồ sơ.');
+        }}
+      />
       <RevisionDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
         localityName={district.localityName}
+        criterionLabel={selectedCriterion ? `${selectedCriterion.code} · ${selectedCriterion.title}` : undefined}
         onSubmit={async (reason, file) => {
           const submission = submissionByGroup.get(selectedGroup.id);
           if (!submission) {
@@ -1923,7 +2141,10 @@ export default function SpecialistReviewPage() {
             if (file) {
               await filesApi.upload(file, { entityType: 'Submission', entityId: submission.id, category: 'revision-attachment' });
             }
-            await specialistApi.requestRevision({ submissionId: submission.id, reason });
+            const targetedReason = selectedCriterion
+              ? `[${selectedCriterion.code}] ${selectedCriterion.title}\n\n${reason}`
+              : reason;
+            await specialistApi.requestRevision({ submissionId: submission.id, reason: targetedReason });
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
               queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),

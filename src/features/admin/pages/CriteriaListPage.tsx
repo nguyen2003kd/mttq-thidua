@@ -88,6 +88,13 @@ export default function CriteriaListPage() {
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
   const [applyFiles, setApplyFiles] = useState<File[]>([]);
   const [applyError, setApplyError] = useState('');
+  const [applyValidationError, setApplyValidationError] = useState<{
+    groupId: string;
+    groupName: string;
+    childTotal: number;
+    totalScore: number;
+    message: string;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
@@ -192,9 +199,16 @@ export default function CriteriaListPage() {
         latestTable.criteria.map((item) => item.maxScore),
       );
       if (!validation.success) {
-        toast.error(validation.message);
+        setApplyValidationError({
+          groupId: latestTable.id,
+          groupName: latestTable.name,
+          childTotal: validation.childTotal,
+          totalScore: latestTable.totalScore,
+          message: validation.message ?? 'Không thể áp dụng nhóm tiêu chí.',
+        });
         return;
       }
+      setApplyValidationError(null);
       setApplyFiles([]);
       setApplyError('');
       setApplyTable(latestTable);
@@ -254,6 +268,22 @@ export default function CriteriaListPage() {
         actions={new Date(deadline).getTime() <= Date.now() ? <Badge className="h-7 bg-accent/20 px-3 text-foreground">Đến hạn gợi ý công bố</Badge> : undefined}
       />
 
+      {applyValidationError && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 border-l-4 border-danger bg-[#FFF8F8] px-4 py-3 text-sm text-danger">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">Không thể áp dụng nhóm tiêu chí “{applyValidationError.groupName}”</p>
+              <p className="mt-0.5 text-danger/90">{applyValidationError.message}</p>
+            </div>
+          </div>
+          <div className="shrink-0 border-l border-danger/20 pl-4 text-right">
+            <p className="text-xs text-muted-foreground">Tổng điểm tiêu chí con</p>
+            <p className="mt-0.5 font-semibold tabular-nums text-danger">{applyValidationError.childTotal}/{applyValidationError.totalScore} điểm</p>
+          </div>
+        </div>
+      )}
+
       <DataTable
         data={filteredTables}
         loading={isLoading}
@@ -266,7 +296,7 @@ export default function CriteriaListPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
-        onRowClick={(row) => setSelectedTable(row)}
+        onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
         filters={
           <>
@@ -343,8 +373,18 @@ export default function CriteriaListPage() {
                 </Button>
                 <Button
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT'}
-                  title={selectedTable && selectedTable.status !== 'DRAFT' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.' : undefined}
-                  onClick={() => { if (selectedTable && selectedTable.status === 'DRAFT') void openApplyDialog(selectedTable); }}
+                  disabledReason={
+                    !selectedTable
+                      ? 'Chọn một nhóm tiêu chí để áp dụng.'
+                      : selectedTable.status !== 'DRAFT'
+                        ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.'
+                        : undefined
+                  }
+                  onClick={() => {
+                    if (selectedTable && selectedTable.status === 'DRAFT') {
+                      void openApplyDialog(selectedTable);
+                    }
+                  }}
                 >
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
