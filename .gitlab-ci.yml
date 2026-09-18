@@ -69,9 +69,9 @@ deploy:
 
       echo "Restart services"
       cd "$DEPLOY_PATH"
-      docker compose -f docker-compose.yml --env-file .env --env-file .deploy.env up -d --no-build --remove-orphans
+      docker compose -p mttq-tctd-uat-fe -f docker-compose.yml --env-file .env --env-file .deploy.env up -d --no-build --remove-orphans
 
       echo "Service status"
-      docker compose -f docker-compose.yml --env-file .env --env-file .deploy.env ps
+      docker compose -p mttq-tctd-uat-fe -f docker-compose.yml --env-file .env --env-file .deploy.env ps
   only:
     - release/uat
