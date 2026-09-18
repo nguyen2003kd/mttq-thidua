@@ -9,6 +9,7 @@ import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useScoreStore } from '@/store/scoreStore';
+import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { GlobalApiLoading, PageLoading } from '@/components/core';
 
 // Lazy load pages
@@ -25,8 +26,11 @@ const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreB
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
 const BanLeaderReviewDetailPage = lazy(() => import('@/features/duyet/pages/BanLeaderReviewDetailPage'));
+const BanLeaderHistoryPage = lazy(() => import('@/features/duyet/pages/BanLeaderHistoryPage'));
 const CouncilApprovalPage = lazy(() => import('@/features/duyet/pages/CouncilApprovalPage'));
+const CouncilHistoryPage = lazy(() => import('@/features/duyet/pages/CouncilHistoryPage'));
 const StandingCommitteePage = lazy(() => import('@/features/duyet/pages/StandingCommitteePage'));
+const CommitteeHistoryPage = lazy(() => import('@/features/duyet/pages/CommitteeHistoryPage'));
 const MinhChungPage = lazy(() => import('@/features/dia-phuong/pages/MinhChungPage'));
 const TrangThaiPage = lazy(() => import('@/features/dia-phuong/pages/TrangThaiPage'));
 const KetQuaPage = lazy(() => import('@/features/dia-phuong/pages/KetQuaPage'));
@@ -63,12 +67,19 @@ function AuthEvents() {
   return null;
 }
 
+/** Keeps an active session fresh before the access JWT expires. */
+function ProactiveAuthRefresh() {
+  useEffect(() => startProactiveTokenRefresh(), []);
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <GlobalApiLoading />
       <BrowserRouter>
         <AuthEvents />
+        <ProactiveAuthRefresh />
         <Toaster position="bottom-right" duration={4000} richColors closeButton />
         <Suspense fallback={<PageLoading label="Đang tải trang…" className="min-h-dvh" />}>
           <Routes>
@@ -199,6 +210,18 @@ export default function App() {
               }
             />
             <Route
+              path="/thi-dua/duyet/lanh-dao-ban/:banId/lich-su"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['LEADER']}>
+                    <AppLayout>
+                      <BanLeaderHistoryPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/thi-dua/duyet/hoi-dong-tdkt"
               element={
                 <RequireAuth>
@@ -211,12 +234,36 @@ export default function App() {
               }
             />
             <Route
+              path="/hoi-dong/lich-su"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['COUNCIL']}>
+                    <AppLayout>
+                      <CouncilHistoryPage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/thi-dua/duyet/ban-thuong-truc"
               element={
                 <RequireAuth>
                   <RequireRole roles={['COMMITTEE']}>
                     <AppLayout>
                       <StandingCommitteePage />
+                    </AppLayout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/uy-ban/lich-su"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={['COMMITTEE']}>
+                    <AppLayout>
+                      <CommitteeHistoryPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>

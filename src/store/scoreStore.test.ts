@@ -109,6 +109,21 @@ describe('reject (B0)', () => {
   });
 });
 
+describe('nhận xét Hội đồng (COL.01.09)', () => {
+  it('lưu nhận xét vào lịch sử mà không thay đổi trạng thái hồ sơ', () => {
+    useScoreStore.setState({ scores: { [TC]: { [LOC]: rec({ state: 'CHO_DUYET_HOI_DONG' }) } } });
+
+    expect(S().addComment(TC, LOC, '  ', 'Chủ tịch Hội đồng', 'COUNCIL')).toBe(false);
+    expect(S().addComment(TC, LOC, 'Cần tiếp tục phát huy công tác tuyên truyền.', 'Chủ tịch Hội đồng', 'COUNCIL')).toBe(true);
+    expect(S().getScore(TC, LOC).state).toBe('CHO_DUYET_HOI_DONG');
+    expect(S().audits.at(-1)).toMatchObject({
+      actorRole: 'COUNCIL',
+      fieldName: `Nhận xét Hội đồng - ${LOC}`,
+      reason: 'Cần tiếp tục phát huy công tác tuyên truyền.',
+    });
+  });
+});
+
 describe('getRanking (B6)', () => {
   it('chỉ xếp hạng địa phương được gán bảng', () => {
     const ranking = S().getRanking(TC);

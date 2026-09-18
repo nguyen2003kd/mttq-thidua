@@ -7,7 +7,7 @@ const mk = (role: Role, extra: Partial<AuthUser> = {}): AuthUser => ({ id: 'u1',
 describe('RBAC năm vai trò', () => {
   it.each([
     ['LOCAL', 'submit', true], ['SPECIALIST', 'assign', true], ['LEADER', 'approve', true],
-    ['COUNCIL', 'edit', true], ['COMMITTEE', 'publish', true], ['LOCAL', 'publish', false],
+    ['COUNCIL', 'edit', false], ['COMMITTEE', 'publish', true], ['LOCAL', 'publish', false],
   ] as const)('%s %s = %s', (role, action, expected) => expect(can(mk(role), action)).toBe(expected));
 
   it('chỉ đúng vai trò được duyệt đúng chặng', () => {

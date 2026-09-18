@@ -5,9 +5,9 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/store/authStore';
-import { installAuthInterceptors } from './auth-interceptors';
+import { installAuthInterceptors, startProactiveTokenRefresh } from './auth-interceptors';
 
 interface InterceptorHarness {
   instance: AxiosInstance;
@@ -85,6 +85,10 @@ describe('auth interceptors', () => {
       'expired-access-token',
       'current-refresh-token',
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('gắn access token hiện tại vào request', () => {
@@ -171,5 +175,29 @@ describe('auth interceptors', () => {
 
     expect(postSpy).not.toHaveBeenCalled();
     expect(useAuthStore.getState().token).toBe('expired-access-token');
+  });
+
+  it('chủ động refresh một phút trước khi access token hết hạn', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-18T00:00:00.000Z'));
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 120;
+    const newAccessToken = createJwt(expiresAt + 3600);
+    const newRefreshToken = createJwt(expiresAt + 86400);
+    useAuthStore.getState().setStore({
+      access_token: createJwt(expiresAt),
+      refresh_token: 'current-refresh-token',
+      access_token_expires_at: new Date(expiresAt * 1000),
+    });
+    vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { success: true, data: { accessToken: newAccessToken, refreshToken: newRefreshToken } },
+    });
+
+    const stop = startProactiveTokenRefresh();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().token).toBe(newAccessToken);
+    stop();
   });
 });
