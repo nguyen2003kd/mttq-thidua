@@ -117,7 +117,7 @@ export default function LocalityCriteriaPage() {
         submissionStage: submissionByGroup.get(assignedTable.id)?.currentStage ?? null,
       };
     }),
-    [assignedTables, bonusScoreByGroupId],
+    [assignedTables, bonusScoreByGroupId, submissionByGroup],
   );
 
   const localityListColumns = useMemo<ColumnDef<LocalityCriteriaListRow>[]>(
