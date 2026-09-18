@@ -7,16 +7,17 @@ const ROLE_ACTIONS: Record<Role, Action[]> = {
   LOCAL: ['view', 'create', 'edit', 'delete', 'submit'],
   SPECIALIST: ['view', 'create', 'edit', 'delete', 'submit', 'reject', 'assign'],
   LEADER: ['view', 'approve', 'reject'],
-  COUNCIL: ['view', 'approve', 'reject', 'edit'],
-  COMMITTEE: ['view', 'approve', 'reject', 'edit', 'publish'],
+  // Hội đồng và Ủy ban chỉ xem, duyệt/công bố hoặc yêu cầu bổ sung; không sửa điểm trực tiếp.
+  COUNCIL: ['view', 'approve', 'reject'],
+  COMMITTEE: ['view', 'approve', 'reject', 'publish'],
 };
 
 const STATE_ACTIONS: Record<ScoreState, Action[]> = {
   DRAFT: ['edit', 'submit'],
   CHO_CHUYEN_VIEN: ['edit', 'submit', 'reject'],
   CHO_DUYET_BAN: ['approve', 'reject'],
-  CHO_DUYET_HOI_DONG: ['approve', 'reject', 'edit'],
-  CHO_DUYET_BTT: ['approve', 'reject', 'edit', 'publish'],
+  CHO_DUYET_HOI_DONG: ['approve', 'reject'],
+  CHO_DUYET_BTT: ['approve', 'reject', 'publish'],
   DA_CONG_BO: ['view'],
 };
 
@@ -37,6 +38,8 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   '/thi-dua/duyet/lanh-dao-ban': ['LEADER'],
   '/thi-dua/duyet/hoi-dong-tdkt': ['COUNCIL'],
   '/thi-dua/duyet/ban-thuong-truc': ['COMMITTEE'],
+  '/hoi-dong/lich-su': ['COUNCIL'],
+  '/uy-ban/lich-su': ['COMMITTEE'],
   '/thi-dua/dashboard-tong-quan': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
   '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
 };

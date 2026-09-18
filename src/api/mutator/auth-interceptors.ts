@@ -19,6 +19,11 @@ interface RetriableRequestConfig extends InternalAxiosRequestConfig {
 }
 
 let refreshPromise: Promise<string> | null = null;
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let stopProactiveRefresh: (() => void) | null = null;
+
+/** Refresh shortly before expiry so active users do not encounter a 401. */
+const PROACTIVE_REFRESH_LEEWAY_MS = 60_000;
 
 function tokenExpiresAt(token: string): Date | null {
   try {
@@ -106,6 +111,55 @@ function refreshAccessToken(): Promise<string> {
   }
 
   return refreshPromise;
+}
+
+function clearProactiveRefreshTimer(): void {
+  if (proactiveRefreshTimer) {
+    clearTimeout(proactiveRefreshTimer);
+    proactiveRefreshTimer = null;
+  }
+}
+
+function scheduleProactiveRefresh(): void {
+  clearProactiveRefreshTimer();
+
+  const { token, refreshToken, access_token_expires_at: storedExpiry } = useAuthStore.getState();
+  if (!token || !refreshToken) return;
+
+  const expiresAt = storedExpiry ?? tokenExpiresAt(token);
+  if (!expiresAt || Number.isNaN(expiresAt.getTime())) return;
+
+  const delay = Math.max(0, expiresAt.getTime() - Date.now() - PROACTIVE_REFRESH_LEEWAY_MS);
+  proactiveRefreshTimer = setTimeout(() => {
+    proactiveRefreshTimer = null;
+    void refreshAccessToken().catch(() => clearSession());
+  }, delay);
+}
+
+/**
+ * Starts one application-wide schedule that rotates the access token one minute
+ * before its JWT expiry. The existing 401 retry remains a fallback for requests
+ * made while a token is being rotated or from a stale browser tab.
+ */
+export function startProactiveTokenRefresh(): () => void {
+  if (stopProactiveRefresh) return stopProactiveRefresh;
+
+  const unsubscribe = useAuthStore.subscribe(() => {
+    scheduleProactiveRefresh();
+  });
+
+  scheduleProactiveRefresh();
+
+  const stop = () => {
+    unsubscribe();
+    clearProactiveRefreshTimer();
+    if (stopProactiveRefresh === stop) {
+      stopProactiveRefresh = null;
+    }
+  };
+
+  stopProactiveRefresh = stop;
+  return stop;
 }
 
 export function installAuthInterceptors(instance: AxiosInstance): void {

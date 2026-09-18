@@ -182,6 +182,14 @@ export interface ScoreStore {
     actorName: string,
     actorRole: Role,
   ) => boolean;
+  /** Lưu nhận xét không làm thay đổi trạng thái hồ sơ. */
+  addComment: (
+    tableId: string,
+    localityId: string,
+    comment: string,
+    actorName: string,
+    actorRole: Role,
+  ) => boolean;
   submit: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
   approve: (tableId: string, localityId: string, actorName: string, actorRole: Role) => void;
   reject: (tableId: string, localityId: string, reason: string, actorName: string, actorRole: Role) => void;
@@ -191,6 +199,8 @@ export interface ScoreStore {
     actorName: string,
     actorRole: Role,
     decisionAttachments?: CriteriaTableAttachment[],
+    /** Nhận xét công bố hiển thị lại trong lịch sử và kết quả địa phương. */
+    publicationComment?: string,
   ) => void;
 
   uploadEvidence: (payload: {
@@ -837,6 +847,28 @@ export const useScoreStore = create<ScoreStore>()(
         return true;
       },
 
+      addComment: (tableId, localityId, comment, actorName, actorRole) => {
+        const reason = comment.trim();
+        const record = get().scores[tableId]?.[localityId];
+        if (!record || !reason || record.state === 'DA_CONG_BO') return false;
+
+        set((state) => ({
+          audits: [
+            ...state.audits,
+            makeAudit(
+              'EDIT',
+              actorName,
+              actorRole,
+              `Nhận xét Hội đồng - ${localityId}`,
+              null,
+              'Đã gửi nhận xét',
+              reason,
+            ),
+          ],
+        }));
+        return true;
+      },
+
       submit: (tableId, localityId, actorName, actorRole) =>
         set((s) => runTransition(s, tableId, localityId, 'submit', { name: actorName, role: actorRole }) ?? s),
 
@@ -861,9 +893,16 @@ export const useScoreStore = create<ScoreStore>()(
           };
         }),
 
-      publish: (tableId, localityId, actorName, actorRole, decisionAttachments) =>
+      publish: (tableId, localityId, actorName, actorRole, decisionAttachments, publicationComment) =>
         set((s) => {
-          const patch = runTransition(s, tableId, localityId, 'publish', { name: actorName, role: actorRole });
+          const patch = runTransition(
+            s,
+            tableId,
+            localityId,
+            'publish',
+            { name: actorName, role: actorRole },
+            publicationComment?.trim() || null,
+          );
           if (!patch) return s;
           const record = patch.scores[tableId][localityId];
           return {
