@@ -76,6 +76,18 @@ export interface SubmissionApi {
   results: SubmissionResultItem[];
 }
 
+export interface ApprovalHistoryApi {
+  id: string;
+  submissionId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  fromStage: string | null;
+  toStage: string | null;
+  reason: string | null;
+  createdAt: string;
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export const specialistApi = {
@@ -94,6 +106,8 @@ export const specialistApi = {
     request<PagedResult<SubmissionApi>>({ url: `/api/v1/criteria-groups/${groupId}/submissions`, method: 'GET', params }),
   getSubmission: (id: string) =>
     request<SubmissionApi>({ url: `/api/v1/submissions/${id}`, method: 'GET' }),
+  listApprovalHistories: (submissionId: string, params?: { action?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+    request<PagedResult<ApprovalHistoryApi>>({ url: `/api/v1/submissions/${submissionId}/approval-histories`, method: 'GET', params }),
 
   // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
   approveSubmission: (submissionId: string, reason?: string) =>
