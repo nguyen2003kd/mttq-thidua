@@ -10,7 +10,7 @@ import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useScoreStore } from '@/store/scoreStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
-import { GlobalApiLoading, PageLoading } from '@/components/core';
+import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -79,6 +79,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <GlobalApiLoading />
+      <ActionProgressOverlay />
       <BrowserRouter>
         <AuthEvents />
         <ProactiveAuthRefresh />
