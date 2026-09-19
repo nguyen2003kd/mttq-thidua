@@ -40,7 +40,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
-import { specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { getSpecialistSubmissionPermissions, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import {
   localityApi,
   type ApprovalHistoryItem,
@@ -924,12 +924,14 @@ function SpecialistScoreInput({
   label,
   value,
   maximum,
+  disabled = false,
   onFocus,
   onChange,
 }: {
   label: string;
   value: number | null;
   maximum: number;
+  disabled?: boolean;
   onFocus: () => void;
   onChange: (value: number | null) => void;
 }) {
@@ -943,6 +945,7 @@ function SpecialistScoreInput({
           min={0}
           max={maximum}
           step="0.25"
+          disabled={disabled}
           className="h-full min-w-0 flex-1 appearance-none rounded-md border-0 bg-transparent py-0 pl-2.5 pr-14 text-right text-sm font-semibold tabular-nums text-foreground shadow-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           value={value ?? ''}
           placeholder="—"
@@ -963,12 +966,16 @@ function CriterionDetailDialog({
   onOpenChange,
   onViewEvidence,
   onEdit,
+  editDisabled = false,
+  editDisabledReason,
 }: {
   item: SpecialistCriteriaItem | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onViewEvidence: (item: SpecialistCriteriaItem) => void;
   onEdit: (item: SpecialistCriteriaItem) => void;
+  editDisabled?: boolean;
+  editDisabledReason?: string;
 }) {
   if (!item) return null;
 
@@ -1013,7 +1020,7 @@ function CriterionDetailDialog({
         <DialogFooter className="border-t border-border px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
           {!item.isAddedBySpecialist && (
-            <Button type="button" onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
+            <Button type="button" disabled={editDisabled} disabledReason={editDisabledReason} onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -1636,6 +1643,10 @@ export default function SpecialistReviewPage() {
     return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Mã nhóm tiêu chí không tồn tại trong dữ liệu." />;
   }
 
+  const selectedSubmissionStage = selectedSubmissionDetailQuery.data?.currentStage ?? selectedSubmission?.currentStage;
+  const specialistPermissions = getSpecialistSubmissionPermissions(selectedSubmissionStage);
+  const specialistActionsLocked = !specialistPermissions.canEdit;
+  const specialistLockReason = specialistPermissions.disabledReason;
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
@@ -1651,6 +1662,10 @@ export default function SpecialistReviewPage() {
     : undefined;
 
   const copyProposedScores = () => {
+    if (specialistActionsLocked) {
+      toast.info(specialistLockReason);
+      return;
+    }
     const newOverrides = new Map(scoreOverrides);
     for (const item of displayGroup.items) {
       if (item.isAddedBySpecialist) continue;
@@ -1666,6 +1681,10 @@ export default function SpecialistReviewPage() {
   };
 
   const openForwardDialog = () => {
+    if (specialistActionsLocked) {
+      toast.info(specialistLockReason);
+      return;
+    }
     if (displayGroup.items.length === 0) {
       toast.error('Nhóm tiêu chí chưa có tiêu chí con để gửi duyệt.');
       return;
@@ -1687,6 +1706,10 @@ export default function SpecialistReviewPage() {
   };
 
   const openSupplementaryDialog = () => {
+    if (specialistActionsLocked) {
+      toast.info(specialistLockReason);
+      return;
+    }
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
       toast.error('Nhóm này chưa có hồ sơ để bổ sung tiêu chí.');
@@ -1715,6 +1738,10 @@ export default function SpecialistReviewPage() {
   };
 
   const saveDraftScores = async () => {
+    if (specialistActionsLocked) {
+      toast.info(specialistLockReason);
+      return;
+    }
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
       toast.error('Nhóm này chưa có hồ sơ để chấm điểm.');
@@ -1740,6 +1767,10 @@ export default function SpecialistReviewPage() {
   };
 
   const confirmForward = async ({ explanation }: { explanation: string }) => {
+    if (specialistActionsLocked) {
+      toast.info(specialistLockReason);
+      return;
+    }
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
       toast.error('Nhóm này chưa có hồ sơ để chuyển.');
@@ -1827,23 +1858,23 @@ export default function SpecialistReviewPage() {
             </Button>
             <Button
               variant="outline"
-              disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist}
-              title={selectedCriterion?.isAddedBySpecialist ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.' : undefined}
+              disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || specialistActionsLocked}
+              disabledReason={specialistActionsLocked ? specialistLockReason : selectedCriterion?.isAddedBySpecialist ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.' : 'Chọn một tiêu chí để sửa điểm.'}
               onClick={() => setScoreEditOpen(true)}
             >
               <Edit3 className="size-4" />Sửa điểm
             </Button>
-            <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
-            <Button variant="outline" onClick={openSupplementaryDialog}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
+            <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
+            <Button variant="outline" onClick={openSupplementaryDialog} disabled={specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             {selectedCriterion && (
-              <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" onClick={() => setRevisionOpen(true)}>
+              <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined} onClick={() => setRevisionOpen(true)}>
                 <AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa
               </Button>
             )}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
-            <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
+            <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Send className="size-4" />Gửi Lãnh đạo ban</Button>
           </div>
         </div>
 
@@ -1924,6 +1955,7 @@ export default function SpecialistReviewPage() {
                         label="Điểm"
                         value={item.officialScore}
                         maximum={item.maxProposedScore}
+                        disabled
                         onFocus={() => setSelectedCriterionId(item.id)}
                         onChange={(value) => updateCriterion(item.id, { officialScore: value })}
                       />
@@ -1931,6 +1963,7 @@ export default function SpecialistReviewPage() {
                         label="Điểm thưởng"
                         value={item.officialBonusScore}
                         maximum={item.maxProposedBonusScore}
+                        disabled
                         onFocus={() => setSelectedCriterionId(item.id)}
                         onChange={(value) => updateCriterion(item.id, { officialBonusScore: value })}
                       />
@@ -2003,6 +2036,7 @@ export default function SpecialistReviewPage() {
                         label="Điểm"
                         value={item.officialScore}
                         maximum={item.maxProposedScore}
+                        disabled
                         onFocus={() => setSelectedCriterionId(item.id)}
                         onChange={(value) => updateCriterion(item.id, { officialScore: value })}
                       />
@@ -2010,6 +2044,7 @@ export default function SpecialistReviewPage() {
                         label="Điểm thưởng"
                         value={item.officialBonusScore}
                         maximum={item.maxProposedBonusScore}
+                        disabled
                         onFocus={() => setSelectedCriterionId(item.id)}
                         onChange={(value) => updateCriterion(item.id, { officialBonusScore: value })}
                       />
@@ -2067,6 +2102,10 @@ export default function SpecialistReviewPage() {
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
         onSave={async ({ name, reason, file }) => {
+          if (specialistActionsLocked) {
+            toast.info(specialistLockReason);
+            return false;
+          }
           const submission = submissionByGroup.get(selectedGroup.id);
           if (!submission) {
             toast.error('Nhóm này chưa có hồ sơ để bổ sung tiêu chí.');
@@ -2109,10 +2148,16 @@ export default function SpecialistReviewPage() {
           setViewingEvidenceItem(item);
         }}
         onEdit={(item) => {
+          if (specialistActionsLocked) {
+            toast.info(specialistLockReason);
+            return;
+          }
           setCriterionDetailOpen(false);
           setSelectedCriterionId(item.id);
           setScoreEditOpen(true);
         }}
+        editDisabled={specialistActionsLocked}
+        editDisabledReason={specialistLockReason}
       />
       <ScoreEditDialog
         item={selectedCriterion}
@@ -2120,6 +2165,10 @@ export default function SpecialistReviewPage() {
         onOpenChange={setScoreEditOpen}
         onSave={(values) => {
           if (!selectedCriterion) return;
+          if (specialistActionsLocked) {
+            toast.info(specialistLockReason);
+            return;
+          }
           updateCriterion(selectedCriterion.id, {
             officialScore: values.score,
             officialBonusScore: values.bonusScore,
@@ -2134,6 +2183,10 @@ export default function SpecialistReviewPage() {
         localityName={district.localityName}
         criterionLabel={selectedCriterion ? `${selectedCriterion.code} · ${selectedCriterion.title}` : undefined}
         onSubmit={async (reason, file) => {
+          if (specialistActionsLocked) {
+            toast.info(specialistLockReason);
+            return false;
+          }
           const submission = submissionByGroup.get(selectedGroup.id);
           if (!submission) {
             toast.error('Nhóm này chưa có hồ sơ để yêu cầu chỉnh sửa.');

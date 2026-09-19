@@ -31,6 +31,27 @@ export type SubmissionStage =
   | 'CommitteeFinalized'
   | 'RequiresRevision';
 
+/** Các stage này xác nhận hồ sơ đã rời bước xử lý của Chuyên viên. */
+export const SPECIALIST_FORWARDED_STAGES = [
+  'SpecialistApproved',
+  'LeaderApproved',
+  'CouncilApproved',
+  'CommitteeFinalized',
+] as const satisfies readonly SubmissionStage[];
+
+/**
+ * Quyền thao tác của Chuyên viên trên một hồ sơ. Dùng chung cho mọi nút chấm,
+ * lưu nháp và chuyển duyệt để UI không bị lệch điều kiện khóa/mở.
+ */
+export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined) {
+  const isForwarded = Boolean(stage && SPECIALIST_FORWARDED_STAGES.includes(stage as typeof SPECIALIST_FORWARDED_STAGES[number]));
+  return {
+    canEdit: !isForwarded,
+    isForwarded,
+    disabledReason: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên chỉ có thể xem thông tin.',
+  };
+}
+
 export interface SubmissionResultFile {
   id: string;
   originalName: string;
