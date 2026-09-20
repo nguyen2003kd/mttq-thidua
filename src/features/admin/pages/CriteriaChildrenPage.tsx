@@ -85,6 +85,8 @@ export default function CriteriaChildrenPage() {
     enabled: Boolean(id),
   });
   const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard').map(toItem) ?? [], [group]);
+  const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
+  const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
@@ -127,7 +129,18 @@ export default function CriteriaChildrenPage() {
   ], []);
   if (isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (!group) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description={error ? getCriteriaApiError(error) : 'Nhóm tiêu chí không tồn tại hoặc đã bị xóa.'} />;
-  const pointValidation = validateCriteriaApplication(group.maxPoint, groupCriteria.map((item) => item.maxScore));
+  const pointValidation = validateCriteriaApplication(group.maxPoint, appliedCriteria.map((item) => item.maxScore));
+  const canApply = group.status === 'Draft' && pointValidation.success;
+  const openCreateEditor = () => {
+    if (Math.round(criteriaMaxPointTotal * 100) >= Math.round(group.maxPoint * 100)) {
+      const message = criteriaMaxPointTotal > group.maxPoint
+        ? `Tổng điểm tối đa của các tiêu chí con (${criteriaMaxPointTotal}) đã vượt quá ${group.maxPoint} điểm của nhóm tiêu chí.`
+        : `Tổng điểm tối đa của các tiêu chí con đã đủ ${group.maxPoint} điểm, bằng điểm tối đa của nhóm tiêu chí. Không thể thêm tiêu chí mới.`;
+      toast.warning(message);
+      return;
+    }
+    setEditor({ item: null, readonly: false });
+  };
   const saveItem = async (value: Omit<CriteriaItem, 'id' | 'order' | 'updatedAt'>) => {
     const current = editor?.item; const siblingTotal = groupCriteria.filter((item) => item.id !== current?.id).reduce((sum, item) => sum + item.maxScore, 0);
     if (siblingTotal + value.maxScore > group.maxPoint) return toast.error(`Tổng điểm tiêu chí (${siblingTotal + value.maxScore}) không được vượt quá ${group.maxPoint} điểm của nhóm.`);
@@ -149,7 +162,7 @@ export default function CriteriaChildrenPage() {
       const latestGroup = await criteriaGroupsApi.get(group.id);
       const validation = validateCriteriaApplication(
         latestGroup.maxPoint,
-        latestGroup.criteria.map((item) => item.maxPoint),
+        latestGroup.criteria.filter((item) => item.status === 'Applied').map((item) => item.maxPoint),
       );
       if (!validation.success) {
         toast.error(validation.message);
@@ -176,7 +189,7 @@ export default function CriteriaChildrenPage() {
     catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
   };
   const openApplyDialog = () => {
-    const validation = validateCriteriaApplication(group.maxPoint, groupCriteria.map((item) => item.maxScore));
+    const validation = validateCriteriaApplication(group.maxPoint, appliedCriteria.map((item) => item.maxScore));
     if (!validation.success) {
       setApplyValidationMessage(validation.message ?? 'Không thể áp dụng nhóm tiêu chí.');
       return;
@@ -238,18 +251,16 @@ export default function CriteriaChildrenPage() {
             <Button variant="warning" disabled={!selected} disabledReason="Chọn một tiêu chí con để chỉnh sửa." onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí con để xóa." className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
             <Button
-              disabled={group.status !== 'Draft'}
-              title={group.status !== 'Draft' ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể thêm tiêu chí con.' : undefined}
-              onClick={() => setEditor({ item: null, readonly: false })}
+              onClick={openCreateEditor}
             ><Plus className="size-4" />Thêm mới</Button>
             <Button
-              disabled={group.status !== 'Draft'}
+              disabled={!canApply}
               disabledReason={
                 group.status !== 'Draft'
                   ? 'Chỉ nhóm tiêu chí ở trạng thái Nháp mới có thể áp dụng.'
-                  : undefined
+                  : pointValidation.message ?? undefined
               }
-              onClick={() => { if (group.status === 'Draft') openApplyDialog(); }}
+              onClick={() => { if (canApply) openApplyDialog(); }}
             >
               <Send className="size-4" />Áp dụng tiêu chí cho địa phương
             </Button>
