@@ -45,6 +45,15 @@ interface NavItemDef {
   icon: ComponentType<{ className?: string }>;
 }
 
+function renderNotificationBody(body: string): ReactNode {
+  return body.split(/('[^']*'|“[^”]*”)/g).map((part, index) => {
+    const isImportant = (part.startsWith("'") && part.endsWith("'")) || (part.startsWith('“') && part.endsWith('”'));
+    return isImportant
+      ? <strong key={`${part}-${index}`} className="font-semibold text-foreground">{part}</strong>
+      : <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
@@ -279,7 +288,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                             {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />}
                             <span className="min-w-0">
                               <p className={`text-sm ${n.isRead ? 'font-normal' : 'font-semibold'}`}>{n.title}</p>
-                              <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{renderNotificationBody(n.body)}</p>
                             </span>
                           </span>
                         </button>
