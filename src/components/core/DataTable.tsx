@@ -514,21 +514,6 @@ export function DataTable<TData, TValue = unknown>({
                 })}
               </div>
             ))}
-            {Array.from({ length: Math.min(3, Math.max(0, pageSize - table.getRowModel().rows.length)) }).map((_, i) => (
-              <div
-                key={`empty-${i}`}
-                className="grid items-center gap-0 bg-card"
-                style={{ gridTemplateColumns: listGridTemplate }}
-              >
-                {visibleColumns.map((col, sIdx) => (
-                  <div key={col.id} className={cn('relative flex items-center h-11 px-4 box-border', sIdx === 0 && 'pl-5', sIdx === visibleColumns.length - 1 && 'pr-5')}>
-                    {sIdx < visibleColumns.length - 1 && (
-                      <span className="absolute right-0 top-0 h-full border-r border-primary/15" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
           </div>
         )}
 

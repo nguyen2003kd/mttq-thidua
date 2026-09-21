@@ -221,6 +221,18 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
+  Finalize: 'Công bố kết quả',
+};
+
+// stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
+const STAGE_ACTOR_LABELS: Record<string, string> = {
+  Draft: 'Địa phương',
+  RequiresRevision: 'Chuyên viên',
+  LocalSubmitted: 'Chuyên viên',
+  SpecialistApproved: 'Lãnh đạo ban',
+  LeaderApproved: 'Hội đồng thi đua',
+  CouncilApproved: 'Ban thường trực',
+  CommitteeFinalized: 'Ban thường trực',
 };
 
 const REVIEW_STATUS_LABELS: Record<string, string> = {
@@ -507,7 +519,7 @@ function RevisionHistorySection({
                     return (
                       <div key={history.id} className="flex flex-col gap-2 border-l-2 border-border py-1 pl-4 text-sm sm:flex-row sm:items-start">
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-foreground">{history.actorName} đã {HISTORY_ACTION_LABELS[action] ?? history.action ?? 'thực hiện thao tác'}</p>
+                          <p className="font-medium text-foreground">{STAGE_ACTOR_LABELS[history.stageLevel] ?? 'Người dùng'} đã {HISTORY_ACTION_LABELS[action] ?? history.action ?? 'thực hiện thao tác'}</p>
                           {reason && <p className="mt-1 leading-6 text-muted-foreground">Lý do: {reason}</p>}
                         </div>
                         <time className="shrink-0 text-xs font-medium text-muted-foreground">{formatDateTime(history.createdAt)}</time>
