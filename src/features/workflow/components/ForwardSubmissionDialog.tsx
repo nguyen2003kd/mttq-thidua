@@ -11,10 +11,14 @@ interface ForwardSubmissionDialogProps {
   localityName?: string;
   groupName?: string;
   submissionId?: string;
+  /** Cấp nhận hồ sơ; mặc định giữ nguyên luồng Chuyên viên → Lãnh đạo ban. */
+  targetLabel?: string;
+  /** Nhãn trường diễn giải theo ngữ cảnh cấp duyệt. */
+  explanationLabel?: string;
   onConfirm: (data: { explanation: string }) => void | Promise<void>;
 }
 
-export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, submissionId, onConfirm }: ForwardSubmissionDialogProps) {
+export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, submissionId, targetLabel = 'Lãnh đạo ban', explanationLabel = 'Diễn giải hồ sơ từ chuyên viên', onConfirm }: ForwardSubmissionDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [explanation, setExplanation] = useState('');
@@ -55,7 +59,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
       open={open}
       onOpenChange={onOpenChange}
       title="Xác nhận chuyển hồ sơ"
-      description="Chuyển hồ sơ đã thẩm định lên Lãnh đạo ban."
+      description={`Chuyển hồ sơ đã thẩm định lên ${targetLabel}.`}
       onSubmit={submit}
       submitLabel={submitting ? 'Đang xử lý…' : 'Xác nhận'}
       submitDisabled={submitting || uploading}
@@ -67,7 +71,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
         </span>
         <div className="min-w-0">
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Sau khi xác nhận, kết quả chấm điểm sẽ được chuyển lên Lãnh đạo ban để phê duyệt. Bạn sẽ không thể chỉnh sửa điểm sau bước này.
+            Sau khi xác nhận, kết quả chấm điểm sẽ được chuyển lên {targetLabel} để phê duyệt. Bạn sẽ không thể chỉnh sửa điểm sau bước này.
           </p>
         </div>
       </div>
@@ -82,12 +86,12 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
         </div>
       </dl>
       <div className="space-y-2">
-        <Label htmlFor="forwarding-explanation">Diễn giải hồ sơ từ chuyên viên</Label>
+        <Label htmlFor="forwarding-explanation">{explanationLabel}</Label>
         <Textarea
           id="forwarding-explanation"
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
-          placeholder="Ví dụ: Hồ sơ đã được đối chiếu, đủ điều kiện chuyển Lãnh đạo ban phê duyệt."
+          placeholder={`Ví dụ: Hồ sơ đã được đối chiếu, đủ điều kiện chuyển ${targetLabel} phê duyệt.`}
           rows={3}
           disabled={submitting || uploading}
         />

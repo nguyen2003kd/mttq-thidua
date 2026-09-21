@@ -99,7 +99,6 @@ export function ReviewScoreModal({
     >
       <div className="rounded-lg border bg-muted/30 p-3 text-sm">
         <span className="text-muted-foreground">{referenceLabel}: </span>
-        <strong>{supplementary ? 'Không có' : `${baseScore} điểm${baseBonus ? ` + ${baseBonus} thưởng` : ''}`}</strong>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">

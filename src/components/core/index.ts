@@ -14,6 +14,7 @@ export { FormDialog, type FormDialogProps } from './FormDialog';
 export { RejectDialog, type RejectDialogProps } from './RejectDialog';
 export { AuditTimelineDialog, type AuditTimelineDialogProps } from './AuditTimelineDialog';
 export { DataTable, type DataTableColumnMeta, type DataTableProps } from './DataTable';
+export { TableColumnVisibility, type TableColumnOption } from './TableColumnVisibility';
 export { EmptyState } from './EmptyState';
 export { FilterSelect, type FilterOption, type FilterSelectProps } from './FilterSelect';
 export { FilterDropdown, type FilterDropdownProps } from './FilterDropdown';

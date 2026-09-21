@@ -1,6 +1,6 @@
 import { Eye, FileText, LockKeyhole, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/core';
+import { Button, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
@@ -27,11 +27,26 @@ export function ScoreGroupInput({
       .filter((entry) => entry.isSupplementary || !criteria.some((criterion) => criterion.id === entry.criteriaId))
       .map((entry) => ({ criterion: undefined, entry })),
   ];
+  const columnOptions = [
+    { id: 'criterion', label: 'Nội dung tiêu chí' },
+    { id: 'evidence', label: 'Minh chứng' },
+    { id: 'proposed', label: 'Điểm đề xuất' },
+    { id: 'bonus', label: 'Điểm thưởng đề xuất' },
+    { id: 'maximum', label: 'Điểm tối đa' },
+    { id: 'maximum-bonus', label: 'Điểm thưởng tối đa' },
+    { id: 'explanation', label: 'Nội dung diễn giải' },
+    ...(mode !== 'locality' ? [{ id: 'official', label: 'Điểm chính thức' }] : []),
+    ...(mode === 'specialist' ? [{ id: 'reason', label: 'Lý do' }] : []),
+    ...(mode !== 'result' ? [{ id: 'actions', label: 'Thao tác' }] : []),
+  ];
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="flex justify-end border-b p-2">
+        <TableColumnVisibility storageKey={`score-group-input-${mode}`} columns={columnOptions} />
+      </div>
       <div className="overflow-x-auto">
-        <Table>
+        <Table data-column-visibility-table={`score-group-input-${mode}`}>
           <TableHeader>
             <TableRow className="bg-muted/70">
               <TableHead className="min-w-[230px]">Nội dung tiêu chí</TableHead>

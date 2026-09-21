@@ -1,6 +1,6 @@
 import { Eye, FileText, LockKeyhole, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/core';
+import { Button, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 
@@ -32,11 +32,24 @@ export function CriterionGrid({
     .filter((entry) => entry.isSupplementary)
     .map((entry) => ({ criterion: undefined, entry }));
   const rows = [...regularRows, ...supplementaryRows];
+  const columnOptions = [
+    { id: 'criterion', label: 'Nội dung tiêu chí' },
+    { id: 'evidence', label: 'Minh chứng' },
+    { id: 'proposed', label: 'Điểm đề xuất' },
+    { id: 'bonus', label: 'Điểm thưởng' },
+    { id: 'maximum', label: 'Điểm tối đa' },
+    ...(mode !== 'locality' ? [{ id: 'current', label: 'Điểm hiện tại' }] : []),
+    { id: 'explanation', label: 'Diễn giải / phản hồi' },
+    ...(mode !== 'result' ? [{ id: 'actions', label: 'Thao tác' }] : []),
+  ];
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="flex justify-end border-b p-2">
+        <TableColumnVisibility storageKey={`criterion-grid-${mode}`} columns={columnOptions} />
+      </div>
       <div className="overflow-x-auto">
-        <Table>
+        <Table data-column-visibility-table={`criterion-grid-${mode}`}>
           <TableHeader>
             <TableRow className="bg-muted/45">
               <TableHead className="min-w-[260px]">Nội dung tiêu chí</TableHead>

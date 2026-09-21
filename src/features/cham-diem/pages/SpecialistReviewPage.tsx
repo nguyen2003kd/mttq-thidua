@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TableColumnVisibility, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1378,6 +1378,17 @@ export default function SpecialistReviewPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <TableColumnVisibility
+                storageKey="specialist-localities"
+                columns={[
+                  { id: 'locality', label: 'Tên địa phương' },
+                  { id: 'completion', label: 'Nhóm tiêu chí đã hoàn thành' },
+                  { id: 'status', label: 'Trạng thái hồ sơ' },
+                  { id: 'new-submissions', label: 'Tiêu chí mới được nộp' },
+                  { id: 'revision', label: 'Yêu cầu chỉnh sửa' },
+                  { id: 'updates', label: 'Cập nhật thông tin mới' },
+                ]}
+              />
               <Button
                 variant="info"
                 disabled={!selectedLocality}
@@ -1393,7 +1404,7 @@ export default function SpecialistReviewPage() {
           </div>
 
           <div className="hidden xl:block">
-            <Table className="w-full min-w-[1120px] table-fixed">
+            <Table data-column-visibility-table="specialist-localities" className="w-full min-w-[1120px] table-fixed">
               <colgroup>
                 <col className="w-[25%]" />
                 <col className="w-[16%]" />
@@ -1539,6 +1550,17 @@ export default function SpecialistReviewPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <TableColumnVisibility
+                storageKey="specialist-criteria-groups"
+                columns={[
+                  { id: 'group', label: 'Nhóm tiêu chí' },
+                  { id: 'content', label: 'Nội dung' },
+                  { id: 'proposed-score', label: 'Điểm đề xuất' },
+                  { id: 'bonus-score', label: 'Điểm thưởng' },
+                  { id: 'status', label: 'Trạng thái' },
+                  { id: 'revision', label: 'Yêu cầu sửa' },
+                ]}
+              />
               <FilterDropdown
                 activeCount={groupStatusFilter ? 1 : 0}
                 activeFilters={groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : undefined}
@@ -1569,7 +1591,7 @@ export default function SpecialistReviewPage() {
           </div>
 
           <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
-            <Table className="w-full min-w-[1180px] table-fixed">
+            <Table data-column-visibility-table="specialist-criteria-groups" className="w-full min-w-[1180px] table-fixed">
               <colgroup>
                 <col className="w-[23%]" />
                 <col className="w-[31%]" />
@@ -1853,6 +1875,16 @@ export default function SpecialistReviewPage() {
 
         <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+            <TableColumnVisibility
+              storageKey="specialist-review-criteria"
+              columns={[
+                { id: 'criterion', label: 'Tiêu chí con' },
+                { id: 'evidence', label: 'Minh chứng' },
+                { id: 'proposed', label: 'Địa phương đề xuất' },
+                { id: 'explanation', label: 'Nội dung diễn giải' },
+                { id: 'score', label: 'Chuyên viên chấm' },
+              ]}
+            />
             <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
               <Eye className="size-4" />Xem chi tiết
             </Button>
@@ -1879,7 +1911,7 @@ export default function SpecialistReviewPage() {
         </div>
 
         <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
-          <Table className="w-full min-w-[1280px] table-fixed">
+          <Table data-column-visibility-table="specialist-review-criteria" className="w-full min-w-[1280px] table-fixed">
             <colgroup>
               <col className="w-[24%]" />
               <col className="w-[12%]" />
