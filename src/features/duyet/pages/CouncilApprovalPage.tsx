@@ -26,7 +26,6 @@ interface LocalityReviewRow {
   maximumScore: number;
   proposedTotal: number;
   latestUpdatedAt: string | null;
-  latestUpdatedBy: string | null;
 }
 
 async function listEveryCouncilSubmission() {
@@ -55,8 +54,7 @@ async function listEveryCouncilSubmission() {
 
 function formatUpdated(row: LocalityReviewRow) {
   if (!row.latestUpdatedAt) return '—';
-  const timestamp = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.latestUpdatedAt));
-  return row.latestUpdatedBy ? `${row.latestUpdatedBy} · ${timestamp}` : timestamp;
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.latestUpdatedAt));
 }
 
 function getResultTotals(submissions: SubmissionApi[]) {
@@ -106,7 +104,6 @@ export default function CouncilApprovalPage() {
         submissions,
         ...totals,
         latestUpdatedAt: latestSubmission?.updatedAt ?? latestSubmission?.submittedAt ?? latestSubmission?.createdAt ?? null,
-        latestUpdatedBy: latestSubmission?.createdByUsername ?? null,
       };
     });
   }, [submissionsQuery.data]);
