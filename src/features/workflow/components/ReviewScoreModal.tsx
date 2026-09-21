@@ -109,7 +109,8 @@ export function ReviewScoreModal({
       cancelLabel="Đóng"
     >
       <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-        <span className="text-muted-foreground">{referenceLabel}: </span>
+        <p className="text-muted-foreground">{referenceLabel}</p>
+        <p className="mt-1 font-semibold tabular-nums text-foreground">Điểm: {baseScore}/{maxScore}<span className="mx-2 text-border">•</span>Điểm thưởng: {baseBonus}/{maxBonus}</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
