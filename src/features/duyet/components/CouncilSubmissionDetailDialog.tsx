@@ -1,5 +1,6 @@
 import { FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import type { SubmissionApi } from '@/features/cham-diem/api/specialistApi';
@@ -43,8 +44,23 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
             <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs text-muted-foreground">Tổng điểm thưởng</p><p className="mt-1 font-semibold tabular-nums">{displayNumber(actualBonusTotal)}</p></div>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border">
-            <Table className="min-w-[1160px]">
+          <div className="rounded-lg border">
+            <div className="flex justify-end border-b p-2">
+              <TableColumnVisibility
+                storageKey="council-submission-detail"
+                columns={[
+                  { id: 'criterion', label: 'Tên tiêu chí con' },
+                  { id: 'content', label: 'Nội dung' },
+                  { id: 'proposed', label: 'Điểm đề xuất' },
+                  { id: 'actual', label: 'Điểm thực tế' },
+                  { id: 'reason', label: 'Lý do' },
+                  { id: 'evidence', label: 'Bằng chứng' },
+                  { id: 'note', label: 'Ghi chú' },
+                ]}
+              />
+            </div>
+            <div className="overflow-x-auto">
+            <Table data-column-visibility-table="council-submission-detail" className="min-w-[1160px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Tên tiêu chí con</TableHead>
@@ -76,6 +92,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                 {!submission.results.length && <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Chưa có tiêu chí con.</TableCell></TableRow>}
               </TableBody>
             </Table>
+            </div>
           </div>
         </div>
       </DialogContent>

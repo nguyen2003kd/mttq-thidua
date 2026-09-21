@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Building2, Eye, FileSearch, History, Search } from 'lucide-react';
 import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, EmptyState, Button, ScoreStateBadge } from '@/components/core';
+import { PageHeader, EmptyState, Button, ScoreStateBadge, TableColumnVisibility } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -52,13 +52,25 @@ export default function ScoreByCriteriaPage() {
             <p className="font-semibold">{table.name}</p>
             <p className="text-xs text-muted-foreground">Danh sách địa phương</p>
           </div>
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm kiếm địa phương..." className="pl-9" />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="relative min-w-0 flex-1 sm:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm kiếm địa phương..." className="pl-9" />
+            </div>
+            <TableColumnVisibility
+              storageKey="score-by-criteria-localities"
+              columns={[
+                { id: 'locality', label: 'Địa phương' },
+                { id: 'code', label: 'Mã' },
+                { id: 'score', label: 'Tổng điểm hiện tại' },
+                { id: 'status', label: 'Trạng thái' },
+                { id: 'actions', label: 'Thao tác' },
+              ]}
+            />
           </div>
         </div>
         <div className="overflow-x-auto">
-          <Table>
+          <Table data-column-visibility-table="score-by-criteria-localities">
             <TableHeader><TableRow className="bg-muted/35"><TableHead>Địa phương</TableHead><TableHead>Mã</TableHead><TableHead className="text-center">Tổng điểm hiện tại</TableHead><TableHead className="text-center">Trạng thái</TableHead><TableHead className="text-right">Thao tác</TableHead></TableRow></TableHeader>
             <TableBody>
               {rows.map(({ locality, record }) => (

@@ -13,6 +13,7 @@ import {
   type RowSelectionState,
   type ColumnFiltersState,
   type Row,
+  type VisibilityState,
 } from '@tanstack/react-table';
 import {
   Table,
@@ -30,8 +31,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from './EmptyState';
 import { FilterDropdown } from './FilterDropdown';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { Search, X, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 
 const getAlignClass = (align: 'left' | 'center' | 'right' | undefined, fallback: 'left' | 'center' | 'right' = 'left') => {
   const resolved = align ?? fallback;
@@ -105,7 +115,11 @@ export interface DataTableProps<TData, TValue = unknown> {
   /** Thanh hành động dùng chung, có thể dính ở đáy bảng. */
   footer?: ReactNode;
   /** Render toàn bộ hàng cho bảng nghiệp vụ có ô nhập liệu phức tạp. */
-  renderRow?: (row: Row<TData>, context: { selected: boolean; index: number }) => ReactNode;
+  renderRow?: (row: Row<TData>, context: { selected: boolean; index: number; visibleColumnIds: string[] }) => ReactNode;
+  /** Hiện menu để người dùng tùy chọn các cột cần xem. */
+  enableColumnVisibility?: boolean;
+  /** Khóa riêng để ghi nhớ cột đã ẩn/hiện trên từng bảng. */
+  columnVisibilityStorageKey?: string;
 }
 
 export function DataTable<TData, TValue = unknown>({
@@ -138,19 +152,33 @@ export function DataTable<TData, TValue = unknown>({
   renderRow,
   stickyTitle,
   stickyDescription,
+  enableColumnVisibility = true,
+  columnVisibilityStorageKey,
 }: DataTableProps<TData, TValue>) {
+  const resolvedColumnVisibilityStorageKey = useMemo(
+    () => columnVisibilityStorageKey ?? `${stickyTitle ?? 'table'}:${columns.map((column) => String(column.id ?? ('accessorKey' in column ? column.accessorKey : '') ?? '')).join('|')}`,
+    [columnVisibilityStorageKey, columns, stickyTitle],
+  );
   const selectionCbRef = useRef(onRowSelectionChange);
   selectionCbRef.current = onRowSelectionChange;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(window.localStorage.getItem(`datatable-columns:${resolvedColumnVisibilityStorageKey}`) ?? '{}') as VisibilityState;
+    } catch {
+      return {};
+    }
+  });
   const [globalFilter, setGlobalFilter] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearchInput = useDebounce(searchInput, 300);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
-  const hasToolbar = Boolean(searchable || filters || toolbar);
+  const hasToolbar = Boolean(searchable || filters || toolbar || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
 
@@ -217,12 +245,14 @@ export function DataTable<TData, TValue = unknown>({
       sorting,
       columnFilters,
       rowSelection,
+      columnVisibility,
       globalFilter,
     },
     getRowId,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
+    onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -230,6 +260,11 @@ export function DataTable<TData, TValue = unknown>({
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize } },
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(`datatable-columns:${resolvedColumnVisibilityStorageKey}`, JSON.stringify(columnVisibility));
+  }, [columnVisibility, resolvedColumnVisibilityStorageKey]);
 
   // `initialState` của TanStack Table chỉ chạy ở lần mount. Đồng bộ page size
   // khi dữ liệu/API đến muộn để bảng chi tiết không bị giữ lại số dòng cũ.
@@ -257,9 +292,23 @@ export function DataTable<TData, TValue = unknown>({
   }, [debouncedSearchInput, searchKey, onSearchChange]);
 
   const visibleColumns = table.getVisibleLeafColumns();
+  const toggleableColumns = table.getAllLeafColumns().filter((column) => column.getCanHide());
+  const visibleToggleableColumns = toggleableColumns.filter((column) => column.getIsVisible());
+  const columnVisibilityItems = toggleableColumns.map((column) => {
+    const header = table.getFlatHeaders().find((item) => item.column.id === column.id);
+    const label = header
+      ? extractCellText(flexRender(header.column.columnDef.header, header.getContext())).trim()
+      : column.id;
+    return { column, label: label || column.id };
+  });
   const listGridTemplate = visibleColumns
     .map((col) => (col.columnDef.meta as DataTableColumnMeta | undefined)?.list?.width ?? 'minmax(0,1fr)')
     .join(' ');
+  const listMinWidth = visibleColumns.reduce((width, column) => {
+    const track = (column.columnDef.meta as DataTableColumnMeta | undefined)?.list?.width ?? '';
+    const minWidth = Number(track.match(/minmax\((\d+)px/)?.[1] ?? 0);
+    return width + minWidth;
+  }, 0);
 
   const totalRows = table.getRowCount();
   const pageIndex = table.getState().pagination.pageIndex;
@@ -320,7 +369,9 @@ export function DataTable<TData, TValue = unknown>({
 
   const renderList = () => {
     return (
-      <div className="overflow-clip">
+      <>
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: listMinWidth ? `${listMinWidth}px` : undefined }}>
         {/* Header */}
         <div
           className="sticky top-[calc(var(--toolbar-height)-16px)] z-[5] grid gap-0 bg-primary text-xs font-semibold text-primary-foreground sm:top-[calc(var(--toolbar-height)-24px)]"
@@ -464,9 +515,11 @@ export function DataTable<TData, TValue = unknown>({
           </div>
         )}
 
-        {/* Pagination */}
-        {renderPagination()}
+        </div>
       </div>
+      {/* Pagination stays outside the horizontal scroller so it remains fully visible. */}
+      {renderPagination()}
+      </>
     );
   };
 
@@ -508,7 +561,35 @@ export function DataTable<TData, TValue = unknown>({
               {filters}
             </FilterDropdown>
           )}
-          {toolbar && <div className="ml-auto flex items-center gap-2">{toolbar}</div>}
+          <div className="ml-auto flex items-center gap-2">
+            {enableColumnVisibility && toggleableColumns.length > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
+                  <SlidersHorizontal className="size-4" /> Cột hiển thị
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Chọn cột hiển thị</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {columnVisibilityItems.map(({ column, label }) => {
+                      const visible = column.getIsVisible();
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          checked={visible}
+                          disabled={visible && visibleToggleableColumns.length === 1}
+                          onCheckedChange={(checked) => column.toggleVisibility(Boolean(checked))}
+                        >
+                          {label}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {toolbar}
+          </div>
         </div>
       )}
 
@@ -597,7 +678,13 @@ export function DataTable<TData, TValue = unknown>({
               ) : (
                 table.getRowModel().rows.map((row, index) => {
                   const selected = row.getIsSelected() || row.id === selectedRowId;
-                  if (renderRow) return renderRow(row, { selected, index });
+                  if (renderRow) {
+                    return renderRow(row, {
+                      selected,
+                      index,
+                      visibleColumnIds: table.getVisibleLeafColumns().map((column) => column.id),
+                    });
+                  }
 
                   return (
                     <TableRow

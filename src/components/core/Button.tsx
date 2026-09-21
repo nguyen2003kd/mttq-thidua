@@ -5,7 +5,7 @@ import type { ScoreState, Scope } from '@/types/rbac';
 import { Button as BaseButton, buttonVariants } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { VariantProps } from 'class-variance-authority';
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 
 export interface ButtonProps
   extends Omit<ComponentPropsWithoutRef<typeof BaseButton>, 'variant' | 'size'>,
@@ -18,7 +18,7 @@ export interface ButtonProps
   disabledReason?: ReactNode;
 }
 
-export function Button({ action, state, scope, fallback, disabledReason, ...props }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ action, state, scope, fallback, disabledReason, ...props }, ref) {
   const can = useCan();
   const isFullWidth = typeof props.className === 'string' && /(?:^|\s)!?w-full(?:\s|$)/.test(props.className);
 
@@ -26,7 +26,7 @@ export function Button({ action, state, scope, fallback, disabledReason, ...prop
     return fallback ? <>{fallback}</> : null;
   }
 
-  const button = <BaseButton {...props} />;
+  const button = <BaseButton ref={ref} {...props} />;
   const reason = disabledReason
     ?? (typeof props.title === 'string' ? props.title : 'Thao tác hiện chưa khả dụng.');
 
@@ -40,6 +40,6 @@ export function Button({ action, state, scope, fallback, disabledReason, ...prop
       {props.disabled && <TooltipContent className="max-w-sm whitespace-normal break-words">{reason}</TooltipContent>}
     </Tooltip>
   );
-}
+});
 
 export { buttonVariants };

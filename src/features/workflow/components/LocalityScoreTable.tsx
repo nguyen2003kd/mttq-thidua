@@ -59,6 +59,7 @@ interface EditableRowProps extends Omit<LocalityScoreTableProps, 'criteria' | 'r
   draft?: EvidenceFormValue;
   state: ScoreRecord['state'];
   selected?: boolean;
+  visibleColumnIds?: string[];
 }
 
 interface EvidenceUploadDialogProps {
@@ -183,6 +184,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   onSelect,
   onDeleteEvidence,
   selected = false,
+  visibleColumnIds,
 }, ref) {
   const [score, setScore] = useState('');
   const [bonusScore, setBonusScore] = useState('0');
@@ -223,6 +225,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   };
 
   const isSupplementary = criterion.type === 'Supplementary';
+  const isColumnVisible = (columnId: string) => !visibleColumnIds || visibleColumnIds.includes(columnId);
 
   /** Không giữ giá trị vượt điểm tối đa trong state, tránh lưu nháp/nộp nhầm. */
   const updateScoreInput = (
@@ -309,7 +312,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   return (
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
-      <TableCell className="align-top">
+      {isColumnVisible('name') && <TableCell className="align-top">
         <Tooltip>
           <TooltipTrigger render={<p className="line-clamp-2 whitespace-normal break-words text-left font-medium leading-5" />}>
             {criterion.name}
@@ -318,16 +321,16 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
         {entry?.revisionRequest && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
-      </TableCell>
-      <TableCell className="align-middle text-center text-sm text-muted-foreground">
+      </TableCell>}
+      {isColumnVisible('deadline') && <TableCell className="align-middle text-center text-sm text-muted-foreground">
         <Tooltip>
           <TooltipTrigger render={<span className="block truncate" />}>
             {criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}
           </TooltipTrigger>
           <TooltipContent>{criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}</TooltipContent>
         </Tooltip>
-      </TableCell>
-      <TableCell className="align-top">
+      </TableCell>}
+      {isColumnVisible('proposedScore') && <TableCell className="align-top">
         {criterion.type === 'Supplementary' ? (
           <p className="text-sm text-muted-foreground">—</p>
         ) : (
@@ -337,8 +340,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           </div>
         )}
         {scoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{scoreError}</p>}
-      </TableCell>
-      <TableCell className="align-top">
+      </TableCell>}
+      {isColumnVisible('bonusScore') && <TableCell className="align-top">
         {criterion.type === 'Supplementary' ? (
           <p className="text-sm text-muted-foreground">—</p>
         ) : (
@@ -348,8 +351,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           </div>
         )}
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}
-      </TableCell>
-      <TableCell className="align-middle">
+      </TableCell>}
+      {isColumnVisible('explanation') && <TableCell className="align-middle">
         <Button type="button" variant="outline" className="w-full justify-center overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setExplanationDialogOpen(true); }}>
           <MessageSquareText className="size-4 shrink-0" />
           <TruncatedText value={explanation || 'Nhập nội dung diễn giải'} />
@@ -358,8 +361,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         {explanationError && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{explanationError}</p>}
         <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={(nextFiles) => { setSelectedFiles(nextFiles); setEvidenceError(''); }} onDeleteUploaded={onDeleteEvidence} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={(value) => { setExplanation(value); setExplanationError(''); }} />
-      </TableCell>
-      <TableCell className="align-middle">
+      </TableCell>}
+      {isColumnVisible('evidence') && <TableCell className="align-middle">
         <div className="flex min-w-0 flex-col gap-2">
           <Button type="button" variant="outline" className="w-full justify-center overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
             <Upload className="size-4 shrink-0" />
@@ -367,7 +370,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           </Button>
           {evidenceError && <p role="alert" className="text-xs font-medium text-destructive">{evidenceError}</p>}
         </div>
-      </TableCell>
+      </TableCell>}
     </TableRow>
   );
 });
@@ -455,7 +458,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
         className="-mt-px"
         tableWrapperClassName="!overflow-visible"
         tableClassName="min-w-[1100px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"
-        renderRow={(row, { selected }) => {
+        renderRow={(row, { selected, visibleColumnIds }) => {
           const criterion = row.original;
           return (
             <EditableRow
@@ -469,6 +472,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               editable={editable}
               nowMs={nowMs}
               selected={selected}
+              visibleColumnIds={visibleColumnIds}
               uploading={uploading}
               onSelect={onSelect}
               onDeleteEvidence={onDeleteEvidence}
