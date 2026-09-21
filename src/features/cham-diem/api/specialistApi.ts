@@ -31,6 +31,27 @@ export type SubmissionStage =
   | 'CommitteeFinalized'
   | 'RequiresRevision';
 
+/** Các stage này xác nhận hồ sơ đã rời bước xử lý của Chuyên viên. */
+export const SPECIALIST_FORWARDED_STAGES = [
+  'SpecialistApproved',
+  'LeaderApproved',
+  'CouncilApproved',
+  'CommitteeFinalized',
+] as const satisfies readonly SubmissionStage[];
+
+/**
+ * Quyền thao tác của Chuyên viên trên một hồ sơ. Dùng chung cho mọi nút chấm,
+ * lưu nháp và chuyển duyệt để UI không bị lệch điều kiện khóa/mở.
+ */
+export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined) {
+  const isForwarded = Boolean(stage && SPECIALIST_FORWARDED_STAGES.includes(stage as typeof SPECIALIST_FORWARDED_STAGES[number]));
+  return {
+    canEdit: !isForwarded,
+    isForwarded,
+    disabledReason: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên chỉ có thể xem thông tin.',
+  };
+}
+
 export interface SubmissionResultFile {
   id: string;
   originalName: string;
@@ -76,6 +97,44 @@ export interface SubmissionApi {
   results: SubmissionResultItem[];
 }
 
+export interface ApprovalHistoryApi {
+  id: string;
+  submissionId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  fromStage: string | null;
+  toStage: string | null;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface SpecialistScoreChangeApi {
+  submissionResultId: string;
+  criteriaId: string;
+  criteriaContent: string | null;
+  oldPoint: number | null;
+  newPoint: number | null;
+  oldBonusPoint: number | null;
+  newBonusPoint: number | null;
+}
+
+export interface SpecialistScoreHistoryApi {
+  id: string;
+  submissionId: string;
+  userId: string;
+  actorName: string;
+  actorRole: string;
+  wardCode: string | null;
+  localityName: string | null;
+  criteriaGroupId: string | null;
+  criteriaGroupName: string | null;
+  action: string;
+  reason: string | null;
+  changes: SpecialistScoreChangeApi[];
+  createdAt: string;
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export const specialistApi = {
@@ -94,6 +153,10 @@ export const specialistApi = {
     request<PagedResult<SubmissionApi>>({ url: `/api/v1/criteria-groups/${groupId}/submissions`, method: 'GET', params }),
   getSubmission: (id: string) =>
     request<SubmissionApi>({ url: `/api/v1/submissions/${id}`, method: 'GET' }),
+  listApprovalHistories: (submissionId: string, params?: { action?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+    request<PagedResult<ApprovalHistoryApi>>({ url: `/api/v1/submissions/${submissionId}/approval-histories`, method: 'GET', params }),
+  listScoreHistories: (params?: { search?: string; wardCode?: string; from?: string; to?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+    request<PagedResult<SpecialistScoreHistoryApi>>({ url: '/api/v1/submissions/score-histories', method: 'GET', params }),
 
   // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
   approveSubmission: (submissionId: string, reason?: string) =>
@@ -125,5 +188,13 @@ export const specialistApi = {
       url: '/api/v1/submissions/approve',
       method: 'POST',
       data: { ...payload, action: 'RequestRevision' },
+    }),
+
+  // Ban Thường trực công bố kết quả cuối cùng của hồ sơ đã qua Hội đồng.
+  finalizeSubmission: (submissionId: string) =>
+    request<{ finalized: boolean; submissionId: string }>({
+      url: '/api/v1/submissions/finalize',
+      method: 'POST',
+      data: { submissionId },
     }),
 };

@@ -10,7 +10,7 @@ import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useScoreStore } from '@/store/scoreStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
-import { GlobalApiLoading, PageLoading } from '@/components/core';
+import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -32,6 +32,8 @@ const CouncilApprovalPage = lazy(() => import('@/features/duyet/pages/CouncilApp
 const CouncilCriteriaGroupsPage = lazy(() => import('@/features/duyet/pages/CouncilCriteriaGroupsPage'));
 const CouncilHistoryPage = lazy(() => import('@/features/duyet/pages/CouncilHistoryPage'));
 const CommitteeApprovalPage = lazy(() => import('@/features/duyet/pages/CommitteeApprovalPage'));
+const CommitteeCriteriaGroupsPage = lazy(() => import('@/features/duyet/pages/CommitteeCriteriaGroupsPage'));
+const ReadOnlyApprovalDetailPage = lazy(() => import('@/features/duyet/pages/ReadOnlyApprovalDetailPage'));
 const CommitteeHistoryPage = lazy(() => import('@/features/duyet/pages/CommitteeHistoryPage'));
 const MinhChungPage = lazy(() => import('@/features/dia-phuong/pages/MinhChungPage'));
 const TrangThaiPage = lazy(() => import('@/features/dia-phuong/pages/TrangThaiPage'));
@@ -79,6 +81,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <GlobalApiLoading />
+      <ActionProgressOverlay />
       <BrowserRouter>
         <AuthEvents />
         <ProactiveAuthRefresh />
@@ -260,6 +263,10 @@ export default function App() {
               }
             />
             <Route
+              path="/thi-dua/duyet/hoi-dong-tdkt/:localityId/:groupId"
+              element={<RequireAuth><RequireRole roles={['COUNCIL']}><AppLayout><ReadOnlyApprovalDetailPage reviewer="council" /></AppLayout></RequireRole></RequireAuth>}
+            />
+            <Route
               path="/hoi-dong/lich-su"
               element={
                 <RequireAuth>
@@ -282,6 +289,14 @@ export default function App() {
                   </RequireRole>
                 </RequireAuth>
               }
+            />
+            <Route
+              path="/thi-dua/duyet/ban-thuong-truc/:localityId"
+              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><CommitteeCriteriaGroupsPage /></AppLayout></RequireRole></RequireAuth>}
+            />
+            <Route
+              path="/thi-dua/duyet/ban-thuong-truc/:localityId/:groupId"
+              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><ReadOnlyApprovalDetailPage reviewer="committee" /></AppLayout></RequireRole></RequireAuth>}
             />
             <Route
               path="/uy-ban/lich-su"

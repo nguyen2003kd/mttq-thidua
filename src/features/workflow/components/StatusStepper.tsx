@@ -1,3 +1,4 @@
+/*
 import { Check, CornerDownLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ScoreState } from '@/types/rbac';
@@ -62,3 +63,4 @@ export function StatusStepper({ state, hasRevisionRequest = false, revisionTarge
     </section>
   );
 }
+*/

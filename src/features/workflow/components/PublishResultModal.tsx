@@ -16,6 +16,7 @@ import type { CriteriaTableAttachment, Locality, ScoreRecord } from '@/types/dom
 export interface PublishResultValue {
   attachments: CriteriaTableAttachment[];
   comment: string;
+  file: File | null;
 }
 
 interface PublishResultModalProps {
@@ -23,7 +24,7 @@ interface PublishResultModalProps {
   onOpenChange: (open: boolean) => void;
   locality?: Locality;
   record?: ScoreRecord;
-  onPublish: (value: PublishResultValue) => void;
+  onPublish: (value: PublishResultValue) => void | Promise<void>;
 }
 
 /**
@@ -35,6 +36,7 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
   const [comment, setComment] = useState('');
   const [step, setStep] = useState<'details' | 'confirm'>('details');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
     setFile(null);
@@ -63,13 +65,19 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
     setStep('confirm');
   };
 
-  const confirmPublish = (event: FormEvent) => {
+  const confirmPublish = async (event: FormEvent) => {
     event.preventDefault();
-    onPublish({
+    setSubmitting(true);
+    try {
+      await onPublish({
       attachments: file ? [{ id: `decision-${Date.now()}`, fileName: file.name, fileSize: file.size }] : [],
       comment: comment.trim(),
-    });
-    close();
+        file,
+      });
+      close();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const announcement = comment.trim() || 'Không có nhận xét kèm theo.';
@@ -169,8 +177,8 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
             </div>
 
             <DialogFooter className="mx-0 mb-0 rounded-b-[8px] px-6 py-4">
-              <Button type="button" variant="outline" onClick={() => setStep('details')}>Quay lại</Button>
-              <Button type="submit" className="bg-accent text-foreground hover:bg-accent/90" action="publish" state="CHO_DUYET_BTT">
+              <Button type="button" variant="outline" disabled={submitting} onClick={() => setStep('details')}>Quay lại</Button>
+              <Button type="submit" disabled={submitting} className="bg-accent text-foreground hover:bg-accent/90" action="publish" state="CHO_DUYET_BTT">
                 <Trophy className="size-4" />Xác nhận công bố
               </Button>
             </DialogFooter>

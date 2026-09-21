@@ -29,6 +29,7 @@ interface LocalityScoreTableProps {
   evidence: Evidence[];
   localityId: string;
   editable: boolean;
+  nowMs: number;
   draftValues?: Map<string, EvidenceFormValue>;
   selectedCriterionId?: string;
   uploading?: boolean;
@@ -177,6 +178,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   draft,
   state,
   editable,
+  nowMs,
   uploading = false,
   onSelect,
   onDeleteEvidence,
@@ -186,7 +188,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const [bonusScore, setBonusScore] = useState('0');
   const [explanation, setExplanation] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [error, setError] = useState('');
+  const [explanationError, setExplanationError] = useState('');
+  const [evidenceError, setEvidenceError] = useState('');
   const [scoreError, setScoreError] = useState('');
   const [bonusScoreError, setBonusScoreError] = useState('');
   const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
@@ -197,14 +200,15 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     setBonusScore(draft?.proposedBonusScore.toString() ?? entry?.proposedBonusScore?.toString() ?? '0');
     setExplanation(draft?.explanation ?? entry?.explanation ?? '');
     setSelectedFiles(draft?.files ?? []);
-    setError('');
+    setExplanationError('');
+    setEvidenceError('');
     setScoreError('');
     setBonusScoreError('');
   }, [draft, entry?.explanation, entry?.proposedBonusScore, entry?.proposedScore]);
 
   const maxBonus = criterion.bonusScore ?? 0;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
-  const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= Date.now();
+  const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
   const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
@@ -220,18 +224,45 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const isSupplementary = criterion.type === 'Supplementary';
 
+  /** Không giữ giá trị vượt điểm tối đa trong state, tránh lưu nháp/nộp nhầm. */
+  const updateScoreInput = (
+    nextValue: string,
+    maximum: number,
+    label: string,
+    setValue: (value: string) => void,
+    setFieldError: (value: string) => void,
+  ) => {
+    if (nextValue === '') {
+      setValue('');
+      setFieldError('');
+      return;
+    }
+
+    const numericValue = Number(nextValue);
+    if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > maximum) {
+      setFieldError(numericValue > maximum
+        ? `${label} không được vượt quá ${maximum}.`
+        : `${label} phải từ 0 đến ${maximum}.`);
+      return;
+    }
+
+    setValue(nextValue);
+    setFieldError('');
+  };
+
   const validateRow = () => {
     if (locked) return true;
     if (isSupplementary) {
       setScoreError('');
       setBonusScoreError('');
-      setError('');
+      setExplanationError('');
+      setEvidenceError('');
       if (!explanation.trim()) {
-        setError('Vui lòng nhập nội dung diễn giải.');
+        setExplanationError('Vui lòng nhập nội dung diễn giải.');
         return false;
       }
       if (standardFiles.length === 0 && selectedFiles.length === 0) {
-        setError('Vui lòng chọn file bằng chứng.');
+        setEvidenceError('Vui lòng chọn file bằng chứng.');
         return false;
       }
       return true;
@@ -240,20 +271,21 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     const nextBonusScoreError = validateScore(bonusScore, maxBonus, 'Điểm thưởng');
     setScoreError(nextScoreError);
     setBonusScoreError(nextBonusScoreError);
-    setError('');
+    setExplanationError('');
+    setEvidenceError('');
     if (nextScoreError || nextBonusScoreError) {
       return false;
     }
     if (!explanation.trim()) {
-      setError('Vui lòng nhập nội dung diễn giải.');
+      setExplanationError('Vui lòng nhập nội dung diễn giải.');
       return false;
     }
     if (standardFiles.length === 0 && selectedFiles.length === 0) {
-      setError('Vui lòng chọn file minh chứng.');
+      setEvidenceError('Vui lòng chọn file minh chứng.');
       return false;
     }
     if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
-      setError('File không được vượt quá 20MB.');
+      setEvidenceError('File không được vượt quá 20MB.');
       return false;
     }
 
@@ -300,7 +332,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <p className="text-sm text-muted-foreground">—</p>
         ) : (
           <div className="relative">
-            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => { setScore(event.target.value); setScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
+            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
           </div>
         )}
@@ -311,7 +343,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <p className="text-sm text-muted-foreground">—</p>
         ) : (
           <div className="relative">
-            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => { setBonusScore(event.target.value); setBonusScoreError(''); }} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
+            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
           </div>
         )}
@@ -323,9 +355,9 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TruncatedText value={explanation || 'Nhập nội dung diễn giải'} />
         </Button>
         {entry?.revisionRequest && <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs"><strong>Phản hồi:</strong> {entry.revisionRequest}</p>}
-        {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
-        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={setSelectedFiles} onDeleteUploaded={onDeleteEvidence} />
-        <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={setExplanation} />
+        {explanationError && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{explanationError}</p>}
+        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={(nextFiles) => { setSelectedFiles(nextFiles); setEvidenceError(''); }} onDeleteUploaded={onDeleteEvidence} />
+        <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={(value) => { setExplanation(value); setExplanationError(''); }} />
       </TableCell>
       <TableCell className="align-middle">
         <div className="flex min-w-0 flex-col gap-2">
@@ -333,6 +365,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
             <Upload className="size-4 shrink-0" />
             <TruncatedText value={standardFiles.length + selectedFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file'} />
           </Button>
+          {evidenceError && <p role="alert" className="text-xs font-medium text-destructive">{evidenceError}</p>}
         </div>
       </TableCell>
     </TableRow>
@@ -345,6 +378,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   evidence,
   localityId,
   editable,
+  nowMs,
   draftValues,
   selectedCriterionId,
   uploading,
@@ -433,6 +467,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               draft={draftValues?.get(criterion.id)}
               state={record.state}
               editable={editable}
+              nowMs={nowMs}
               selected={selected}
               uploading={uploading}
               onSelect={onSelect}

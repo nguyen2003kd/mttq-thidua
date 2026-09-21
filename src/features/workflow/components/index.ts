@@ -4,7 +4,7 @@ export { AuditTrailPopup } from './AuditTrailPopup';
 export { ReviewScoreModal } from './ReviewScoreModal';
 export { SupplementaryCriterionModal } from './SupplementaryCriterionModal';
 export { PublishResultModal } from './PublishResultModal';
-export { StatusStepper } from './StatusStepper';
+// export { StatusStepper } from './StatusStepper';
 export { ScoreGroupInput } from './ScoreGroupInput';
 export { LocalityScoreTable, type LocalityScoreTableHandle } from './LocalityScoreTable';
 export { ForwardSubmissionDialog } from './ForwardSubmissionDialog';
