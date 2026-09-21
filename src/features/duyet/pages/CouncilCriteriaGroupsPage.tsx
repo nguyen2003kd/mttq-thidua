@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
+import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Button } from '@/components/core';
 import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
-import { CouncilSubmissionDetailDialog } from '@/features/duyet/components/CouncilSubmissionDetailDialog';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
 
@@ -61,8 +60,8 @@ function getRowTotals(submission: SubmissionApi) {
 /** Lớp 2 read-only của Hội đồng; dữ liệu lấy từ các submission LeaderApproved. */
 export default function CouncilCriteriaGroupsPage() {
   const { localityId } = useParams<{ localityId?: string }>();
+  const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<CouncilCriteriaGroupRow | null>(null);
-  const [viewing, setViewing] = useState<CouncilCriteriaGroupRow | null>(null);
 
   const submissionsQuery = useQuery({
     queryKey: ['council-submissions', { stage: COUNCIL_STAGE }],
@@ -93,8 +92,8 @@ export default function CouncilCriteriaGroupsPage() {
   }), [groupById, localitySubmissions]);
 
   const columns = useMemo<ColumnDef<CouncilCriteriaGroupRow>[]>(() => [
-    { accessorFn: (row) => row.groupName, header: 'Nhóm tiêu chí', cell: ({ row }) => <div><p className="font-semibold text-foreground">{row.original.groupName}</p><p className="mt-1 text-xs text-muted-foreground">{row.original.groupId}</p></div>, meta: { list: { width: 'minmax(240px,1.1fr)' } } },
-    { accessorFn: (row) => row.groupContent, header: 'Nội dung', cell: ({ row }) => <p className="line-clamp-2 text-sm text-muted-foreground">{row.original.groupContent || '—'}</p>, meta: { list: { width: 'minmax(260px,1.3fr)' } } },
+    { accessorFn: (row) => row.groupName, header: 'Nhóm tiêu chí', cell: ({ row }) => <TruncatedText as="p" value={row.original.groupName} maxLines={2} className="font-semibold leading-5 text-foreground" />, meta: { list: { width: 'minmax(240px,1.1fr)' }, disableTooltip: true } },
+    { accessorFn: (row) => row.groupContent, header: 'Nội dung', cell: ({ row }) => <TruncatedText as="p" value={row.original.groupContent || '—'} maxLines={2} className="text-sm leading-5 text-muted-foreground" />, meta: { list: { width: 'minmax(260px,1.3fr)' }, disableTooltip: true } },
     { accessorFn: (row) => row.proposedScore, header: 'Điểm địa phương đề xuất', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.leaderScore, header: 'Điểm lãnh đạo ban chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.leaderScore}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.85fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.75fr)' } } },
@@ -109,7 +108,6 @@ export default function CouncilCriteriaGroupsPage() {
 
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua." actions={<Button variant="outline" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => setViewing(selectedRow)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí chờ duyệt', description: 'Địa phương này hiện không có nhóm tiêu chí ở bước Hội đồng.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
-    <CouncilSubmissionDetailDialog open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} submission={viewing?.submission ?? null} group={viewing ? groupById.get(viewing.groupId) : undefined} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`)} toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí chờ duyệt', description: 'Địa phương này hiện không có nhóm tiêu chí ở bước Hội đồng.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }

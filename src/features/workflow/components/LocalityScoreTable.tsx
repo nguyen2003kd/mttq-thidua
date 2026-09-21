@@ -29,6 +29,7 @@ interface LocalityScoreTableProps {
   evidence: Evidence[];
   localityId: string;
   editable: boolean;
+  nowMs: number;
   draftValues?: Map<string, EvidenceFormValue>;
   selectedCriterionId?: string;
   uploading?: boolean;
@@ -177,6 +178,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   draft,
   state,
   editable,
+  nowMs,
   uploading = false,
   onSelect,
   onDeleteEvidence,
@@ -206,7 +208,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const maxBonus = criterion.bonusScore ?? 0;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
-  const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= Date.now();
+  const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
   const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
@@ -376,6 +378,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   evidence,
   localityId,
   editable,
+  nowMs,
   draftValues,
   selectedCriterionId,
   uploading,
@@ -464,6 +467,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               draft={draftValues?.get(criterion.id)}
               state={record.state}
               editable={editable}
+              nowMs={nowMs}
               selected={selected}
               uploading={uploading}
               onSelect={onSelect}
