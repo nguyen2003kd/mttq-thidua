@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { FormDialog } from '@/components/core';
+import { AlertTriangle, Paperclip } from 'lucide-react';
+import { FileUpload, FormDialog } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,8 +23,12 @@ interface ReviewScoreModalProps {
   initialScore?: number;
   initialBonusScore?: number;
   initialReason?: string;
-  onSave: (value: { score: number; bonusScore: number; reason?: string }) => boolean;
+  enableAttachment?: boolean;
+  initialAttachment?: File | null;
+  onSave: (value: { score: number; bonusScore: number; reason?: string; attachment?: File | null }) => boolean;
 }
+
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
 
 export function ReviewScoreModal({
   open,
@@ -42,20 +46,26 @@ export function ReviewScoreModal({
   initialScore,
   initialBonusScore,
   initialReason,
+  enableAttachment = false,
+  initialAttachment = null,
   onSave,
 }: ReviewScoreModalProps) {
   const [score, setScore] = useState('');
   const [bonus, setBonus] = useState('0');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentError, setAttachmentError] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setScore(String(initialScore ?? entry?.value ?? entry?.proposedScore ?? 0));
     setBonus(String(initialBonusScore ?? 0));
     setReason(initialReason ?? '');
+    setAttachment(initialAttachment);
     setError('');
-  }, [open, entry, initialScore, initialBonusScore, initialReason]);
+    setAttachmentError('');
+  }, [open, entry, initialScore, initialBonusScore, initialReason, initialAttachment]);
 
   const maxScore = maxScoreOverride ?? criterion?.maxScore ?? entry?.supplementaryMaxScore ?? entry?.value ?? 0;
   const maxBonus = maxBonusOverride ?? criterion?.bonusScore ?? 0;
@@ -80,7 +90,8 @@ export function ReviewScoreModal({
       setError(`Bắt buộc nhập lý do khi điểm chấm lệch với ${referenceLabel.toLocaleLowerCase('vi')}.`);
       return;
     }
-    if (onSave({ score: nextScore, bonusScore: nextBonus, reason: reason.trim() || undefined })) {
+    if (attachmentError) return;
+    if (onSave({ score: nextScore, bonusScore: nextBonus, reason: reason.trim() || undefined, attachment })) {
       onOpenChange(false);
     } else {
       setError('Không thể lưu điểm. Vui lòng kiểm tra lại dữ liệu.');
@@ -116,6 +127,22 @@ export function ReviewScoreModal({
         <Label htmlFor="review-reason">Lý do {(Number(score) !== baseScore || Number(bonus) !== baseBonus || supplementary) && <span className="text-destructive">*</span>}</Label>
         <Textarea id="review-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Nhập căn cứ điều chỉnh điểm" />
       </div>
+      {enableAttachment && (
+        <div className="space-y-1.5">
+          <Label className="flex items-center gap-1.5"><Paperclip className="size-4 text-primary" />Tệp đính kèm <span className="font-normal text-muted-foreground">(không bắt buộc)</span></Label>
+          <FileUpload
+            value={attachment ? [attachment] : []}
+            onChange={(files) => {
+              const file = files[0] ?? null;
+              setAttachment(file);
+              setAttachmentError(file && file.size > MAX_ATTACHMENT_SIZE ? 'Tệp đính kèm không được vượt quá 20MB.' : '');
+            }}
+            multiple={false}
+            maxSizeMb={20}
+            error={attachmentError}
+          />
+        </div>
+      )}
       {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
     </FormDialog>
   );

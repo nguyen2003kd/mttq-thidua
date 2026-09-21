@@ -1033,16 +1033,21 @@ function ScoreEditDialog({
   open,
   onOpenChange,
   onSave,
+  initialAttachment = null,
 }: {
   item: SpecialistCriteriaItem | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (values: ScoreEditForm) => void;
+  onSave: (values: ScoreEditForm, attachment: File | null, attachmentChanged: boolean) => void;
+  initialAttachment?: File | null;
 }) {
   const form = useForm<ScoreEditForm>({
     resolver: zodResolver(scoreEditSchema),
     defaultValues: { score: 0, bonusScore: 0, reason: '' },
   });
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentChanged, setAttachmentChanged] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (item && open) {
@@ -1051,8 +1056,11 @@ function ScoreEditDialog({
         bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
         reason: item.scoreReason,
       });
+      setAttachment(initialAttachment);
+      setAttachmentChanged(false);
+      setAttachmentError(null);
     }
-  }, [form, item, open]);
+  }, [form, initialAttachment, item, open]);
 
   if (!item) return null;
 
@@ -1070,7 +1078,8 @@ function ScoreEditDialog({
       form.setError('bonusScore', { message: `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.` });
       return;
     }
-    onSave(values);
+    if (attachmentError) return;
+    onSave(values, attachment, attachmentChanged);
     onOpenChange(false);
   };
 
@@ -1105,6 +1114,22 @@ function ScoreEditDialog({
               <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác đề xuất)</span></Label>
               <Textarea id="specialist-score-reason" rows={3} placeholder="Nhập lý do điều chỉnh điểm..." {...form.register('reason')} />
               {form.formState.errors.reason && <p className="text-xs text-danger">{form.formState.errors.reason.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tệp đính kèm <span className="font-normal text-muted-foreground">(không bắt buộc)</span></Label>
+              <FileUpload
+                value={attachment ? [attachment] : []}
+                onChange={(files) => {
+                  const file = files[0] ?? null;
+                  setAttachment(file);
+                  setAttachmentChanged(true);
+                  setAttachmentError(file && file.size > MAX_FILE_SIZE ? 'Tệp đính kèm không được vượt quá 20MB.' : null);
+                }}
+                multiple={false}
+                maxSizeMb={20}
+                error={attachmentError}
+              />
+              <p className="text-xs text-muted-foreground">Bạn có thể bỏ qua nếu không cần bổ sung minh chứng cho việc sửa điểm.</p>
             </div>
           </div>
           <DialogFooter className="border-t border-border px-6 py-4">
@@ -1301,6 +1326,11 @@ export default function SpecialistReviewPage() {
 
   // Local state cho điểm chuyên viên chấm (đè lên dữ liệu API)
   const [scoreOverrides, setScoreOverrides] = useState<Map<string, Partial<SpecialistCriteriaItem>>>(new Map());
+  const [pendingScoreAttachments, setPendingScoreAttachments] = useState<Map<string, File>>(new Map());
+
+  useEffect(() => {
+    setPendingScoreAttachments(new Map());
+  }, [nhomTieuChiId, selectedSubmission?.id]);
 
   const applyOverrides = (group: SpecialistCriteriaGroup): SpecialistCriteriaGroup => ({
     ...group,
@@ -1759,6 +1789,45 @@ export default function SpecialistReviewPage() {
       .filter((item): item is NonNullable<typeof item> => item !== null);
   };
 
+  const uploadPendingScoreAttachments = async () => {
+    if (pendingScoreAttachments.size === 0) return;
+
+    const results = selectedSubmissionDetailQuery.data?.results ?? [];
+    const uploadedCriteriaIds: string[] = [];
+    const failedFiles: string[] = [];
+
+    for (const [criteriaId, file] of pendingScoreAttachments) {
+      const result = results.find((item) => item.criteriaId === criteriaId);
+      if (!result) {
+        failedFiles.push(file.name);
+        continue;
+      }
+
+      try {
+        await filesApi.upload(file, {
+          displayName: file.name,
+          entityType: 'SubmissionResult',
+          entityId: result.id,
+          category: 'score-update',
+        });
+        uploadedCriteriaIds.push(criteriaId);
+      } catch {
+        failedFiles.push(file.name);
+      }
+    }
+
+    if (uploadedCriteriaIds.length > 0) {
+      setPendingScoreAttachments((current) => {
+        const next = new Map(current);
+        uploadedCriteriaIds.forEach((criteriaId) => next.delete(criteriaId));
+        return next;
+      });
+    }
+    if (failedFiles.length > 0) {
+      toast.warning(`Điểm đã được lưu nhưng ${failedFiles.length} tệp đính kèm chưa tải lên được.`);
+    }
+  };
+
   const saveDraftScores = async () => {
     if (specialistActionsLocked) {
       toast.info(specialistLockReason);
@@ -1777,6 +1846,7 @@ export default function SpecialistReviewPage() {
     setSavingDraft(true);
     try {
       await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
+      await uploadPendingScoreAttachments();
       await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
       await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
       setScoreOverrides(new Map());
@@ -1807,6 +1877,7 @@ export default function SpecialistReviewPage() {
       if (items.length > 0) {
         await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
       }
+      await uploadPendingScoreAttachments();
       await specialistApi.approveSubmission(submission.id, explanation);
       await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
       await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
@@ -2195,11 +2266,20 @@ export default function SpecialistReviewPage() {
         item={selectedCriterion}
         open={scoreEditOpen}
         onOpenChange={setScoreEditOpen}
-        onSave={(values) => {
+        initialAttachment={selectedCriterion ? pendingScoreAttachments.get(selectedCriterion.id) ?? null : null}
+        onSave={(values, attachment, attachmentChanged) => {
           if (!selectedCriterion) return;
           if (specialistActionsLocked) {
             toast.info(specialistLockReason);
             return;
+          }
+          if (attachmentChanged) {
+            setPendingScoreAttachments((current) => {
+              const next = new Map(current);
+              if (attachment) next.set(selectedCriterion.id, attachment);
+              else next.delete(selectedCriterion.id);
+              return next;
+            });
           }
           updateCriterion(selectedCriterion.id, {
             officialScore: values.score,

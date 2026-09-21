@@ -56,6 +56,7 @@ export interface SubmissionResultFile {
   id: string;
   originalName: string;
   displayName: string | null;
+  category: string | null;
   sizeBytes: number;
   createdAt: string;
   url: string | null;
