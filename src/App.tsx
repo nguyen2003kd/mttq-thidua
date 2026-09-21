@@ -45,7 +45,6 @@ const SpecialistReviewPage = lazy(() => import('@/features/cham-diem/pages/Speci
 const SpecialistHistoryPage = lazy(() => import('@/features/cham-diem/pages/SpecialistHistoryPage'));
 const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaChildrenPage'));
 const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
-const LocalityCriteriaHistoryPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaHistoryPage'));
 const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/LocalityResultsPage'));
 
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
@@ -125,7 +124,6 @@ export default function App() {
               <Route index element={<Navigate to={ROUTES.LOCALITY_CRITERIA} replace />} />
               <Route path="tieu-chi" element={<LocalityCriteriaPage />} />
               <Route path="tieu-chi/:id" element={<LocalityCriteriaPage />} />
-              <Route path="tieu-chi/:id/lich-su" element={<LocalityCriteriaHistoryPage />} />
               <Route path="ket-qua" element={<LocalityResultsPage />} />
               <Route path="ket-qua/:id" element={<LocalityResultsPage />} />
             </Route>

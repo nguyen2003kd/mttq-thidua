@@ -1,11 +1,6 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogClose,
-  DialogOverlay,
-} from '@/components/ui/dialog';
-import { X, Trash2, Pencil } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { AppDialog } from './AppDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '@/lib/utils';
 
@@ -54,38 +49,32 @@ export function DetailDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogOverlay className="bg-[#1F1B1A]/50 backdrop-blur-sm" />
-      <DialogContent
-        showCloseButton={false}
-        className={cn(
-          'flex flex-col p-0 gap-0 !w-[50vw] h-[80vh] max-h-[80vh] !max-w-none rounded-lg border-0 overflow-hidden',
-          maxWidth,
+    <>
+      <AppDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={title}
+        subtitle={subtitle}
+        size={maxWidth ? `${maxWidth} ${maxWidth.replace('max-w-', 'sm:max-w-')}` : undefined}
+        closeLabel={closeLabel}
+        footerActions={(
+          <>
+            {onDelete && (
+              <button type="button" onClick={handleDeleteClick} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-destructive bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80">
+                <Trash2 className="h-3.5 w-3.5" />
+                {deleteLabel}
+              </button>
+            )}
+            {onEdit && (
+              <button type="button" onClick={onEdit} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-destructive px-4 text-sm font-medium text-white transition-colors hover:bg-destructive/80">
+                <Pencil className="h-3.5 w-3.5" />
+                {editLabel}
+              </button>
+            )}
+          </>
         )}
       >
-        {/* Header - red background */}
-        <div className="flex items-center justify-between bg-destructive px-6 py-4">
-          <div className="flex flex-col gap-0.5">
-            <h2 className="text-base font-semibold text-white">{title}</h2>
-            {subtitle && (
-              <p className="text-sm text-white/80">{subtitle}</p>
-            )}
-          </div>
-          <DialogClose
-            render={
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/20"
-              />
-            }
-          >
-            <X className="h-5 w-5" />
-          </DialogClose>
-        </div>
-
-        {/* Body - white background */}
-        <div className="flex-1 overflow-y-auto bg-white px-6 py-4">
-          <div className="space-y-3">
+        <div className="space-y-3">
             {items.map((item, idx) => (
               <div
                 key={idx}
@@ -98,45 +87,8 @@ export function DetailDialog({
                 <span className="text-sm font-medium text-right">{item.value}</span>
               </div>
             ))}
-          </div>
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t border-border/40 bg-muted/30 px-6 py-3">
-          <DialogClose
-            render={
-              <button
-                type="button"
-                className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
-              />
-            }
-          >
-            {closeLabel}
-          </DialogClose>
-          <div className="flex items-center gap-2">
-            {onDelete && (
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-destructive bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {deleteLabel}
-              </button>
-            )}
-            {onEdit && (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-destructive px-4 text-sm font-medium text-white transition-colors hover:bg-destructive/80"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                {editLabel}
-              </button>
-            )}
-          </div>
-        </div>
-      </DialogContent>
+      </AppDialog>
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
@@ -146,6 +98,6 @@ export function DetailDialog({
         variant="destructive"
         onConfirm={handleConfirmDelete}
       />
-    </Dialog>
+    </>
   );
 }

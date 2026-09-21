@@ -9,6 +9,7 @@ export { Button, buttonVariants } from './Button';
 export { TruncatedText } from './TruncatedText';
 export { NavItem } from './NavItem';
 export { ConfirmDialog } from './ConfirmDialog';
+export { AppDialog, type AppDialogProps } from './AppDialog';
 export { DetailDialog, type DetailDialogItem, type DetailDialogProps } from './DetailDialog';
 export { FormDialog, type FormDialogProps } from './FormDialog';
 export { RejectDialog, type RejectDialogProps } from './RejectDialog';

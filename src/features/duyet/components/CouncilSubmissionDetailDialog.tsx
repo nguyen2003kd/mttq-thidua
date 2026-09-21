@@ -68,7 +68,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                   <TableHead className="text-right">Điểm đề xuất</TableHead>
                   <TableHead className="text-right">Điểm thực tế</TableHead>
                   <TableHead>Lý do</TableHead>
-                  <TableHead>Bằng chứng</TableHead>
+                  <TableHead>Minh chứng</TableHead>
                   <TableHead>Ghi chú</TableHead>
                 </TableRow>
               </TableHeader>

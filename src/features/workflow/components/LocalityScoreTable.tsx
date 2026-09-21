@@ -265,7 +265,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         return false;
       }
       if (standardFiles.length === 0 && selectedFiles.length === 0) {
-        setEvidenceError('Vui lòng chọn file bằng chứng.');
+        setEvidenceError('Vui lòng chọn file minh chứng.');
         return false;
       }
       return true;
@@ -418,7 +418,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
     },
     {
       id: 'evidence',
-      header: 'File bằng chứng ★',
+      header: 'File minh chứng ★',
       meta: { className: 'h-12 w-[180px]', disableTooltip: true },
     },
   ], []);
