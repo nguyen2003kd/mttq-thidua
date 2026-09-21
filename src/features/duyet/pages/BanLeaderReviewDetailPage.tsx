@@ -377,6 +377,7 @@ export default function BanLeaderReviewDetailPage() {
       submissionId={submission.id}
       targetLabel="Hội đồng Thi đua - Khen thưởng"
       explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban"
+      forwardingCategory="LeaderForwarding"
       onConfirm={approve}
     />
   </div>;
