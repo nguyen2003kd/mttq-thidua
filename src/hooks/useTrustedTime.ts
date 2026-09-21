@@ -21,6 +21,7 @@ function parseUtcDateTime(value?: string): number {
 
 export function useTrustedTime() {
   const anchorRef = useRef<TimeAnchor | null>(null);
+  const useSystemFallbackRef = useRef(false);
   const [nowMs, setNowMs] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
@@ -50,13 +51,19 @@ export function useTrustedTime() {
         }
 
         anchorRef.current = { serverTimeMs, performanceMs: performance.now() };
+        useSystemFallbackRef.current = false;
         if (!disposed) {
           setNowMs(serverTimeMs);
           setError(null);
         }
       } catch (caught) {
         if (controller.signal.aborted || disposed) return;
-        if (!anchorRef.current) setNowMs(null);
+        // Chỉ dùng giờ máy khi lần đồng bộ đầu tiên thất bại. Nếu trước đó đã
+        // có mốc giờ từ máy chủ, tiếp tục dùng mốc đó thay vì quay về giờ máy.
+        if (!anchorRef.current) {
+          useSystemFallbackRef.current = true;
+          setNowMs(Date.now());
+        }
         setError(caught instanceof Error ? caught : new Error('Không thể đồng bộ thời gian chuẩn.'));
       }
     };
@@ -64,9 +71,13 @@ export function useTrustedTime() {
     void syncTime();
 
     const tickTimer = window.setInterval(() => {
+      if (disposed) return;
       const anchor = anchorRef.current;
-      if (!anchor || disposed) return;
-      setNowMs(anchor.serverTimeMs + (performance.now() - anchor.performanceMs));
+      if (anchor) {
+        setNowMs(anchor.serverTimeMs + (performance.now() - anchor.performanceMs));
+      } else if (useSystemFallbackRef.current) {
+        setNowMs(Date.now());
+      }
     }, TICK_INTERVAL_MS);
 
     const syncTimer = window.setInterval(() => {
@@ -81,5 +92,5 @@ export function useTrustedTime() {
     };
   }, []);
 
-  return { nowMs, isReady: nowMs !== null, error };
+  return { nowMs, isReady: nowMs !== null, error, isUsingSystemFallback: useSystemFallbackRef.current };
 }
