@@ -104,7 +104,7 @@ export default function CouncilCriteriaGroupsPage() {
   if (!localityId) return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không hợp lệ." />;
   if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải hồ sơ và nhóm tiêu chí…" />;
   if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được dữ liệu" description="Vui lòng thử lại sau." />;
-  if (!localitySubmissions.length) return <EmptyState title="Không tìm thấy hồ sơ" description={`Không có submission LeaderApproved cho địa phương ${localityCode}.`} />;
+  if (!localitySubmissions.length) return <EmptyState title="Không có hồ sơ chờ duyệt" description="Địa phương này không còn nhóm tiêu chí nào ở bước Hội đồng." />;
 
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua." actions={<Button variant="outline" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
