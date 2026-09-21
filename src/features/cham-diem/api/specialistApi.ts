@@ -109,6 +109,32 @@ export interface ApprovalHistoryApi {
   createdAt: string;
 }
 
+export interface SpecialistScoreChangeApi {
+  submissionResultId: string;
+  criteriaId: string;
+  criteriaContent: string | null;
+  oldPoint: number | null;
+  newPoint: number | null;
+  oldBonusPoint: number | null;
+  newBonusPoint: number | null;
+}
+
+export interface SpecialistScoreHistoryApi {
+  id: string;
+  submissionId: string;
+  userId: string;
+  actorName: string;
+  actorRole: string;
+  wardCode: string | null;
+  localityName: string | null;
+  criteriaGroupId: string | null;
+  criteriaGroupName: string | null;
+  action: string;
+  reason: string | null;
+  changes: SpecialistScoreChangeApi[];
+  createdAt: string;
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export const specialistApi = {
@@ -129,6 +155,8 @@ export const specialistApi = {
     request<SubmissionApi>({ url: `/api/v1/submissions/${id}`, method: 'GET' }),
   listApprovalHistories: (submissionId: string, params?: { action?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<ApprovalHistoryApi>>({ url: `/api/v1/submissions/${submissionId}/approval-histories`, method: 'GET', params }),
+  listScoreHistories: (params?: { search?: string; wardCode?: string; from?: string; to?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+    request<PagedResult<SpecialistScoreHistoryApi>>({ url: '/api/v1/submissions/score-histories', method: 'GET', params }),
 
   // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
   approveSubmission: (submissionId: string, reason?: string) =>
