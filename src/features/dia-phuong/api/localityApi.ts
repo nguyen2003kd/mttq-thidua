@@ -35,6 +35,15 @@ export type SubmissionStage =
   | 'CommitteeFinalized'
   | 'RequiresRevision';
 
+export interface SubmissionResultFile {
+  id: string;
+  originalName: string;
+  displayName: string | null;
+  sizeBytes: number;
+  createdAt: string;
+  url: string | null;
+}
+
 export interface SubmissionResultItem {
   id: string;
   submissionId: string;
@@ -44,8 +53,12 @@ export interface SubmissionResultItem {
   snapshotMaxBonusPoint: number;
   point: number;
   bonusPoint: number;
+  officialPoint: number | null;
+  officialBonusPoint: number | null;
+  officialReason: string | null;
   explanation: string | null;
   reviewStatus: string;
+  files: SubmissionResultFile[];
   createdAt: string;
   updatedAt: string | null;
 }
@@ -61,18 +74,20 @@ export interface SubmissionApi {
   createdAt: string;
   updatedAt: string | null;
   createdBy: string | null;
+  createdByUsername: string | null;
+  createdByWardCode: string | null;
+  localityFullName: string | null;
   results: SubmissionResultItem[];
 }
 
 export interface ApprovalHistoryItem {
   id: string;
   submissionId: string;
-  actorName: string;
-  actorRole: string;
+  userId: string;
+  stageLevel: string;
   action: string;
-  fromStage: string | null;
-  toStage: string | null;
   reason: string | null;
+  changedData: string | null;
   createdAt: string;
 }
 

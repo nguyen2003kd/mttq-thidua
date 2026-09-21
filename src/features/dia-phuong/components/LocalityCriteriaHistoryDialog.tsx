@@ -24,12 +24,15 @@ const ACTION_MAP: Record<string, ActionType> = {
   edit: 'EDIT',
 };
 
-const ROLE_MAP: Record<string, Role> = {
-  LOCAL: 'LOCAL',
-  SPECIALIST: 'SPECIALIST',
-  LEADER: 'LEADER',
-  COUNCIL: 'COUNCIL',
-  COMMITTEE: 'COMMITTEE',
+// stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
+const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
+  Draft: { role: 'LOCAL', label: 'Địa phương' },
+  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên' },
+  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên' },
+  SpecialistApproved: { role: 'LEADER', label: 'Lãnh đạo ban' },
+  LeaderApproved: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
+  CouncilApproved: { role: 'COMMITTEE', label: 'Ban thường trực' },
+  CommitteeFinalized: { role: 'COMMITTEE', label: 'Ban thường trực' },
 };
 
 const ACTION_LABELS_VI: Record<string, string> = {
@@ -57,15 +60,16 @@ function translateLegacyReason(reason: string | null): string | null {
 
 function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
   const resolvedAction = resolveHistoryAction(item.action, item.reason);
+  const actor = STAGE_ACTOR_MAP[item.stageLevel];
   return {
     id: item.id,
     timestamp: item.createdAt,
-    actorName: item.actorName,
-    actorRole: ROLE_MAP[item.actorRole] ?? 'LOCAL',
+    actorName: actor?.label ?? 'Hệ thống',
+    actorRole: actor?.role ?? 'LOCAL',
     action: ACTION_MAP[resolvedAction?.toLowerCase()] ?? 'EDIT',
     fieldName: item.submissionId,
-    oldValue: item.fromStage ?? null,
-    newValue: item.toStage ?? item.action,
+    oldValue: null,
+    newValue: item.action,
     reason: translateLegacyReason(item.reason),
   };
 }
