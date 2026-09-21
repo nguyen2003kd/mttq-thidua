@@ -20,6 +20,7 @@ import {
   type SubmissionStage,
 } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
+import { useTrustedTime } from '@/hooks/useTrustedTime';
 
 interface SelectedRow { entry: ScoreEntry; criterion?: CriteriaItem }
 
@@ -48,6 +49,7 @@ export default function LocalityCriteriaPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const localityId = user?.localityId;
+  const { nowMs: trustedNowMs, isReady: isTrustedTimeReady } = useTrustedTime();
 
   const [selectedListTable, setSelectedListTable] = useState<LocalityCriteriaListRow | null>(null);
   const [selected, setSelected] = useState<SelectedRow | null>(null);
@@ -352,19 +354,24 @@ export default function LocalityCriteriaPage() {
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
+  const currentTimeMs = trustedNowMs ?? 0;
   const parentDeadlineMs = detailTable.closeDate ? Date.parse(detailTable.closeDate) : Number.NaN;
-  const parentDeadlineExpired = Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= Date.now();
+  const parentDeadlineExpired = isTrustedTimeReady && Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= currentTimeMs;
   // Chỉ bản nháp từ /my-submissions mới được địa phương chỉnh sửa hoặc nộp.
   // Các giai đoạn khác chỉ cho phép xem và tải minh chứng đã có.
   const submissionAllowsEditing = !submission || submission.currentStage === 'Draft';
   const submissionLockedReason = submission
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;
-  const editable = submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineExpired;
+  const editable = isTrustedTimeReady && submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineExpired;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
-  const canSubmit = submissionAllowsEditing && !parentDeadlineExpired;
+  const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineExpired;
 
   const ensureParentDeadlineActive = () => {
+    if (!isTrustedTimeReady) {
+      toast.info('Đang đồng bộ thời gian chuẩn, vui lòng thử lại sau giây lát.');
+      return false;
+    }
     if (!parentDeadlineExpired) return true;
     toast.error('Nhóm tiêu chí đã hết hạn nộp. Không thể chỉnh sửa hoặc gửi hồ sơ.');
     return false;
@@ -470,7 +477,7 @@ export default function LocalityCriteriaPage() {
 
   const requireSelection = (callback: () => void) => { if (!selected) { toast.info('Vui lòng chọn một dòng tiêu chí trước.'); return; } callback(); };
   const selectedCriterionDeadlineMs = selected?.criterion?.deadline ? Date.parse(selected.criterion.deadline) : Number.NaN;
-  const selectedCriterionDeadlineExpired = Number.isFinite(selectedCriterionDeadlineMs) && selectedCriterionDeadlineMs <= Date.now();
+  const selectedCriterionDeadlineExpired = isTrustedTimeReady && Number.isFinite(selectedCriterionDeadlineMs) && selectedCriterionDeadlineMs <= currentTimeMs;
   const currentSelfScore = record.entries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
   const currentBonusScore = record.entries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
   const handleSaveAll = async () => {
@@ -596,6 +603,7 @@ export default function LocalityCriteriaPage() {
         evidence={evidence}
         localityId={localityId}
         editable={editable}
+        nowMs={currentTimeMs}
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}
         uploading={savingAll}
@@ -608,10 +616,10 @@ export default function LocalityCriteriaPage() {
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
+            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
-              <Button disabled={savingAll || !canSubmit} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện chưa sẵn sàng để gửi.')} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
+              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
+              <Button disabled={savingAll || !canSubmit} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện chưa sẵn sàng để gửi.')} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
             </div>
           </div>
         )}

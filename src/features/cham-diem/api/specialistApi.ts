@@ -161,4 +161,12 @@ export const specialistApi = {
       method: 'POST',
       data: { ...payload, action: 'RequestRevision' },
     }),
+
+  // Ban Thường trực công bố kết quả cuối cùng của hồ sơ đã qua Hội đồng.
+  finalizeSubmission: (submissionId: string) =>
+    request<{ finalized: boolean; submissionId: string }>({
+      url: '/api/v1/submissions/finalize',
+      method: 'POST',
+      data: { submissionId },
+    }),
 };
