@@ -177,6 +177,7 @@ export function DataTable<TData, TValue = unknown>({
   const debouncedSearchInput = useDebounce(searchInput, 300);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const listHeaderInnerRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
   const hasToolbar = Boolean(searchable || filters || toolbar || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
@@ -370,13 +371,19 @@ export function DataTable<TData, TValue = unknown>({
   const renderList = () => {
     return (
       <>
-      <div className="overflow-x-auto">
-        <div style={{ minWidth: listMinWidth ? `${listMinWidth}px` : undefined }}>
-        {/* Header */}
+        {/* Header nằm ngoài vùng cuộn ngang để sticky theo vùng cuộn trang. */}
         <div
-          className="sticky top-[calc(var(--toolbar-height)-16px)] z-[5] grid gap-0 bg-primary text-xs font-semibold text-primary-foreground sm:top-[calc(var(--toolbar-height)-24px)]"
-          style={{ gridTemplateColumns: listGridTemplate, '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
+          className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)]"
+          style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
         >
+          <div
+            ref={listHeaderInnerRef}
+            className="grid gap-0 text-xs font-semibold text-primary-foreground will-change-transform"
+            style={{
+              gridTemplateColumns: listGridTemplate,
+              minWidth: listMinWidth ? `${listMinWidth}px` : undefined,
+            }}
+          >
           {table.getHeaderGroups().map((headerGroup) =>
             headerGroup.headers.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
@@ -410,8 +417,18 @@ export function DataTable<TData, TValue = unknown>({
               );
             }),
           )}
+          </div>
         </div>
 
+      <div
+        className="isolate overflow-x-auto"
+        onScroll={(event) => {
+          if (listHeaderInnerRef.current) {
+            listHeaderInnerRef.current.style.transform = `translateX(-${event.currentTarget.scrollLeft}px)`;
+          }
+        }}
+      >
+        <div style={{ minWidth: listMinWidth ? `${listMinWidth}px` : undefined }}>
         {/* Body */}
         {loading ? (
           <div>
@@ -456,7 +473,7 @@ export function DataTable<TData, TValue = unknown>({
                 onClick={enableRowSelection ? () => row.toggleSelected() : onRowClick ? () => onRowClick(row.original) : undefined}
                 onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row.original) : undefined}
                 className={cn(
-                  'grid items-center gap-0 border-b border-border/40 bg-card transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted',
+                  'relative z-0 grid items-center gap-0 border-b border-border/40 bg-card transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted',
                   (enableRowSelection || onRowClick) && 'cursor-pointer',
                   (row.getIsSelected() || row.id === selectedRowId) && 'bg-primary/10',
                 )}
@@ -533,7 +550,7 @@ export function DataTable<TData, TValue = unknown>({
       <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
       {/* Toolbar */}
       {hasToolbar && (
-        <div ref={toolbarRef} className="sticky top-[-16px] z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:top-[-24px]">
+        <div ref={toolbarRef} className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
           {searchable && (
             <div className="relative w-full max-w-[300px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -600,7 +617,7 @@ export function DataTable<TData, TValue = unknown>({
           <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[calc(var(--toolbar-height)-16px)] z-[5] border-border/40 bg-primary hover:bg-transparent sm:top-[calc(var(--toolbar-height)-24px)]">
+                <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
                   {headerGroup.headers.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');

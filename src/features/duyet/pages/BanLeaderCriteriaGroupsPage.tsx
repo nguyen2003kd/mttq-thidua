@@ -91,7 +91,7 @@ export default function BanLeaderCriteriaGroupsPage() {
   }), [groupById, localitySubmissions]);
 
   const columns = useMemo<ColumnDef<LeaderCriteriaGroupRow>[]>(() => [
-    { accessorFn: (row) => row.groupName, header: 'Nhóm tiêu chí', cell: ({ row }) => <div><p className="font-semibold text-foreground">{row.original.groupName}</p><p className="mt-1 text-xs text-muted-foreground">{row.original.groupId}</p></div>, meta: { list: { width: 'minmax(240px,1.1fr)' } } },
+    { accessorFn: (row) => row.groupName, header: 'Nhóm tiêu chí', cell: ({ row }) => <p className="font-semibold text-foreground">{row.original.groupName}</p>, meta: { list: { width: 'minmax(240px,1.1fr)' } } },
     { accessorFn: (row) => row.groupContent, header: 'Nội dung', cell: ({ row }) => <p className="line-clamp-2 text-sm text-muted-foreground">{row.original.groupContent || '—'}</p>, meta: { list: { width: 'minmax(260px,1.3fr)' } } },
     { accessorFn: (row) => row.proposedScore, header: 'Điểm địa phương đề xuất', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.specialistScore, header: 'Điểm chuyên viên chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.specialistScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
