@@ -41,4 +41,5 @@ export const ROUTES = {
 
   // Auth
   LOGIN: '/login',
+  CHANGE_PASSWORD: '/doi-mat-khau',
 } as const;

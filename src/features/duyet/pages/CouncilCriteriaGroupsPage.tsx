@@ -5,9 +5,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Button } from '@/components/core';
-import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { Badge } from '@/components/ui/badge';
+import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
+const COUNCIL_VISIBLE_STAGES = [COUNCIL_STAGE, 'CouncilApproved', 'CommitteeFinalized'] as const;
 
 interface CouncilCriteriaGroupRow {
   groupId: string;
@@ -21,27 +23,8 @@ interface CouncilCriteriaGroupRow {
 }
 
 async function listEveryCouncilSubmission() {
-  const firstPage = await specialistApi.listAllSubmissions({
-    stage: COUNCIL_STAGE,
-    page: 1,
-    pageSize: 100,
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
-  });
-  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
-  if (pageCount <= 1) return firstPage;
-
-  const remainingPages = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
-      stage: COUNCIL_STAGE,
-      page: index + 2,
-      pageSize: 100,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    })),
-  );
-
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+  const pages = await Promise.all(COUNCIL_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+  return { items: pages.flatMap((page) => page.items).filter(isRealSubmission) };
 }
 
 function getLocalityCode(localityId: string) {
@@ -98,16 +81,16 @@ export default function CouncilCriteriaGroupsPage() {
     { accessorFn: (row) => row.leaderScore, header: 'Điểm lãnh đạo ban chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.leaderScore}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.85fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.75fr)' } } },
     { accessorFn: (row) => row.leaderBonus, header: 'Điểm thưởng lãnh đạo ban', cell: ({ row }) => <span className="tabular-nums">{row.original.leaderBonus}</span>, meta: { align: 'right', list: { width: 'minmax(170px,.9fr)' } } },
-    { id: 'state', accessorFn: () => COUNCIL_STAGE, header: 'Trạng thái', cell: () => <ScoreStateBadge state="CHO_DUYET_HOI_DONG" />, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
+    { id: 'state', accessorFn: (row) => row.submission.currentStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
   ], []);
 
   if (!localityId) return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không hợp lệ." />;
   if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải hồ sơ và nhóm tiêu chí…" />;
   if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được dữ liệu" description="Vui lòng thử lại sau." />;
-  if (!localitySubmissions.length) return <EmptyState title="Không có hồ sơ chờ duyệt" description="Địa phương này không còn nhóm tiêu chí nào ở bước Hội đồng." />;
+  if (!localitySubmissions.length) return <EmptyState title="Không có hồ sơ" description="Địa phương này chưa có nhóm tiêu chí để Hội đồng theo dõi." />;
 
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua." actions={<Button variant="outline" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`)} toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí chờ duyệt', description: 'Địa phương này hiện không có nhóm tiêu chí ở bước Hội đồng.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`)} toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Hội đồng theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }

@@ -39,8 +39,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ForwardSubmissionDialog } from '@/features/workflow/components';
-import { getSpecialistSubmissionPermissions, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { ForwardingDocumentsDialog, ForwardSubmissionDialog } from '@/features/workflow/components';
+import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import {
   localityApi,
   type ApprovalHistoryItem,
@@ -93,7 +93,7 @@ interface LocalityRow {
   localityId: string;
   localityName: string;
   completionRate: string;
-  overallStatus: 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
+  overallStatus: 'CHUA_NOP' | 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
   hasNewSubmissions: boolean;
   hasModificationRequest: boolean;
   submissionIds: string[];
@@ -120,9 +120,10 @@ function getGroupStatusFilterLabel(status: GroupStatusFilter) {
   return GROUP_STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ?? '';
 }
 
-async function listEverySubmission(stage: SubmissionStageFilter) {
+async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmitted: boolean) {
   const firstPage = await specialistApi.listAllSubmissions({
     stage: stage || undefined,
+    includeUnsubmitted: includeUnsubmitted || undefined,
     page: 1,
     pageSize: 100,
     sortBy: 'createdAt',
@@ -134,6 +135,7 @@ async function listEverySubmission(stage: SubmissionStageFilter) {
   const remainingPages = await Promise.all(
     Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
       stage: stage || undefined,
+      includeUnsubmitted: includeUnsubmitted || undefined,
       page: index + 2,
       pageSize: 100,
       sortBy: 'createdAt',
@@ -142,6 +144,34 @@ async function listEverySubmission(stage: SubmissionStageFilter) {
   );
 
   return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+}
+
+/** Trang chi tiết chỉ cần submissions của đúng nhóm tiêu chí, không tải toàn hệ thống. */
+async function listEverySubmissionByGroup(groupId: string) {
+  const firstPage = await specialistApi.listSubmissionsByGroup(groupId, {
+    page: 1,
+    pageSize: 100,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listSubmissionsByGroup(groupId, {
+      page: index + 2,
+      pageSize: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+}
+
+/** URL dùng mã số (vd. 26122), trong khi một số response trả `loc-26122`. */
+function getSubmissionLocalityCode(submission: SubmissionApi) {
+  const rawCode = submission.createdByWardCode ?? submission.createdBy ?? 'unknown';
+  return rawCode.replace(/^loc-/i, '');
 }
 
 const STAGE_TO_STATUS: Record<string, LocalityRow['overallStatus']> = {
@@ -260,6 +290,17 @@ function translateLegacyReason(reason: string | null): string | null {
     return `Thêm tiêu chí bổ sung: ${reason.slice('Added supplementary criteria:'.length).trim()}`;
   }
   return reason;
+}
+
+type RevisionRequestStage = 'SpecialistApproved' | 'LeaderApproved' | 'CouncilApproved';
+
+/** Lấy nội dung yêu cầu chỉnh sửa mới nhất theo cấp xử lý của hồ sơ. */
+function getLatestRevisionReason(histories: ApprovalHistoryItem[], stageLevel: RevisionRequestStage) {
+  return histories
+    .filter((history) => history.stageLevel === stageLevel && resolveHistoryAction(history.action, history.reason) === 'RequestRevision')
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+    .map((history) => translateLegacyReason(history.reason))
+    .find((reason): reason is string => Boolean(reason?.trim())) ?? null;
 }
 
 function parseFileSnapshot(oldFiles: string | null): FileSnapshotItem[] {
@@ -862,6 +903,7 @@ function RevisionDialog({
 }
 
 function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
+  if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge>;
   if (status === 'DA_DUYET') return <Badge variant="success">Đã duyệt</Badge>;
   if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
   return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Đang chờ duyệt</Badge>;
@@ -1229,6 +1271,7 @@ function ScoreEditDialog({
 
 export default function SpecialistReviewPage() {
   const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
+  const localityCode = diaPhuongId?.replace(/^loc-/i, '');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [localitySearch, setLocalitySearch] = useState('');
@@ -1247,16 +1290,33 @@ export default function SpecialistReviewPage() {
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
+  const [forwardingPreviewFile, setForwardingPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
   const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
 
   // ── Data fetching ───────────────────────────────────────────────────────────
+  const isDetailRoute = Boolean(nhomTieuChiId);
+  // Tab "Tất cả" cần cả row tổng hợp hasSubmission=false để địa phương chưa nộp
+  // vẫn xuất hiện. Trang chi tiết chỉ tải submissions thuộc nhóm đang xem.
+  const includeUnsubmitted = !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
-    queryKey: ['specialist-submissions', { stage: activeSubmissionStage }],
-    queryFn: () => listEverySubmission(activeSubmissionStage),
+    queryKey: ['specialist-submissions', { stage: activeSubmissionStage, includeUnsubmitted }],
+    queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
+    enabled: !isDetailRoute,
   });
+  const detailGroupSubmissionsQuery = useQuery({
+    queryKey: ['specialist-group-submissions', nhomTieuChiId],
+    queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
+    enabled: isDetailRoute,
+  });
+  const visibleSubmissionItems = useMemo(
+    () => isDetailRoute
+      ? (detailGroupSubmissionsQuery.data?.items ?? [])
+      : (allSubmissionsQuery.data?.items ?? []),
+    [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
+  );
 
   const groupsQuery = useQuery({
     queryKey: ['specialist-criteria-groups'],
@@ -1265,41 +1325,52 @@ export default function SpecialistReviewPage() {
 
   // Danh sách địa phương = nhóm submissions theo locality (wardCode)
   const totalAppliedGroups = useMemo(
-    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied').length,
+    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied' || g.status === 'Published').length,
     [groupsQuery.data],
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
-    const submissions = allSubmissionsQuery.data?.items ?? [];
+    // Ở drill-down phải dùng đúng response của nhóm; các row Draft vẫn được giữ để
+    // nhận diện địa phương theo URL, nhưng được tính là chưa nộp ở phía dưới.
+    const items = visibleSubmissionItems;
     const byLocality = new Map<string, SubmissionApi[]>();
-    for (const s of submissions) {
-      const key = s.createdByWardCode ?? s.createdBy ?? 'unknown';
+    for (const s of items) {
+      const key = getSubmissionLocalityCode(s);
       if (!byLocality.has(key)) byLocality.set(key, []);
       byLocality.get(key)!.push(s);
     }
     return Array.from(byLocality.entries()).map(([wardCode, subs]) => {
-      const statuses = subs.map((s) => STAGE_TO_STATUS[s.currentStage] ?? 'CHO_DUYET');
-      const overallStatus: LocalityRow['overallStatus'] = statuses.includes('YEU_CAU_SUA')
-        ? 'YEU_CAU_SUA'
-        : statuses.includes('CHO_DUYET')
-          ? 'CHO_DUYET'
-          : 'DA_DUYET';
+      // Row hasSubmission=false là phường/xã chưa nộp bài do BE tổng hợp;
+      // submission Draft (địa phương soạn nhưng chưa nộp) cũng tính là chưa nộp.
+      const realSubs = subs.filter(isRealSubmission).filter((s) => s.currentStage !== 'Draft');
+      const unsubmitted = realSubs.length === 0;
+      const statuses = realSubs.map((s) => STAGE_TO_STATUS[s.currentStage] ?? 'CHO_DUYET');
+      const overallStatus: LocalityRow['overallStatus'] = unsubmitted
+        ? 'CHUA_NOP'
+        : statuses.includes('YEU_CAU_SUA')
+          ? 'YEU_CAU_SUA'
+          : statuses.includes('CHO_DUYET')
+            ? 'CHO_DUYET'
+            : 'DA_DUYET';
       return {
         localityId: wardCode,
         localityName: subs[0]?.localityFullName ?? subs[0]?.createdByUsername ?? wardCode,
-        completionRate: `${subs.length}/${totalAppliedGroups}`,
+        completionRate: `${realSubs.filter((s) => STAGE_TO_GROUP_STATUS[s.currentStage] === 'DA_CHAM').length}/${totalAppliedGroups}`,
         overallStatus,
         hasNewSubmissions: statuses.includes('CHO_DUYET'),
         hasModificationRequest: statuses.includes('YEU_CAU_SUA'),
-        submissionIds: subs.map((s) => s.id),
+        submissionIds: realSubs.map((s) => s.id),
       };
     });
-  }, [allSubmissionsQuery.data, totalAppliedGroups]);
+  }, [totalAppliedGroups, visibleSubmissionItems]);
 
-  // Submissions của địa phương đang chọn
+  // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp và
+  // submission Draft — địa phương soạn nhưng chưa nộp thì không hiện thông tin)
   const localitySubmissions = useMemo(
-    () => (allSubmissionsQuery.data?.items ?? []).filter((s) => (s.createdByWardCode ?? s.createdBy ?? 'unknown') === diaPhuongId),
-    [allSubmissionsQuery.data, diaPhuongId],
+    () => visibleSubmissionItems
+      .filter(isRealSubmission)
+      .filter((submission) => getSubmissionLocalityCode(submission) === localityCode && submission.currentStage !== 'Draft'),
+    [visibleSubmissionItems, localityCode],
   );
 
   const submissionByGroup = useMemo(() => {
@@ -1312,7 +1383,7 @@ export default function SpecialistReviewPage() {
   const localityGroups: SpecialistCriteriaGroup[] = useMemo(() => {
     const groups = groupsQuery.data?.items ?? [];
     return groups
-      .filter((g) => g.status === 'Applied' || submissionByGroup.has(g.id))
+      .filter((g) => g.status === 'Applied' || g.status === 'Published' || submissionByGroup.has(g.id))
       .map((g) => {
         const submission = submissionByGroup.get(g.id);
         const items: SpecialistCriteriaItem[] = (g.criteria ?? [])
@@ -1350,8 +1421,8 @@ export default function SpecialistReviewPage() {
   }, [groupsQuery.data, submissionByGroup]);
 
   const district: LocalityRow | undefined = useMemo(
-    () => localityRows.find((row) => row.localityId === diaPhuongId),
-    [localityRows, diaPhuongId],
+    () => localityRows.find((row) => row.localityId === localityCode),
+    [localityRows, localityCode],
   );
 
   // Chi tiết submission đang chọn
@@ -1369,6 +1440,27 @@ export default function SpecialistReviewPage() {
   const selectedSubmissionDetailQuery = useQuery({
     queryKey: ['specialist-submission-detail', selectedSubmission?.id],
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
+    enabled: Boolean(selectedSubmission?.id),
+  });
+  const selectedForwardingHistoriesQuery = useQuery({
+    queryKey: ['specialist-forwarding-histories', selectedSubmission?.id],
+    queryFn: () => specialistApi.listApprovalHistories(selectedSubmission!.id, { action: 'Approve', page: 1, pageSize: 100 }),
+    enabled: Boolean(selectedSubmission?.id),
+  });
+  const selectedRevisionHistoriesQuery = useQuery({
+    queryKey: ['specialist-revision-histories', selectedSubmission?.id],
+    queryFn: () => localityApi.listApprovalHistories(selectedSubmission!.id, {
+      action: 'RequestRevision',
+      page: 1,
+      pageSize: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    }),
+    enabled: Boolean(selectedSubmission?.id),
+  });
+  const legacySpecialistForwardingFilesQuery = useQuery({
+    queryKey: ['specialist-legacy-forwarding-files', selectedSubmission?.id],
+    queryFn: () => filesApi.list({ entityType: 'Submission', entityId: selectedSubmission!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     enabled: Boolean(selectedSubmission?.id),
   });
 
@@ -1410,6 +1502,15 @@ export default function SpecialistReviewPage() {
     };
   }, [nhomTieuChiId, selectedGroupDetailQuery.data, selectedSubmissionDetailQuery.data]);
 
+  const selectedRevisionNotes = useMemo(() => {
+    const histories = selectedRevisionHistoriesQuery.data?.items ?? [];
+    return {
+      leader: getLatestRevisionReason(histories, 'SpecialistApproved'),
+      council: getLatestRevisionReason(histories, 'LeaderApproved'),
+      committee: getLatestRevisionReason(histories, 'CouncilApproved'),
+    };
+  }, [selectedRevisionHistoriesQuery.data]);
+
   // Local state cho điểm chuyên viên chấm (đè lên dữ liệu API)
   const [scoreOverrides, setScoreOverrides] = useState<Map<string, Partial<SpecialistCriteriaItem>>>(new Map());
   const [pendingScoreAttachments, setPendingScoreAttachments] = useState<Map<string, File>>(new Map());
@@ -1450,14 +1551,14 @@ export default function SpecialistReviewPage() {
     const visibleRows = filteredLocalityRows;
     const selectedLocality = visibleRows.find((row) => row.localityId === selectedLocalityId);
     if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
-      return <div className="mx-auto w-full max-w-[1480px] space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
+      return <div className="space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
     }
     if (allSubmissionsQuery.isError || groupsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getFilesApiError(allSubmissionsQuery.error ?? groupsQuery.error)} />;
     }
 
     return (
-      <div className="mx-auto w-full max-w-[1480px] space-y-6">
+      <div className="space-y-6">
         <PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" />
         <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Hồ sơ địa phương" countLabel={`${visibleRows.length} địa phương`} />
@@ -1603,6 +1704,16 @@ export default function SpecialistReviewPage() {
     );
   }
 
+  const drillDownSubmissionsQuery = isDetailRoute ? detailGroupSubmissionsQuery : allSubmissionsQuery;
+
+  if (drillDownSubmissionsQuery.isLoading || groupsQuery.isLoading) {
+    return <PageLoading label={isDetailRoute ? 'Đang tải chi tiết chấm điểm…' : 'Đang tải nhóm tiêu chí…'} />;
+  }
+
+  if (drillDownSubmissionsQuery.isError || groupsQuery.isError) {
+    return <EmptyState title="Không tải được dữ liệu" description={getFilesApiError(drillDownSubmissionsQuery.error ?? groupsQuery.error)} />;
+  }
+
   if (!district) {
     return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không tồn tại trong dữ liệu." />;
   }
@@ -1615,7 +1726,7 @@ export default function SpecialistReviewPage() {
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
 
     return (
-      <div className="mx-auto w-full max-w-[1480px] space-y-5">
+      <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
           <span>/</span>
@@ -1674,7 +1785,6 @@ export default function SpecialistReviewPage() {
                   { id: 'proposed-score', label: 'Điểm đề xuất' },
                   { id: 'bonus-score', label: 'Điểm thưởng' },
                   { id: 'status', label: 'Trạng thái' },
-                  { id: 'revision', label: 'Yêu cầu sửa' },
                 ]}
               />
               <FilterDropdown
@@ -1709,12 +1819,11 @@ export default function SpecialistReviewPage() {
           <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
             <Table data-column-visibility-table="specialist-criteria-groups" className="w-full min-w-[1180px] table-fixed">
               <colgroup>
-                <col className="w-[23%]" />
-                <col className="w-[31%]" />
-                <col className="w-[11%]" />
-                <col className="w-[12%]" />
-                <col className="w-[11%]" />
-                <col className="w-[12%]" />
+                <col className="w-[25%]" />
+                <col className="w-[34%]" />
+                <col className="w-[13%]" />
+                <col className="w-[14%]" />
+                <col className="w-[14%]" />
               </colgroup>
               <TableHeader>
                 <TableRow className="sticky top-[57px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[49px]">
@@ -1722,8 +1831,7 @@ export default function SpecialistReviewPage() {
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái</TableHead>
-                  <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu sửa</TableHead>
+                  <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1739,11 +1847,10 @@ export default function SpecialistReviewPage() {
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
-                    <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
-                    <TableCell className="px-4 py-4 text-center align-top">{group.hasModificationRequest ? <Badge variant="warning">Có</Badge> : <span className="text-muted-foreground">Không</span>}</TableCell>
+                    <TableCell className="px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
                   </TableRow>
                 ))}
-                {filteredGroups.length === 0 && <TableRow><TableCell colSpan={6} className="h-28 text-center text-muted-foreground">Không có nhóm tiêu chí phù hợp.</TableCell></TableRow>}
+                {filteredGroups.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">Không có nhóm tiêu chí phù hợp.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
@@ -1782,6 +1889,8 @@ export default function SpecialistReviewPage() {
   }
 
   const selectedSubmissionStage = selectedSubmissionDetailQuery.data?.currentStage ?? selectedSubmission?.currentStage;
+  const specialistForwarding = (selectedForwardingHistoriesQuery.data?.items ?? []).find((history) => history.stageLevel === 'LocalSubmitted');
+  const specialistForwardingFiles = specialistForwarding?.files?.length ? specialistForwarding.files : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
   const specialistPermissions = getSpecialistSubmissionPermissions(selectedSubmissionStage);
   const specialistActionsLocked = !specialistPermissions.canEdit;
   const specialistLockReason = specialistPermissions.disabledReason;
@@ -1979,7 +2088,7 @@ export default function SpecialistReviewPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] space-y-5 pb-6">
+    <div className="space-y-5 pb-6">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
         <span>/</span>
@@ -2031,6 +2140,11 @@ export default function SpecialistReviewPage() {
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
           countLabel={`${selectedGroup.items.length} tiêu chí`}
+          actions={
+            (specialistForwarding || specialistForwardingFiles.length > 0) ? (
+              <ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={(file) => setForwardingPreviewFile({ id: file.id, originalName: file.displayName || file.originalName || 'Tệp đính kèm' })} />
+            ) : undefined
+          }
         />
 
         <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
@@ -2043,6 +2157,9 @@ export default function SpecialistReviewPage() {
                 { id: 'proposed', label: 'Địa phương đề xuất' },
                 { id: 'explanation', label: 'Nội dung diễn giải' },
                 { id: 'score', label: 'Chuyên viên chấm' },
+                { id: 'leader-revision-note', label: 'Nội dung chỉnh sửa Lãnh đạo' },
+                { id: 'council-revision-note', label: 'Nội dung chỉnh sửa Hội đồng' },
+                { id: 'committee-revision-note', label: 'Nội dung chỉnh sửa Ủy ban' },
               ]}
             />
             <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
@@ -2070,22 +2187,28 @@ export default function SpecialistReviewPage() {
           </div>
         </div>
 
-        <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
-          <Table data-column-visibility-table="specialist-review-criteria" className="w-full min-w-[1280px] table-fixed">
+        <div className="hidden max-h-[65dvh] overflow-auto xl:block">
+          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1940px] table-fixed">
             <colgroup>
-              <col className="w-[24%]" />
+              <col className="w-[14%]" />
+              <col className="w-[8%]" />
+              <col className="w-[11%]" />
+              <col className="w-[13%]" />
               <col className="w-[12%]" />
-              <col className="w-[18%]" />
-              <col className="w-[22%]" />
-              <col className="w-[24%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
             </colgroup>
             <TableHeader>
-              <TableRow className="sticky top-[45px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[37px]">
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
-                <TableHead className="whitespace-normal bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
+              <TableRow className="bg-primary hover:bg-primary">
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Hội đồng</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Ủy ban</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2154,7 +2277,7 @@ export default function SpecialistReviewPage() {
                   </TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
-                  <TableCell className="whitespace-normal px-4 py-5" onClick={(event) => event.stopPropagation()}>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5" onClick={(event) => event.stopPropagation()}>
                     {item.isAddedBySpecialist ? (
                       <p className="text-sm text-muted-foreground">—</p>
                     ) : (
@@ -2178,10 +2301,13 @@ export default function SpecialistReviewPage() {
                     </div>
                     )}
                   </TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={selectedRevisionNotes.leader} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={selectedRevisionNotes.council} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
+                  <TableCell className="px-4 py-5 text-center align-top"><TruncatedText as="p" value={selectedRevisionNotes.committee} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={5} className="px-4 py-3">
+                    <TableCell colSpan={8} className="px-4 py-3">
                       <CriterionHistoryPanel
                         resultId={result?.id}
                         currentPoint={item.proposedScore}
@@ -2194,7 +2320,7 @@ export default function SpecialistReviewPage() {
                   </Fragment>
                 );
               })}
-              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
+              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -2230,6 +2356,13 @@ export default function SpecialistReviewPage() {
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
+                  {(selectedRevisionNotes.leader || selectedRevisionNotes.council || selectedRevisionNotes.committee) && (
+                    <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                      {selectedRevisionNotes.leader && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo</dt><dd className="mt-1 text-sm leading-5 text-foreground">{selectedRevisionNotes.leader}</dd></div>}
+                      {selectedRevisionNotes.council && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Hội đồng</dt><dd className="mt-1 text-sm leading-5 text-foreground">{selectedRevisionNotes.council}</dd></div>}
+                      {selectedRevisionNotes.committee && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Ủy ban</dt><dd className="mt-1 text-sm leading-5 text-foreground">{selectedRevisionNotes.committee}</dd></div>}
+                    </dl>
+                  )}
                 </div>
                 <div className="space-y-4 rounded-md border border-border bg-muted/30 p-4">
                   <div>
@@ -2403,6 +2536,7 @@ export default function SpecialistReviewPage() {
         result={scoreRevisionResult}
         criterionLabel={scoreRevisionCriterionLabel}
       />
+      <FilePreviewDialog file={forwardingPreviewFile} onOpenChange={(open) => { if (!open) setForwardingPreviewFile(null); }} />
       <RevisionDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}

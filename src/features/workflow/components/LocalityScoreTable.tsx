@@ -32,6 +32,8 @@ interface LocalityScoreTableProps {
   nowMs: number;
   draftValues?: Map<string, EvidenceFormValue>;
   selectedCriterionId?: string;
+  /** Nội dung yêu cầu chỉnh sửa gần nhất do Chuyên viên gửi cho hồ sơ. */
+  specialistRevisionReason?: string | null;
   uploading?: boolean;
   toolbar?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
@@ -185,6 +187,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   onDeleteEvidence,
   selected = false,
   visibleColumnIds,
+  specialistRevisionReason,
 }, ref) {
   const [score, setScore] = useState('');
   const [bonusScore, setBonusScore] = useState('0');
@@ -371,6 +374,14 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           {evidenceError && <p role="alert" className="text-xs font-medium text-destructive">{evidenceError}</p>}
         </div>
       </TableCell>}
+      {isColumnVisible('specialistRevision') && <TableCell className="align-middle">
+        <TruncatedText
+          as="p"
+          value={specialistRevisionReason || '—'}
+          maxLines={4}
+          className="whitespace-normal break-words text-sm leading-5 text-muted-foreground"
+        />
+      </TableCell>}
     </TableRow>
   );
 });
@@ -384,6 +395,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   nowMs,
   draftValues,
   selectedCriterionId,
+  specialistRevisionReason,
   uploading,
   toolbar,
   onSelect,
@@ -419,7 +431,12 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
     {
       id: 'evidence',
       header: 'File minh chứng ★',
-      meta: { className: 'h-12 w-[180px]', disableTooltip: true },
+      meta: { className: 'h-12 w-[180px] border-r border-white/30', disableTooltip: true },
+    },
+    {
+      id: 'specialistRevision',
+      header: 'Nội dung chỉnh sửa Chuyên viên',
+      meta: { className: 'h-12 w-[260px]', disableTooltip: true },
     },
   ], []);
 
@@ -457,7 +474,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
         selectedRowId={selectedCriterionId}
         className="-mt-px"
         tableWrapperClassName="!overflow-visible"
-        tableClassName="min-w-[1100px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"
+        tableClassName="min-w-[1360px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"
         renderRow={(row, { selected, visibleColumnIds }) => {
           const criterion = row.original;
           return (
@@ -473,6 +490,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               nowMs={nowMs}
               selected={selected}
               visibleColumnIds={visibleColumnIds}
+              specialistRevisionReason={specialistRevisionReason}
               uploading={uploading}
               onSelect={onSelect}
               onDeleteEvidence={onDeleteEvidence}

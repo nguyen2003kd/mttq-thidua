@@ -98,6 +98,7 @@ export interface AuditEntry {
   id: string;
   timestamp: string;
   actorName: string;
+  displayTitle?: string;
   actorRole: Role;
   action: ActionType;
   fieldName: string;

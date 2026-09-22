@@ -5,6 +5,7 @@ import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
@@ -25,6 +26,19 @@ import { useTrustedTime } from '@/hooks/useTrustedTime';
 
 interface SelectedRow { entry: ScoreEntry; criterion?: CriteriaItem }
 
+function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }: { open: boolean; onOpenChange: (open: boolean) => void; item: SelectedRow | null; evidence: Evidence[]; onPreview: (file: Evidence) => void }) {
+  if (!item) return null;
+  const { entry, criterion } = item;
+  const fields = [
+    ['Loại tiêu chí', entry.isSupplementary ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'],
+    ['Hạn nộp', criterion?.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'],
+    ['Điểm đề xuất', `${entry.proposedScore ?? entry.value ?? 0} / ${criterion?.maxScore ?? entry.supplementaryMaxScore ?? 0}`],
+    ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${criterion?.bonusScore ?? 0}`],
+  ];
+
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p></section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
+}
+
 interface LocalityCriteriaListRow extends CriteriaTable {
   totalBonusScore: number;
   totalWithBonus: number;
@@ -33,13 +47,14 @@ interface LocalityCriteriaListRow extends CriteriaTable {
 
 function getSubmissionStageLabel(stage: SubmissionStage | null) {
   switch (stage) {
-    case 'Draft': return 'Bản nháp';
     case 'LocalSubmitted': return 'Đã nộp';
     case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
-    case 'SpecialistApproved': return 'Chuyên viên đã duyệt';
-    case 'LeaderApproved': return 'Lãnh đạo ban đã duyệt';
-    case 'CouncilApproved': return 'Hội đồng đã duyệt';
-    case 'CommitteeFinalized': return 'Đã công bố';
+    // Địa phương chỉ cần biết hồ sơ đã rời bước nộp hay đang cần xử lý lại;
+    // không hiển thị chi tiết các cấp duyệt nội bộ.
+    case 'SpecialistApproved':
+    case 'LeaderApproved':
+    case 'CouncilApproved':
+    case 'CommitteeFinalized': return 'Đã nộp';
     default: return 'Chưa nộp';
   }
 }
@@ -55,6 +70,7 @@ export default function LocalityCriteriaPage() {
   const [selectedListTable, setSelectedListTable] = useState<LocalityCriteriaListRow | null>(null);
   const [selected, setSelected] = useState<SelectedRow | null>(null);
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Evidence | null>(null);
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
@@ -265,18 +281,25 @@ export default function LocalityCriteriaPage() {
     });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
-  // Lấy lý do yêu cầu chỉnh sửa (ApprovalHistory có action = RequestRevision)
+  // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và riêng phản hồi từ Chuyên viên.
   const isRevisionStage = submission?.currentStage === 'RequiresRevision';
   const revisionHistoriesQuery = useQuery({
     queryKey: ['locality-revision-histories', submission?.id],
-    queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 10 }),
-    enabled: Boolean(submission?.id) && isRevisionStage,
+    queryFn: () => localityApi.listApprovalHistories(submission!.id, { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
+    enabled: Boolean(submission?.id),
   });
 
   const latestRevisionReason = useMemo(() => {
     const items = revisionHistoriesQuery.data?.items ?? [];
     const revisionItem = items.find((item) => item.action?.toLowerCase() === 'requestrevision');
     return revisionItem?.reason ?? null;
+  }, [revisionHistoriesQuery.data]);
+
+  const specialistRevisionReason = useMemo(() => {
+    const specialistRevision = (revisionHistoriesQuery.data?.items ?? []).find((item) => (
+      item.action?.toLowerCase() === 'requestrevision' && item.stageLevel === 'LocalSubmitted'
+    ));
+    return specialistRevision?.reason ?? null;
   }, [revisionHistoriesQuery.data]);
 
   // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
@@ -361,9 +384,11 @@ export default function LocalityCriteriaPage() {
   const currentTimeMs = trustedNowMs ?? 0;
   const parentDeadlineMs = detailTable.closeDate ? Date.parse(detailTable.closeDate) : Number.NaN;
   const parentDeadlineExpired = isTrustedTimeReady && Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= currentTimeMs;
-  // Chỉ bản nháp từ /my-submissions mới được địa phương chỉnh sửa hoặc nộp.
-  // Các giai đoạn khác chỉ cho phép xem và tải minh chứng đã có.
-  const submissionAllowsEditing = !submission || submission.currentStage === 'Draft';
+  // Địa phương được chỉnh sửa bản nháp hoặc hồ sơ bị yêu cầu chỉnh sửa.
+  // Các giai đoạn đã chuyển tiếp khác chỉ cho phép xem và tải minh chứng đã có.
+  const submissionAllowsEditing = !submission
+    || submission.currentStage === 'Draft'
+    || submission.currentStage === 'RequiresRevision';
   const submissionLockedReason = submission
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;
@@ -610,6 +635,7 @@ export default function LocalityCriteriaPage() {
         nowMs={currentTimeMs}
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}
+        specialistRevisionReason={specialistRevisionReason}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {
@@ -619,6 +645,7 @@ export default function LocalityCriteriaPage() {
         }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
             <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
             <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -650,6 +677,7 @@ export default function LocalityCriteriaPage() {
       </FormDialog>
       <LocalityCriteriaHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} submission={submissionDetailQuery.data ?? submission} groupName={detailTable.name} />
       <FilePreviewDialog file={previewFile} onOpenChange={(isOpen) => { if (!isOpen) setPreviewFile(null); }} />
+      <CriterionDetailDialog open={detailOpen && Boolean(selected)} onOpenChange={(open) => setDetailOpen(open)} item={selected} evidence={filesFor(selected?.entry.criteriaId)} onPreview={(file) => setPreviewFile({ id: file.id, originalName: file.fileName })} />
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa minh chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
         if (!deleteTarget || !ensureSubmissionIsEditable()) return;

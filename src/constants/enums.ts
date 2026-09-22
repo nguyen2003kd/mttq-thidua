@@ -14,7 +14,7 @@ export const SCORE_STATE_LABELS: Record<ScoreState, string> = {
   CHO_CHUYEN_VIEN: 'Đang chờ duyệt',
   CHO_DUYET_BAN: 'Đang chờ duyệt',
   CHO_DUYET_HOI_DONG: 'Đang chờ duyệt',
-  CHO_DUYET_BTT: 'Đã duyệt',
+  CHO_DUYET_BTT: 'Chờ duyệt',
   DA_CONG_BO: 'Đã công bố',
 };
 
@@ -40,10 +40,11 @@ export const ACTION_LABELS: Record<ActionType, string> = {
   PUBLISH: 'Công bố',
 };
 
-export const CRITERIA_STATUS_LABELS: Record<'DRAFT' | 'ACTIVE' | 'EXPIRED', string> = {
+export const CRITERIA_STATUS_LABELS: Record<'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'PUBLISHED', string> = {
   DRAFT: 'Nháp',
   ACTIVE: 'Đang hoạt động',
   EXPIRED: 'Đã kết thúc',
+  PUBLISHED: 'Đã công bố',
 };
 
 export const PUBLISH_CONFIRM_KEYWORD = 'CÔNG BỐ';

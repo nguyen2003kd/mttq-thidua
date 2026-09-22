@@ -62,6 +62,8 @@ function extractCellText(node: ReactNode): string {
 
 export interface DataTableColumnMeta {
   className?: string;
+  /** Class chỉ áp dụng cho tiêu đề cột khi dùng biến thể danh sách. */
+  headerClassName?: string;
   align?: 'left' | 'center' | 'right';
   /** Không tự bọc Tooltip cho ô có input, button, hoặc nội dung tương tác. */
   disableTooltip?: boolean;
@@ -120,6 +122,54 @@ export interface DataTableProps<TData, TValue = unknown> {
   enableColumnVisibility?: boolean;
   /** Khóa riêng để ghi nhớ cột đã ẩn/hiện trên từng bảng. */
   columnVisibilityStorageKey?: string;
+}
+
+/** Control chọn cột hiển thị trong dropdown Bộ lọc — nhận giá trị nháp (id cột hiển thị nối dấu phẩy), chỉ áp dụng khi bấm Xác nhận. */
+function ColumnVisibilityDraftControl({
+  value,
+  onChange,
+  items,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  items: { id: string; label: string }[];
+}) {
+  const visibleIds = useMemo(() => new Set(value ? value.split(',') : []), [value]);
+  return (
+    <div className="border-t border-border pt-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">Cột hiển thị</p>
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {visibleIds.size}/{items.length} cột
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {items.map(({ id, label }) => {
+          const visible = visibleIds.has(id);
+          return (
+            <label
+              key={id}
+              className={cn(
+                'flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-[13px] transition-colors hover:bg-muted',
+                visible ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              <Checkbox
+                checked={visible}
+                disabled={visible && visibleIds.size === 1}
+                onCheckedChange={(checked) => {
+                  const next = new Set(visibleIds);
+                  if (checked) next.add(id); else next.delete(id);
+                  onChange(Array.from(next).join(','));
+                }}
+              />
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function DataTable<TData, TValue = unknown>({
@@ -296,12 +346,25 @@ export function DataTable<TData, TValue = unknown>({
   const toggleableColumns = table.getAllLeafColumns().filter((column) => column.getCanHide());
   const visibleToggleableColumns = toggleableColumns.filter((column) => column.getIsVisible());
   const columnVisibilityItems = toggleableColumns.map((column) => {
-    const header = table.getFlatHeaders().find((item) => item.column.id === column.id);
-    const label = header
-      ? extractCellText(flexRender(header.column.columnDef.header, header.getContext())).trim()
-      : column.id;
+    const headerDef = column.columnDef.header;
+    let label = column.id;
+    if (typeof headerDef === 'string') {
+      label = headerDef;
+    } else if (headerDef) {
+      // getFlatHeaders chỉ chứa header đang hiển thị — cột bị ẩn phải lấy label từ columnDef
+      const header = table.getFlatHeaders().find((item) => item.column.id === column.id);
+      if (header) {
+        label = extractCellText(flexRender(headerDef, header.getContext())).trim() || column.id;
+      }
+    }
     return { column, label: label || column.id };
   });
+  const showColumnVisibility = enableColumnVisibility && toggleableColumns.length > 1;
+  /** Áp dụng danh sách id cột hiển thị (chuỗi nối dấu phẩy). Giá trị rỗng = hiện tất cả (mặc định). */
+  const applyColumnVisibility = (value: string) => {
+    const visibleIds = new Set(value ? value.split(',') : toggleableColumns.map((column) => column.id));
+    toggleableColumns.forEach((column) => column.toggleVisibility(visibleIds.has(column.id)));
+  };
   const listGridTemplate = visibleColumns
     .map((col) => (col.columnDef.meta as DataTableColumnMeta | undefined)?.list?.width ?? 'minmax(0,1fr)')
     .join(' ');
@@ -384,8 +447,9 @@ export function DataTable<TData, TValue = unknown>({
               minWidth: listMinWidth ? `${listMinWidth}px` : undefined,
             }}
           >
-          {table.getHeaderGroups().map((headerGroup) =>
-            headerGroup.headers.map((header, idx, arr) => {
+          {table.getHeaderGroups().map((headerGroup) => {
+            const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
+            return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
 
@@ -405,7 +469,7 @@ export function DataTable<TData, TValue = unknown>({
                     const headerText = extractCellText(headerContent).trim();
                     return headerText ? (
                       <Tooltip>
-                        <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                      <TooltipTrigger render={<span className={cn('block min-w-0 truncate', meta?.headerClassName)} />}>{headerContent}</TooltipTrigger>
                         <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
                       </Tooltip>
                     ) : headerContent;
@@ -415,8 +479,8 @@ export function DataTable<TData, TValue = unknown>({
                   )}
                 </div>
               );
-            }),
-          )}
+            });
+          })}
           </div>
         </div>
 
@@ -561,10 +625,17 @@ export function DataTable<TData, TValue = unknown>({
           {filters && (
             <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
               {filters}
+              {showColumnVisibility && (
+                <ColumnVisibilityDraftControl
+                  value={visibleToggleableColumns.map((column) => column.id).join(',')}
+                  onChange={applyColumnVisibility}
+                  items={columnVisibilityItems.map(({ column, label }) => ({ id: column.id, label }))}
+                />
+              )}
             </FilterDropdown>
           )}
           <div className="ml-auto flex items-center gap-2">
-            {enableColumnVisibility && toggleableColumns.length > 1 && (
+            {!filters && showColumnVisibility && (
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
                   <SlidersHorizontal className="size-4" /> Cột hiển thị
@@ -601,9 +672,10 @@ export function DataTable<TData, TValue = unknown>({
           <div className={cn('overflow-visible', tableWrapperClassName)}>
           <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
             <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
-                  {headerGroup.headers.map((header, idx) => {
+              {table.getHeaderGroups().map((headerGroup) => {
+                const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
+                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
+                  {visibleHeaders.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
 
@@ -646,7 +718,7 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   })}
                 </TableRow>
-              ))}
+              })}
             </TableHeader>
 
             <TableBody>

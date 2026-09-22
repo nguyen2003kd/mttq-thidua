@@ -11,6 +11,7 @@ import {
   ChevronDown,
   CheckCheck,
   Menu,
+  KeyRound,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -230,7 +231,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <button
                     type="button"
                     aria-label={unreadCount > 0 ? `Thông báo, ${unreadCount} chưa đọc` : 'Thông báo'}
-                    className="relative rounded-full border border-white/25 bg-white/10 p-2 text-white transition-all hover:bg-white/15"
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/25 bg-white/10 text-white transition-all hover:bg-white/15"
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
@@ -306,7 +307,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   render={
                     <button
                       type="button"
-                      className="flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-sm text-white transition-all hover:bg-white/15"
+                      className="flex h-9 items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 text-sm text-white transition-all hover:bg-white/15"
                     >
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-primary">
                         {user.name.charAt(0).toUpperCase()}
@@ -325,6 +326,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     <p className="text-xs text-muted-foreground mt-0.5">{ROLE_LABELS[user.role]}</p>
                   </div>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate(ROUTES.CHANGE_PASSWORD)} className="rounded-lg px-2 py-2">
+                    <KeyRound className="h-4 w-4" />
+                    <span>Đổi mật khẩu</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem variant="destructive" onClick={handleLogout} className="mt-1 rounded-lg px-2 py-2">
                     <LogOut className="h-4 w-4" />
                     <span>Đăng xuất</span>
