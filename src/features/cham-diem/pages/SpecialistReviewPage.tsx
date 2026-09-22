@@ -1297,10 +1297,10 @@ export default function SpecialistReviewPage() {
   const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
 
   // ── Data fetching ───────────────────────────────────────────────────────────
-  // Chỉ tab "Tất cả" của danh sách mới yêu cầu BE trả thêm các phường/xã chưa nộp;
-  // drill-down và các tab lọc theo stage chỉ cần submission thật.
-  const includeUnsubmitted = !diaPhuongId && !submissionStageFilter;
   const isDetailRoute = Boolean(nhomTieuChiId);
+  // Tab "Tất cả" cần cả row tổng hợp hasSubmission=false để địa phương chưa nộp
+  // vẫn xuất hiện. Trang chi tiết chỉ tải submissions thuộc nhóm đang xem.
+  const includeUnsubmitted = !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
     queryKey: ['specialist-submissions', { stage: activeSubmissionStage, includeUnsubmitted }],
     queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
@@ -1330,11 +1330,9 @@ export default function SpecialistReviewPage() {
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
-    // Ở danh sách không hiện bản nháp chưa nộp. Riêng trang chi tiết vẫn giữ bản nháp
-    // để xác định đúng địa phương theo URL và không chặn màn hình bằng EmptyState.
-    const items = isDetailRoute
-      ? visibleSubmissionItems
-      : visibleSubmissionItems.filter((submission) => submission.currentStage !== 'Draft');
+    // Ở drill-down phải dùng đúng response của nhóm; các row Draft vẫn được giữ để
+    // nhận diện địa phương theo URL, nhưng được tính là chưa nộp ở phía dưới.
+    const items = visibleSubmissionItems;
     const byLocality = new Map<string, SubmissionApi[]>();
     for (const s of items) {
       const key = getSubmissionLocalityCode(s);
@@ -1342,8 +1340,9 @@ export default function SpecialistReviewPage() {
       byLocality.get(key)!.push(s);
     }
     return Array.from(byLocality.entries()).map(([wardCode, subs]) => {
-      // Row hasSubmission=false là phường/xã chưa nộp bài do BE tổng hợp
-      const realSubs = subs.filter(isRealSubmission);
+      // Row hasSubmission=false là phường/xã chưa nộp bài do BE tổng hợp;
+      // submission Draft (địa phương soạn nhưng chưa nộp) cũng tính là chưa nộp.
+      const realSubs = subs.filter(isRealSubmission).filter((s) => s.currentStage !== 'Draft');
       const unsubmitted = realSubs.length === 0;
       const statuses = realSubs.map((s) => STAGE_TO_STATUS[s.currentStage] ?? 'CHO_DUYET');
       const overallStatus: LocalityRow['overallStatus'] = unsubmitted
@@ -1363,11 +1362,14 @@ export default function SpecialistReviewPage() {
         submissionIds: realSubs.map((s) => s.id),
       };
     });
-  }, [totalAppliedGroups, visibleSubmissionItems, isDetailRoute]);
+  }, [totalAppliedGroups, visibleSubmissionItems]);
 
-  // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp)
+  // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp và
+  // submission Draft — địa phương soạn nhưng chưa nộp thì không hiện thông tin)
   const localitySubmissions = useMemo(
-    () => visibleSubmissionItems.filter(isRealSubmission).filter((s) => getSubmissionLocalityCode(s) === localityCode),
+    () => visibleSubmissionItems
+      .filter(isRealSubmission)
+      .filter((submission) => getSubmissionLocalityCode(submission) === localityCode && submission.currentStage !== 'Draft'),
     [visibleSubmissionItems, localityCode],
   );
 
