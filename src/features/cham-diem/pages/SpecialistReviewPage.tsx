@@ -2187,7 +2187,7 @@ export default function SpecialistReviewPage() {
           </div>
         </div>
 
-        <div className="hidden max-h-[65dvh] overflow-auto xl:block">
+        <div className="hidden overflow-x-auto xl:block">
           <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1940px] table-fixed">
             <colgroup>
               <col className="w-[14%]" />

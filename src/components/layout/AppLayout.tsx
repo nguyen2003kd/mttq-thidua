@@ -4,6 +4,7 @@ import {
   Trophy,
   Table,
   ClipboardCheck,
+  ClipboardList,
   FileCheck,
   History,
   LogOut,
@@ -84,9 +85,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
       items.push({ to: ROUTES.LOCALITY_RESULTS, label: LABELS.LOCALITY_RESULT_TITLE, icon: Trophy });
     }
 
-    if (user?.role === 'SPECIALIST' && criteriaTables[0]) {
-      items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
-      items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
+    if (user?.role === 'SPECIALIST') {
+      if (criteriaTables[0]) {
+        items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
+        items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
+      }
+      items.push({ to: ROUTES.SPECIALIST_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
       items.push({ to: ROUTES.SPECIALIST_HISTORY, label: 'Lịch sử chấm', icon: History });
     }
 
