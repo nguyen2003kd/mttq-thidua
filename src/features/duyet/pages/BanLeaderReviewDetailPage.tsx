@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, EmptyState, FilePreviewDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ForwardSubmissionDialog, ReviewScoreModal } from '@/features/workflow/components';
+import { ForwardSubmissionDialog, OfficialScoreRevisionDialog, ReviewScoreModal } from '@/features/workflow/components';
 import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
 import { specialistApi, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { filesApi } from '@/features/files/api/filesApi';
@@ -89,6 +89,7 @@ export default function BanLeaderReviewDetailPage() {
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
+  const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [drafts, setDrafts] = useState<Record<string, LeaderScoreDraft>>({});
   const [pendingAttachments, setPendingAttachments] = useState<Record<string, File>>({});
   const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(() => new Set());
@@ -315,7 +316,16 @@ export default function BanLeaderReviewDetailPage() {
         {selectedCriterion && <Button variant="outline" disabled={!canProcess} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>}<Button disabled={!canProcess || savingAll} onClick={() => setApproveOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>
       </div>
       <div className="overflow-x-auto"><Table data-column-visibility-table="leader-review-detail" className="min-w-[1440px] table-fixed"><colgroup><col className="w-[23%]" /><col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[19%]" /><col className="w-[23%]" /></colgroup><TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm địa phương đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm chuyên viên chấm</TableHead><TableHead className="bg-primary px-4 py-3 text-primary-foreground">Nội dung diễn giải</TableHead></TableRow></TableHeader><TableBody>
-        {resultItems.map(({ criterion, result }) => { const revised = leaderScoreFor(result); return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}><TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p></TableCell><TableCell className="border-r border-primary/15 px-4 py-5">{result?.files.length ? <div className="space-y-1">{result.files.map((file) => file.url ? <a key={file.id} href={file.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 text-sm text-primary hover:underline"><FileText className="size-4" />{file.originalName}</a> : <p key={file.id} className="flex items-center gap-1 text-sm text-muted-foreground"><FileText className="size-4" />{file.originalName}</p>)}</div> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell><TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={revised?.point ?? result?.officialPoint ?? result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={revised?.bonusPoint ?? result?.officialBonusPoint ?? result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell><TableCell className="px-4 py-5 text-sm leading-6 text-muted-foreground"><p title={result?.explanation || '—'} className="line-clamp-4">{result?.explanation || '—'}</p></TableCell></TableRow>; })}
+        {resultItems.map(({ criterion, result }) => {
+          const revised = leaderScoreFor(result);
+          return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5">{result?.files.length ? <div className="space-y-1">{result.files.map((file) => file.url ? <a key={file.id} href={file.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 text-sm text-primary hover:underline"><FileText className="size-4" />{file.originalName}</a> : <p key={file.id} className="flex items-center gap-1 text-sm text-muted-foreground"><FileText className="size-4" />{file.originalName}</p>)}</div> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={revised?.point ?? result?.officialPoint ?? result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={revised?.bonusPoint ?? result?.officialBonusPoint ?? result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell>
+            <TableCell className="px-4 py-5 text-sm leading-6 text-muted-foreground"><p title={result?.explanation || '—'} className="line-clamp-4">{result?.explanation || '—'}</p></TableCell>
+          </TableRow>;
+        })}
         {!resultItems.length && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
       </TableBody></Table></div>
     </section>
@@ -327,6 +337,7 @@ export default function BanLeaderReviewDetailPage() {
       editDisabled={!canProcess}
       onEdit={() => { setCriterionDetailOpen(false); setScoreEditOpen(true); }}
     />
+    <OfficialScoreRevisionDialog open={Boolean(scoreRevisionResult)} onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }} result={scoreRevisionResult} criterionLabel={scoreRevisionResult?.criteriaContent ?? selectedResultItem?.criterion.content ?? 'Tiêu chí con'} />
 
     <ReviewScoreModal
       open={scoreEditOpen}
