@@ -44,6 +44,7 @@ const KetQuaPage = lazy(() => import('@/features/dia-phuong/pages/KetQuaPage'));
 const AuditLogPage = lazy(() => import('@/features/audit/AuditLogPage'));
 const NotFoundPage = lazy(() => import('@/features/NotFoundPage'));
 const SpecialistReviewPage = lazy(() => import('@/features/cham-diem/pages/SpecialistReviewPage'));
+const SpecialistScoreSummaryPage = lazy(() => import('@/features/cham-diem/pages/SpecialistScoreSummaryPage'));
 const SpecialistHistoryPage = lazy(() => import('@/features/cham-diem/pages/SpecialistHistoryPage'));
 const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaChildrenPage'));
 const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
@@ -136,6 +137,7 @@ export default function App() {
               <Route path="duyet" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId/:nhomTieuChiId" element={<SpecialistReviewPage />} />
+              <Route path="tong-hop-cham-diem" element={<SpecialistScoreSummaryPage />} />
               <Route path="lich-su" element={<SpecialistHistoryPage />} />
             </Route>
 
