@@ -1272,7 +1272,7 @@ export default function SpecialistReviewPage() {
 
   // Danh sách địa phương = nhóm submissions theo locality (wardCode)
   const totalAppliedGroups = useMemo(
-    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied').length,
+    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied' || g.status === 'Published').length,
     [groupsQuery.data],
   );
 
@@ -1324,7 +1324,7 @@ export default function SpecialistReviewPage() {
   const localityGroups: SpecialistCriteriaGroup[] = useMemo(() => {
     const groups = groupsQuery.data?.items ?? [];
     return groups
-      .filter((g) => g.status === 'Applied' || submissionByGroup.has(g.id))
+      .filter((g) => g.status === 'Applied' || g.status === 'Published' || submissionByGroup.has(g.id))
       .map((g) => {
         const submission = submissionByGroup.get(g.id);
         const items: SpecialistCriteriaItem[] = (g.criteria ?? [])
