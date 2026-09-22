@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
@@ -214,6 +214,17 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
 };
 
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  Pending: 'Chờ chấm',
+  Accepted: 'Đã chấp nhận',
+  RequiresRevision: 'Yêu cầu chỉnh sửa',
+};
+
+function formatReviewStatus(status: string | null) {
+  if (!status) return '—';
+  return REVIEW_STATUS_LABELS[status] ?? status;
+}
+
 // Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
 function resolveHistoryAction(action: string | null, reason: string | null): string {
   const key = action ?? '';
@@ -241,7 +252,7 @@ function parseFileSnapshot(oldFiles: string | null): FileSnapshotItem[] {
 
 function SnapshotField({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
-    <div className="flex items-center justify-between gap-2 py-1 text-xs">
+    <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium tabular-nums">{value ?? '—'}</span>
     </div>
@@ -290,7 +301,7 @@ function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, current
         <SnapshotField label="Điểm thưởng (cũ)" value={item.oldBonusPoint} />
         <SnapshotField label="Điểm chuyên viên (cũ)" value={item.oldOfficialPoint} />
         <SnapshotField label="Điểm thưởng chuyên viên (cũ)" value={item.oldOfficialBonusPoint} />
-        <SnapshotField label="Trạng thái (cũ)" value={item.oldReviewStatus} />
+        <SnapshotField label="Trạng thái (cũ)" value={formatReviewStatus(item.oldReviewStatus)} />
       </div>
 
       {(pointChanged || bonusChanged || explanationChanged) && (
@@ -1239,7 +1250,7 @@ export default function SpecialistReviewPage() {
 
         <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Nhóm tiêu chí thi đua" countLabel={`${filteredGroups.length} nhóm tiêu chí`} />
-          <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-4 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-4 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:top-[-24px] sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="relative w-full max-w-xl sm:flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -1291,7 +1302,7 @@ export default function SpecialistReviewPage() {
                 <col className="w-[12%]" />
               </colgroup>
               <TableHeader>
-                <TableRow className="sticky top-[73px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary">
+                <TableRow className="sticky top-[57px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[49px]">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
@@ -1503,7 +1514,7 @@ export default function SpecialistReviewPage() {
           countLabel={`${selectedGroup.items.length} tiêu chí`}
         />
 
-        <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur lg:flex-row lg:items-center lg:justify-between sm:px-5">
+        <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
             <Button variant="outline" onClick={openSupplementaryDialog}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
@@ -1525,7 +1536,7 @@ export default function SpecialistReviewPage() {
               <col className="w-[28%]" />
             </colgroup>
             <TableHeader>
-              <TableRow className="sticky top-[61px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary">
+              <TableRow className="sticky top-[45px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[37px]">
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
                 <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>

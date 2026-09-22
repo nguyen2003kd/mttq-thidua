@@ -137,7 +137,7 @@ export default function BanLeaderReviewDetailPage() {
           <div><p className="text-sm font-semibold">Chi tiết tiêu chí</p><p className="mt-0.5 text-xs text-white/75">Đối chiếu điểm đề xuất, minh chứng và điểm thẩm định.</p></div>
           <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium">Tổng điểm: {record.totalScore}</span>
         </div>
-        <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
+        <div className="sticky top-[-16px] z-20 flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:top-[-24px]">
           <Button variant="outline" disabled={!canProcess} onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="mr-1.5 size-4" />Thêm tiêu chí bổ sung</Button>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" disabled={!canProcess} className="border-warning text-warning-foreground hover:bg-warning/10" onClick={() => setRejectOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>
