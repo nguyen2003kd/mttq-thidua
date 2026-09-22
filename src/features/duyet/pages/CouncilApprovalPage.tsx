@@ -31,9 +31,35 @@ interface LocalityReviewRow {
   latestStage: SubmissionApi['currentStage'];
 }
 
+// Gọi API y hệt trang /chuyen-vien/duyet: một endpoint /api/v1/submissions,
+// includeUnsubmitted=true để địa phương chưa nộp vẫn xuất hiện, gộp tất cả trang.
 async function listEveryCouncilSubmission() {
-  const pages = await Promise.all(COUNCIL_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
-  return { items: pages.flatMap((page) => page.items).filter(isRealSubmission) };
+  const firstPage = await specialistApi.listAllSubmissions({
+    includeUnsubmitted: true,
+    page: 1,
+    pageSize: 100,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
+      includeUnsubmitted: true,
+      page: index + 2,
+      pageSize: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+}
+
+/** URL dùng mã số (vd. 26122), trong khi một số response trả `loc-26122`. */
+function getSubmissionLocalityCode(submission: SubmissionApi) {
+  const rawCode = submission.createdByWardCode ?? submission.createdBy ?? 'unknown';
+  return rawCode.replace(/^loc-/i, '');
 }
 
 function formatUpdated(row: LocalityReviewRow) {
@@ -55,23 +81,38 @@ export default function CouncilApprovalPage() {
   const [selectedRow, setSelectedRow] = useState<LocalityReviewRow | null>(null);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CouncilStatusFilter>('CHO_DUYET_HOI_DONG');
+  const [statusFilter, setStatusFilter] = useState<CouncilStatusFilter>('ALL');
   const [commentOpen, setCommentOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
 
   const submissionsQuery = useQuery({
-    queryKey: ['council-submissions', { stage: COUNCIL_STAGE }],
+    queryKey: ['council-submissions', { includeUnsubmitted: true }],
     queryFn: listEveryCouncilSubmission,
   });
+
+  const groupsQuery = useQuery({
+    queryKey: ['council-criteria-groups'],
+    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+  });
+
+  const totalAppliedGroups = useMemo(
+    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied' || g.status === 'Published').length,
+    [groupsQuery.data],
+  );
 
   const rows = useMemo<LocalityReviewRow[]>(() => {
     const byLocality = new Map<string, SubmissionApi[]>();
     for (const submission of submissionsQuery.data?.items ?? []) {
-      const localityId = submission.createdByWardCode ?? submission.createdBy ?? `submission:${submission.id}`;
+      const localityId = getSubmissionLocalityCode(submission);
       byLocality.set(localityId, [...(byLocality.get(localityId) ?? []), submission]);
     }
 
-    return Array.from(byLocality.entries()).map(([localityId, submissions]) => {
+    return Array.from(byLocality.entries()).map(([localityId, allSubmissions]) => {
+      // Chỉ hồ sơ đã tới cấp Hội đồng mới tính là đã nộp; còn lại (Draft,
+      // LocalSubmitted, SpecialistApproved, row tổng hợp) hiển thị như chưa nộp.
+      const submissions = allSubmissions
+        .filter(isRealSubmission)
+        .filter((submission) => (COUNCIL_VISIBLE_STAGES as readonly string[]).includes(submission.currentStage));
       const totals = getResultTotals(submissions);
       const latestSubmission = submissions
         .slice()
@@ -79,15 +120,15 @@ export default function CouncilApprovalPage() {
 
       return {
         locality: {
-          id: submissions[0]?.createdByWardCode ? `loc-${localityId}` : localityId,
-          name: submissions[0]?.localityFullName ?? submissions[0]?.createdByUsername ?? localityId,
-          fullName: submissions[0]?.localityFullName ?? localityId,
+          id: `loc-${localityId}`,
+          name: allSubmissions[0]?.localityFullName ?? allSubmissions[0]?.createdByUsername ?? localityId,
+          fullName: allSubmissions[0]?.localityFullName ?? localityId,
           region: submissions[0]?.createdByWardCode ?? '',
         },
         submissions,
         ...totals,
         latestUpdatedAt: latestSubmission?.updatedAt ?? latestSubmission?.submittedAt ?? latestSubmission?.createdAt ?? null,
-        latestStage: latestSubmission?.currentStage ?? COUNCIL_STAGE,
+        latestStage: latestSubmission?.currentStage ?? null,
       };
     });
   }, [submissionsQuery.data]);
@@ -99,12 +140,12 @@ export default function CouncilApprovalPage() {
 
   const columns = useMemo<ColumnDef<LocalityReviewRow>[]>(() => [
     { accessorFn: (row) => row.locality.fullName, header: 'Tên địa phương', cell: ({ row }) => <div><p className="font-semibold text-foreground">{row.original.locality.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{row.original.locality.region}</p></div>, meta: { list: { width: 'minmax(220px,1.25fr)' } } },
-    { id: 'submissionCount', accessorFn: (row) => row.submissions.length, header: 'Số nhóm tiêu chí', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.submissions.length}</span>, meta: { align: 'center', list: { width: 'minmax(140px,.8fr)' } } },
+    { id: 'submissionCount', accessorFn: (row) => row.submissions.length, header: 'Nhóm tiêu chí', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.submissions.length}/{totalAppliedGroups}</span>, meta: { align: 'center', list: { width: 'minmax(140px,.8fr)' } } },
     { accessorFn: (row) => row.maximumScore, header: 'Tổng điểm', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.maximumScore}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.8fr)' } } },
     { accessorFn: (row) => row.proposedTotal, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.proposedTotal}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.9fr)' } } },
     { id: 'updatedAt', accessorFn: formatUpdated, header: 'Cập nhật lần cuối', cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatUpdated(row.original)}</span>, meta: { list: { width: 'minmax(180px,1fr)' } } },
-    { id: 'state', accessorFn: (row) => row.latestStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.latestStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(170px,.9fr)' } } },
-  ], []);
+    { id: 'state', accessorFn: (row) => row.submissions.length === 0 ? 'Chưa nộp' : row.latestStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.submissions.length === 0 ? <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge> : row.original.latestStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(170px,.9fr)' } } },
+  ], [totalAppliedGroups]);
 
   const openGroups = () => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${selectedRow.locality.id}`);
   const canProcessSelected = selectedRow?.submissions.some((submission) => submission.currentStage === COUNCIL_STAGE) ?? false;
@@ -142,8 +183,8 @@ export default function CouncilApprovalPage() {
     toDate ? { label: 'Đến ngày', value: toDate, onClear: () => setToDate('') } : null,
   ].filter((item): item is { label: string; value: string; onClear: () => void } => Boolean(item));
 
-  if (submissionsQuery.isLoading) return <PageLoading label="Đang tải hồ sơ chờ Hội đồng duyệt…" />;
-  if (submissionsQuery.isError) return <EmptyState variant="error" title="Không tải được hồ sơ" description={submissionsQuery.error instanceof Error ? submissionsQuery.error.message : 'Vui lòng thử lại sau.'} />;
+  if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải danh sách địa phương…" />;
+  if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được hồ sơ" description={submissionsQuery.error instanceof Error ? submissionsQuery.error.message : 'Vui lòng thử lại sau.'} />;
 
   return <div className="space-y-6">
     <PageHeader title="Danh sách địa phương" description="Hồ sơ do lãnh đạo ban chuyển Hội đồng thi đua xem xét." actions={<Button variant="outline" render={<Link to="/hoi-dong/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử duyệt</Button>} />
