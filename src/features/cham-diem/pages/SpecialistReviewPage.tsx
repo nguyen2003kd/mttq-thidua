@@ -39,7 +39,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ForwardSubmissionDialog } from '@/features/workflow/components';
+import { ForwardingDocumentsDialog, ForwardSubmissionDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import {
   localityApi,
@@ -1247,6 +1247,7 @@ export default function SpecialistReviewPage() {
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
+  const [forwardingPreviewFile, setForwardingPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
@@ -1369,6 +1370,16 @@ export default function SpecialistReviewPage() {
   const selectedSubmissionDetailQuery = useQuery({
     queryKey: ['specialist-submission-detail', selectedSubmission?.id],
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
+    enabled: Boolean(selectedSubmission?.id),
+  });
+  const selectedForwardingHistoriesQuery = useQuery({
+    queryKey: ['specialist-forwarding-histories', selectedSubmission?.id],
+    queryFn: () => specialistApi.listApprovalHistories(selectedSubmission!.id, { action: 'Approve', page: 1, pageSize: 100 }),
+    enabled: Boolean(selectedSubmission?.id),
+  });
+  const legacySpecialistForwardingFilesQuery = useQuery({
+    queryKey: ['specialist-legacy-forwarding-files', selectedSubmission?.id],
+    queryFn: () => filesApi.list({ entityType: 'Submission', entityId: selectedSubmission!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     enabled: Boolean(selectedSubmission?.id),
   });
 
@@ -1782,6 +1793,8 @@ export default function SpecialistReviewPage() {
   }
 
   const selectedSubmissionStage = selectedSubmissionDetailQuery.data?.currentStage ?? selectedSubmission?.currentStage;
+  const specialistForwarding = (selectedForwardingHistoriesQuery.data?.items ?? []).find((history) => history.stageLevel === 'LocalSubmitted');
+  const specialistForwardingFiles = specialistForwarding?.files?.length ? specialistForwarding.files : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
   const specialistPermissions = getSpecialistSubmissionPermissions(selectedSubmissionStage);
   const specialistActionsLocked = !specialistPermissions.canEdit;
   const specialistLockReason = specialistPermissions.disabledReason;
@@ -2031,6 +2044,11 @@ export default function SpecialistReviewPage() {
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
           countLabel={`${selectedGroup.items.length} tiêu chí`}
+          actions={
+            (specialistForwarding || specialistForwardingFiles.length > 0) ? (
+              <ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={(file) => setForwardingPreviewFile({ id: file.id, originalName: file.displayName || file.originalName || 'Tệp đính kèm' })} />
+            ) : undefined
+          }
         />
 
         <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
@@ -2403,6 +2421,7 @@ export default function SpecialistReviewPage() {
         result={scoreRevisionResult}
         criterionLabel={scoreRevisionCriterionLabel}
       />
+      <FilePreviewDialog file={forwardingPreviewFile} onOpenChange={(open) => { if (!open) setForwardingPreviewFile(null); }} />
       <RevisionDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
