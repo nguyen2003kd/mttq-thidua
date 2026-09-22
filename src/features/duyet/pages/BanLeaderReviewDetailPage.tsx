@@ -115,9 +115,9 @@ export default function BanLeaderReviewDetailPage() {
     queryFn: () => specialistApi.getSubmission(submissionsQuery.data!.id),
     enabled: Boolean(submissionsQuery.data?.id),
   });
-  const forwardingFilesQuery = useQuery({
-    queryKey: ['leader-specialist-forwarding-files', submissionsQuery.data?.id],
-    queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submissionsQuery.data!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
+  const approvalHistoriesQuery = useQuery({
+    queryKey: ['leader-approval-histories', submissionsQuery.data?.id],
+    queryFn: () => specialistApi.listApprovalHistories(submissionsQuery.data!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(submissionsQuery.data?.id),
   });
 
@@ -142,7 +142,8 @@ export default function BanLeaderReviewDetailPage() {
   const maximumScore = criteria.reduce((total, criterion) => total + criterion.maxPoint, 0);
   const maximumBonus = criteria.reduce((total, criterion) => total + criterion.maxBonusPoint, 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? localityCode;
-  const specialistForwardingFiles = forwardingFilesQuery.data?.items ?? [];
+  const specialistForwarding = (approvalHistoriesQuery.data?.items ?? [])
+    .find((history) => history.stageLevel === 'LocalSubmitted');
   const canProcess = submission.currentStage === LEADER_STAGE;
   const selectedResultItem = resultItems.find(({ criterion }) => criterion.id === selectedCriteriaId);
   const selectedCriterion = selectedResultItem?.criterion;
@@ -254,19 +255,19 @@ export default function BanLeaderReviewDetailPage() {
     }
   };
 
-  const approve = async ({ explanation }: { explanation: string }) => {
+  const approve = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
     try {
       if (Object.keys(drafts).length > 0 && !await saveAllScores(false)) {
         throw new Error('Chưa thể lưu điểm Chuyên viên đã điều chỉnh trước khi chuyển hồ sơ.');
       }
-      const response = await specialistApi.approveSubmission(submission.id, explanation || 'Lãnh đạo ban đã thẩm định và duyệt hồ sơ.');
-      if (!response.processed) throw new Error('API chưa xử lý duyệt hồ sơ.');
+      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
       const updatedSubmission = await specialistApi.getSubmission(submission.id);
       if (updatedSubmission.currentStage !== 'LeaderApproved') {
         throw new Error(`Trạng thái sau khi duyệt không hợp lệ: ${updatedSubmission.currentStage}.`);
       }
       await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
       await queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-approval-histories', submission.id] });
       toast.success('Đã duyệt và trình hồ sơ lên Hội đồng.');
       navigate(backToList);
     } catch (error) {
@@ -307,7 +308,7 @@ export default function BanLeaderReviewDetailPage() {
 
     <section className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card [&_a]:min-w-0 [&_a]:break-all [&_p]:break-words [&_table]:min-w-[1440px] [&_table]:table-fixed [&_td]:min-w-0 [&_td]:whitespace-normal">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-4 sm:px-5"><div><p className="flex items-center gap-2 text-base font-semibold"><FileText className="size-4 text-primary" />Chi tiết tiêu chí con</p><p className="mt-1 text-sm text-muted-foreground">Đối chiếu bằng chứng, điểm địa phương đề xuất, điểm chuyên viên chấm và nội dung diễn giải trước khi phê duyệt.</p></div><span className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-medium tabular-nums text-primary">{criteria.length} tiêu chí</span></div>
-      {specialistForwardingFiles.length > 0 && <div className="border-b border-primary/20 bg-primary/[0.06] px-4 py-3 sm:px-5"><div className="rounded-lg border-l-4 border-primary bg-card px-3 py-3 shadow-sm sm:px-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="flex items-center gap-2 text-sm font-bold text-primary"><span className="flex size-7 items-center justify-center rounded-full bg-primary/10"><Paperclip className="size-4" /></span>Tệp Chuyên viên đính kèm cho nhóm tiêu chí</p><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{specialistForwardingFiles.length} tệp</span></div><div className="mt-2 pl-9"><SubmissionFileList files={specialistForwardingFiles} onPreview={setPreviewFile} /></div></div></div>}
+      {specialistForwarding && <div className="border-b border-primary/20 bg-primary/[0.06] px-4 py-3 sm:px-5"><div className="rounded-lg border-l-4 border-primary bg-card px-3 py-3 shadow-sm sm:px-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="flex items-center gap-2 text-sm font-bold text-primary"><span className="flex size-7 items-center justify-center rounded-full bg-primary/10"><Paperclip className="size-4" /></span>Hồ sơ Chuyên viên chuyển lên</p>{specialistForwarding.files.length > 0 && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{specialistForwarding.files.length} tệp</span>}</div>{specialistForwarding.reason && <div className="mt-2 pl-9"><p className="text-xs font-medium text-muted-foreground">Diễn giải hồ sơ từ chuyên viên</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{specialistForwarding.reason}</p></div>}{specialistForwarding.files.length > 0 && <div className="mt-3 pl-9"><SubmissionFileList files={specialistForwarding.files} onPreview={setPreviewFile} /></div>}</div></div>}
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border bg-card/95 px-4 py-3 sm:px-5">
         <TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
         <Button variant="outline" disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
@@ -385,10 +386,8 @@ export default function BanLeaderReviewDetailPage() {
       onOpenChange={setApproveOpen}
       localityName={localityName}
       groupName={groupQuery.data.name}
-      submissionId={submission.id}
       targetLabel="Hội đồng Thi đua - Khen thưởng"
       explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban"
-      forwardingCategory="LeaderForwarding"
       onConfirm={approve}
     />
   </div>;
