@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eye, FileText, MessageS
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
-import { Button, DataTable, EmptyState, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, DataTable, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,7 +18,7 @@ import { formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
 
-const FINAL_STAGE = 'CommitteeFinalized' as const;
+const FINAL_STAGE = 'CouncilApproved' as const;
 
 const ACTION_MAP: Record<string, ActionType> = {
   approve: 'APPROVE',
@@ -75,8 +75,7 @@ function classificationBadgeClass(score: number, maxScore: number) {
 }
 
 function publicationStatusLabel(status: string) {
-  if (status === 'CommitteeFinalized') return 'Đã công bố';
-  if (status === 'CouncilApproved') return 'Hội đồng đã duyệt';
+  if (status === 'CommitteeFinalized' || status === 'CouncilApproved') return 'Đã công bố';
   if (status === 'RequiresRevision') return 'Yêu cầu chỉnh sửa';
   if (status === 'InProgress') return 'Đang xử lý';
   return 'Chưa nộp';
@@ -145,6 +144,7 @@ export default function LocalityResultsPage() {
   const [selectedRow, setSelectedRow] = useState<ResultRow | null>(null);
   const [evidenceDialog, setEvidenceDialog] = useState<{ criterionName: string; files: SubmissionResultFile[] } | null>(null);
   const [criterionDialog, setCriterionDialog] = useState<{ criterion: CriteriaApi; result: SubmissionResultItem | null } | null>(null);
+  const [publicationPreviewFile, setPublicationPreviewFile] = useState<{ id: string; displayName?: string | null; originalName?: string | null } | null>(null);
   const [mobilePage, setMobilePage] = useState(1);
 
   const submissionsQuery = useQuery({
@@ -161,7 +161,10 @@ export default function LocalityResultsPage() {
     queryFn: resultPublicationApi.getLocalResult,
   });
 
-  const submissions = useMemo(() => submissionsQuery.data?.items ?? [], [submissionsQuery.data]);
+  const submissions = useMemo(
+    () => publicationQuery.data?.isPublished ? (submissionsQuery.data?.items ?? []) : [],
+    [publicationQuery.data?.isPublished, submissionsQuery.data],
+  );
   const groupById = useMemo(() => new Map((groupsQuery.data?.items ?? []).map((group) => [group.id, group])), [groupsQuery.data]);
 
   const detailQuery = useQuery({
@@ -245,7 +248,7 @@ export default function LocalityResultsPage() {
 
   // ── Danh sách kết quả đã công bố ────────────────────────────────────────────
   if (!id) {
-    if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
+    if (submissionsQuery.isLoading || groupsQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
     if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error)} />;
 
     const selectedComments = selectedRow ? commentsQuery.data?.get(selectedRow.submission.id) : null;
@@ -253,7 +256,10 @@ export default function LocalityResultsPage() {
     return <div className="space-y-5">
       <PageHeader title="Kết quả tiêu chí thi đua" description="Kết quả chính thức đã được Ủy ban thường trực công bố." />
       {publicationQuery.data?.isPublished && <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"><Trophy className="mt-0.5 size-5 shrink-0" /><div><p className="font-semibold">Kết quả đã được công bố chung</p><p className="mt-1 text-sm">{publicationQuery.data.localityName ? `${publicationQuery.data.localityName} có thể xem kết quả theo từng nhóm tiêu chí.` : 'Bạn có thể xem kết quả theo từng nhóm tiêu chí.'}{publicationQuery.data.publishedAt ? ` Thời gian công bố: ${formatDate(publicationQuery.data.publishedAt)}.` : ''}</p></div></div>}
+      {publicationQuery.data?.isPublished && publicationQuery.data.publicationNote && <section className="rounded-xl border border-primary/20 bg-primary/5 p-5"><p className="text-sm font-semibold text-primary">Nhận xét chung của Ban Thường trực</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{publicationQuery.data.publicationNote}</p></section>}
+      {publicationQuery.data?.isPublished && publicationQuery.data.files.length > 0 && <section className="rounded-xl border border-primary/20 bg-card p-5 shadow-sm"><p className="text-sm font-semibold text-primary">Tệp đính kèm công bố</p><div className="mt-3 flex flex-wrap gap-2">{publicationQuery.data.files.map((file) => <Button key={file.id} type="button" variant="outline" className="max-w-full justify-start" onClick={() => setPublicationPreviewFile(file)}><FileText className="size-4 shrink-0 text-primary" /><span className="truncate">{file.displayName || file.originalName}</span></Button>)}</div></section>}
       {publicationQuery.data?.isPublished && <section className="rounded-xl border border-primary/20 bg-card p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Kết quả công bố theo nhóm tiêu chí</h2><p className="mt-1 text-sm text-muted-foreground">Nhóm chưa nộp hoặc đang yêu cầu chỉnh sửa vẫn được hiển thị với điểm hiện tại bằng 0.</p></div><Badge variant="outline" className="shrink-0">{publicationQuery.data.criteriaGroups.length} nhóm</Badge></div><div className="mt-4 overflow-x-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Nhóm tiêu chí</TableHead><TableHead>Trạng thái</TableHead><TableHead className="text-right">Điểm kết quả</TableHead></TableRow></TableHeader><TableBody>{publicationQuery.data.criteriaGroups.map((group) => <TableRow key={group.criteriaGroupId}><TableCell className="font-medium">{group.name}</TableCell><TableCell><Badge variant="outline">{publicationStatusLabel(group.status)}</Badge></TableCell><TableCell className="text-right font-semibold tabular-nums">{group.currentPoint} <span className="font-normal text-muted-foreground">/ {group.maxPoint}</span></TableCell></TableRow>)}</TableBody></Table></div></section>}
+      <FilePreviewDialog file={publicationPreviewFile} onOpenChange={(open) => { if (!open) setPublicationPreviewFile(null); }} />
       {selectedRow && (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">
@@ -295,9 +301,9 @@ export default function LocalityResultsPage() {
   }
 
   // ── Chi tiết kết quả ────────────────────────────────────────────────────────
-  if (detailQuery.isLoading || detailGroupQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
+  if (detailQuery.isLoading || detailGroupQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
   if (detailQuery.isError) return <EmptyState variant="error" title="Không tải được chi tiết kết quả" description={getLocalityApiError(detailQuery.error)} />;
-  if (!detailSubmission || detailSubmission.currentStage !== FINAL_STAGE) {
+  if (!publicationQuery.data?.isPublished || !detailSubmission || detailSubmission.currentStage !== FINAL_STAGE) {
     return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được Ủy ban thường trực công bố." action={<Button variant="outline" render={<Link to="/dia-phuong/ket-qua" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
   }
 

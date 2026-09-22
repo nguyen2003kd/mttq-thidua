@@ -40,7 +40,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog } from '@/features/workflow/components';
-import { getSpecialistSubmissionPermissions, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import {
   localityApi,
   type ApprovalHistoryItem,
@@ -93,7 +93,7 @@ interface LocalityRow {
   localityId: string;
   localityName: string;
   completionRate: string;
-  overallStatus: 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
+  overallStatus: 'CHUA_NOP' | 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
   hasNewSubmissions: boolean;
   hasModificationRequest: boolean;
   submissionIds: string[];
@@ -120,9 +120,10 @@ function getGroupStatusFilterLabel(status: GroupStatusFilter) {
   return GROUP_STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ?? '';
 }
 
-async function listEverySubmission(stage: SubmissionStageFilter) {
+async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmitted: boolean) {
   const firstPage = await specialistApi.listAllSubmissions({
     stage: stage || undefined,
+    includeUnsubmitted: includeUnsubmitted || undefined,
     page: 1,
     pageSize: 100,
     sortBy: 'createdAt',
@@ -134,6 +135,7 @@ async function listEverySubmission(stage: SubmissionStageFilter) {
   const remainingPages = await Promise.all(
     Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
       stage: stage || undefined,
+      includeUnsubmitted: includeUnsubmitted || undefined,
       page: index + 2,
       pageSize: 100,
       sortBy: 'createdAt',
@@ -862,6 +864,7 @@ function RevisionDialog({
 }
 
 function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
+  if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge>;
   if (status === 'DA_DUYET') return <Badge variant="success">Đã duyệt</Badge>;
   if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
   return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Đang chờ duyệt</Badge>;
@@ -1254,9 +1257,12 @@ export default function SpecialistReviewPage() {
   const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
 
   // ── Data fetching ───────────────────────────────────────────────────────────
+  // Chỉ tab "Tất cả" của danh sách mới yêu cầu BE trả thêm các phường/xã chưa nộp;
+  // drill-down và các tab lọc theo stage chỉ cần submission thật.
+  const includeUnsubmitted = !diaPhuongId && !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
-    queryKey: ['specialist-submissions', { stage: activeSubmissionStage }],
-    queryFn: () => listEverySubmission(activeSubmissionStage),
+    queryKey: ['specialist-submissions', { stage: activeSubmissionStage, includeUnsubmitted }],
+    queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
   });
 
   const groupsQuery = useQuery({
@@ -1271,35 +1277,40 @@ export default function SpecialistReviewPage() {
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
-    const submissions = allSubmissionsQuery.data?.items ?? [];
+    const items = allSubmissionsQuery.data?.items ?? [];
     const byLocality = new Map<string, SubmissionApi[]>();
-    for (const s of submissions) {
+    for (const s of items) {
       const key = s.createdByWardCode ?? s.createdBy ?? 'unknown';
       if (!byLocality.has(key)) byLocality.set(key, []);
       byLocality.get(key)!.push(s);
     }
     return Array.from(byLocality.entries()).map(([wardCode, subs]) => {
-      const statuses = subs.map((s) => STAGE_TO_STATUS[s.currentStage] ?? 'CHO_DUYET');
-      const overallStatus: LocalityRow['overallStatus'] = statuses.includes('YEU_CAU_SUA')
-        ? 'YEU_CAU_SUA'
-        : statuses.includes('CHO_DUYET')
-          ? 'CHO_DUYET'
-          : 'DA_DUYET';
+      // Row hasSubmission=false là phường/xã chưa nộp bài do BE tổng hợp
+      const realSubs = subs.filter(isRealSubmission);
+      const unsubmitted = realSubs.length === 0;
+      const statuses = realSubs.map((s) => STAGE_TO_STATUS[s.currentStage] ?? 'CHO_DUYET');
+      const overallStatus: LocalityRow['overallStatus'] = unsubmitted
+        ? 'CHUA_NOP'
+        : statuses.includes('YEU_CAU_SUA')
+          ? 'YEU_CAU_SUA'
+          : statuses.includes('CHO_DUYET')
+            ? 'CHO_DUYET'
+            : 'DA_DUYET';
       return {
         localityId: wardCode,
         localityName: subs[0]?.localityFullName ?? subs[0]?.createdByUsername ?? wardCode,
-        completionRate: `${subs.length}/${totalAppliedGroups}`,
+        completionRate: `${realSubs.length}/${totalAppliedGroups}`,
         overallStatus,
         hasNewSubmissions: statuses.includes('CHO_DUYET'),
         hasModificationRequest: statuses.includes('YEU_CAU_SUA'),
-        submissionIds: subs.map((s) => s.id),
+        submissionIds: realSubs.map((s) => s.id),
       };
     });
   }, [allSubmissionsQuery.data, totalAppliedGroups]);
 
-  // Submissions của địa phương đang chọn
+  // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp)
   const localitySubmissions = useMemo(
-    () => (allSubmissionsQuery.data?.items ?? []).filter((s) => (s.createdByWardCode ?? s.createdBy ?? 'unknown') === diaPhuongId),
+    () => (allSubmissionsQuery.data?.items ?? []).filter(isRealSubmission).filter((s) => (s.createdByWardCode ?? s.createdBy ?? 'unknown') === diaPhuongId),
     [allSubmissionsQuery.data, diaPhuongId],
   );
 

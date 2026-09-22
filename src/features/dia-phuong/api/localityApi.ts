@@ -219,7 +219,7 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissio
     name: group.name,
     totalScore: group.maxPoint,
     content: group.content ?? undefined,
-    status: group.status === 'Applied' ? 'ACTIVE' : group.status === 'Closed' ? 'EXPIRED' : 'DRAFT',
+    status: group.status === 'Applied' ? 'ACTIVE' : group.status === 'Published' ? 'PUBLISHED' : group.status === 'Closed' ? 'EXPIRED' : 'DRAFT',
     criteria: (group.criteria ?? [])
       // Tiêu chí bổ sung chỉ áp dụng cho submission được chỉ định (TargetSubmissionId)
       .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === targetSubmissionId)

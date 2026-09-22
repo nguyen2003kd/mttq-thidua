@@ -53,6 +53,7 @@ const criteriaStatusVariant: Record<CriteriaTableStatus, BadgeVariant> = {
   DRAFT: 'warning',
   ACTIVE: 'success',
   EXPIRED: 'secondary',
+  PUBLISHED: 'success',
 };
 
 const actionVariant: Record<ActionType, BadgeVariant> = {

@@ -7,7 +7,6 @@ import { Button, EmptyState, FileUpload, PageHeader, PageLoading } from '@/compo
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { filesApi } from '@/features/files/api/filesApi';
 import { resultPublicationApi, type ResultPublicationCriteriaGroup } from '../api/resultPublicationApi';
 
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
@@ -56,18 +55,7 @@ export default function ResultPublicationPage() {
 
   const publishMutation = useMutation({
     mutationFn: async ({ note, file }: { note: string; file: File | null }) => {
-      const result = await resultPublicationApi.publish(note);
-      if (file) {
-        await filesApi.upload(file, {
-          entityType: 'ResultPublication',
-          entityId: result.publicationId,
-          category: 'PublicationComment',
-          title: 'Tệp đính kèm nhận xét chung',
-          description: note,
-          visibility: 'Public',
-        });
-      }
-      return result;
+      return resultPublicationApi.publish(note, file);
     },
     onSuccess: async (result) => {
       await Promise.all([
