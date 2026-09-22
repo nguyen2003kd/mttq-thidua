@@ -281,18 +281,25 @@ export default function LocalityCriteriaPage() {
     });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
-  // Lấy lý do yêu cầu chỉnh sửa (ApprovalHistory có action = RequestRevision)
+  // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và riêng phản hồi từ Chuyên viên.
   const isRevisionStage = submission?.currentStage === 'RequiresRevision';
   const revisionHistoriesQuery = useQuery({
     queryKey: ['locality-revision-histories', submission?.id],
-    queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 10 }),
-    enabled: Boolean(submission?.id) && isRevisionStage,
+    queryFn: () => localityApi.listApprovalHistories(submission!.id, { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
+    enabled: Boolean(submission?.id),
   });
 
   const latestRevisionReason = useMemo(() => {
     const items = revisionHistoriesQuery.data?.items ?? [];
     const revisionItem = items.find((item) => item.action?.toLowerCase() === 'requestrevision');
     return revisionItem?.reason ?? null;
+  }, [revisionHistoriesQuery.data]);
+
+  const specialistRevisionReason = useMemo(() => {
+    const specialistRevision = (revisionHistoriesQuery.data?.items ?? []).find((item) => (
+      item.action?.toLowerCase() === 'requestrevision' && item.stageLevel === 'LocalSubmitted'
+    ));
+    return specialistRevision?.reason ?? null;
   }, [revisionHistoriesQuery.data]);
 
   // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
@@ -628,6 +635,7 @@ export default function LocalityCriteriaPage() {
         nowMs={currentTimeMs}
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}
+        specialistRevisionReason={specialistRevisionReason}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {
