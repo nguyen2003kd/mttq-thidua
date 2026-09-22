@@ -40,7 +40,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
-import { getSpecialistSubmissionPermissions, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { getSpecialistSubmissionPermissions, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import {
   localityApi,
   type ApprovalHistoryItem,
@@ -449,6 +449,79 @@ function CriterionHistoryPanel({
         </div>
       )}
     </div>
+  );
+}
+
+function OfficialScoreRevisionDialog({
+  open,
+  onOpenChange,
+  result,
+  criterionLabel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  result: SubmissionResultItem | null;
+  criterionLabel: string;
+}) {
+  const scoreUpdateFilesQuery = useQuery({
+    queryKey: ['specialist-score-update-files', result?.id],
+    queryFn: () => filesApi.list({
+      entityType: 'SubmissionResult',
+      entityId: result!.id,
+      category: 'score-update',
+      page: 1,
+      pageSize: 100,
+    }),
+    enabled: open && Boolean(result?.id),
+  });
+
+  if (!result) return null;
+
+  const scoreUpdateFiles = scoreUpdateFilesQuery.data?.items ?? [];
+  const formatOfficialScore = (value: number | null, maximum: number) => (
+    <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+      {value ?? '—'}<span className="ml-1 text-sm font-normal text-muted-foreground">/ {maximum}</span>
+    </p>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Điểm chuyên viên đã sửa</DialogTitle>
+          <DialogDescription>Xem điểm, lý do và tệp đính kèm của lần điều chỉnh cho tiêu chí này.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5">
+          <div className="rounded-md border border-border bg-muted/20 px-4 py-3">
+            <p className="text-xs font-medium text-muted-foreground">Tiêu chí con</p>
+            <p className="mt-1 text-sm font-semibold leading-6 text-foreground">{criterionLabel}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border border-border bg-background px-4 py-3">
+              <p className="text-xs font-medium text-muted-foreground">Điểm chuyên viên chấm</p>
+              {formatOfficialScore(result.officialPoint, result.snapshotMaxPoint)}
+            </div>
+            <div className="rounded-md border border-border bg-background px-4 py-3">
+              <p className="text-xs font-medium text-muted-foreground">Điểm thưởng chuyên viên chấm</p>
+              {formatOfficialScore(result.officialBonusPoint, result.snapshotMaxBonusPoint)}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-foreground">Lý do sửa điểm</p>
+            <p className="mt-2 whitespace-pre-wrap rounded-md border-l-2 border-primary bg-muted/20 px-3 py-2.5 text-sm leading-6 text-foreground">{result.officialReason}</p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-foreground">Tệp đính kèm</p>
+            <p className="mt-1 text-xs text-muted-foreground">Chỉ hiển thị tệp được đính kèm khi chuyên viên sửa điểm.</p>
+            {scoreUpdateFilesQuery.isLoading ? <div className="mt-3 h-16 animate-pulse rounded-md bg-muted" /> : scoreUpdateFilesQuery.isError ? <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">Không tải được tệp đính kèm. Vui lòng thử lại.</p> : scoreUpdateFiles.length === 0 ? <p className="mt-3 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">Không có tệp đính kèm cho lần sửa điểm này.</p> : <div className="mt-3 divide-y rounded-md border border-border">{scoreUpdateFiles.map((file) => <div key={file.id} className="flex items-center gap-3 px-3 py-2.5"><FileText className="size-4 shrink-0 text-primary" aria-hidden="true" /><span className="min-w-0 flex-1 break-all text-sm font-medium text-foreground">{file.displayName || file.originalName}</span><Button type="button" variant="outline" size="sm" onClick={() => { void downloadFile(file.id, file.displayName || file.originalName); }}><Download className="size-4" />Tải về</Button></div>)}</div>}
+          </div>
+        </div>
+        <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1172,6 +1245,7 @@ export default function SpecialistReviewPage() {
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
+  const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
@@ -1724,6 +1798,9 @@ export default function SpecialistReviewPage() {
   const selectedCriterion = selectedCriterionId
     ? displayGroup.items.find((item) => item.id === selectedCriterionId)
     : undefined;
+  const scoreRevisionCriterionLabel = scoreRevisionResult?.criteriaContent
+    ?? displayGroup.items.find((item) => item.id === scoreRevisionResult?.criteriaId)?.title
+    ?? 'Tiêu chí con';
 
   const copyProposedScores = () => {
     if (specialistActionsLocked) {
@@ -2034,20 +2111,36 @@ export default function SpecialistReviewPage() {
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
                     {result && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
-                        aria-expanded={historyExpanded}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setExpandedCriterionHistoryId(historyExpanded ? null : item.id);
-                        }}
-                      >
-                        {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
-                        {historyExpanded ? 'Ẩn lịch sử' : 'Xem lịch sử'}
-                      </Button>
+                      <div className="mt-3 flex flex-wrap items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="-ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                          aria-expanded={historyExpanded}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExpandedCriterionHistoryId(historyExpanded ? null : item.id);
+                          }}
+                        >
+                          {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
+                          {historyExpanded ? 'Ẩn lịch sử' : 'Xem lịch sử'}
+                        </Button>
+                        {result.officialReason !== null && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setScoreRevisionResult(result);
+                            }}
+                          >
+                            <Eye className="size-4" />Xem điểm đã sửa
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
@@ -2170,16 +2263,19 @@ export default function SpecialistReviewPage() {
               </div>
               {result && (
                 <div className="mt-4 border-t border-border pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    aria-expanded={historyExpanded}
-                    onClick={() => setExpandedCriterionHistoryId(historyExpanded ? null : item.id)}
-                  >
-                    {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
-                    {historyExpanded ? 'Ẩn lịch sử tiêu chí' : 'Xem lịch sử tiêu chí'}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      aria-expanded={historyExpanded}
+                      onClick={() => setExpandedCriterionHistoryId(historyExpanded ? null : item.id)}
+                    >
+                      {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
+                      {historyExpanded ? 'Ẩn lịch sử tiêu chí' : 'Xem lịch sử tiêu chí'}
+                    </Button>
+                    {result.officialReason !== null && <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setScoreRevisionResult(result)}><Eye className="size-4" />Xem điểm đã sửa</Button>}
+                  </div>
                   {historyExpanded && (
                     <div className="mt-3">
                       <CriterionHistoryPanel
@@ -2300,6 +2396,12 @@ export default function SpecialistReviewPage() {
           });
           toast.success('Đã cập nhật điểm chấm. Nhấn “Lưu nháp” để lưu vào hồ sơ.');
         }}
+      />
+      <OfficialScoreRevisionDialog
+        open={Boolean(scoreRevisionResult)}
+        onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }}
+        result={scoreRevisionResult}
+        criterionLabel={scoreRevisionCriterionLabel}
       />
       <RevisionDialog
         open={revisionOpen}

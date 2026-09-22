@@ -8,6 +8,7 @@ import { RequireAuth } from '@/routes/guards/RequireAuth';
 import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
+import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
@@ -39,7 +40,6 @@ const CommitteeHistoryPage = lazy(() => import('@/features/duyet/pages/Committee
 const MinhChungPage = lazy(() => import('@/features/dia-phuong/pages/MinhChungPage'));
 const TrangThaiPage = lazy(() => import('@/features/dia-phuong/pages/TrangThaiPage'));
 const KetQuaPage = lazy(() => import('@/features/dia-phuong/pages/KetQuaPage'));
-const OverviewDashboardPage = lazy(() => import('@/features/dashboard/pages/OverviewDashboardPage'));
 const AuditLogPage = lazy(() => import('@/features/audit/AuditLogPage'));
 const NotFoundPage = lazy(() => import('@/features/NotFoundPage'));
 const SpecialistReviewPage = lazy(() => import('@/features/cham-diem/pages/SpecialistReviewPage'));
@@ -53,8 +53,23 @@ const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
 function ScoreRedirect() {
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const target = criteriaTables.find((t) => t.status === 'ACTIVE') ?? criteriaTables[0];
-  if (!target) return <Navigate to={ROUTES.DASHBOARD_OVERVIEW} replace />;
+  if (!target) return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
   return <Navigate to={`/thi-dua/cham-diem/theo-tieu-chi/${target.id}`} replace />;
+}
+
+/** Trang chủ điều hướng thẳng tới công việc của vai trò, không dùng Dashboard tổng quan. */
+function RoleHomeRedirect() {
+  const user = useAuthStore((state) => state.user);
+  if (!user) return <Navigate to={ROUTES.LOGIN} replace />;
+
+  switch (user.role) {
+    case 'LOCAL': return <Navigate to={ROUTES.LOCALITY_CRITERIA} replace />;
+    case 'SPECIALIST': return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
+    case 'LEADER': return <Navigate to={`/thi-dua/duyet/lanh-dao-ban/${user.banId ?? 'ban1'}`} replace />;
+    case 'COUNCIL': return <Navigate to={ROUTES.DUYET_COUNCIL} replace />;
+    case 'COMMITTEE': return <Navigate to={ROUTES.DUYET_STANDING} replace />;
+    default: return <Navigate to={ROUTES.LOGIN} replace />;
+  }
 }
 
 /** Lắng nghe sự kiện `auth:logout` (từ interceptor 401) và điều hướng về /login. */
@@ -332,22 +347,11 @@ export default function App() {
               }
             />
 
-            {/* Dashboard tổng quan */}
-            <Route
-              path="/thi-dua/dashboard-tong-quan"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={INTERNAL_ROLES}>
-                    <AppLayout>
-                      <OverviewDashboardPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
+            {/* URL Dashboard cũ được giữ để không làm hỏng bookmark, nhưng không còn hiển thị màn hình này. */}
+            <Route path="/thi-dua/dashboard-tong-quan" element={<RoleHomeRedirect />} />
 
             {/* Default redirect */}
-            <Route path="/" element={<Navigate to={ROUTES.DASHBOARD_OVERVIEW} replace />} />
+            <Route path="/" element={<RoleHomeRedirect />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
