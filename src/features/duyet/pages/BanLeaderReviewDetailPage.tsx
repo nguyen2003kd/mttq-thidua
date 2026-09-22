@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Edit3, Eye, FileText, History, MessageSquareWarning, Save } from 'lucide-react';
+import { ArrowLeft, Edit3, Eye, FileText, History, MessageSquareWarning, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, EmptyState, FilePreviewDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ForwardingDocumentsDialog, OfficialScoreRevisionDialog, ReviewScoreModal } from '@/features/workflow/components';
+import { ForwardingDocumentsDialog, ForwardSubmissionDialog, OfficialScoreRevisionDialog, ReviewScoreModal } from '@/features/workflow/components';
 import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
 import { isRealSubmission, specialistApi, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { filesApi } from '@/features/files/api/filesApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
+const LEADER_VISIBLE_STAGES = [LEADER_STAGE, 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'] as const;
 
 function getLocalityCode(localityId: string) {
   return localityId.startsWith('loc-') ? localityId.slice(4) : localityId;
@@ -80,6 +81,7 @@ export default function BanLeaderReviewDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [revisionOpen, setRevisionOpen] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
@@ -99,8 +101,8 @@ export default function BanLeaderReviewDetailPage() {
   const submissionsQuery = useQuery({
     queryKey: ['leader-submissions-by-group', tableId, localityCode],
     queryFn: async () => {
-      const result = await specialistApi.listSubmissionsByGroup(tableId!, { stage: LEADER_STAGE, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
-      return result.items.filter(isRealSubmission).find((submission) => (submission.createdByWardCode ?? submission.createdBy ?? '') === localityCode) ?? null;
+      const pages = await Promise.all(LEADER_VISIBLE_STAGES.map((stage) => specialistApi.listSubmissionsByGroup(tableId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+      return pages.flatMap((page) => page.items).filter(isRealSubmission).find((submission) => (submission.createdByWardCode ?? submission.createdBy ?? '') === localityCode) ?? null;
     },
     enabled: Boolean(tableId && localityCode),
   });
@@ -277,6 +279,26 @@ export default function BanLeaderReviewDetailPage() {
     }
   };
 
+  const forwardToCouncil = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
+    try {
+      if (Object.keys(drafts).length > 0 && !await saveAllScores(false)) {
+        throw new Error('Chưa thể lưu điểm đã điều chỉnh trước khi chuyển hồ sơ.');
+      }
+      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      const updatedSubmission = await specialistApi.getSubmission(submission.id);
+      if (updatedSubmission.currentStage !== 'LeaderApproved') throw new Error(`Trạng thái sau khi duyệt không hợp lệ: ${updatedSubmission.currentStage}.`);
+      await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-approval-histories', submission.id] });
+      toast.success('Đã duyệt và trình hồ sơ lên Hội đồng.');
+      setForwardOpen(false);
+      navigate(backToList);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể duyệt hồ sơ.');
+      throw error;
+    }
+  };
+
   return <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-5 pb-6">
     <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb"><Link to={backToList} className="hover:text-primary">Danh sách địa phương</Link><span>/</span><Link to={backToGroups} className="hover:text-primary">{localityName}</Link><span>/</span><span className="font-medium text-foreground">{groupQuery.data.name}</span></nav>
     <PageHeader title="Chi tiết chấm điểm kết quả tiêu chí" description={`${localityName} · ${groupQuery.data.name}`} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" render={<Link to={`${backToList}/lich-su`} />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử</Button><Button variant="outline" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button></div>} />
@@ -299,6 +321,7 @@ export default function BanLeaderReviewDetailPage() {
         {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
         <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu tất cả'}</Button>
         {selectedCriterion && <Button variant="outline" disabled={!canProcess} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>}
+        <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>
       </div>
       <div className="overflow-x-auto"><Table data-column-visibility-table="leader-review-detail" className="min-w-[1440px] table-fixed"><colgroup><col className="w-[23%]" /><col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[19%]" /><col className="w-[23%]" /></colgroup><TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm địa phương đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm chuyên viên chấm</TableHead><TableHead className="bg-primary px-4 py-3 text-primary-foreground">Nội dung diễn giải</TableHead></TableRow></TableHeader><TableBody>
         {resultItems.map(({ criterion, result }) => {
@@ -364,6 +387,7 @@ export default function BanLeaderReviewDetailPage() {
       description={selectedCriterion ? `Yêu cầu Chuyên viên rà soát tiêu chí “${selectedCriterion.content}” của ${localityName}.` : undefined}
       onConfirm={requestRevision}
     />
+    <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={groupQuery.data.name} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} />
     <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
   </div>;
 }

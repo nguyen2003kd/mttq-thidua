@@ -6,9 +6,11 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
-import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { Badge } from '@/components/ui/badge';
+import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
+const LEADER_VISIBLE_STAGES = [LEADER_STAGE, 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'] as const;
 
 interface LocalitySummary {
   id: string;
@@ -26,30 +28,12 @@ interface LocalityReviewRow {
   specialistBonus: number;
   latestUpdatedAt: string | null;
   latestUpdatedBy: string | null;
+  latestStage: SubmissionStage;
 }
 
 async function listEveryLeaderSubmission() {
-  const firstPage = await specialistApi.listAllSubmissions({
-    stage: LEADER_STAGE,
-    page: 1,
-    pageSize: 100,
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
-  });
-  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
-  if (pageCount <= 1) return firstPage;
-
-  const remainingPages = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
-      stage: LEADER_STAGE,
-      page: index + 2,
-      pageSize: 100,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    })),
-  );
-
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
+  const pages = await Promise.all(LEADER_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+  return { items: pages.flatMap((page) => page.items).filter(isRealSubmission) };
 }
 
 function formatUpdated(row: LocalityReviewRow) {
@@ -104,6 +88,7 @@ export default function BanLeaderApprovalPage() {
         ...totals,
         latestUpdatedAt: latestSubmission?.updatedAt ?? latestSubmission?.submittedAt ?? latestSubmission?.createdAt ?? null,
         latestUpdatedBy: latestSubmission?.createdByUsername ?? null,
+        latestStage: latestSubmission?.currentStage ?? LEADER_STAGE,
       };
     });
   }, [submissionsQuery.data]);
@@ -115,14 +100,14 @@ export default function BanLeaderApprovalPage() {
   const columns = useMemo<ColumnDef<LocalityReviewRow>[]>(() => [
     { accessorFn: (row) => row.locality.fullName, header: 'Tên địa phương', cell: ({ row }) => <div><p className="font-semibold text-foreground">{row.original.locality.name}</p><p className="mt-0.5 text-xs text-muted-foreground">{row.original.locality.region}</p></div>, meta: { list: { width: 'minmax(220px,1.25fr)' } } },
     { id: 'submissionCount', accessorFn: (row) => row.submissions.length, header: 'Số nhóm tiêu chí', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.submissions.length}</span>, meta: { align: 'center', list: { width: 'minmax(140px,.8fr)' } } },
-    { accessorFn: (row) => row.proposedScore, header: 'Điểm địa phương đề xuất', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
-    { accessorFn: (row) => row.specialistScore, header: 'Điểm chuyên viên chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.specialistScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
-    { accessorFn: (row) => row.proposedBonus, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.75fr)' } } },
-    { accessorFn: (row) => row.specialistBonus, header: 'Điểm thưởng chuyên viên', cell: ({ row }) => <span className="tabular-nums">{row.original.specialistBonus}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.85fr)' } } },
-    { id: 'specialistTotal', accessorFn: (row) => row.specialistScore + row.specialistBonus, header: 'Tổng điểm chuyên viên', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.specialistScore + row.original.specialistBonus}</span>, meta: { align: 'right', list: { width: 'minmax(170px,.9fr)' } } },
-    { id: 'proposedTotal', accessorFn: (row) => row.proposedScore + row.proposedBonus, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.proposedScore + row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.8fr)' } } },
+    { accessorFn: (row) => row.proposedScore, header: 'Điểm địa phương đề xuất', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(150px,.8fr)' } } },
+    { accessorFn: (row) => row.specialistScore, header: 'Điểm chuyên viên chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.specialistScore}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(150px,.8fr)' } } },
+    { accessorFn: (row) => row.proposedBonus, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(140px,.75fr)' } } },
+    { accessorFn: (row) => row.specialistBonus, header: 'Điểm thưởng chuyên viên', cell: ({ row }) => <span className="tabular-nums">{row.original.specialistBonus}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(160px,.85fr)' } } },
+    { id: 'specialistTotal', accessorFn: (row) => row.specialistScore + row.specialistBonus, header: 'Tổng điểm chuyên viên', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.specialistScore + row.original.specialistBonus}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(170px,.9fr)' } } },
+    { id: 'proposedTotal', accessorFn: (row) => row.proposedScore + row.proposedBonus, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.proposedScore + row.original.proposedBonus}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(140px,.8fr)' } } },
     { id: 'updatedAt', accessorFn: formatUpdated, header: 'Cập nhật lần cuối', cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatUpdated(row.original)}</span>, meta: { list: { width: 'minmax(180px,1fr)' } } },
-    { id: 'state', accessorFn: () => LEADER_STAGE, header: 'Trạng thái duyệt', cell: () => <ScoreStateBadge state="CHO_DUYET_BAN" />, meta: { align: 'center', list: { width: 'minmax(155px,.85fr)' } } },
+    { id: 'state', accessorFn: (row) => row.latestStage === LEADER_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.latestStage === LEADER_STAGE ? <ScoreStateBadge state="CHO_DUYET_BAN" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(155px,.85fr)' } } },
   ], []);
 
   const openGroups = () => selectedRow && navigate(`/thi-dua/duyet/lanh-dao-ban/${banId}/${selectedRow.locality.id}`);

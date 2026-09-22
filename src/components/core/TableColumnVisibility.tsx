@@ -36,7 +36,7 @@ export function TableColumnVisibility({ storageKey, columns, className }: TableC
   const visibleCount = columns.filter((column) => visible[column.id] !== false).length;
   const hiddenRules = useMemo(() => columns
     .map((column, index) => visible[column.id] === false
-      ? `[data-column-visibility-table="${storageKey}"] tr > :nth-child(${index + 1}) { display: none; }`
+      ? `[data-column-visibility-table="${storageKey}"] colgroup > :nth-child(${index + 1}) { display: none; width: 0 !important; }\n[data-column-visibility-table="${storageKey}"] tr > :nth-child(${index + 1}) { display: none; }`
       : '')
     .filter(Boolean)
     .join('\n'), [columns, storageKey, visible]);

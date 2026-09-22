@@ -14,7 +14,7 @@ export const SCORE_STATE_LABELS: Record<ScoreState, string> = {
   CHO_CHUYEN_VIEN: 'Đang chờ duyệt',
   CHO_DUYET_BAN: 'Đang chờ duyệt',
   CHO_DUYET_HOI_DONG: 'Đang chờ duyệt',
-  CHO_DUYET_BTT: 'Đã duyệt',
+  CHO_DUYET_BTT: 'Chờ duyệt',
   DA_CONG_BO: 'Đã công bố',
 };
 

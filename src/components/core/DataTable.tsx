@@ -62,6 +62,8 @@ function extractCellText(node: ReactNode): string {
 
 export interface DataTableColumnMeta {
   className?: string;
+  /** Class chỉ áp dụng cho tiêu đề cột khi dùng biến thể danh sách. */
+  headerClassName?: string;
   align?: 'left' | 'center' | 'right';
   /** Không tự bọc Tooltip cho ô có input, button, hoặc nội dung tương tác. */
   disableTooltip?: boolean;
@@ -467,7 +469,7 @@ export function DataTable<TData, TValue = unknown>({
                     const headerText = extractCellText(headerContent).trim();
                     return headerText ? (
                       <Tooltip>
-                        <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                      <TooltipTrigger render={<span className={cn('block min-w-0 truncate', meta?.headerClassName)} />}>{headerContent}</TooltipTrigger>
                         <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
                       </Tooltip>
                     ) : headerContent;
