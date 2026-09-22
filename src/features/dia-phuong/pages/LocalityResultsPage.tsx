@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Award, ChevronLeft, ChevronRight, Download, Eye, FileText, MessageSquareText, Trophy } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eye, FileText, MessageSquareText, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
@@ -103,19 +103,18 @@ function ResultCards({ rows, page, onPageChange, onView }: { rows: ResultRow[]; 
 }
 
 function ScorePair({ point, bonus, maxPoint, maxBonus }: { point: number; bonus: number; maxPoint: number; maxBonus: number }) {
-  return <div className="grid grid-cols-2 gap-2"><div className="rounded-md border border-border bg-muted/30 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{point}<span className="ml-1 text-xs font-medium text-success">/ {maxPoint}</span></p></div><div className="rounded-md border border-border bg-muted/30 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{bonus}<span className="ml-1 text-xs font-medium text-success">/ {maxBonus}</span></p></div></div>;
+  return <div className="grid grid-cols-2 gap-1.5"><div className="min-w-0 rounded-md border border-border bg-muted/30 px-2 py-1.5"><p className="whitespace-nowrap text-xs text-muted-foreground">Điểm</p><p className="mt-0.5 whitespace-nowrap text-sm font-semibold tabular-nums">{point}<span className="ml-1 text-xs font-medium text-success">/ {maxPoint}</span></p></div><div className="min-w-0 rounded-md border border-border bg-muted/30 px-2 py-1.5"><p className="whitespace-nowrap text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-0.5 whitespace-nowrap text-sm font-semibold tabular-nums">{bonus}<span className="ml-1 text-xs font-medium text-success">/ {maxBonus}</span></p></div></div>;
 }
 
-/** Ô nhận xét trong lưới — component riêng: nút mở dialog hiển thị nội dung nhận xét đầy đủ. */
-function CommentCell({ text, title }: { text?: string | null; title: string }) {
+/** Nút nhận xét — bấm mở popup hiển thị nhận xét của một cấp xét duyệt. */
+function CommentButton({ label, value }: { label: string; value?: string | null }) {
   const [open, setOpen] = useState(false);
-  if (!text) return <span className="text-sm text-muted-foreground">—</span>;
   return <>
-    <Button type="button" variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); setOpen(true); }}><MessageSquareText className="size-4" />Xem</Button>
+    <Button type="button" variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); setOpen(true); }}><MessageSquareText className="size-4" />Xem nhận xét</Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{text}</p>
+        <DialogHeader><DialogTitle>{label}</DialogTitle></DialogHeader>
+        <p className="whitespace-pre-wrap text-sm leading-6">{value || '—'}</p>
       </DialogContent>
     </Dialog>
   </>;
@@ -220,13 +219,7 @@ export default function LocalityResultsPage() {
     { accessorFn: (row) => row.submission.totalProposedPoint, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.submission.totalProposedPoint}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.7fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Tổng điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.8fr)' } } },
     { id: 'decision', header: 'Quyết định kết quả', cell: () => <Badge className="bg-success px-2.5 py-1 text-success-foreground">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(140px,.75fr)' } } },
-    { accessorFn: (row) => row.submission.totalFinalPoint, header: 'Tổng điểm', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.submission.totalFinalPoint}</span>, meta: { align: 'right', list: { width: 'minmax(110px,.6fr)' } } },
-    { accessorFn: (row) => row.officialBonus, header: 'Tổng điểm thưởng thực tế', cell: ({ row }) => <span className="tabular-nums">{row.original.officialBonus}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.8fr)' } } },
-    { id: 'classification', header: 'Kết quả xếp loại', cell: ({ row }) => <Badge variant="outline" className="border-success/50 text-success">{classification(row.original.submission.totalFinalPoint, row.original.maxTotal)}</Badge>, meta: { align: 'center', list: { width: 'minmax(160px,.85fr)' } } },
-    { accessorFn: (row) => row.rank, header: 'Thứ hạng', cell: ({ row }) => <span className="tabular-nums">{row.original.rank ? `${row.original.rank}/${row.original.rankTotal}` : '—'}</span>, meta: { align: 'right', list: { width: 'minmax(100px,.55fr)' } } },
-    { id: 'councilComment', header: 'Nhận xét từ Hội đồng thi đua', cell: ({ row }) => <CommentCell title="Nhận xét từ Hội đồng thi đua" text={commentsQuery.data?.get(row.original.submission.id)?.council} />, meta: { align: 'center', list: { width: 'minmax(170px,.85fr)' } } },
-    { id: 'committeeComment', header: 'Nhận xét từ Ban thường trực', cell: ({ row }) => <CommentCell title="Nhận xét từ Ban thường trực" text={commentsQuery.data?.get(row.original.submission.id)?.committee} />, meta: { align: 'center', list: { width: 'minmax(170px,.85fr)' } } },
-  ], [commentsQuery.data]);
+  ], []);
 
   if (!localityId) return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương." />;
 
@@ -235,8 +228,30 @@ export default function LocalityResultsPage() {
     if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
     if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error)} />;
 
+    const selectedComments = selectedRow ? commentsQuery.data?.get(selectedRow.submission.id) : null;
+
     return <div className="space-y-5">
       <PageHeader title="Kết quả tiêu chí thi đua" description="Kết quả chính thức đã được Ủy ban thường trực công bố." />
+      {selectedRow && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">
+            <div className="min-w-0 flex-1 basis-72">
+              <div className="flex items-center gap-2"><Trophy className="size-4 text-success" /><p className="text-sm text-muted-foreground">Trạng thái</p><Badge className="bg-foreground px-3 text-sm text-background">Đã công bố</Badge></div>
+              <p className="mt-2 truncate font-semibold" title={selectedRow.groupName}>{selectedRow.groupName}</p>
+              {selectedRow.groupContent && <TruncatedText as="p" value={selectedRow.groupContent} maxLines={2} className="mt-1 text-sm text-muted-foreground" />}
+              <p className="mt-2 text-xs text-muted-foreground">Ngày công bố {selectedRow.submission.updatedAt ? formatDate(selectedRow.submission.updatedAt) : '—'}</p>
+            </div>
+            <div className="grid min-w-0 flex-[2] basis-[420px] grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+              <div><p className="text-xs text-muted-foreground">Tổng điểm thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{selectedRow.submission.totalFinalPoint}</p></div>
+              <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums">{selectedRow.officialBonus}</p></div>
+              <div><p className="text-xs text-muted-foreground">Kết quả xếp loại</p><Badge className="mt-1 max-w-full whitespace-normal bg-success px-2.5 py-0.5 text-left text-xs leading-5 text-success-foreground">{classification(selectedRow.submission.totalFinalPoint, selectedRow.maxTotal)}</Badge></div>
+              <div><p className="text-xs text-muted-foreground">Thứ hạng</p><p className="mt-0.5 text-xl font-bold tabular-nums">{selectedRow.rank ? `${selectedRow.rank}/${selectedRow.rankTotal}` : '—'}</p></div>
+              <div><p className="text-xs text-muted-foreground">Nhận xét Hội đồng thi đua</p><div className="mt-1"><CommentButton label="Nhận xét từ Hội đồng thi đua" value={selectedComments?.council} /></div></div>
+              <div><p className="text-xs text-muted-foreground">Nhận xét Ban thường trực</p><div className="mt-1"><CommentButton label="Nhận xét từ Ban thường trực" value={selectedComments?.committee} /></div></div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <div className="hidden md:block"><DataTable
         data={rows}
         columns={columns}
@@ -268,10 +283,7 @@ export default function LocalityResultsPage() {
   const criteria = (group?.criteria ?? []).filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === detailSubmission.id);
   const resultByCriterion = new Map(detailSubmission.results.map((result) => [result.criteriaId, result]));
   const audits = (historiesQuery.data?.items ?? []).map(mapHistoryToAudit).sort((left, right) => +new Date(right.timestamp) - +new Date(left.timestamp));
-  const detailHistory = historiesQuery.data?.items ?? [];
-  const councilComment = [...detailHistory].reverse().find((item) => item.stageLevel === 'LeaderApproved' && item.reason)?.reason ?? null;
-  const committeeComment = [...detailHistory].reverse().find((item) => (item.stageLevel === 'CouncilApproved' || item.stageLevel === 'CommitteeFinalized') && item.reason)?.reason ?? null;
-  const detailMaxTotal = detailSubmission.results.reduce((total, result) => total + result.snapshotMaxPoint + result.snapshotMaxBonusPoint, 0);
+  const detailProposedBonus = detailSubmission.results.reduce((total, result) => total + result.bonusPoint, 0);
   const detailOfficialBonus = detailSubmission.results.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0);
 
   return <div className="space-y-5">
@@ -286,66 +298,43 @@ export default function LocalityResultsPage() {
           {group?.content && <TruncatedText as="p" value={group.content} maxLines={2} className="mt-1 text-sm text-muted-foreground" />}
           <p className="mt-2 text-xs text-muted-foreground">Ngày công bố {detailSubmission.updatedAt ? formatDate(detailSubmission.updatedAt) : '—'}</p>
         </div>
-        <div className="flex gap-8">
-          <div><p className="text-sm text-muted-foreground">Tổng điểm đề xuất</p><p className="mt-1 text-2xl font-bold tabular-nums">{detailSubmission.totalProposedPoint}</p></div>
-          <div><p className="text-sm text-muted-foreground">Tổng điểm thưởng</p><p className="mt-1 text-2xl font-bold tabular-nums">{detailOfficialBonus}</p></div>
-          <div><p className="flex items-center gap-1.5 text-sm text-muted-foreground"><Award className="size-4 text-primary" />Tổng điểm thực tế</p><p className="mt-1 text-2xl font-bold tabular-nums text-primary">{detailSubmission.totalFinalPoint}</p></div>
+        <div className="grid min-w-0 flex-[2] basis-[380px] grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+          <div><p className="text-xs text-muted-foreground">Tổng điểm đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission.totalProposedPoint}</p></div>
+          <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailProposedBonus}</p></div>
+          <div><p className="text-xs text-muted-foreground">Tổng điểm thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{detailSubmission.totalFinalPoint}</p></div>
+          <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{detailOfficialBonus}</p></div>
         </div>
       </CardContent>
     </Card>
-
-    <section aria-label="Tóm tắt kết quả xét duyệt" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <article className="rounded-[10px] border border-border bg-card p-4">
-        <p className="text-[13px] font-medium text-muted-foreground">Tổng điểm thưởng</p>
-        <p className="mt-2 text-2xl font-semibold tabular-nums text-primary">{detailOfficialBonus}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Điểm thưởng thực tế được công nhận</p>
-      </article>
-      <article className="rounded-[10px] border border-border bg-card p-4">
-        <p className="text-[13px] font-medium text-muted-foreground">Kết quả xếp loại</p>
-        <Badge className="mt-2 max-w-full whitespace-normal bg-success px-3 py-1.5 text-left leading-5 text-success-foreground">{classification(detailSubmission.totalFinalPoint, detailMaxTotal)}</Badge>
-        <p className="mt-2 text-xs text-muted-foreground">Theo tổng điểm chính thức</p>
-      </article>
-      <article className="rounded-[10px] border border-border bg-card p-4">
-        <p className="text-[13px] font-medium text-muted-foreground">Nhận xét từ Hội đồng thi đua</p>
-        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-foreground">{councilComment || 'Chưa có nhận xét.'}</p>
-        {councilComment && <div className="mt-2"><CommentCell title="Nhận xét từ Hội đồng thi đua" text={councilComment} /></div>}
-      </article>
-      <article className="rounded-[10px] border border-border bg-card p-4">
-        <p className="text-[13px] font-medium text-muted-foreground">Nhận xét từ Ban thường trực</p>
-        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-foreground">{committeeComment || 'Chưa có nhận xét.'}</p>
-        {committeeComment && <div className="mt-2"><CommentCell title="Nhận xét từ Ban thường trực" text={committeeComment} /></div>}
-      </article>
-    </section>
 
     <section className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
         <div><h2 className="flex items-center gap-2 text-base font-semibold"><FileText className="size-4 text-primary" />Chi tiết tiêu chí con</h2><p className="mt-1 text-sm text-muted-foreground">Điểm chính thức đã được các cấp thẩm định và công bố.</p></div>
       </div>
       <div className="hidden overflow-x-auto md:block"><Table className="min-w-[1480px] table-fixed">
-        <colgroup><col className="w-[15%]" /><col className="w-[20%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[4%]" /></colgroup>
-        <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tên tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Nội dung</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-right text-primary-foreground">Điểm đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-right text-primary-foreground">Điểm thực tế</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Lý do</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Ghi chú</TableHead><TableHead className="bg-primary px-3 py-3 text-center text-primary-foreground"><span className="sr-only">Xem chi tiết</span></TableHead></TableRow></TableHeader>
+        <colgroup><col className="w-[29%]" /><col className="w-[16%]" /><col className="w-[16%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[11%]" /><col className="w-[4%]" /></colgroup>
+        <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-center text-primary-foreground">Điểm đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-center text-primary-foreground">Điểm thực tế</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Lý do</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Ghi chú</TableHead><TableHead className="bg-primary px-3 py-3 text-center text-primary-foreground"><span className="sr-only">Xem chi tiết</span></TableHead></TableRow></TableHeader>
         <TableBody>
           {criteria.map((criterion) => {
             const result = resultByCriterion.get(criterion.id);
             const files = result?.files ?? [];
             return <TableRow key={criterion.id} className="cursor-pointer align-top" onClick={() => setCriterionDialog({ criterion, result: result ?? null })}>
-              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><TruncatedText as="p" value={childCriterionName(criterion, result ?? null)} maxLines={3} className="font-semibold leading-5" /><p className="mt-2 text-xs text-muted-foreground">{criterion.type === 'Supplementary' ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'}</p></TableCell>
-              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><TruncatedText as="p" value={criterion.content} maxLines={4} className="leading-5 text-muted-foreground" /><p className="mt-2 text-xs text-muted-foreground">{criterion.deadline ? `Hạn nộp ${formatDate(criterion.deadline)}` : ''}</p></TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-5">{result ? <ScorePair point={result.point} bonus={result.bonusPoint} maxPoint={result.snapshotMaxPoint} maxBonus={result.snapshotMaxBonusPoint} /> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-5">{result ? <ScorePair point={result.officialPoint ?? result.point} bonus={result.officialBonusPoint ?? result.bonusPoint} maxPoint={result.snapshotMaxPoint} maxBonus={result.snapshotMaxBonusPoint} /> : <span className="text-sm text-muted-foreground">—</span>}</TableCell>
+              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><TruncatedText as="p" value={criterion.content} maxLines={4} className="font-semibold leading-5" /><p className="mt-2 text-xs text-muted-foreground">{criterion.type === 'Supplementary' ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'}{criterion.deadline ? ` · Hạn nộp ${formatDate(criterion.deadline)}` : ''}</p></TableCell>
+              <TableCell className="border-r border-primary/15 px-2 py-5">{result ? <ScorePair point={result.point} bonus={result.bonusPoint} maxPoint={result.snapshotMaxPoint} maxBonus={result.snapshotMaxBonusPoint} /> : <span className="block text-center text-sm text-muted-foreground">—</span>}</TableCell>
+              <TableCell className="border-r border-primary/15 px-2 py-5">{result ? <ScorePair point={result.officialPoint ?? result.point} bonus={result.officialBonusPoint ?? result.bonusPoint} maxPoint={result.snapshotMaxPoint} maxBonus={result.snapshotMaxBonusPoint} /> : <span className="block text-center text-sm text-muted-foreground">—</span>}</TableCell>
               <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground"><TruncatedText value={result?.officialReason || '—'} maxLines={4} /></TableCell>
               <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">{files.length ? <Button type="button" variant="outline" size="sm" className="w-full justify-center" onClick={(event) => { event.stopPropagation(); setEvidenceDialog({ criterionName: criterion.content, files }); }}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có</span>}</TableCell>
               <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground"><TruncatedText value={criterion.note || '—'} maxLines={4} /></TableCell>
               <TableCell className="px-3 py-5 text-center"><Button type="button" variant="ghost" size="icon" aria-label={`Xem chi tiết ${childCriterionName(criterion, result ?? null)}`} onClick={(event) => { event.stopPropagation(); setCriterionDialog({ criterion, result: result ?? null }); }}><Eye className="size-4" /></Button></TableCell>
             </TableRow>;
           })}
-          {!criteria.length && <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">Chưa có tiêu chí con.</TableCell></TableRow>}
+          {!criteria.length && <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Chưa có tiêu chí con.</TableCell></TableRow>}
         </TableBody>
       </Table></div>
       <div className="space-y-3 p-4 md:hidden">{criteria.map((criterion) => {
         const result = resultByCriterion.get(criterion.id) ?? null;
         const files = result?.files ?? [];
-        return <article key={criterion.id} className="rounded-lg border border-border p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">Tên tiêu chí con</p><p className="mt-1 text-sm font-semibold">{childCriterionName(criterion, result)}</p></div><Button type="button" variant="ghost" size="icon" aria-label={`Xem chi tiết ${childCriterionName(criterion, result)}`} onClick={() => setCriterionDialog({ criterion, result })}><Eye className="size-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Nội dung</p><p className="mt-1 text-sm leading-5">{criterion.content}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-xs text-muted-foreground">Điểm đề xuất</p><p className="mt-1 font-semibold tabular-nums">{result?.point ?? '—'}</p></div><div><p className="text-xs text-muted-foreground">Điểm thực tế</p><p className="mt-1 font-semibold tabular-nums text-primary">{result?.officialPoint ?? result?.point ?? '—'}</p></div></div><p className="mt-3 text-xs text-muted-foreground">Lý do</p><p className="mt-1 text-sm leading-5">{result?.officialReason || '—'}</p><div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><span className="text-xs text-muted-foreground">Ghi chú: {criterion.note || '—'}</span>{files.length ? <Button type="button" variant="outline" size="sm" onClick={() => setEvidenceDialog({ criterionName: criterion.content, files })}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</div></article>;
+        return <article key={criterion.id} className="rounded-lg border border-border p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">Tiêu chí con</p><p className="mt-1 text-sm font-semibold">{criterion.content}</p></div><Button type="button" variant="ghost" size="icon" aria-label={`Xem chi tiết ${childCriterionName(criterion, result)}`} onClick={() => setCriterionDialog({ criterion, result })}><Eye className="size-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Nội dung</p><p className="mt-1 text-sm leading-5">{criterion.content}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-xs text-muted-foreground">Điểm đề xuất</p><p className="mt-1 font-semibold tabular-nums">{result?.point ?? '—'}</p></div><div><p className="text-xs text-muted-foreground">Điểm thực tế</p><p className="mt-1 font-semibold tabular-nums text-primary">{result?.officialPoint ?? result?.point ?? '—'}</p></div></div><p className="mt-3 text-xs text-muted-foreground">Lý do</p><p className="mt-1 text-sm leading-5">{result?.officialReason || '—'}</p><div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><span className="text-xs text-muted-foreground">Ghi chú: {criterion.note || '—'}</span>{files.length ? <Button type="button" variant="outline" size="sm" onClick={() => setEvidenceDialog({ criterionName: criterion.content, files })}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</div></article>;
       })}{!criteria.length && <p className="py-8 text-center text-sm text-muted-foreground">Chưa có tiêu chí con.</p>}</div>
     </section>
 
@@ -367,7 +356,7 @@ export default function LocalityResultsPage() {
     <Card><CardContent className="p-5"><p className="mb-3 text-base font-semibold">Lịch sử thay đổi</p><AuditTimeline entries={audits} /></CardContent></Card>
 
     <Dialog open={Boolean(criterionDialog)} onOpenChange={(open) => { if (!open) setCriterionDialog(null); }}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Chi tiết tiêu chí con</DialogTitle>
           <DialogDescription>{detailSubmission.criteriaGroupName ?? group?.name}</DialogDescription>
@@ -382,16 +371,11 @@ export default function LocalityResultsPage() {
                 <DetailItem label="Tên nhóm tiêu chí" value={group?.name ?? detailSubmission.criteriaGroupName ?? '—'} />
                 <DetailItem label="Trạng thái" value={<Badge className="bg-success text-success-foreground">Đã công bố</Badge>} />
                 <DetailItem label="Nội dung" value={group?.content ?? '—'} />
-                <DetailItem label="Tổng điểm đề xuất" value={detailSubmission.totalProposedPoint} />
-                <DetailItem label="Tổng điểm thực tế" value={detailSubmission.totalFinalPoint} />
-                <DetailItem label="Tổng điểm thưởng" value={detailSubmission.results.reduce((total, item) => total + (item.officialBonusPoint ?? item.bonusPoint), 0)} />
               </dl>
             </section>
             <div className="rounded-lg border border-border bg-muted/20 p-4">
-              <p className="text-xs font-medium text-muted-foreground">Tên tiêu chí con</p>
-              <p className="mt-1 text-sm font-semibold leading-6">{childCriterionName(criterion, result)}</p>
-              <p className="mt-3 text-xs font-medium text-muted-foreground">Nội dung</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{criterion.content}</p>
+              <p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí con</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6">{criterion.content}</p>
               <p className="mt-2 text-xs text-muted-foreground">{criterion.type === 'Supplementary' ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'} · Hạn nộp: {criterion.deadline ? formatDate(criterion.deadline) : '—'}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -402,11 +386,11 @@ export default function LocalityResultsPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{result?.explanation || '—'}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{result?.explanation?.trim() || '—'}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">Lý do chấm điểm (Chuyên viên/Lãnh đạo)</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{result?.officialReason || '—'}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{result?.officialReason?.trim() || '—'}</p>
             </div>
             <div><p className="text-xs font-medium text-muted-foreground">Hạn nộp</p><p className="mt-1 text-sm leading-6">{criterion.deadline ? formatDate(criterion.deadline) : '—'}</p></div>
             <div>
