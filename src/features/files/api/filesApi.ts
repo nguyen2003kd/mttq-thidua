@@ -8,7 +8,8 @@ export type FileEntityTypeApi =
   | 'SubmissionHistory'
   | 'ApprovalHistory'
   | 'FinalDecision'
-  | 'Submission';
+  | 'Submission'
+  | 'ResultPublication';
 
 export type FileVisibilityApi = 'Private' | 'Public';
 
