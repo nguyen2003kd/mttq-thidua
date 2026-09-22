@@ -173,10 +173,16 @@ export const useAuthStore = create<Store>()(
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<States>;
+        const accessToken = persisted.access_token ?? persisted.token ?? null;
+        const refreshToken = persisted.refresh_token ?? persisted.refreshToken ?? null;
 
         return {
           ...currentState,
           ...persisted,
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          token: accessToken,
+          refreshToken,
           access_token_expires_at: persisted.access_token_expires_at
             ? new Date(persisted.access_token_expires_at)
             : null,

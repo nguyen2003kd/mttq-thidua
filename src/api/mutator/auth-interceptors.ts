@@ -57,7 +57,8 @@ function clearSession(): void {
 }
 
 async function requestNewAccessToken(): Promise<string> {
-  const currentRefreshToken = useAuthStore.getState().refreshToken;
+  const authState = useAuthStore.getState();
+  const currentRefreshToken = authState.refreshToken ?? authState.refresh_token;
   if (!currentRefreshToken) {
     throw new Error('Refresh token is missing');
   }
@@ -110,7 +111,8 @@ function refreshAccessToken(): Promise<string> {
 
 export function installAuthInterceptors(instance: AxiosInstance): void {
   instance.interceptors.request.use((config) => {
-    const accessToken = useAuthStore.getState().token;
+    const authState = useAuthStore.getState();
+    const accessToken = authState.token ?? authState.access_token;
     if (accessToken) {
       config.headers.set('Authorization', `Bearer ${accessToken}`);
     }
@@ -137,7 +139,8 @@ export function installAuthInterceptors(instance: AxiosInstance): void {
       // A different request may already have completed the token rotation by
       // the time this 401 arrives. Retry with that token instead of rotating
       // the refresh token a second time.
-      const latestAccessToken = useAuthStore.getState().token;
+      const latestAuthState = useAuthStore.getState();
+      const latestAccessToken = latestAuthState.token ?? latestAuthState.access_token;
       const requestAuthorization = requestConfig.headers.get('Authorization');
       if (
         latestAccessToken &&
