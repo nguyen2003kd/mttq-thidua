@@ -1947,7 +1947,7 @@ export default function SpecialistReviewPage() {
     }
   };
 
-  const confirmForward = async ({ explanation }: { explanation: string }) => {
+  const confirmForward = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
     if (specialistActionsLocked) {
       toast.info(specialistLockReason);
       return;
@@ -1967,7 +1967,7 @@ export default function SpecialistReviewPage() {
         await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
       }
       await uploadPendingScoreAttachments();
-      await specialistApi.approveSubmission(submission.id, explanation);
+      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
       await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
       await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
       setScoreOverrides(new Map());
@@ -2443,7 +2443,6 @@ export default function SpecialistReviewPage() {
         onOpenChange={setForwardOpen}
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
-        submissionId={submissionByGroup.get(selectedGroup.id)?.id}
         onConfirm={confirmForward}
       />
       <EvidenceFilesDialog
