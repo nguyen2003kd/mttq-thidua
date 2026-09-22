@@ -65,8 +65,9 @@ function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
     id: item.id,
     timestamp: item.createdAt,
     actorName: actor?.label ?? 'Hệ thống',
+    displayTitle: resolvedAction === 'RequestRevision' ? 'Yêu cầu chỉnh sửa' : undefined,
     actorRole: actor?.role ?? 'LOCAL',
-    action: ACTION_MAP[resolvedAction?.toLowerCase()] ?? 'EDIT',
+    action: resolvedAction === 'RequestRevision' ? 'REJECT' : ACTION_MAP[resolvedAction?.toLowerCase()] ?? 'EDIT',
     fieldName: item.submissionId,
     oldValue: null,
     newValue: item.action,
@@ -129,7 +130,6 @@ function SubmissionHistoryEntry({ item }: { item: SubmissionHistoryItem }) {
         <SnapshotField label="Điểm thưởng tự đánh giá" value={item.oldBonusPoint} />
         <SnapshotField label="Điểm chuyên viên" value={item.oldOfficialPoint} />
         <SnapshotField label="Điểm thưởng chuyên viên" value={item.oldOfficialBonusPoint} />
-        <SnapshotField label="Trạng thái" value={item.oldReviewStatus} />
       </div>
 
       {item.oldOfficialReason && (

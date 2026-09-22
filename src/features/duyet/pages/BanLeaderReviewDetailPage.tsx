@@ -272,7 +272,7 @@ export default function BanLeaderReviewDetailPage() {
       const reasonWithFile = file ? `${criterionReason}\n\nTập tin đính kèm: ${file.name}` : criterionReason;
       await specialistApi.requestRevision({ submissionId: submission.id, reason: reasonWithFile });
       await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
-      toast.success('Đã gửi yêu cầu chuyên viên bổ sung hồ sơ.');
+      toast.success('Đã gửi yêu cầu Chuyên viên chấm lại hồ sơ.');
       navigate(backToList);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể gửi yêu cầu chỉnh sửa.');

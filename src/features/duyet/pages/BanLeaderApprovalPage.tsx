@@ -27,7 +27,6 @@ interface LocalityReviewRow {
   specialistScore: number;
   specialistBonus: number;
   latestUpdatedAt: string | null;
-  latestUpdatedBy: string | null;
   latestStage: SubmissionStage;
 }
 
@@ -38,8 +37,7 @@ async function listEveryLeaderSubmission() {
 
 function formatUpdated(row: LocalityReviewRow) {
   if (!row.latestUpdatedAt) return '—';
-  const timestamp = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.latestUpdatedAt));
-  return row.latestUpdatedBy ? `${row.latestUpdatedBy} · ${timestamp}` : timestamp;
+  return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.latestUpdatedAt));
 }
 
 function getResultTotals(submissions: SubmissionApi[]) {
@@ -87,7 +85,6 @@ export default function BanLeaderApprovalPage() {
         submissions,
         ...totals,
         latestUpdatedAt: latestSubmission?.updatedAt ?? latestSubmission?.submittedAt ?? latestSubmission?.createdAt ?? null,
-        latestUpdatedBy: latestSubmission?.createdByUsername ?? null,
         latestStage: latestSubmission?.currentStage ?? LEADER_STAGE,
       };
     });

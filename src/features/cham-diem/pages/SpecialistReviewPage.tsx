@@ -1277,7 +1277,7 @@ export default function SpecialistReviewPage() {
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
-    const items = allSubmissionsQuery.data?.items ?? [];
+    const items = (allSubmissionsQuery.data?.items ?? []).filter((submission) => submission.currentStage !== 'Draft');
     const byLocality = new Map<string, SubmissionApi[]>();
     for (const s of items) {
       const key = s.createdByWardCode ?? s.createdBy ?? 'unknown';
@@ -1299,7 +1299,7 @@ export default function SpecialistReviewPage() {
       return {
         localityId: wardCode,
         localityName: subs[0]?.localityFullName ?? subs[0]?.createdByUsername ?? wardCode,
-        completionRate: `${realSubs.length}/${totalAppliedGroups}`,
+        completionRate: `${realSubs.filter((s) => STAGE_TO_GROUP_STATUS[s.currentStage] === 'DA_CHAM').length}/${totalAppliedGroups}`,
         overallStatus,
         hasNewSubmissions: statuses.includes('CHO_DUYET'),
         hasModificationRequest: statuses.includes('YEU_CAU_SUA'),
