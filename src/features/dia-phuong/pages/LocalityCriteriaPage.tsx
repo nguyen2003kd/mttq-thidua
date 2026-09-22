@@ -47,13 +47,14 @@ interface LocalityCriteriaListRow extends CriteriaTable {
 
 function getSubmissionStageLabel(stage: SubmissionStage | null) {
   switch (stage) {
-    case 'Draft': return 'Bản nháp';
     case 'LocalSubmitted': return 'Đã nộp';
     case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
-    case 'SpecialistApproved': return 'Chuyên viên đã duyệt';
-    case 'LeaderApproved': return 'Lãnh đạo ban đã duyệt';
-    case 'CouncilApproved': return 'Hội đồng đã duyệt';
-    case 'CommitteeFinalized': return 'Đã công bố';
+    // Địa phương chỉ cần biết hồ sơ đã rời bước nộp hay đang cần xử lý lại;
+    // không hiển thị chi tiết các cấp duyệt nội bộ.
+    case 'SpecialistApproved':
+    case 'LeaderApproved':
+    case 'CouncilApproved':
+    case 'CommitteeFinalized': return 'Đã nộp';
     default: return 'Chưa nộp';
   }
 }

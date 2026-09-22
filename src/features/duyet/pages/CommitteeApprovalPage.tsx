@@ -7,10 +7,12 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
 
-const COMMITTEE_STAGE = 'CouncilApproved' as const;
+const PENDING_COMMITTEE_STAGE = 'CouncilApproved' as const;
+const APPROVED_COMMITTEE_STAGE = 'CommitteeFinalized' as const;
 
 interface LocalitySummary {
   id: string;
@@ -31,27 +33,21 @@ interface LocalityReviewRow {
 }
 
 async function listEveryCommitteeSubmission() {
-  const firstPage = await specialistApi.listAllSubmissions({
-    stage: COMMITTEE_STAGE,
-    page: 1,
-    pageSize: 100,
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
-  });
-  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
-  if (pageCount <= 1) return firstPage;
-
-  const remainingPages = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
-      stage: COMMITTEE_STAGE,
-      page: index + 2,
+  const loadStage = async (stage: typeof PENDING_COMMITTEE_STAGE | typeof APPROVED_COMMITTEE_STAGE) => {
+    const firstPage = await specialistApi.listAllSubmissions({
+      stage,
+      page: 1,
       pageSize: 100,
       sortBy: 'createdAt',
       sortOrder: 'desc',
-    })),
-  );
-
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
+    });
+    const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+    if (pageCount <= 1) return firstPage.items;
+    const remainingPages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ stage, page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+    return [firstPage.items, ...remainingPages.map((page) => page.items)].flat();
+  };
+  const [pending, approved] = await Promise.all([loadStage(PENDING_COMMITTEE_STAGE), loadStage(APPROVED_COMMITTEE_STAGE)]);
+  return { items: [...pending, ...approved].filter(isRealSubmission) };
 }
 
 function getResultTotals(submissions: SubmissionApi[]) {
@@ -83,9 +79,19 @@ export default function CommitteeApprovalPage() {
     },
     onError: () => toast.error('Không thể gửi yêu cầu bổ sung. Vui lòng thử lại.'),
   });
+  const approveMutation = useMutation({
+    mutationFn: async (row: LocalityReviewRow) => {
+      await Promise.all(row.submissions.filter((submission) => submission.currentStage === PENDING_COMMITTEE_STAGE).map((submission) => specialistApi.finalizeSubmission(submission.id)));
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['committee-submissions'] });
+      toast.success('Đã duyệt hồ sơ.');
+    },
+    onError: () => toast.error('Không thể duyệt hồ sơ. Vui lòng thử lại.'),
+  });
 
   const submissionsQuery = useQuery({
-    queryKey: ['committee-submissions', { stage: COMMITTEE_STAGE }],
+    queryKey: ['committee-submissions', { stages: [PENDING_COMMITTEE_STAGE, APPROVED_COMMITTEE_STAGE] }],
     queryFn: listEveryCommitteeSubmission,
   });
 
@@ -127,8 +133,9 @@ export default function CommitteeApprovalPage() {
     { accessorFn: (row) => row.proposedScore, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.9fr)' } } },
     { accessorFn: (row) => row.councilBonus, header: 'Tổng điểm thưởng', cell: ({ row }) => <span className="tabular-nums">{row.original.councilBonus}</span>, meta: { align: 'right', list: { width: 'minmax(155px,.85fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Tổng điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(205px,1fr)' } } },
-    { id: 'state', accessorFn: () => COMMITTEE_STAGE, header: 'Trạng thái', cell: () => <ScoreStateBadge state="CHO_DUYET_BTT" />, meta: { align: 'center', list: { width: 'minmax(155px,.85fr)' } } },
+    { id: 'state', accessorFn: (row) => row.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE) ? 'Đã duyệt' : 'Chờ duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE) ? <Badge variant="success">Đã duyệt</Badge> : <ScoreStateBadge state="CHO_DUYET_BTT" />, meta: { align: 'center', list: { width: 'minmax(155px,.85fr)' } } },
   ], []);
+  const selectedRowApproved = Boolean(selectedRow?.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE));
 
   const activeFilters = [
     fromDate ? { label: 'Từ ngày', value: fromDate, onClear: () => setFromDate('') } : null,
@@ -140,7 +147,7 @@ export default function CommitteeApprovalPage() {
 
   return <div className="space-y-6">
     <PageHeader title="Duyệt tiêu chí theo địa phương" description="Rà soát hồ sơ do Hội đồng chuyển đến và yêu cầu chỉnh sửa khi tiêu chí hoặc kết quả chưa hợp lý." actions={<div className="flex flex-wrap gap-2"><Button variant="outline" render={<Link to="/thi-dua/duyet/ban-thuong-truc/cong-bo" />} nativeButton={false}>Công bố kết quả</Button><Button variant="outline" render={<Link to="/uy-ban/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử công bố</Button></div>} />
-    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => { setFromDate(''); setToDate(''); }} toolbar={<div className="flex flex-wrap gap-2"><Button variant="info" disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={() => selectedRow && navigate(`/thi-dua/duyet/ban-thuong-truc/${selectedRow.locality.id}`)}><Search className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button><Button variant="warning" disabled={!selectedRow || requestRevisionMutation.isPending} disabledReason={!selectedRow ? 'Chọn một địa phương để yêu cầu Chuyên viên bổ sung.' : undefined} onClick={() => selectedRow && setRequestRow(selectedRow)}><Send className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button></div>} emptyState={{ title: 'Không có hồ sơ chờ duyệt', description: 'Hiện chưa có submission nào ở trạng thái CouncilApproved.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ chờ Ủy ban thường trực duyệt" />
+    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => { setFromDate(''); setToDate(''); }} toolbar={<div className="flex flex-wrap gap-2"><Button variant="info" disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={() => selectedRow && navigate(`/thi-dua/duyet/ban-thuong-truc/${selectedRow.locality.id}`)}><Search className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button>{selectedRow && <Button disabled={selectedRowApproved || approveMutation.isPending} disabledReason={selectedRowApproved ? 'Hồ sơ đã được Ban Thường trực duyệt.' : undefined} onClick={() => approveMutation.mutate(selectedRow)}><Send className="mr-1.5 size-4" />{approveMutation.isPending ? 'Đang duyệt…' : 'Duyệt'}</Button>}<Button variant="warning" disabled={!selectedRow || selectedRowApproved || requestRevisionMutation.isPending} disabledReason={!selectedRow ? 'Chọn một địa phương để yêu cầu Chuyên viên bổ sung.' : selectedRowApproved ? 'Hồ sơ đã duyệt nên không thể yêu cầu chỉnh sửa.' : undefined} onClick={() => selectedRow && setRequestRow(selectedRow)}><Send className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button></div>} emptyState={{ title: 'Không có hồ sơ chờ Ban Thường trực duyệt', description: 'Hiện chưa có submission nào được Hội đồng chuyển đến.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ chờ hoặc đã được Ủy ban thường trực duyệt" />
     <RequestSpecialistDialog open={Boolean(requestRow)} onOpenChange={(open) => { if (!open) setRequestRow(null); }} localityName={requestRow?.locality.name} requesterLabel="Ủy ban thường trực" onConfirm={({ reason }) => requestRow ? requestRevisionMutation.mutateAsync({ row: requestRow, reason }) : Promise.resolve()} />
   </div>;
 }

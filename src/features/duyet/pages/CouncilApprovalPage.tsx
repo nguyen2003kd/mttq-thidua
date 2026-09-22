@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, History, MessageSquare, MessageSquareWarning, Search } from 'lucide-react';
+import { Eye, History, MessageSquare, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, RejectDialog, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { toast } from 'sonner';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
+const COUNCIL_VISIBLE_STAGES = [COUNCIL_STAGE, 'CouncilApproved', 'CommitteeFinalized'] as const;
 type CouncilStatusFilter = 'ALL' | 'CHO_DUYET_HOI_DONG';
 
 interface LocalitySummary {
@@ -26,30 +28,12 @@ interface LocalityReviewRow {
   maximumScore: number;
   proposedTotal: number;
   latestUpdatedAt: string | null;
+  latestStage: SubmissionApi['currentStage'];
 }
 
 async function listEveryCouncilSubmission() {
-  const firstPage = await specialistApi.listAllSubmissions({
-    stage: COUNCIL_STAGE,
-    page: 1,
-    pageSize: 100,
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
-  });
-  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
-  if (pageCount <= 1) return firstPage;
-
-  const remainingPages = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
-      stage: COUNCIL_STAGE,
-      page: index + 2,
-      pageSize: 100,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    })),
-  );
-
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
+  const pages = await Promise.all(COUNCIL_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+  return { items: pages.flatMap((page) => page.items).filter(isRealSubmission) };
 }
 
 function formatUpdated(row: LocalityReviewRow) {
@@ -72,7 +56,6 @@ export default function CouncilApprovalPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<CouncilStatusFilter>('CHO_DUYET_HOI_DONG');
-  const [revisionOpen, setRevisionOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
 
@@ -104,12 +87,13 @@ export default function CouncilApprovalPage() {
         submissions,
         ...totals,
         latestUpdatedAt: latestSubmission?.updatedAt ?? latestSubmission?.submittedAt ?? latestSubmission?.createdAt ?? null,
+        latestStage: latestSubmission?.currentStage ?? COUNCIL_STAGE,
       };
     });
   }, [submissionsQuery.data]);
 
   const visibleRows = useMemo(() => rows
-    .filter(() => statusFilter === 'ALL' || statusFilter === 'CHO_DUYET_HOI_DONG')
+    .filter((row) => statusFilter === 'ALL' || row.latestStage === COUNCIL_STAGE)
     .filter((row) => !fromDate || Boolean(row.latestUpdatedAt) && new Date(row.latestUpdatedAt!) >= new Date(`${fromDate}T00:00:00`))
     .filter((row) => !toDate || Boolean(row.latestUpdatedAt) && new Date(row.latestUpdatedAt!) <= new Date(`${toDate}T23:59:59`)), [fromDate, rows, statusFilter, toDate]);
 
@@ -119,15 +103,16 @@ export default function CouncilApprovalPage() {
     { accessorFn: (row) => row.maximumScore, header: 'Tổng điểm', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.maximumScore}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.8fr)' } } },
     { accessorFn: (row) => row.proposedTotal, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.proposedTotal}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.9fr)' } } },
     { id: 'updatedAt', accessorFn: formatUpdated, header: 'Cập nhật lần cuối', cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatUpdated(row.original)}</span>, meta: { list: { width: 'minmax(180px,1fr)' } } },
-    { id: 'state', accessorFn: () => COUNCIL_STAGE, header: 'Trạng thái duyệt', cell: () => <ScoreStateBadge state="CHO_DUYET_HOI_DONG" />, meta: { align: 'center', list: { width: 'minmax(170px,.9fr)' } } },
+    { id: 'state', accessorFn: (row) => row.latestStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.latestStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(170px,.9fr)' } } },
   ], []);
 
   const openGroups = () => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${selectedRow.locality.id}`);
+  const canProcessSelected = selectedRow?.submissions.some((submission) => submission.currentStage === COUNCIL_STAGE) ?? false;
   const processSelectedSubmissions = async (processor: (submission: SubmissionApi) => Promise<unknown>, successMessage: string) => {
     if (!selectedRow) return;
     setActionPending(true);
     try {
-      for (const submission of selectedRow.submissions) await processor(submission);
+      for (const submission of selectedRow.submissions.filter((submission) => submission.currentStage === COUNCIL_STAGE)) await processor(submission);
       await queryClient.invalidateQueries({ queryKey: ['council-submissions'] });
       setSelectedRow(null);
       toast.success(successMessage);
@@ -137,11 +122,6 @@ export default function CouncilApprovalPage() {
       setActionPending(false);
     }
   };
-
-  const requestRevision = (reason: string) => processSelectedSubmissions(
-    (submission) => specialistApi.requestRevision({ submissionId: submission.id, reason }),
-    'Đã gửi yêu cầu chỉnh sửa về Chuyên viên.',
-  );
 
   const saveComment = (comment: string) => processSelectedSubmissions(
     (submission) => specialistApi.updateScores({
@@ -167,8 +147,7 @@ export default function CouncilApprovalPage() {
 
   return <div className="space-y-6">
     <PageHeader title="Danh sách địa phương" description="Hồ sơ do lãnh đạo ban chuyển Hội đồng thi đua xem xét." actions={<Button variant="outline" render={<Link to="/hoi-dong/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử duyệt</Button>} />
-    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-3"><Select value={statusFilter} onValueChange={(value) => setStatusFilter((value ?? 'ALL') as CouncilStatusFilter)}><SelectTrigger aria-label="Lọc theo trạng thái"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Tất cả trạng thái</SelectItem><SelectItem value="CHO_DUYET_HOI_DONG">Chờ Hội đồng duyệt</SelectItem></SelectContent></Select><Input type="date" aria-label="Từ ngày duyệt" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày duyệt" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => { setStatusFilter('ALL'); setFromDate(''); setToDate(''); }} toolbar={<div className="flex flex-wrap items-center gap-2"><Button variant="info" disabled={!selectedRow || actionPending} disabledReason="Chọn một địa phương để xem chi tiết." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem</Button><Button variant="outline" disabled={!selectedRow || actionPending} disabledReason="Chọn một địa phương để nhận xét." action="approve" state="CHO_DUYET_HOI_DONG" onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button><Button variant="outline" disabled={!selectedRow || actionPending} disabledReason="Chọn một địa phương để yêu cầu chỉnh sửa." className="border-[#D9773D]/70 text-[#9A481D] hover:bg-[#D9773D]/10" action="reject" state="CHO_DUYET_HOI_DONG" onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button><Button variant="outline" disabled={!selectedRow || actionPending} disabledReason="Chọn một địa phương để xem lịch sử duyệt." onClick={() => selectedRow && navigate('/hoi-dong/lich-su')}><History className="mr-1.5 size-4" />Lịch sử</Button></div>} emptyState={{ title: 'Không có hồ sơ chờ Hội đồng duyệt', description: 'Hiện chưa có submission nào ở trạng thái LeaderApproved.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ LeaderApproved chờ Hội đồng thi đua xem xét" />
-    <RejectDialog open={revisionOpen} onOpenChange={setRevisionOpen} localityName={selectedRow?.locality.name} state="CHO_DUYET_HOI_DONG" title="Yêu cầu chỉnh sửa" confirmLabel="Gửi yêu cầu" confirmVariant="default" description="Yêu cầu sẽ được gửi về Chuyên viên để đối chiếu và xử lý hồ sơ." reasonLabel="Lý do yêu cầu chỉnh sửa" reasonPlaceholder="Ví dụ: Cần đối chiếu lại minh chứng và tổng điểm." onConfirm={requestRevision} />
+    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-3"><Select value={statusFilter} onValueChange={(value) => setStatusFilter((value ?? 'ALL') as CouncilStatusFilter)}><SelectTrigger aria-label="Lọc theo trạng thái"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Tất cả trạng thái</SelectItem><SelectItem value="CHO_DUYET_HOI_DONG">Chờ Hội đồng duyệt</SelectItem></SelectContent></Select><Input type="date" aria-label="Từ ngày duyệt" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày duyệt" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => { setStatusFilter('ALL'); setFromDate(''); setToDate(''); }} toolbar={<div className="flex flex-wrap items-center gap-2"><Button variant="info" disabled={!selectedRow || actionPending} disabledReason="Chọn một địa phương để xem chi tiết." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem</Button><Button variant="outline" disabled={!selectedRow || !canProcessSelected || actionPending} disabledReason={!selectedRow ? 'Chọn một địa phương để nhận xét.' : !canProcessSelected ? 'Hồ sơ đã chuyển cấp nên không thể nhận xét.' : undefined} action="approve" state="CHO_DUYET_HOI_DONG" onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button><Button variant="outline" disabled={!selectedRow || actionPending} disabledReason="Chọn một địa phương để xem lịch sử duyệt." onClick={() => selectedRow && navigate('/hoi-dong/lich-su')}><History className="mr-1.5 size-4" />Lịch sử</Button></div>} emptyState={{ title: 'Không có hồ sơ', description: 'Hiện chưa có hồ sơ được chuyển đến Hội đồng.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ chờ hoặc đã được Hội đồng thi đua duyệt" />
     <RejectDialog open={commentOpen} onOpenChange={setCommentOpen} localityName={selectedRow?.locality.name} state="CHO_DUYET_HOI_DONG" title="Nhận xét địa phương" confirmLabel="Gửi nhận xét" confirmVariant="default" submitAction="approve" description="Nhận xét được lưu vào lịch sử hồ sơ và không làm thay đổi điểm hoặc trạng thái duyệt." reasonLabel="Nội dung nhận xét" reasonPlaceholder="Nhập nhận xét của Hội đồng về hồ sơ địa phương." onConfirm={saveComment} />
   </div>;
 }
