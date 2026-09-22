@@ -103,10 +103,13 @@ export interface ApprovalHistoryApi {
   submissionId: string;
   actorName: string;
   actorRole: string;
-  action: string;
   fromStage: string | null;
   toStage: string | null;
+  userId: string;
+  stageLevel: string;
+  action: string;
   reason: string | null;
+  files: SubmissionResultFile[];
   createdAt: string;
 }
 
@@ -166,6 +169,22 @@ export const specialistApi = {
       method: 'POST',
       data: { submissionId, action: 'Approve', reason: reason || null },
     }),
+
+  /** Chuyển hồ sơ kèm diễn giải và tệp. Tệp được gắn vào đúng lần chuyển (ApprovalHistory). */
+  forwardSubmission: (submissionId: string, explanation: string, files: File[], onProgress?: (percent: number) => void) => {
+    const form = new FormData();
+    form.append('submissionId', submissionId);
+    if (explanation) form.append('explanation', explanation);
+    files.forEach((file) => form.append('files', file));
+    return request<ApprovalHistoryApi>({
+      url: '/api/v1/submissions/forward',
+      method: 'POST',
+      data: form,
+      onUploadProgress: (event) => {
+        if (event.total && onProgress) onProgress(Math.round((event.loaded / event.total) * 100));
+      },
+    });
+  },
 
   // UpdateScore — chuyên viên lưu nháp điểm chấm (giữ nguyên stage)
   updateScores: (payload: { submissionId: string; reason: string; scoreItems: Array<{ submissionResultId: string; point: number; bonusPoint: number; reason?: string | null }> }) =>

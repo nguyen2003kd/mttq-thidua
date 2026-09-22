@@ -3,33 +3,30 @@ import { FileCheck2, Paperclip } from 'lucide-react';
 import { FormDialog, FileUpload, TruncatedText } from '@/components/core';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useFileUpload } from '@/hooks/useFileUpload';
 
 interface ForwardSubmissionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   localityName?: string;
   groupName?: string;
-  submissionId?: string;
   /** Cấp nhận hồ sơ; mặc định giữ nguyên luồng Chuyên viên → Lãnh đạo ban. */
   targetLabel?: string;
   /** Nhãn trường diễn giải theo ngữ cảnh cấp duyệt. */
   explanationLabel?: string;
-  /** Category lưu file theo cấp chuyển hồ sơ. */
-  forwardingCategory?: string;
-  onConfirm: (data: { explanation: string }) => void | Promise<void>;
+  onConfirm: (data: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => void | Promise<void>;
 }
 
-export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, submissionId, targetLabel = 'Lãnh đạo ban', explanationLabel = 'Diễn giải hồ sơ từ chuyên viên', forwardingCategory = 'SpecialistForwarding', onConfirm }: ForwardSubmissionDialogProps) {
+export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, targetLabel = 'Lãnh đạo ban', explanationLabel = 'Diễn giải hồ sơ từ chuyên viên', onConfirm }: ForwardSubmissionDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [explanation, setExplanation] = useState('');
-  const { uploading, uploadProgress, uploadFiles } = useFileUpload();
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!open) {
       setFiles([]);
       setExplanation('');
+      setUploadProgress({});
     }
   }, [open]);
 
@@ -37,17 +34,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
     event.preventDefault();
     try {
       setSubmitting(true);
-      if (files.length > 0) {
-        if (!submissionId) throw new Error('Không xác định được hồ sơ để đính kèm tập tin.');
-        const uploaded = await uploadFiles(files, {
-          entityType: 'Submission',
-          entityId: submissionId,
-          category: forwardingCategory,
-          description: explanation.trim() || undefined,
-        });
-        if (uploaded.length !== files.length) throw new Error('Một số tập tin chưa tải lên được. Vui lòng thử lại.');
-      }
-      await onConfirm({ explanation: explanation.trim() });
+      await onConfirm({ explanation: explanation.trim(), files, onProgress: (percent) => setUploadProgress({ forwarding: percent }) });
       onOpenChange(false);
     } catch {
       // Lỗi đã được toast ở caller — giữ dialog mở
@@ -64,7 +51,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
       description={`Chuyển hồ sơ đã thẩm định lên ${targetLabel}.`}
       onSubmit={submit}
       submitLabel={submitting ? 'Đang xử lý…' : 'Xác nhận'}
-      submitDisabled={submitting || uploading}
+      submitDisabled={submitting}
       cancelLabel="Đóng"
     >
       <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -95,7 +82,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
           onChange={(event) => setExplanation(event.target.value)}
           placeholder={`Ví dụ: Hồ sơ đã được đối chiếu, đủ điều kiện chuyển ${targetLabel} phê duyệt.`}
           rows={3}
-          disabled={submitting || uploading}
+          disabled={submitting}
         />
       </div>
       <div className="space-y-2">
@@ -108,7 +95,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
           maxSizeMb={20}
           maxFiles={10}
           disabled={submitting}
-          uploading={uploading}
+          uploading={submitting && files.length > 0}
           uploadProgress={uploadProgress}
           className="[&>div:first-child]:py-4"
         />
