@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
-import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { ForwardSubmissionDialog } from '@/features/workflow/components';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
@@ -43,7 +43,7 @@ async function listEveryLeaderSubmission() {
     })),
   );
 
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
 }
 
 function getLocalityCode(localityId: string) {

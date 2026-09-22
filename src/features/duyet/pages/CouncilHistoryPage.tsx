@@ -6,7 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
-import { specialistApi, type ApprovalHistoryApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { isRealSubmission, specialistApi, type ApprovalHistoryApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { CouncilSubmissionDetailDialog } from '@/features/duyet/components/CouncilSubmissionDetailDialog';
 
 interface CouncilHistoryRow {
@@ -36,7 +36,7 @@ async function listEverySubmission() {
     })),
   );
 
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
 }
 
 function getActionLabel(action: string) {

@@ -87,6 +87,7 @@ export interface LocalResultPublication {
   publicationId: string | null;
   isPublished: boolean;
   publishedAt: string | null;
+  publicationNote: string | null;
   localityName: string | null;
   files: FileItemApi[];
   criteriaGroups: LocalResultPublicationGroup[];
@@ -97,10 +98,16 @@ export const resultPublicationApi = {
   getCriteriaGroups: () => request<ResultPublicationCriteriaGroup[]>({ url: '/api/v1/result-publications/criteria-groups', method: 'GET' }),
   getCriteriaGroup: (id: string) => request<ResultPublicationCriteriaGroup>({ url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET' }),
   getPreview: () => request<ResultPublicationPreview>({ url: '/api/v1/result-publications/preview', method: 'GET' }),
-  publish: (note?: string) => request<ResultPublicationResult>({
-    url: '/api/v1/result-publications/publish',
-    method: 'POST',
-    data: { note: note?.trim() || null },
-  }),
+  publish: (note?: string, file?: File | null) => {
+    const form = new FormData();
+    form.append('note', note?.trim() || '');
+    if (file) form.append('file', file);
+
+    return request<ResultPublicationResult>({
+      url: '/api/v1/result-publications/publish',
+      method: 'POST',
+      data: form,
+    });
+  },
   getLocalResult: () => request<LocalResultPublication>({ url: '/api/v1/result-publications/local', method: 'GET' }),
 };

@@ -95,7 +95,14 @@ export interface SubmissionApi {
   createdByUsername: string | null;
   createdByWardCode: string | null;
   localityFullName: string | null;
+  /** false = phường/xã chưa nộp bài (row tổng hợp từ BE khi includeUnsubmitted=true) */
+  hasSubmission: boolean;
   results: SubmissionResultItem[];
+}
+
+/** Submission thật — row tổng hợp (hasSubmission=false) có id/criteriaGroupId/createdAt = null. */
+export function isRealSubmission(s: SubmissionApi): boolean {
+  return s.hasSubmission !== false;
 }
 
 export interface ApprovalHistoryApi {
@@ -149,7 +156,7 @@ export const specialistApi = {
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
 
   // Submissions — chuyên viên xem tất cả bài nộp
-  listAllSubmissions: (params?: { stage?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+  listAllSubmissions: (params?: { stage?: string; includeUnsubmitted?: boolean; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionApi>>({ url: '/api/v1/submissions', method: 'GET', params }),
 
   // Submissions by criteria group — chuyên viên xem tất cả bài nộp của địa phương
