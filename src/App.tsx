@@ -17,6 +17,7 @@ import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/componen
 import { lazy, Suspense, useEffect } from 'react';
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
+const ChangePasswordPage = lazy(() => import('@/features/auth/ChangePasswordPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
 const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
@@ -105,6 +106,18 @@ export default function App() {
           <Routes>
             {/* Login */}
             <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+
+            {/* Đổi mật khẩu — mọi role đã đăng nhập */}
+            <Route
+              path={ROUTES.CHANGE_PASSWORD}
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <ChangePasswordPage />
+                  </AppLayout>
+                </RequireAuth>
+              }
+ />
 
             {/* Route chuẩn FSD — Cấp Chuyên viên */}
             <Route

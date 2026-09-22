@@ -40,7 +40,8 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   '/thi-dua/duyet/ban-thuong-truc': ['COMMITTEE'],
   '/hoi-dong/lich-su': ['COUNCIL'],
   '/uy-ban/lich-su': ['COMMITTEE'],
-  '/thi-dua/dashboard-tong-quan': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
+  // Tạm tắt trang tổng quan — bật lại cùng với route trong App.tsx
+  // '/thi-dua/dashboard-tong-quan': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
   '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
 };
 

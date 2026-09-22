@@ -1450,14 +1450,14 @@ export default function SpecialistReviewPage() {
     const visibleRows = filteredLocalityRows;
     const selectedLocality = visibleRows.find((row) => row.localityId === selectedLocalityId);
     if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
-      return <div className="mx-auto w-full max-w-[1480px] space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
+      return <div className="space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
     }
     if (allSubmissionsQuery.isError || groupsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getFilesApiError(allSubmissionsQuery.error ?? groupsQuery.error)} />;
     }
 
     return (
-      <div className="mx-auto w-full max-w-[1480px] space-y-6">
+      <div className="space-y-6">
         <PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" />
         <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Hồ sơ địa phương" countLabel={`${visibleRows.length} địa phương`} />
@@ -1615,7 +1615,7 @@ export default function SpecialistReviewPage() {
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
 
     return (
-      <div className="mx-auto w-full max-w-[1480px] space-y-5">
+      <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
           <span>/</span>
@@ -1979,7 +1979,7 @@ export default function SpecialistReviewPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] space-y-5 pb-6">
+    <div className="space-y-5 pb-6">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Link className="hover:text-primary" to="/chuyen-vien/duyet">Danh sách địa phương</Link>
         <span>/</span>

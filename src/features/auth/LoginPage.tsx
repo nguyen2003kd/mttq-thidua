@@ -279,20 +279,12 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Remember + Forgot */}
-              <div className="flex items-center justify-between">
+              {/* Remember */}
+              <div className="flex items-center">
                 <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
                   <Checkbox checked={remember} onCheckedChange={(v) => setRemember(!!v)} />
                   <span>Ghi nhớ đăng nhập</span>
                 </label>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="text-sm text-primary hover:text-primary/80 font-medium h-auto p-0"
-                  onClick={() => toast.info('Liên hệ quản trị viên để đặt lại mật khẩu')}
-                >
-                  Quên mật khẩu?
-                </Button>
               </div>
 
               {/* Submit */}
