@@ -445,8 +445,9 @@ export function DataTable<TData, TValue = unknown>({
               minWidth: listMinWidth ? `${listMinWidth}px` : undefined,
             }}
           >
-          {table.getHeaderGroups().map((headerGroup) =>
-            headerGroup.headers.map((header, idx, arr) => {
+          {table.getHeaderGroups().map((headerGroup) => {
+            const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
+            return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
 
@@ -476,8 +477,8 @@ export function DataTable<TData, TValue = unknown>({
                   )}
                 </div>
               );
-            }),
-          )}
+            });
+          })}
           </div>
         </div>
 
@@ -669,9 +670,10 @@ export function DataTable<TData, TValue = unknown>({
           <div className={cn('overflow-visible', tableWrapperClassName)}>
           <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
             <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
-                  {headerGroup.headers.map((header, idx) => {
+              {table.getHeaderGroups().map((headerGroup) => {
+                const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
+                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
+                  {visibleHeaders.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
 
@@ -714,7 +716,7 @@ export function DataTable<TData, TValue = unknown>({
                     );
                   })}
                 </TableRow>
-              ))}
+              })}
             </TableHeader>
 
             <TableBody>

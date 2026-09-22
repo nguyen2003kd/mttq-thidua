@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Eye, History, Search } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Eye, History, Search, Send } from 'lucide-react';
+import { toast } from 'sonner';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
 import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { ForwardSubmissionDialog } from '@/features/workflow/components';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
 
@@ -60,7 +62,9 @@ function getRowTotals(submission: SubmissionApi) {
 export default function BanLeaderCriteriaGroupsPage() {
   const { banId = 'ban1', localityId } = useParams<{ banId?: string; localityId?: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedRow, setSelectedRow] = useState<LeaderCriteriaGroupRow | null>(null);
+  const [forwardOpen, setForwardOpen] = useState(false);
 
   const submissionsQuery = useQuery({
     queryKey: ['leader-submissions', { stage: LEADER_STAGE }],
@@ -107,9 +111,28 @@ export default function BanLeaderCriteriaGroupsPage() {
 
   const backToList = `/thi-dua/duyet/lanh-dao-ban/${banId}`;
   const openDetail = () => selectedRow && navigate(`${backToList}/chi-tiet/${selectedRow.groupId}/${localityId}`);
+  const forwardToCouncil = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
+    if (!selectedRow) throw new Error('Vui lòng chọn một nhóm tiêu chí.');
+    try {
+      await specialistApi.forwardSubmission(selectedRow.submission.id, explanation, files, onProgress);
+      const updatedSubmission = await specialistApi.getSubmission(selectedRow.submission.id);
+      if (updatedSubmission.currentStage !== 'LeaderApproved') throw new Error(`Trạng thái sau khi duyệt không hợp lệ: ${updatedSubmission.currentStage}.`);
+      await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-approval-histories', selectedRow.submission.id] });
+      toast.success('Đã duyệt và trình hồ sơ lên Hội đồng.');
+      setForwardOpen(false);
+      setSelectedRow(null);
+      navigate(backToList);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể duyệt hồ sơ.');
+      throw error;
+    }
+  };
 
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả chấm điểm đã được chuyên viên chuyển lên lãnh đạo ban." actions={<Button variant="outline" render={<Link to={backToList} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} toolbar={<div className="flex flex-wrap items-center gap-2"><Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={openDetail}><Eye className="mr-1.5 size-4" />Xem chi tiết chấm điểm</Button><Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem lịch sử." onClick={() => selectedRow && navigate(`${backToList}/lich-su`)}><History className="mr-1.5 size-4" />Lịch sử</Button></div>} emptyState={{ title: 'Không có nhóm tiêu chí chờ duyệt', description: 'Địa phương chưa có submission ở trạng thái SpecialistApproved.', icon: <Search className="size-8" /> }} stickyTitle="Nhóm tiêu chí thi đua" stickyDescription={localityName} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} toolbar={<div className="flex flex-wrap items-center gap-2"><Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={openDetail}><Eye className="mr-1.5 size-4" />Xem chi tiết chấm điểm</Button><Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem lịch sử." onClick={() => selectedRow && navigate(`${backToList}/lich-su`)}><History className="mr-1.5 size-4" />Lịch sử</Button>{selectedRow && <Button onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>}</div>} emptyState={{ title: 'Không có nhóm tiêu chí chờ duyệt', description: 'Địa phương chưa có submission ở trạng thái SpecialistApproved.', icon: <Search className="size-8" /> }} stickyTitle="Nhóm tiêu chí thi đua" stickyDescription={localityName} />
+    <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={selectedRow?.groupName ?? ''} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} />
   </div>;
 }
