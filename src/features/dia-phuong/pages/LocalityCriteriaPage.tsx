@@ -304,10 +304,18 @@ export default function LocalityCriteriaPage() {
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
-  const editable = record.state === 'DRAFT';
+  const parentDeadlineMs = detailTable.closeDate ? Date.parse(detailTable.closeDate) : Number.NaN;
+  const parentDeadlineExpired = Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= Date.now();
+  const editable = record.state === 'DRAFT' && !parentDeadlineExpired;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const notYetSubmitted = !submission;
-  const canSubmit = notYetSubmitted || record.state === 'DRAFT';
+  const canSubmit = (notYetSubmitted || record.state === 'DRAFT') && !parentDeadlineExpired;
+
+  const ensureParentDeadlineActive = () => {
+    if (!parentDeadlineExpired) return true;
+    toast.error('Nhóm tiêu chí đã hết hạn nộp. Không thể chỉnh sửa hoặc gửi hồ sơ.');
+    return false;
+  };
 
   const uploadDraftFiles = (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
     if (!result || !draft) return Promise.resolve([]);
@@ -345,6 +353,7 @@ export default function LocalityCriteriaPage() {
 
   const handleSubmitResults = async () => {
     if (!id || !user) return;
+    if (!ensureParentDeadlineActive()) return;
     try {
       const collected = scoreTableRef.current?.collectAll() ?? new Map<string, EvidenceFormValue>();
       if (!submission) {
@@ -403,6 +412,7 @@ export default function LocalityCriteriaPage() {
   const currentBonusScore = record.entries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
   const handleSaveAll = async () => {
     if (!scoreTableRef.current || !user) return;
+    if (!ensureParentDeadlineActive()) return;
     setSavingAll(true);
     try {
       const collected = scoreTableRef.current.collectAll();
@@ -461,6 +471,7 @@ export default function LocalityCriteriaPage() {
     }
   };
   const openSubmitDialog = () => {
+    if (!ensureParentDeadlineActive()) return;
     if (!scoreTableRef.current?.validateAll()) {
       toast.error('Vui lòng hoàn thiện các trường bắt buộc trước khi gửi yêu cầu.');
       return;
@@ -503,7 +514,11 @@ export default function LocalityCriteriaPage() {
         selectedCriterionId={selected?.criterion?.id}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
-        onDeleteEvidence={(evidenceId) => { const target = evidence.find((item) => item.id === evidenceId); if (target) setDeleteTarget(target); }}
+        onDeleteEvidence={(evidenceId) => {
+          if (!ensureParentDeadlineActive()) return;
+          const target = evidence.find((item) => item.id === evidenceId);
+          if (target) setDeleteTarget(target);
+        }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" disabled={!selected} onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
@@ -555,7 +570,10 @@ export default function LocalityCriteriaPage() {
       )}
 
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
-      <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => { if (deleteTarget) deleteFileMutation.mutate(deleteTarget.id); }} />
+      <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa bằng chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
+        if (!deleteTarget || !ensureParentDeadlineActive()) return;
+        deleteFileMutation.mutate(deleteTarget.id);
+      }} />
       <ConfirmDialog open={submitOpen} onOpenChange={setSubmitOpen} title="Gửi yêu cầu" description="Gửi hồ sơ tự đánh giá này lên Chuyên viên cấp thành phố?" confirmLabel="Tiếp tục" cancelLabel="Đóng" action="submit" state="DRAFT" onConfirm={handleSubmitResults} />
     </div>
   );
