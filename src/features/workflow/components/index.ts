@@ -8,3 +8,4 @@ export { PublishResultModal } from './PublishResultModal';
 export { ScoreGroupInput } from './ScoreGroupInput';
 export { LocalityScoreTable, type LocalityScoreTableHandle } from './LocalityScoreTable';
 export { ForwardSubmissionDialog } from './ForwardSubmissionDialog';
+export { OfficialScoreRevisionDialog } from './OfficialScoreRevisionDialog';

@@ -13,6 +13,7 @@ import { AuditTimeline } from '@/components/core';
 import { localityApi, getLocalityApiError, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
+import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
@@ -62,8 +63,23 @@ function classification(score: number, maxScore: number) {
   const ratio = maxScore ? score / maxScore : 0;
   if (ratio >= 0.9) return 'Hoàn thành xuất sắc';
   if (ratio >= 0.8) return 'Hoàn thành tốt';
-  if (ratio >= 0.65) return 'Hoàn thành';
+  if (ratio >= 0.4) return 'Hoàn thành';
   return 'Chưa hoàn thành';
+}
+
+function classificationBadgeClass(score: number, maxScore: number) {
+  const ratio = maxScore ? score / maxScore : 0;
+  if (ratio >= 0.8) return 'bg-success text-success-foreground';
+  if (ratio >= 0.4) return 'bg-warning text-foreground';
+  return 'bg-muted text-muted-foreground';
+}
+
+function publicationStatusLabel(status: string) {
+  if (status === 'CommitteeFinalized') return 'Đã công bố';
+  if (status === 'CouncilApproved') return 'Hội đồng đã duyệt';
+  if (status === 'RequiresRevision') return 'Yêu cầu chỉnh sửa';
+  if (status === 'InProgress') return 'Đang xử lý';
+  return 'Chưa nộp';
 }
 
 interface ResultRow {
@@ -94,7 +110,7 @@ function ResultCards({ rows, page, onPageChange, onView }: { rows: ResultRow[]; 
     {visibleRows.map((row, index) => <article key={row.submission.id} className="rounded-[10px] border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">STT {(safePage - 1) * 10 + index + 1}</p><h2 className="mt-1 text-sm font-semibold leading-5">{row.groupName}</h2></div><Badge className="shrink-0 bg-success text-success-foreground">Đã duyệt</Badge></div>
       <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">{row.groupContent || '—'}</p>
-      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-y border-border py-3 text-sm"><span className="text-muted-foreground">Điểm đề xuất</span><span className="text-right font-semibold tabular-nums">{row.submission.totalProposedPoint}</span><span className="text-muted-foreground">Tổng điểm</span><span className="text-right font-semibold tabular-nums text-primary">{row.submission.totalFinalPoint}</span><span className="text-muted-foreground">Xếp loại</span><span className="text-right font-medium text-success">{classification(row.submission.totalFinalPoint, row.maxTotal)}</span><span className="text-muted-foreground">Thứ hạng</span><span className="text-right tabular-nums">{row.rank ? `${row.rank}/${row.rankTotal}` : '—'}</span></div>
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-y border-border py-3 text-sm"><span className="text-muted-foreground">Điểm đề xuất</span><span className="text-right font-semibold tabular-nums">{row.submission.totalProposedPoint}</span><span className="text-muted-foreground">Tổng điểm</span><span className="text-right font-semibold tabular-nums text-primary">{row.submission.totalFinalPoint}</span><span className="text-muted-foreground">Xếp loại</span><span className={`text-right font-medium ${row.submission.totalFinalPoint / (row.maxTotal || 1) >= 0.4 ? 'text-success' : 'text-muted-foreground'}`}>{classification(row.submission.totalFinalPoint, row.maxTotal)}</span><span className="text-muted-foreground">Thứ hạng</span><span className="text-right tabular-nums">{row.rank ? `${row.rank}/${row.rankTotal}` : '—'}</span></div>
       <Button type="button" variant="outline" className="mt-3 w-full" onClick={() => onView(row)}><Eye className="size-4" />Xem chi tiết</Button>
     </article>)}
     {!rows.length && <EmptyState title="Chưa có kết quả phù hợp" description="Thử điều chỉnh điều kiện tìm kiếm." />}
@@ -139,6 +155,10 @@ export default function LocalityResultsPage() {
   const groupsQuery = useQuery({
     queryKey: ['locality-criteria-groups'],
     queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+  });
+  const publicationQuery = useQuery({
+    queryKey: ['local-result-publication'],
+    queryFn: resultPublicationApi.getLocalResult,
   });
 
   const submissions = useMemo(() => submissionsQuery.data?.items ?? [], [submissionsQuery.data]);
@@ -232,6 +252,8 @@ export default function LocalityResultsPage() {
 
     return <div className="space-y-5">
       <PageHeader title="Kết quả tiêu chí thi đua" description="Kết quả chính thức đã được Ủy ban thường trực công bố." />
+      {publicationQuery.data?.isPublished && <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"><Trophy className="mt-0.5 size-5 shrink-0" /><div><p className="font-semibold">Kết quả đã được công bố chung</p><p className="mt-1 text-sm">{publicationQuery.data.localityName ? `${publicationQuery.data.localityName} có thể xem kết quả theo từng nhóm tiêu chí.` : 'Bạn có thể xem kết quả theo từng nhóm tiêu chí.'}{publicationQuery.data.publishedAt ? ` Thời gian công bố: ${formatDate(publicationQuery.data.publishedAt)}.` : ''}</p></div></div>}
+      {publicationQuery.data?.isPublished && <section className="rounded-xl border border-primary/20 bg-card p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Kết quả công bố theo nhóm tiêu chí</h2><p className="mt-1 text-sm text-muted-foreground">Nhóm chưa nộp hoặc đang yêu cầu chỉnh sửa vẫn được hiển thị với điểm hiện tại bằng 0.</p></div><Badge variant="outline" className="shrink-0">{publicationQuery.data.criteriaGroups.length} nhóm</Badge></div><div className="mt-4 overflow-x-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Nhóm tiêu chí</TableHead><TableHead>Trạng thái</TableHead><TableHead className="text-right">Điểm kết quả</TableHead></TableRow></TableHeader><TableBody>{publicationQuery.data.criteriaGroups.map((group) => <TableRow key={group.criteriaGroupId}><TableCell className="font-medium">{group.name}</TableCell><TableCell><Badge variant="outline">{publicationStatusLabel(group.status)}</Badge></TableCell><TableCell className="text-right font-semibold tabular-nums">{group.currentPoint} <span className="font-normal text-muted-foreground">/ {group.maxPoint}</span></TableCell></TableRow>)}</TableBody></Table></div></section>}
       {selectedRow && (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">
@@ -244,7 +266,7 @@ export default function LocalityResultsPage() {
             <div className="grid min-w-0 flex-[2] basis-[420px] grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
               <div><p className="text-xs text-muted-foreground">Tổng điểm thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{selectedRow.submission.totalFinalPoint}</p></div>
               <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums">{selectedRow.officialBonus}</p></div>
-              <div><p className="text-xs text-muted-foreground">Kết quả xếp loại</p><Badge className="mt-1 max-w-full whitespace-normal bg-success px-2.5 py-0.5 text-left text-xs leading-5 text-success-foreground">{classification(selectedRow.submission.totalFinalPoint, selectedRow.maxTotal)}</Badge></div>
+              <div><p className="text-xs text-muted-foreground">Kết quả xếp loại</p><Badge className={`mt-1 max-w-full whitespace-normal px-2.5 py-0.5 text-left text-xs leading-5 ${classificationBadgeClass(selectedRow.submission.totalFinalPoint, selectedRow.maxTotal)}`}>{classification(selectedRow.submission.totalFinalPoint, selectedRow.maxTotal)}</Badge></div>
               <div><p className="text-xs text-muted-foreground">Thứ hạng</p><p className="mt-0.5 text-xl font-bold tabular-nums">{selectedRow.rank ? `${selectedRow.rank}/${selectedRow.rankTotal}` : '—'}</p></div>
               <div><p className="text-xs text-muted-foreground">Nhận xét Hội đồng thi đua</p><div className="mt-1"><CommentButton label="Nhận xét từ Hội đồng thi đua" value={selectedComments?.council} /></div></div>
               <div><p className="text-xs text-muted-foreground">Nhận xét Ban thường trực</p><div className="mt-1"><CommentButton label="Nhận xét từ Ban thường trực" value={selectedComments?.committee} /></div></div>

@@ -15,10 +15,12 @@ interface ForwardSubmissionDialogProps {
   targetLabel?: string;
   /** Nhãn trường diễn giải theo ngữ cảnh cấp duyệt. */
   explanationLabel?: string;
+  /** Category lưu file theo cấp chuyển hồ sơ. */
+  forwardingCategory?: string;
   onConfirm: (data: { explanation: string }) => void | Promise<void>;
 }
 
-export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, submissionId, targetLabel = 'Lãnh đạo ban', explanationLabel = 'Diễn giải hồ sơ từ chuyên viên', onConfirm }: ForwardSubmissionDialogProps) {
+export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, submissionId, targetLabel = 'Lãnh đạo ban', explanationLabel = 'Diễn giải hồ sơ từ chuyên viên', forwardingCategory = 'SpecialistForwarding', onConfirm }: ForwardSubmissionDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [explanation, setExplanation] = useState('');
@@ -40,7 +42,7 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
         const uploaded = await uploadFiles(files, {
           entityType: 'Submission',
           entityId: submissionId,
-          category: 'SpecialistForwarding',
+          category: forwardingCategory,
           description: explanation.trim() || undefined,
         });
         if (uploaded.length !== files.length) throw new Error('Một số tập tin chưa tải lên được. Vui lòng thử lại.');
