@@ -17,7 +17,7 @@ export type LocalityStatus = 'submitted' | 'processing' | 'published';
 
 export type ActionType = 'SCORE' | 'EDIT' | 'APPROVE' | 'REJECT' | 'PUBLISH';
 
-export type CriteriaTableStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED';
+export type CriteriaTableStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'PUBLISHED';
 
 export interface AuthUser {
   id: string;

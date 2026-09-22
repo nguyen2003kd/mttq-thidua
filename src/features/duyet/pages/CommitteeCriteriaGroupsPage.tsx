@@ -4,7 +4,7 @@ import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
-import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 
 const COMMITTEE_STAGE = 'CouncilApproved' as const;
 
@@ -24,7 +24,7 @@ async function listEveryCommitteeSubmission() {
   const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
   if (pageCount <= 1) return firstPage;
   const pages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ stage: COMMITTEE_STAGE, page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
-  return { ...firstPage, items: [firstPage.items, ...pages.flatMap((page) => page.items)].flat() };
+  return { ...firstPage, items: [firstPage.items, ...pages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
 }
 
 function getLocalityCode(localityId: string) { return localityId.startsWith('loc-') ? localityId.slice(4) : localityId; }

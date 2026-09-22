@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ForwardSubmissionDialog, OfficialScoreRevisionDialog, ReviewScoreModal } from '@/features/workflow/components';
 import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
-import { specialistApi, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
+import { isRealSubmission, specialistApi, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { filesApi } from '@/features/files/api/filesApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
@@ -106,13 +106,16 @@ export default function BanLeaderReviewDetailPage() {
     queryKey: ['leader-submissions-by-group', tableId, localityCode],
     queryFn: async () => {
       const result = await specialistApi.listSubmissionsByGroup(tableId!, { stage: LEADER_STAGE, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
-      return result.items.find((submission) => (submission.createdByWardCode ?? submission.createdBy ?? '') === localityCode) ?? null;
+      return result.items.filter(isRealSubmission).find((submission) => (submission.createdByWardCode ?? submission.createdBy ?? '') === localityCode) ?? null;
     },
     enabled: Boolean(tableId && localityCode),
   });
   const submissionDetailQuery = useQuery({
     queryKey: ['leader-submission-detail', submissionsQuery.data?.id],
-    queryFn: () => specialistApi.getSubmission(submissionsQuery.data!.id),
+    queryFn: async () => {
+      const data = await specialistApi.getSubmission(submissionsQuery.data!.id);
+      return isRealSubmission(data) ? data : null;
+    },
     enabled: Boolean(submissionsQuery.data?.id),
   });
   const approvalHistoriesQuery = useQuery({

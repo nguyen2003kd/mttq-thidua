@@ -40,10 +40,11 @@ export const ACTION_LABELS: Record<ActionType, string> = {
   PUBLISH: 'Công bố',
 };
 
-export const CRITERIA_STATUS_LABELS: Record<'DRAFT' | 'ACTIVE' | 'EXPIRED', string> = {
+export const CRITERIA_STATUS_LABELS: Record<'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'PUBLISHED', string> = {
   DRAFT: 'Nháp',
   ACTIVE: 'Đang hoạt động',
   EXPIRED: 'Đã kết thúc',
+  PUBLISHED: 'Đã công bố',
 };
 
 export const PUBLISH_CONFIRM_KEYWORD = 'CÔNG BỐ';

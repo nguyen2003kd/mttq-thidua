@@ -32,7 +32,7 @@ const getCurrentLocalDateTime = () => {
   const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
   return localNow.toISOString().slice(0, 16);
 };
-const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
+const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Published' ? 'PUBLISHED' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
 const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   id: group.id,
   name: group.name,
@@ -40,7 +40,7 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   content: group.content ?? undefined,
   status: toTableStatus(group.status),
   criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
-  assignedLocalityCount: group.status === 'Applied' ? 1 : 0,
+  assignedLocalityCount: group.status === 'Applied' || group.status === 'Published' ? 1 : 0,
   openDate: group.createdAt,
   closeDate: group.deadline ?? '',
   updatedAt: group.updatedAt ?? undefined,
@@ -148,6 +148,8 @@ export default function CriteriaListPage() {
         cell: ({ row }) =>
           row.original.status === 'ACTIVE'
             ? <Badge className="bg-success/15 text-success">Đã áp dụng</Badge>
+            : row.original.status === 'PUBLISHED'
+              ? <Badge className="bg-success/15 text-success">Đã công bố</Badge>
             : row.original.status === 'EXPIRED'
               ? <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Đã kết thúc</Badge>
               : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Nháp</Badge>,
@@ -308,6 +310,7 @@ export default function CriteriaListPage() {
                 { value: 'Draft', label: CRITERIA_STATUS_LABELS.DRAFT },
                 { value: 'Applied', label: CRITERIA_STATUS_LABELS.ACTIVE },
                 { value: 'Closed', label: CRITERIA_STATUS_LABELS.EXPIRED },
+                { value: 'Published', label: CRITERIA_STATUS_LABELS.PUBLISHED },
               ]}
             />
             <FilterSelect
@@ -335,7 +338,7 @@ export default function CriteriaListPage() {
           ...(statusFilter
             ? [{
                 label: 'Trạng thái',
-                value: statusFilter === 'Draft' ? CRITERIA_STATUS_LABELS.DRAFT : statusFilter === 'Applied' ? CRITERIA_STATUS_LABELS.ACTIVE : CRITERIA_STATUS_LABELS.EXPIRED,
+                value: statusFilter === 'Draft' ? CRITERIA_STATUS_LABELS.DRAFT : statusFilter === 'Applied' ? CRITERIA_STATUS_LABELS.ACTIVE : statusFilter === 'Published' ? CRITERIA_STATUS_LABELS.PUBLISHED : CRITERIA_STATUS_LABELS.EXPIRED,
                 onClear: () => setStatusFilter(''),
               }]
             : []),

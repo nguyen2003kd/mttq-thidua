@@ -1,7 +1,7 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
 
-export type CriteriaGroupStatusApi = 'Draft' | 'Applied' | 'Closed';
+export type CriteriaGroupStatusApi = 'Draft' | 'Applied' | 'Closed' | 'Published';
 
 export type CriteriaStatusApi = 'Draft' | 'Applied';
 

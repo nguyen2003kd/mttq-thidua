@@ -7,7 +7,7 @@ import { DataTable, EmptyState, PageHeader, PageLoading, RejectDialog, ScoreStat
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { toast } from 'sonner';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
@@ -49,7 +49,7 @@ async function listEveryCouncilSubmission() {
     })),
   );
 
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
 }
 
 function formatUpdated(row: LocalityReviewRow) {
