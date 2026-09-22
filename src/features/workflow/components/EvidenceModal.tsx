@@ -148,6 +148,7 @@ export function EvidenceModal({
       onSubmit={handleSubmit}
       submitLabel={readonly ? 'Đóng' : 'Lưu'}
       cancelLabel="Đóng"
+      hideCancel={readonly}
       submitDisabled={saving || uploading}
       size="max-w-2xl sm:max-w-2xl"
     >

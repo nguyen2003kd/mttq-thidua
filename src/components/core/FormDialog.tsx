@@ -20,6 +20,8 @@ export interface FormDialogProps {
   onSubmit: (e: FormEvent) => void;
   submitLabel?: string;
   cancelLabel?: string;
+  /** Ẩn nút cancel (dùng khi chỉ cần 1 nút Đóng). */
+  hideCancel?: boolean;
   submitDisabled?: boolean;
   /** RBAC cho nút submit. */
   submitAction?: Action;
@@ -36,6 +38,7 @@ export function FormDialog({
   onSubmit,
   submitLabel = 'Lưu',
   cancelLabel = 'Hủy',
+  hideCancel = false,
   submitDisabled,
   submitAction,
   size = 'max-w-lg sm:max-w-lg',
@@ -53,9 +56,11 @@ export function FormDialog({
             {children}
           </div>
           <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-[8px] px-6 py-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {cancelLabel}
-            </Button>
+            {!hideCancel && (
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                {cancelLabel}
+              </Button>
+            )}
             <Button type="submit" action={submitAction} disabled={submitDisabled}>
               {submitLabel}
             </Button>

@@ -1,18 +1,15 @@
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ChevronDown, ChevronRight, FileText, Paperclip } from 'lucide-react';
-import { AuditTimeline, Button, EmptyState, PageHeader, PageLoading } from '@/components/core';
-import { Card, CardContent } from '@/components/ui/card';
-import { useAuthStore } from '@/store/authStore';
+import { ChevronDown, ChevronRight, FileText, Paperclip } from 'lucide-react';
+import { AppDialog, AuditTimeline } from '@/components/core';
 import type { AuditEntry } from '@/types/domain';
 import type { Role, ActionType } from '@/types/rbac';
 import {
   localityApi,
-  mapCriteriaGroupToTable,
   getLocalityApiError,
   type ApprovalHistoryItem,
   type SubmissionHistoryItem,
+  type SubmissionApi,
   type FileSnapshotItem,
 } from '@/features/dia-phuong/api/localityApi';
 import { filesApi } from '@/features/files/api/filesApi';
@@ -27,12 +24,15 @@ const ACTION_MAP: Record<string, ActionType> = {
   edit: 'EDIT',
 };
 
-const ROLE_MAP: Record<string, Role> = {
-  LOCAL: 'LOCAL',
-  SPECIALIST: 'SPECIALIST',
-  LEADER: 'LEADER',
-  COUNCIL: 'COUNCIL',
-  COMMITTEE: 'COMMITTEE',
+// stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
+const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
+  Draft: { role: 'LOCAL', label: 'Địa phương' },
+  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên' },
+  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên' },
+  SpecialistApproved: { role: 'LEADER', label: 'Lãnh đạo ban' },
+  LeaderApproved: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
+  CouncilApproved: { role: 'COMMITTEE', label: 'Ban thường trực' },
+  CommitteeFinalized: { role: 'COMMITTEE', label: 'Ban thường trực' },
 };
 
 const ACTION_LABELS_VI: Record<string, string> = {
@@ -60,15 +60,16 @@ function translateLegacyReason(reason: string | null): string | null {
 
 function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
   const resolvedAction = resolveHistoryAction(item.action, item.reason);
+  const actor = STAGE_ACTOR_MAP[item.stageLevel];
   return {
     id: item.id,
     timestamp: item.createdAt,
-    actorName: item.actorName,
-    actorRole: ROLE_MAP[item.actorRole] ?? 'LOCAL',
+    actorName: actor?.label ?? 'Hệ thống',
+    actorRole: actor?.role ?? 'LOCAL',
     action: ACTION_MAP[resolvedAction?.toLowerCase()] ?? 'EDIT',
     fieldName: item.submissionId,
-    oldValue: item.fromStage ?? null,
-    newValue: item.toStage ?? item.action,
+    oldValue: null,
+    newValue: item.action,
     reason: translateLegacyReason(item.reason),
   };
 }
@@ -166,13 +167,13 @@ function SubmissionHistoryEntry({ item }: { item: SubmissionHistoryItem }) {
   );
 }
 
-function ResultHistorySection({ resultId, criteriaName }: { resultId: string; criteriaName: string }) {
+function ResultHistorySection({ resultId, criteriaName, enabled }: { resultId: string; criteriaName: string; enabled: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
   const historiesQuery = useQuery({
     queryKey: ['locality-result-histories', resultId],
     queryFn: () => localityApi.listResultHistories(resultId, { page: 1, pageSize: 100 }),
-    enabled: expanded,
+    enabled: enabled && expanded,
   });
 
   const histories = historiesQuery.data?.items ?? [];
@@ -211,58 +212,29 @@ function ResultHistorySection({ resultId, criteriaName }: { resultId: string; cr
   );
 }
 
-export default function LocalityCriteriaHistoryPage() {
-  const { id } = useParams<{ id?: string }>();
-  const user = useAuthStore((state) => state.user);
+interface LocalityCriteriaHistoryDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  submission: SubmissionApi | undefined;
+  groupName: string;
+}
 
-  const groupQuery = useQuery({
-    queryKey: ['locality-criteria-group', id],
-    queryFn: () => localityApi.getCriteriaGroup(id!),
-    enabled: Boolean(id),
-  });
-
-  // Tìm submission của locality trong group này
-  const mySubmissionsQuery = useQuery({
-    queryKey: ['locality-my-submissions', user?.localityId],
-    queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
-    enabled: Boolean(user?.localityId),
-  });
-
-  const submission = useMemo(() => {
-    const list = mySubmissionsQuery.data?.items ?? [];
-    return list.find((s) => s.criteriaGroupId === id);
-  }, [mySubmissionsQuery.data, id]);
+export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, groupName }: LocalityCriteriaHistoryDialogProps) {
+  const hasSubmission = Boolean(submission?.id);
 
   const historiesQuery = useQuery({
     queryKey: ['locality-approval-histories', submission?.id],
     queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 100 }),
-    enabled: Boolean(submission?.id),
+    enabled: open && hasSubmission,
   });
 
   // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
   const revisionFilesQuery = useQuery({
     queryKey: ['locality-revision-files-history', submission?.id],
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
-    enabled: Boolean(submission?.id),
+    enabled: open && hasSubmission,
   });
   const revisionFiles = revisionFilesQuery.data?.items ?? [];
-
-  if (!id || !user?.localityId) {
-    return <EmptyState title="Không tìm thấy lịch sử" description="Nhóm tiêu chí hoặc địa phương không hợp lệ." />;
-  }
-
-  if (groupQuery.isLoading) {
-    return <PageLoading label="Đang tải lịch sử tiêu chí…" />;
-  }
-
-  const table = groupQuery.data ? mapCriteriaGroupToTable(groupQuery.data) : null;
-  if (!table) {
-    return <EmptyState title="Không tìm thấy lịch sử" description="Nhóm tiêu chí hoặc địa phương không hợp lệ." />;
-  }
-
-  if (historiesQuery.isError) {
-    return <EmptyState title="Không tải được lịch sử" description={getLocalityApiError(historiesQuery.error)} />;
-  }
 
   const entries = (historiesQuery.data?.items ?? [])
     .map(mapHistoryToAudit)
@@ -271,53 +243,51 @@ export default function LocalityCriteriaHistoryPage() {
   const results = submission?.results ?? [];
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Lịch sử nộp và chấm"
-        description={table.name}
-        actions={<Button variant="outline" render={<Link to={`/dia-phuong/tieu-chi/${table.id}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>}
-      />
-
-      <Card>
-        <CardContent className="p-5">
-          <h3 className="text-sm font-semibold mb-3">Lịch sử duyệt</h3>
-          <AuditTimeline entries={entries} />
-          {revisionFiles.length > 0 && (
-            <div className="mt-4 space-y-2 rounded-md border border-border bg-muted/30 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <Paperclip className="h-3 w-3" />
-                File đính kèm yêu cầu chỉnh sửa ({revisionFiles.length})
-              </div>
-              <div className="space-y-1">
-                {revisionFiles.map((file) => (
-                  <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-xs hover:bg-muted">
-                    <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className="truncate">{file.displayName ?? file.originalName}</span>
-                    <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
+    <AppDialog open={open} onOpenChange={onOpenChange} title="Lịch sử nộp và chấm" subtitle={groupName} size="max-w-3xl sm:max-w-3xl">
+      <div className="space-y-5">
+        {historiesQuery.isError ? (
+            <p className="text-sm text-destructive">Không tải được lịch sử: {getLocalityApiError(historiesQuery.error)}</p>
+          ) : (
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">Lịch sử duyệt</h3>
+              {historiesQuery.isLoading ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Đang tải…</p>
+              ) : (
+                <AuditTimeline entries={entries} />
+              )}
+              {revisionFiles.length > 0 && (
+                <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Paperclip className="h-3 w-3" />
+                    File đính kèm yêu cầu chỉnh sửa ({revisionFiles.length})
+                  </div>
+                  <div className="space-y-1">
+                    {revisionFiles.map((file) => (
+                      <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-xs hover:bg-muted">
+                        <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="truncate">{file.displayName ?? file.originalName}</span>
+                        <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
           )}
-        </CardContent>
-      </Card>
-
-      {results.length > 0 && (
-        <Card>
-          <CardContent className="p-5">
-            <h3 className="text-sm font-semibold mb-3">Lịch sử chi tiết từng tiêu chí</h3>
-            <div className="space-y-2">
+          {results.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold">Lịch sử chi tiết từng tiêu chí</h3>
               {results.map((r) => (
                 <ResultHistorySection
                   key={r.id}
                   resultId={r.id}
                   criteriaName={r.criteriaContent ?? r.criteriaId}
+                  enabled={open}
                 />
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </section>
+          )}
+      </div>
+    </AppDialog>
   );
 }

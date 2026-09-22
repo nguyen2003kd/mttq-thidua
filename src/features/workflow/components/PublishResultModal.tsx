@@ -89,7 +89,7 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
         if (!nextOpen) close();
       }}
     >
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         {step === 'details' ? (
           <form onSubmit={continueToConfirmation} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <DialogHeader className="shrink-0 border-b bg-muted/25 px-6 py-5 pr-12">

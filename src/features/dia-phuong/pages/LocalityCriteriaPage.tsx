@@ -3,10 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, ConfirmDialog, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
+import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
@@ -56,7 +56,9 @@ export default function LocalityCriteriaPage() {
   const [selected, setSelected] = useState<SelectedRow | null>(null);
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Evidence | null>(null);
-  const [deletePickerOpen, setDeletePickerOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [draftResults, setDraftResults] = useState<Map<string, EvidenceFormValue>>(new Map());
@@ -367,6 +369,7 @@ export default function LocalityCriteriaPage() {
     : undefined;
   const editable = isTrustedTimeReady && submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineExpired;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
+  const decisionFiles = groupDetailQuery.data?.files ?? [];
   const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineExpired;
 
   const ensureParentDeadlineActive = () => {
@@ -553,9 +556,8 @@ export default function LocalityCriteriaPage() {
 
   return (
     <div className="space-y-5 pb-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/dia-phuong/tieu-chi" className="hover:text-primary">Danh sách nhóm tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{detailTable.name}</span></div>
       <PageHeader
-        title="Tự đánh giá và nộp bài"
+        title="Tự đánh giá và gửi minh chứng"
         description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatDate(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`}
         summary={(
           <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-4 py-2.5">
@@ -572,7 +574,7 @@ export default function LocalityCriteriaPage() {
             </div>
           </div>
         )}
-        actions={<div className="flex flex-wrap gap-2"><ScoreStateBadge state={record.state} /><Button variant="outline" render={<Link to={`/dia-phuong/tieu-chi/${detailTable.id}/lich-su`} />} nativeButton={false}><History className="size-4" />Lịch sử</Button><Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="outline" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
@@ -618,12 +620,7 @@ export default function LocalityCriteriaPage() {
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => {
-              const files = filesFor(selected?.entry.criteriaId);
-              if (files.length === 0) { toast.info('Tiêu chí chưa có minh chứng để xóa.'); return; }
-              if (files.length === 1) { setDeleteTarget(files[0]); return; }
-              setDeletePickerOpen(true);
-            })}><Trash2 className="size-4" />Xóa minh chứng</Button>
+            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
               <Button disabled={savingAll || !canSubmit} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện chưa sẵn sàng để gửi.')} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
@@ -632,72 +629,28 @@ export default function LocalityCriteriaPage() {
         )}
       />
 
-      {(groupDetailQuery.data?.files ?? []).length > 0 && (
-        <div className="overflow-hidden rounded-lg border bg-card">
-          <div className="bg-primary px-4 py-3 text-primary-foreground">
-            <p className="text-sm font-semibold">Quyết định</p>
-            <p className="mt-0.5 text-xs text-white/75">File đính kèm của nhóm tiêu chí</p>
-          </div>
-          <div className="p-3">
-            <ul className="space-y-2">
-              {(groupDetailQuery.data?.files ?? []).map((file) => (
-                <li key={file.id} className="group relative overflow-hidden rounded-md border border-border border-l-[3px] border-l-primary bg-card transition-colors hover:bg-surface-muted">
-                  <div className="flex items-center gap-3 px-3 py-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                      <FileText className="h-4.5 w-4.5 text-primary" />
-                    </span>
-                    <TruncatedText value={file.displayName || file.originalName} className="flex-1 text-[13px] font-semibold text-foreground" />
-                  </div>
-                  <div className="flex items-center justify-between gap-2 border-t border-border/60 px-3 py-1.5">
-                    <span className="truncate text-[11px] text-muted-foreground">
-                      {file.sizeBytes ? `${file.sizeBytes < 1024 ? `${file.sizeBytes} B` : file.sizeBytes < 1024 * 1024 ? `${Math.ceil(file.sizeBytes / 1024)} KB` : `${(file.sizeBytes / 1024 / 1024).toFixed(1)} MB`}` : ''} · {formatDate(file.createdAt)}
-                    </span>
-                    <button
-                      type="button"
-                      title="Tải file về máy"
-                      onClick={() => void downloadFile(file.id, file.displayName || file.originalName)}
-                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                    >
-                      <ArrowDownToLine className="h-4 w-4" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
-      <Dialog open={deletePickerOpen} onOpenChange={setDeletePickerOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Chọn minh chứng cần xóa</DialogTitle>
-            <DialogDescription>{selected?.criterion?.name ?? selected?.entry.criteriaName}</DialogDescription>
-          </DialogHeader>
-          <div className="min-w-0 space-y-2">
-            {filesFor(selected?.entry.criteriaId).map((file) => (
-              <div key={file.id} className="flex items-center gap-3 overflow-hidden rounded-lg border px-3 py-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-muted">
-                  <FileText className="h-4 w-4 text-primary" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium" title={file.fileName}>{file.fileName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {file.fileSize ? `${Math.ceil(file.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(file.uploadedAt)}{file.kind === 'BONUS' ? ' · Điểm thưởng' : ''}
-                  </p>
-                </div>
-                <Button variant="ghost" size="icon-xs" title="Xóa tệp" className="shrink-0 text-destructive" onClick={() => { setDeleteTarget(file); setDeletePickerOpen(false); }}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+      <FormDialog open={decisionOpen} onOpenChange={setDecisionOpen} title="Quyết định" description="File đính kèm của nhóm tiêu chí" onSubmit={(event) => { event.preventDefault(); setDecisionOpen(false); }} submitLabel="Đóng" cancelLabel="Đóng" hideCancel size="max-w-md sm:max-w-md">
+        <ul className="space-y-2">
+          {decisionFiles.map((file) => (
+            <li key={file.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+              <FileText className="h-4 w-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <TruncatedText as="p" value={file.displayName || file.originalName} className="text-sm font-medium" />
+                <p className="text-xs text-muted-foreground">{file.sizeBytes ? `${Math.ceil(file.sizeBytes / 1024)} KB` : 'Tệp đính kèm'} · {formatDate(file.createdAt)}</p>
               </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeletePickerOpen(false)}>Đóng</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Button variant="ghost" size="icon-xs" title="Xem file" onClick={() => { setDecisionOpen(false); setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName }); }}>
+                <Eye className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon-xs" title="Tải file về máy" onClick={() => void downloadFile(file.id, file.displayName || file.originalName)}>
+                <ArrowDownToLine className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </FormDialog>
+      <LocalityCriteriaHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} submission={submissionDetailQuery.data ?? submission} groupName={detailTable.name} />
+      <FilePreviewDialog file={previewFile} onOpenChange={(isOpen) => { if (!isOpen) setPreviewFile(null); }} />
+      <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa minh chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
         if (!deleteTarget || !ensureSubmissionIsEditable()) return;
         deleteFileMutation.mutate(deleteTarget.id);

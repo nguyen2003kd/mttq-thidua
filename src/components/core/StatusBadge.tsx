@@ -1,4 +1,5 @@
 import { Badge, badgeVariants } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import type { VariantProps } from 'class-variance-authority';
 import {
   SCORE_STATE_LABELS,
@@ -25,12 +26,21 @@ const scoreStateVariant: Record<ScoreState, BadgeVariant> = {
 };
 
 const scoreStateClassName: Record<ScoreState, string> = {
-  DRAFT: 'border-transparent bg-[#9CA3AF]/15 text-[#626A76]',
-  CHO_CHUYEN_VIEN: 'border-transparent bg-[#E8B923]/20 text-[#6E570B]',
-  CHO_DUYET_BAN: 'border-transparent bg-[#E8B923]/20 text-[#6E570B]',
-  CHO_DUYET_HOI_DONG: 'border-transparent bg-[#E8B923]/20 text-[#6E570B]',
-  CHO_DUYET_BTT: 'border-transparent bg-[#2E7D5B]/15 text-[#2E7D5B]',
-  DA_CONG_BO: 'border-transparent bg-[#2D2A26] text-white',
+  DRAFT: 'border-[#9CA3AF]/25 bg-[#9CA3AF]/10 text-[#626A76]',
+  CHO_CHUYEN_VIEN: 'border-[#E8B923]/30 bg-[#E8B923]/15 text-[#6E570B]',
+  CHO_DUYET_BAN: 'border-[#E8B923]/25 bg-[#E8B923]/15 text-[#6E570B]',
+  CHO_DUYET_HOI_DONG: 'border-[#E8B923]/25 bg-[#E8B923]/15 text-[#6E570B]',
+  CHO_DUYET_BTT: 'border-[#2E7D5B]/25 bg-[#2E7D5B]/15 text-[#2E7D5B]',
+  DA_CONG_BO: 'border-[#2D2A26] bg-[#2D2A26] text-white',
+};
+
+const scoreStateDot: Record<ScoreState, string> = {
+  DRAFT: 'bg-[#9CA3AF]',
+  CHO_CHUYEN_VIEN: 'bg-[#E8B923]',
+  CHO_DUYET_BAN: 'bg-[#E8B923]',
+  CHO_DUYET_HOI_DONG: 'bg-[#E8B923]',
+  CHO_DUYET_BTT: 'bg-[#2E7D5B]',
+  DA_CONG_BO: 'bg-[#E8B923]',
 };
 
 const localityStatusVariant: Record<LocalityStatus, BadgeVariant> = {
@@ -53,8 +63,26 @@ const actionVariant: Record<ActionType, BadgeVariant> = {
   PUBLISH: 'success',
 };
 
-export function ScoreStateBadge({ state }: { state: ScoreState }) {
-  return <Badge variant={scoreStateVariant[state]} className={scoreStateClassName[state]}>{SCORE_STATE_LABELS[state]}</Badge>;
+const SCORE_STATE_HINTS: Record<ScoreState, string> = {
+  DRAFT: 'Bản nháp — chưa gửi duyệt, bạn vẫn có thể chỉnh sửa điểm và minh chứng.',
+  CHO_CHUYEN_VIEN: 'Đã gửi — đang chờ Chuyên viên duyệt.',
+  CHO_DUYET_BAN: 'Chuyên viên đã duyệt — đang chờ Lãnh đạo ban duyệt.',
+  CHO_DUYET_HOI_DONG: 'Lãnh đạo ban đã duyệt — đang chờ Hội đồng thi đua duyệt.',
+  CHO_DUYET_BTT: 'Đã được duyệt ở các cấp.',
+  DA_CONG_BO: 'Đã công bố — hồ sơ đã khóa, không thể chỉnh sửa.',
+};
+
+export function ScoreStateBadge({ state, size = 'sm' }: { state: ScoreState; size?: 'sm' | 'lg' }) {
+  return (
+    <Badge
+      variant={scoreStateVariant[state]}
+      className={cn(size === 'lg' && 'h-9 gap-2 px-3 text-sm', scoreStateClassName[state])}
+      title={SCORE_STATE_HINTS[state]}
+    >
+      <span className={cn('shrink-0 rounded-full', size === 'lg' ? 'h-2 w-2' : 'h-1.5 w-1.5', scoreStateDot[state])} />
+      {SCORE_STATE_LABELS[state]}
+    </Badge>
+  );
 }
 
 export function LocalityStatusBadge({ status }: { status: LocalityStatus }) {
