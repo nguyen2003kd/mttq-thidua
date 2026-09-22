@@ -377,9 +377,11 @@ export default function LocalityCriteriaPage() {
   const currentTimeMs = trustedNowMs ?? 0;
   const parentDeadlineMs = detailTable.closeDate ? Date.parse(detailTable.closeDate) : Number.NaN;
   const parentDeadlineExpired = isTrustedTimeReady && Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= currentTimeMs;
-  // Chỉ bản nháp từ /my-submissions mới được địa phương chỉnh sửa hoặc nộp.
-  // Các giai đoạn khác chỉ cho phép xem và tải minh chứng đã có.
-  const submissionAllowsEditing = !submission || submission.currentStage === 'Draft';
+  // Địa phương được chỉnh sửa bản nháp hoặc hồ sơ bị yêu cầu chỉnh sửa.
+  // Các giai đoạn đã chuyển tiếp khác chỉ cho phép xem và tải minh chứng đã có.
+  const submissionAllowsEditing = !submission
+    || submission.currentStage === 'Draft'
+    || submission.currentStage === 'RequiresRevision';
   const submissionLockedReason = submission
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;

@@ -59,10 +59,12 @@ export function AuditTimeline({ entries, context }: { entries: AuditEntry[]; con
           <div className="flex-1 space-y-1 pt-0.5">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
-                {entry.actorName}{' '}
-                {entry.fieldName.startsWith('Nhận xét Hội đồng - ')
-                  ? 'đã gửi nhận xét'
-                  : actionSentence[entry.action] ?? ACTION_LABELS[entry.action].toLocaleLowerCase('vi')}
+                {entry.displayTitle ?? <>
+                  {entry.actorName}{' '}
+                  {entry.fieldName.startsWith('Nhận xét Hội đồng - ')
+                    ? 'đã gửi nhận xét'
+                    : actionSentence[entry.action] ?? ACTION_LABELS[entry.action].toLocaleLowerCase('vi')}
+                </>}
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
