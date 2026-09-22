@@ -7,6 +7,24 @@ interface ApiEnvelope<T> {
   errors?: Array<{ messages?: { vi?: string; en?: string } }>;
 }
 
+export interface AuditLogChange {
+  field: string;
+  label: string | null;
+  before: unknown;
+  after: unknown;
+  beforeDisplay: string | null;
+  afterDisplay: string | null;
+}
+
+export interface AuditLogFile {
+  id: string;
+  url: string;
+  originalName: string;
+  displayName?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+}
+
 export interface AuditLogItem {
   id: string;
   userId: string | null;
@@ -23,6 +41,10 @@ export interface AuditLogItem {
   beforeData: string | null;
   afterData: string | null;
   changedData: string | null;
+  summary: string | null;
+  changes: AuditLogChange[] | null;
+  files: AuditLogFile[] | null;
+  beforeFiles: AuditLogFile[] | null;
   durationMs: number | null;
   success: boolean;
   ipAddress: string | null;

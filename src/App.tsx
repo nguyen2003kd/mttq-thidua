@@ -24,6 +24,7 @@ const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormP
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
 const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
+const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagementPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
@@ -69,6 +70,7 @@ function RoleHomeRedirect() {
     case 'LEADER': return <Navigate to={`/thi-dua/duyet/lanh-dao-ban/${user.banId ?? 'ban1'}`} replace />;
     case 'COUNCIL': return <Navigate to={ROUTES.DUYET_COUNCIL} replace />;
     case 'COMMITTEE': return <Navigate to={ROUTES.DUYET_STANDING} replace />;
+    case 'ADMIN': return <Navigate to={ROUTES.ADMIN_CRITERIA_LIST} replace />;
     default: return <Navigate to={ROUTES.LOGIN} replace />;
   }
 }
@@ -162,7 +164,7 @@ export default function App() {
               path="/thi-dua/admin"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST']}>
+                  <RequireRole roles={['SPECIALIST', 'ADMIN']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>
@@ -175,6 +177,7 @@ export default function App() {
               <Route path="bang-tieu-chi/:id/chi-tiet" element={<CriteriaDetailPage />} />
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
+              <Route path="tai-khoan" element={<UserManagementPage />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>
@@ -351,7 +354,7 @@ export default function App() {
               path="/thi-dua/lich-su-thay-doi/:diaPhuongId?"
               element={
                 <RequireAuth>
-                  <RequireRole roles={INTERNAL_ROLES}>
+                  <RequireRole roles={[...INTERNAL_ROLES, 'LOCAL']}>
                     <AppLayout>
                       <AuditLogPage />
                     </AppLayout>

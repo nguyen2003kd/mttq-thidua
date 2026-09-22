@@ -12,6 +12,7 @@ import {
   CheckCheck,
   Menu,
   KeyRound,
+  Users,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -82,12 +83,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
     if (user?.role === 'LOCAL') {
       items.push({ to: ROUTES.LOCALITY_CRITERIA, label: 'Tiêu chí được giao', icon: Table });
       items.push({ to: ROUTES.LOCALITY_RESULTS, label: LABELS.LOCALITY_RESULT_TITLE, icon: Trophy });
+      items.push({ to: '/thi-dua/lich-su-thay-doi', label: 'Lịch sử thao tác', icon: History });
     }
 
     if (user?.role === 'SPECIALIST' && criteriaTables[0]) {
       items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
       items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
       items.push({ to: ROUTES.SPECIALIST_HISTORY, label: 'Lịch sử chấm', icon: History });
+    }
+
+    if (user?.role === 'ADMIN') {
+      items.push({ to: ROUTES.ADMIN_CRITERIA_LIST, label: 'Quản lý tiêu chí', icon: Table });
+      items.push({ to: ROUTES.ADMIN_DEADLINE_CONFIG, label: 'Cấu hình thời hạn', icon: ClipboardCheck });
+      items.push({ to: ROUTES.ADMIN_LOCALITY, label: 'Địa phương', icon: Trophy });
+      items.push({ to: ROUTES.ADMIN_USERS, label: 'Quản lý tài khoản', icon: Users });
     }
 
     if (user?.role === 'LEADER') {
@@ -144,8 +153,47 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const isAdmin = user?.role === 'ADMIN';
+
   return (
-    <div className="flex h-dvh flex-col bg-background">
+    <div className="flex h-dvh bg-background">
+      {/* Sidebar trái — chỉ cho role ADMIN */}
+      {isAdmin && (
+        <aside className="hidden w-60 shrink-0 flex-col bg-primary text-white xl:flex">
+          <div className="flex items-center gap-2 border-b border-white/20 px-5 py-4">
+            <Trophy className="h-6 w-6 shrink-0 text-accent" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">Mặt Trận Tổ Quốc</p>
+              <p className="text-[11px] text-white/75">Phân hệ Quản lý Thi đua</p>
+            </div>
+          </div>
+          <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Điều hướng quản trị">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+              return (
+                <button
+                  key={item.to}
+                  type="button"
+                  onClick={() => navigate(item.to)}
+                  className={`flex h-10 w-full items-center gap-3 rounded-[6px] px-3 text-left text-sm font-medium transition-colors ${
+                    isActive ? 'bg-white text-primary' : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  <item.icon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-white/75'}`} />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          {user && (
+            <div className="border-t border-white/20 px-5 py-4">
+              <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+              <p className="mt-0.5 text-xs text-white/75">{ROLE_LABELS[user.role]}</p>
+            </div>
+          )}
+        </aside>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-primary bg-primary px-4 text-primary-foreground">
         <div className="flex min-w-0 items-center gap-3">
           {/* Brand */}
@@ -154,18 +202,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <span className="hidden lg:block font-semibold text-sm tracking-tight whitespace-nowrap">Mặt Trận Tổ Quốc</span>
           </div>
           <span className="hidden h-6 w-px bg-white/25 xl:block" aria-hidden="true" />
-          {/* Navigation ngang */}
-          <nav className="hidden min-w-0 items-center gap-1 xl:flex">
-            {navItems.map((item) => (
-              <NavItem
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                icon={item.icon}
-                theme="header"
-              />
-            ))}
-          </nav>
+          {/* Navigation ngang — ẩn với ADMIN (dùng sidebar trái) */}
+          {!isAdmin && (
+            <nav className="hidden min-w-0 items-center gap-1 xl:flex">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.to}
+                  to={item.to}
+                  label={item.label}
+                  icon={item.icon}
+                  theme="header"
+                />
+              ))}
+            </nav>
+          )}
           {stickyTitle && (
             <div className="ml-auto hidden min-w-0 flex-col justify-center border-l border-white/25 pl-4 xl:flex">
               <h1 className="truncate text-[13px] font-semibold tracking-tight leading-relaxed">{stickyTitle}</h1>
@@ -342,5 +392,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">{children}</main>
       </div>
+    </div>
   );
 }

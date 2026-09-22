@@ -134,6 +134,7 @@ export * from './permissionMutateBody.ts';
 export * from './permissionResponse.ts';
 export * from './postApiV1FilesUploadBody.ts';
 export * from './postApiV1FilesUploadBulkBody.ts';
+export * from './postApiV1ResultPublicationsPublishBody.ts';
 export * from './postApiV1SubmissionsForwardBody.ts';
 export * from './presignRequest.ts';
 export * from './presignResponse.ts';
