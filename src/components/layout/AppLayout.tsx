@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode, type ComponentType } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Trophy,
-  LayoutDashboard,
   Table,
   ClipboardCheck,
   FileCheck,
@@ -79,10 +78,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const navItems = useMemo<NavItemDef[]>(() => {
     const items: NavItemDef[] = [];
-    if (user?.role !== 'LOCAL') {
-      items.push({ to: ROUTES.DASHBOARD_OVERVIEW, label: LABELS.DASHBOARD_TITLE, icon: LayoutDashboard });
-    }
-
     if (user?.role === 'LOCAL') {
       items.push({ to: ROUTES.LOCALITY_CRITERIA, label: 'Tiêu chí được giao', icon: Table });
       items.push({ to: ROUTES.LOCALITY_RESULTS, label: LABELS.LOCALITY_RESULT_TITLE, icon: Trophy });
