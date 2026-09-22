@@ -13,6 +13,7 @@ import { AuditTimeline } from '@/components/core';
 import { localityApi, getLocalityApiError, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
+import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
@@ -64,6 +65,14 @@ function classification(score: number, maxScore: number) {
   if (ratio >= 0.8) return 'Hoàn thành tốt';
   if (ratio >= 0.65) return 'Hoàn thành';
   return 'Chưa hoàn thành';
+}
+
+function publicationStatusLabel(status: string) {
+  if (status === 'CommitteeFinalized') return 'Đã công bố';
+  if (status === 'CouncilApproved') return 'Hội đồng đã duyệt';
+  if (status === 'RequiresRevision') return 'Yêu cầu chỉnh sửa';
+  if (status === 'InProgress') return 'Đang xử lý';
+  return 'Chưa nộp';
 }
 
 interface ResultRow {
@@ -140,6 +149,10 @@ export default function LocalityResultsPage() {
   const groupsQuery = useQuery({
     queryKey: ['locality-criteria-groups'],
     queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+  });
+  const publicationQuery = useQuery({
+    queryKey: ['local-result-publication'],
+    queryFn: resultPublicationApi.getLocalResult,
   });
 
   const submissions = useMemo(() => submissionsQuery.data?.items ?? [], [submissionsQuery.data]);
@@ -237,6 +250,8 @@ export default function LocalityResultsPage() {
 
     return <div className="space-y-5">
       <PageHeader title="Kết quả tiêu chí thi đua" description="Kết quả chính thức đã được Ủy ban thường trực công bố." />
+      {publicationQuery.data?.isPublished && <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"><Trophy className="mt-0.5 size-5 shrink-0" /><div><p className="font-semibold">Kết quả đã được công bố chung</p><p className="mt-1 text-sm">{publicationQuery.data.localityName ? `${publicationQuery.data.localityName} có thể xem kết quả theo từng nhóm tiêu chí.` : 'Bạn có thể xem kết quả theo từng nhóm tiêu chí.'}{publicationQuery.data.publishedAt ? ` Thời gian công bố: ${formatDate(publicationQuery.data.publishedAt)}.` : ''}</p></div></div>}
+      {publicationQuery.data?.isPublished && <section className="rounded-xl border border-primary/20 bg-card p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Kết quả công bố theo nhóm tiêu chí</h2><p className="mt-1 text-sm text-muted-foreground">Nhóm chưa nộp hoặc đang yêu cầu chỉnh sửa vẫn được hiển thị với điểm hiện tại bằng 0.</p></div><Badge variant="outline" className="shrink-0">{publicationQuery.data.criteriaGroups.length} nhóm</Badge></div><div className="mt-4 overflow-x-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Nhóm tiêu chí</TableHead><TableHead>Trạng thái</TableHead><TableHead className="text-right">Điểm kết quả</TableHead></TableRow></TableHeader><TableBody>{publicationQuery.data.criteriaGroups.map((group) => <TableRow key={group.criteriaGroupId}><TableCell className="font-medium">{group.name}</TableCell><TableCell><Badge variant="outline">{publicationStatusLabel(group.status)}</Badge></TableCell><TableCell className="text-right font-semibold tabular-nums">{group.currentPoint} <span className="font-normal text-muted-foreground">/ {group.maxPoint}</span></TableCell></TableRow>)}</TableBody></Table></div></section>}
       <div className="hidden md:block"><DataTable
         data={rows}
         columns={columns}
