@@ -299,6 +299,8 @@ interface RevisionNote {
   reason: string;
   /** null = request không chỉ định submissionResultIds → áp dụng cho toàn bộ tiêu chí. */
   resultIds: string[] | null;
+  /** Tệp đính kèm của yêu cầu chỉnh sửa (gắn vào ApprovalHistory). */
+  files: SubmissionResultFile[];
 }
 
 function parseRevisionResultIds(changedData: string | null): string[] | null {
@@ -320,14 +322,38 @@ function getLatestRevisionNote(histories: ApprovalHistoryItem[], stageLevel: Rev
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
     .find((item) => Boolean(translateLegacyReason(item.reason)?.trim()));
   if (!history) return null;
-  return { reason: translateLegacyReason(history.reason)!, resultIds: parseRevisionResultIds(history.changedData) };
+  return { reason: translateLegacyReason(history.reason)!, resultIds: parseRevisionResultIds(history.changedData), files: history.files ?? [] };
 }
 
-/** Chỉ trả reason khi submissionResult thuộc danh sách được yêu cầu chỉnh sửa. */
-function revisionNoteForResult(note: RevisionNote | null, result: SubmissionResultItem | undefined): string | null {
+/** Chỉ trả note khi submissionResult thuộc danh sách được yêu cầu chỉnh sửa. */
+function revisionNoteForResult(note: RevisionNote | null, result: SubmissionResultItem | undefined): RevisionNote | null {
   if (!note) return null;
-  if (note.resultIds === null) return note.reason;
-  return result && note.resultIds.includes(result.id) ? note.reason : null;
+  if (note.resultIds === null) return note;
+  return result && note.resultIds.includes(result.id) ? note : null;
+}
+
+/** Ghi chú yêu cầu chỉnh sửa kèm tệp đính kèm (nếu có). */
+function RevisionNoteView({ note, reasonClassName = 'text-sm leading-5 text-muted-foreground', onPreview }: { note: RevisionNote | null; reasonClassName?: string; onPreview: (file: SubmissionResultFile) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <TruncatedText as="p" value={note?.reason ?? null} maxLines={3} className={reasonClassName} />
+      {note && note.files.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1.5">
+          {note.files.map((file) => (
+            <button
+              key={file.id}
+              type="button"
+              onClick={(event) => { event.stopPropagation(); onPreview(file); }}
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+            >
+              <FileText className="h-3 w-3 shrink-0" />
+              <span className="truncate">{file.displayName ?? file.originalName}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function parseFileSnapshot(oldFiles: string | null): FileSnapshotItem[] {
@@ -535,13 +561,25 @@ function OfficialScoreRevisionDialog({
 }) {
   const scoreUpdateFilesQuery = useQuery({
     queryKey: ['specialist-score-update-files', result?.id],
-    queryFn: () => filesApi.list({
-      entityType: 'SubmissionResult',
-      entityId: result!.id,
-      category: 'score-update',
-      page: 1,
-      pageSize: 100,
-    }),
+    queryFn: async () => {
+      const [scoreUpdate, leaderScoring] = await Promise.all([
+        filesApi.list({
+          entityType: 'SubmissionResult',
+          entityId: result!.id,
+          category: 'score-update',
+          page: 1,
+          pageSize: 100,
+        }),
+        filesApi.list({
+          entityType: 'SubmissionResult',
+          entityId: result!.id,
+          category: 'LeaderScoring',
+          page: 1,
+          pageSize: 100,
+        }),
+      ]);
+      return { items: [...scoreUpdate.items, ...leaderScoring.items].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) };
+    },
     enabled: open && Boolean(result?.id),
   });
 
@@ -558,7 +596,7 @@ function OfficialScoreRevisionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Điểm chuyên viên đã sửa</DialogTitle>
+          <DialogTitle>Điểm đã sửa</DialogTitle>
           <DialogDescription>Xem điểm, lý do và tệp đính kèm của lần điều chỉnh cho tiêu chí này.</DialogDescription>
         </DialogHeader>
         <div className="space-y-5">
@@ -585,7 +623,7 @@ function OfficialScoreRevisionDialog({
 
           <div>
             <p className="text-sm font-medium text-foreground">Tệp đính kèm</p>
-            <p className="mt-1 text-xs text-muted-foreground">Chỉ hiển thị tệp được đính kèm khi chuyên viên sửa điểm.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Chỉ hiển thị tệp đính kèm khi sửa điểm.</p>
             {scoreUpdateFilesQuery.isLoading ? <div className="mt-3 h-16 animate-pulse rounded-md bg-muted" /> : scoreUpdateFilesQuery.isError ? <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">Không tải được tệp đính kèm. Vui lòng thử lại.</p> : scoreUpdateFiles.length === 0 ? <p className="mt-3 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">Không có tệp đính kèm cho lần sửa điểm này.</p> : <div className="mt-3 divide-y rounded-md border border-border">{scoreUpdateFiles.map((file) => <div key={file.id} className="flex items-center gap-3 px-3 py-2.5"><FileText className="size-4 shrink-0 text-primary" aria-hidden="true" /><span className="min-w-0 flex-1 break-all text-sm font-medium text-foreground">{file.displayName || file.originalName}</span><Button type="button" variant="outline" size="sm" onClick={() => { void downloadFile(file.id, file.displayName || file.originalName); }}><Download className="size-4" />Tải về</Button></div>)}</div>}
           </div>
         </div>
@@ -603,6 +641,7 @@ function RevisionHistorySection({
   results: Array<{ id: string; criteriaId: string; criteriaContent: string | null; point: number; bonusPoint: number; explanation: string | null }>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const approvalHistoriesQuery = useQuery({
     queryKey: ['specialist-approval-histories', submissionId],
     queryFn: () => localityApi.listApprovalHistories(submissionId, { page: 1, pageSize: 100 }),
@@ -664,6 +703,21 @@ function RevisionHistorySection({
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-foreground">{STAGE_ACTOR_LABELS[history.stageLevel] ?? 'Người dùng'} đã {HISTORY_ACTION_LABELS[action] ?? history.action ?? 'thực hiện thao tác'}</p>
                           {reason && <p className="mt-1 leading-6 text-muted-foreground">Lý do: {reason}</p>}
+                          {(history.files ?? []).length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {history.files.map((file) => (
+                                <button
+                                  key={file.id}
+                                  type="button"
+                                  onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })}
+                                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+                                >
+                                  <FileText className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{file.displayName ?? file.originalName}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <time className="shrink-0 text-xs font-medium text-muted-foreground">{formatDateTime(history.createdAt)}</time>
                       </div>
@@ -712,6 +766,7 @@ function RevisionHistorySection({
           </div>
         )}
       </CardContent>
+      <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
     </Card>
   );
 }
@@ -1253,7 +1308,9 @@ export default function SpecialistReviewPage() {
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
-  const [forwardingPreviewFile, setForwardingPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const openRevisionFilePreview = (file: SubmissionResultFile) =>
+    setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName });
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
@@ -2106,7 +2163,7 @@ export default function SpecialistReviewPage() {
           countLabel={`${selectedGroup.items.length} tiêu chí`}
           actions={
             (specialistForwarding || specialistForwardingFiles.length > 0) ? (
-              <ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={(file) => setForwardingPreviewFile({ id: file.id, originalName: file.displayName || file.originalName || 'Tệp đính kèm' })} />
+              <ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={(file) => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName || 'Tệp đính kèm' })} />
             ) : undefined
           }
         />
@@ -2268,9 +2325,9 @@ export default function SpecialistReviewPage() {
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={leaderNote} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={councilNote} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><TruncatedText as="p" value={committeeNote} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><RevisionNoteView note={leaderNote} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><RevisionNoteView note={councilNote} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNoteView note={committeeNote} onPreview={openRevisionFilePreview} /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -2328,9 +2385,9 @@ export default function SpecialistReviewPage() {
                   </div>
                   {(leaderNote || councilNote || committeeNote) && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      {leaderNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo</dt><dd className="mt-1 text-sm leading-5 text-foreground">{leaderNote}</dd></div>}
-                      {councilNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Hội đồng</dt><dd className="mt-1 text-sm leading-5 text-foreground">{councilNote}</dd></div>}
-                      {committeeNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Ủy ban</dt><dd className="mt-1 text-sm leading-5 text-foreground">{committeeNote}</dd></div>}
+                      {leaderNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo</dt><dd className="mt-1"><RevisionNoteView note={leaderNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>}
+                      {councilNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Hội đồng</dt><dd className="mt-1"><RevisionNoteView note={councilNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>}
+                      {committeeNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Ủy ban</dt><dd className="mt-1"><RevisionNoteView note={committeeNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>}
                     </dl>
                   )}
                 </div>
@@ -2506,7 +2563,7 @@ export default function SpecialistReviewPage() {
         result={scoreRevisionResult}
         criterionLabel={scoreRevisionCriterionLabel}
       />
-      <FilePreviewDialog file={forwardingPreviewFile} onOpenChange={(open) => { if (!open) setForwardingPreviewFile(null); }} />
+      <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <RevisionRequestDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
@@ -2532,13 +2589,11 @@ export default function SpecialistReviewPage() {
             return false;
           }
           try {
-            if (file) {
-              await filesApi.upload(file, { entityType: 'Submission', entityId: submission.id, category: 'revision-attachment' });
-            }
             await specialistApi.requestRevision({
               submissionId: submission.id,
               reason,
               submissionResultIds: selectedResultIds,
+              file,
             });
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),

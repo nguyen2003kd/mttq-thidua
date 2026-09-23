@@ -43,4 +43,8 @@ export const ROUTES = {
   // Auth
   LOGIN: '/login',
   CHANGE_PASSWORD: '/doi-mat-khau',
+  /** Form bắt buộc nhập họ tên + SĐT người đại diện khi thiếu sau login. */
+  PROFILE_COMPLETION: '/hoan-thien-ho-so',
+  /** Trang tài khoản — xem/sửa thông tin người đại diện. */
+  ACCOUNT: '/tai-khoan',
 } as const;

@@ -1,4 +1,4 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/api/mutator/query-client';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -11,6 +11,7 @@ import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
+import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
 import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
 
 // Lazy load pages
@@ -18,6 +19,8 @@ import { lazy, Suspense, useEffect } from 'react';
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const ChangePasswordPage = lazy(() => import('@/features/auth/ChangePasswordPage'));
+const ProfileCompletionPage = lazy(() => import('@/features/auth/ProfileCompletionPage'));
+const AccountPage = lazy(() => import('@/features/auth/AccountPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
 const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
@@ -95,6 +98,45 @@ function ProactiveAuthRefresh() {
   return null;
 }
 
+/**
+ * Fallback cho session đã login từ trước (flag login không còn): fetch GET /auth/profile
+ * một lần để biết user có thiếu fullName/phone không → RequireAuth chặn tới form bắt buộc.
+ * Đồng thời cập nhật tên hiển thị theo ưu tiên fullName.
+ */
+function ProfileGate() {
+  const isSignedIn = useAuthStore((s) => s.isSignedIn);
+  const requiresCompletion = useAuthStore((s) => s.requires_profile_completion);
+  const setStore = useAuthStore((s) => s.setStore);
+
+  const profileQuery = useQuery({
+    queryKey: ['auth-profile-gate'],
+    queryFn: () => profileApi.get(),
+    enabled: isSignedIn && requiresCompletion === null,
+    staleTime: Infinity,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    const profile = profileQuery.data;
+    if (!profile) return;
+    const current = useAuthStore.getState().user;
+    setStore({
+      full_name: profile.fullName,
+      phone: profile.phone,
+      ward_code: profile.wardCode,
+      requires_profile_completion: profileNeedsCompletion(profile),
+      ...(current ? { user: { ...current, name: profileDisplayName(profile) } } : {}),
+    });
+  }, [profileQuery.data, setStore]);
+
+  // Lỗi khác 401 (mạng/server) → không chặn user; 401 đã có interceptor logout.
+  useEffect(() => {
+    if (profileQuery.isError) setStore({ requires_profile_completion: false });
+  }, [profileQuery.isError, setStore]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -103,11 +145,34 @@ export default function App() {
       <BrowserRouter>
         <AuthEvents />
         <ProactiveAuthRefresh />
+        <ProfileGate />
         <Toaster position="bottom-right" duration={4000} richColors closeButton />
         <Suspense fallback={<PageLoading label="Đang tải trang…" className="min-h-dvh" />}>
           <Routes>
             {/* Login */}
             <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+
+            {/* Hoàn thiện hồ sơ bắt buộc — không AppLayout, không cho skip */}
+            <Route
+              path={ROUTES.PROFILE_COMPLETION}
+              element={
+                <RequireAuth>
+                  <ProfileCompletionPage />
+                </RequireAuth>
+              }
+            />
+
+            {/* Trang tài khoản — mọi role đã đăng nhập */}
+            <Route
+              path={ROUTES.ACCOUNT}
+              element={
+                <RequireAuth>
+                  <AppLayout>
+                    <AccountPage />
+                  </AppLayout>
+                </RequireAuth>
+              }
+            />
 
             {/* Đổi mật khẩu — mọi role đã đăng nhập */}
             <Route
