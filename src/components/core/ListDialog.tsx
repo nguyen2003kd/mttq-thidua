@@ -63,7 +63,7 @@ export function ListDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn('max-w-lg p-0 gap-0', className)}>
+      <DialogContent className={cn('gap-0 p-0 sm:max-w-lg', className)}>
         <DialogHeader className="px-5 pt-5 pb-3">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

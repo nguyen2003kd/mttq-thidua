@@ -4,6 +4,7 @@ import {
   Trophy,
   Table,
   ClipboardCheck,
+  ClipboardList,
   FileCheck,
   History,
   LogOut,
@@ -12,6 +13,8 @@ import {
   CheckCheck,
   Menu,
   KeyRound,
+  Users,
+  UserRound,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -23,6 +26,7 @@ import { ROLE_LABELS } from '@/constants/enums';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
 import { NavItem } from '@/components/core';
+import { vnWards } from '@/data/vn-wards';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -45,6 +49,9 @@ interface NavItemDef {
   icon: ComponentType<{ className?: string }>;
 }
 
+/** Tra tên phường/xã theo mã — build map 1 lần (3321 entries). */
+const wardNameByCode = new Map(vnWards.map((w) => [w.code, w.name]));
+
 function renderNotificationBody(body: string): ReactNode {
   return body.split(/('[^']*'|“[^”]*”)/g).map((part, index) => {
     const isImportant = (part.startsWith("'") && part.endsWith("'")) || (part.startsWith('“') && part.endsWith('”'));
@@ -56,6 +63,7 @@ function renderNotificationBody(body: string): ReactNode {
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
+  const wardCode = useAuthStore((s) => s.ward_code);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
   const navigate = useNavigate();
@@ -82,12 +90,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
     if (user?.role === 'LOCAL') {
       items.push({ to: ROUTES.LOCALITY_CRITERIA, label: 'Tiêu chí được giao', icon: Table });
       items.push({ to: ROUTES.LOCALITY_RESULTS, label: LABELS.LOCALITY_RESULT_TITLE, icon: Trophy });
+      items.push({ to: '/thi-dua/lich-su-thay-doi', label: 'Lịch sử thao tác', icon: History });
     }
 
-    if (user?.role === 'SPECIALIST' && criteriaTables[0]) {
-      items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
-      items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
+    if (user?.role === 'SPECIALIST') {
+      if (criteriaTables[0]) {
+        items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
+        items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
+      }
+      items.push({ to: ROUTES.SPECIALIST_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
       items.push({ to: ROUTES.SPECIALIST_HISTORY, label: 'Lịch sử chấm', icon: History });
+    }
+
+    if (user?.role === 'ADMIN') {
+      items.push({ to: ROUTES.ADMIN_CRITERIA_LIST, label: 'Quản lý tiêu chí', icon: Table });
+      items.push({ to: ROUTES.ADMIN_DEADLINE_CONFIG, label: 'Cấu hình thời hạn', icon: ClipboardCheck });
+      items.push({ to: ROUTES.ADMIN_LOCALITY, label: 'Địa phương', icon: Trophy });
+      items.push({ to: ROUTES.ADMIN_USERS, label: 'Quản lý tài khoản', icon: Users });
     }
 
     if (user?.role === 'LEADER') {
@@ -144,8 +163,47 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const isAdmin = user?.role === 'ADMIN';
+
   return (
-    <div className="flex h-dvh flex-col bg-background">
+    <div className="flex h-dvh bg-background">
+      {/* Sidebar trái — chỉ cho role ADMIN */}
+      {isAdmin && (
+        <aside className="hidden w-60 shrink-0 flex-col bg-primary text-white xl:flex">
+          <div className="flex items-center gap-2 border-b border-white/20 px-5 py-4">
+            <Trophy className="h-6 w-6 shrink-0 text-accent" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">Mặt Trận Tổ Quốc</p>
+              <p className="text-[11px] text-white/75">Phân hệ Quản lý Thi đua</p>
+            </div>
+          </div>
+          <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Điều hướng quản trị">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+              return (
+                <button
+                  key={item.to}
+                  type="button"
+                  onClick={() => navigate(item.to)}
+                  className={`flex h-10 w-full items-center gap-3 rounded-[6px] px-3 text-left text-sm font-medium transition-colors ${
+                    isActive ? 'bg-white text-primary' : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  <item.icon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-white/75'}`} />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          {user && (
+            <div className="border-t border-white/20 px-5 py-4">
+              <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+              <p className="mt-0.5 text-xs text-white/75">{ROLE_LABELS[user.role]}</p>
+            </div>
+          )}
+        </aside>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-primary bg-primary px-4 text-primary-foreground">
         <div className="flex min-w-0 items-center gap-3">
           {/* Brand */}
@@ -154,18 +212,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <span className="hidden lg:block font-semibold text-sm tracking-tight whitespace-nowrap">Mặt Trận Tổ Quốc</span>
           </div>
           <span className="hidden h-6 w-px bg-white/25 xl:block" aria-hidden="true" />
-          {/* Navigation ngang */}
-          <nav className="hidden min-w-0 items-center gap-1 xl:flex">
-            {navItems.map((item) => (
-              <NavItem
-                key={item.to}
-                to={item.to}
-                label={item.label}
-                icon={item.icon}
-                theme="header"
-              />
-            ))}
-          </nav>
+          {/* Navigation ngang — ẩn với ADMIN (dùng sidebar trái) */}
+          {!isAdmin && (
+            <nav className="hidden min-w-0 items-center gap-1 xl:flex">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.to}
+                  to={item.to}
+                  label={item.label}
+                  icon={item.icon}
+                  theme="header"
+                />
+              ))}
+            </nav>
+          )}
           {stickyTitle && (
             <div className="ml-auto hidden min-w-0 flex-col justify-center border-l border-white/25 pl-4 xl:flex">
               <h1 className="truncate text-[13px] font-semibold tracking-tight leading-relaxed">{stickyTitle}</h1>
@@ -181,7 +241,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 render={
                   <button
                     type="button"
-                    className="flex size-9 items-center justify-center rounded-[6px] border border-white/25 bg-white/10 text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent xl:hidden"
+                    className="flex size-9 cursor-pointer items-center justify-center rounded-[6px] border border-white/25 bg-white/10 text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent xl:hidden"
                     aria-label="Mở menu điều hướng"
                   />
                 }
@@ -231,7 +291,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   <button
                     type="button"
                     aria-label={unreadCount > 0 ? `Thông báo, ${unreadCount} chưa đọc` : 'Thông báo'}
-                    className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/25 bg-white/10 text-white transition-all hover:bg-white/15"
+                    className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-white/25 bg-white/10 text-white transition-all hover:bg-white/15"
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
@@ -256,7 +316,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       <button
                         type="button"
                         onClick={handleMarkAllRead}
-                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-accent hover:text-accent-foreground"
+                        className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
                       >
                         <CheckCheck className="h-3.5 w-3.5" />
                         Đã đọc tất cả
@@ -277,7 +337,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                           key={n.id}
                           type="button"
                           onClick={() => handleNotificationClick(n.id, n.isRead)}
-                          className={`block w-full border-b px-3 py-2.5 text-left last:border-0 transition-colors hover:bg-muted/50 ${
+                          className={`block w-full cursor-pointer border-b px-3 py-2.5 text-left last:border-0 transition-colors hover:bg-muted/50 ${
                             n.isRead ? 'opacity-60' : ''
                           }`}
                         >
@@ -307,30 +367,37 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   render={
                     <button
                       type="button"
-                      className="flex h-9 items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 text-sm text-white transition-all hover:bg-white/15"
+                      className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 text-sm text-white transition-all hover:bg-white/15"
                     >
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-primary">
-                        {user.name.charAt(0).toUpperCase()}
-                      </span>
-                      <span className="hidden sm:flex flex-col leading-tight text-left">
-                        <span className="text-xs font-medium truncate max-w-[120px]">{user.name}</span>
-                        <span className="max-w-[120px] truncate text-[11px] text-white">{ROLE_LABELS[user.role]}</span>
+                      <span className="hidden items-center gap-2 sm:flex">
+                        <span className="max-w-40 truncate text-[13px] font-medium">{user.name}</span>
+                        <span className="h-3.5 w-px shrink-0 bg-white/30" aria-hidden="true" />
+                        <span className="max-w-40 truncate text-xs text-white/70">
+                          {(wardCode && wardNameByCode.get(wardCode)) || ROLE_LABELS[user.role]}
+                        </span>
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 text-white/75 transition-transform data-[popup-open]:rotate-180" />
                     </button>
                   }
                 />
-                <DropdownMenuContent align="end" sideOffset={6} className="w-60 p-1.5">
+                <DropdownMenuContent align="end" sideOffset={6} className="w-64 p-1.5">
                   <div className="px-2 py-2.5">
-                    <p className="text-sm font-semibold truncate">{user.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{ROLE_LABELS[user.role]}</p>
+                    <p className="truncate text-sm font-semibold">{user.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {(wardCode && wardNameByCode.get(wardCode)) || ROLE_LABELS[user.role]}
+                    </p>
                   </div>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate(ROUTES.ACCOUNT)} className="rounded-lg px-2 py-2">
+                    <UserRound className="h-4 w-4 text-muted-foreground" />
+                    <span>Thông tin tài khoản</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate(ROUTES.CHANGE_PASSWORD)} className="rounded-lg px-2 py-2">
-                    <KeyRound className="h-4 w-4" />
+                    <KeyRound className="h-4 w-4 text-muted-foreground" />
                     <span>Đổi mật khẩu</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem variant="destructive" onClick={handleLogout} className="mt-1 rounded-lg px-2 py-2">
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={handleLogout} className="rounded-lg px-2 py-2">
                     <LogOut className="h-4 w-4" />
                     <span>Đăng xuất</span>
                   </DropdownMenuItem>
@@ -342,5 +409,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">{children}</main>
       </div>
+    </div>
   );
 }

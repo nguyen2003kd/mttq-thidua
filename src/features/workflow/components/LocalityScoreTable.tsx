@@ -32,8 +32,10 @@ interface LocalityScoreTableProps {
   nowMs: number;
   draftValues?: Map<string, EvidenceFormValue>;
   selectedCriterionId?: string;
-  /** Nội dung yêu cầu chỉnh sửa gần nhất do Chuyên viên gửi cho hồ sơ. */
-  specialistRevisionReason?: string | null;
+  /** Lý do chỉnh sửa theo từng tiêu chí được Chuyên viên yêu cầu. */
+  specialistRevisionReasons?: ReadonlyMap<string, string>;
+  /** Khi có danh sách này, chỉ các tiêu chí được yêu cầu mới cho phép chỉnh sửa. */
+  editableCriteriaIds?: ReadonlySet<string> | null;
   uploading?: boolean;
   toolbar?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
@@ -187,7 +189,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   onDeleteEvidence,
   selected = false,
   visibleColumnIds,
-  specialistRevisionReason,
+  specialistRevisionReasons,
+  editableCriteriaIds,
 }, ref) {
   const [score, setScore] = useState('');
   const [bonusScore, setBonusScore] = useState('0');
@@ -214,7 +217,9 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const maxBonus = criterion.bonusScore ?? 0;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
-  const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired);
+  const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
+  const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
+  const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
     id: `empty-${criterion.id}`,
@@ -323,7 +328,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TooltipContent className="max-w-sm whitespace-normal break-words">{criterion.name}</TooltipContent>
         </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
-        {entry?.revisionRequest && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
+        {revisionReason && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>}
       {isColumnVisible('deadline') && <TableCell className="align-middle text-center text-sm text-muted-foreground">
         <Tooltip>
@@ -360,7 +365,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <MessageSquareText className="size-4 shrink-0" />
           <TruncatedText value={explanation || 'Nhập nội dung diễn giải'} />
         </Button>
-        {entry?.revisionRequest && <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs"><strong>Phản hồi:</strong> {entry.revisionRequest}</p>}
         {explanationError && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{explanationError}</p>}
         <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={(nextFiles) => { setSelectedFiles(nextFiles); setEvidenceError(''); }} onDeleteUploaded={onDeleteEvidence} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={(value) => { setExplanation(value); setExplanationError(''); }} />
@@ -377,7 +381,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       {isColumnVisible('specialistRevision') && <TableCell className="align-middle">
         <TruncatedText
           as="p"
-          value={specialistRevisionReason || '—'}
+          value={revisionReason || '—'}
           maxLines={4}
           className="whitespace-normal break-words text-sm leading-5 text-muted-foreground"
         />
@@ -395,7 +399,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   nowMs,
   draftValues,
   selectedCriterionId,
-  specialistRevisionReason,
+  specialistRevisionReasons,
+  editableCriteriaIds,
   uploading,
   toolbar,
   onSelect,
@@ -490,7 +495,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               nowMs={nowMs}
               selected={selected}
               visibleColumnIds={visibleColumnIds}
-              specialistRevisionReason={specialistRevisionReason}
+              specialistRevisionReasons={specialistRevisionReasons}
+              editableCriteriaIds={editableCriteriaIds}
               uploading={uploading}
               onSelect={onSelect}
               onDeleteEvidence={onDeleteEvidence}

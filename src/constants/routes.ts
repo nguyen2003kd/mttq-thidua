@@ -2,6 +2,7 @@ export const ROUTES = {
   // Route chuẩn theo FSD cho hai phân quyền MVP
   SPECIALIST_CRITERIA: '/chuyen-vien/tieu-chi',
   SPECIALIST_REVIEW: '/chuyen-vien/duyet',
+  SPECIALIST_SCORE_SUMMARY: '/chuyen-vien/tong-hop-cham-diem',
   SPECIALIST_HISTORY: '/chuyen-vien/lich-su',
   LOCALITY_CRITERIA: '/dia-phuong/tieu-chi',
   LOCALITY_RESULTS: '/dia-phuong/ket-qua',
@@ -14,6 +15,7 @@ export const ROUTES = {
   // NOTE: ADMIN_CRITERIA_NEW trỏ tới route `bang-tieu-chi/:id` với id="new";
   // CriteriaFormPage tự nhận biết qua `id === 'new'`. Không có route literal riêng.
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
+  ADMIN_USERS: '/thi-dua/admin/tai-khoan',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
   ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 
@@ -42,4 +44,8 @@ export const ROUTES = {
   // Auth
   LOGIN: '/login',
   CHANGE_PASSWORD: '/doi-mat-khau',
+  /** Form bắt buộc nhập họ tên + SĐT người đại diện khi thiếu sau login. */
+  PROFILE_COMPLETION: '/hoan-thien-ho-so',
+  /** Trang tài khoản — xem/sửa thông tin người đại diện. */
+  ACCOUNT: '/tai-khoan',
 } as const;

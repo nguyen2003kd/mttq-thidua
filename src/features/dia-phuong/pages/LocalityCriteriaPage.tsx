@@ -59,6 +59,28 @@ function getSubmissionStageLabel(stage: SubmissionStage | null) {
   }
 }
 
+function parseSubmissionResultIds(changedData?: string | null) {
+  if (!changedData) return [] as string[];
+  try {
+    const parsed = JSON.parse(changedData) as { submissionResultIds?: unknown };
+    return Array.isArray(parsed.submissionResultIds)
+      ? parsed.submissionResultIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function extractRevisionReason(reason?: string | null) {
+  if (!reason) return null;
+  const lines = reason.split(/\r?\n/);
+  let index = 0;
+  while (index < lines.length && /^\s*\[[^\]]+\]/.test(lines[index])) index += 1;
+  while (index < lines.length && lines[index].trim() === '') index += 1;
+  const extracted = lines.slice(index).join('\n').trim();
+  return extracted || reason.trim();
+}
+
 export default function LocalityCriteriaPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -265,6 +287,9 @@ export default function LocalityCriteriaPage() {
       (submissionDetailQuery.data?.results ?? []).map((result) => [result.id, result.criteriaId]),
     );
     return (evidenceFilesQuery.data ?? []).flatMap((file) => {
+      // File đính kèm yêu cầu bổ sung của Chuyên viên và tệp đính kèm khi sửa điểm không phải minh chứng của địa phương — tách riêng.
+      const category = file.category?.toLowerCase();
+      if (category === 'supplementary' || category === 'score-update' || category === 'leaderscoring') return [];
       const criteriaId = file.entityId ? criteriaIdByResultId.get(file.entityId) : undefined;
       if (!criteriaId) return [];
       return [{
@@ -282,7 +307,8 @@ export default function LocalityCriteriaPage() {
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
   // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và riêng phản hồi từ Chuyên viên.
-  const isRevisionStage = submission?.currentStage === 'RequiresRevision';
+  const currentSubmissionStage = submissionDetailQuery.data?.currentStage ?? submission?.currentStage;
+  const isRevisionStage = currentSubmissionStage === 'RequiresRevision';
   const revisionHistoriesQuery = useQuery({
     queryKey: ['locality-revision-histories', submission?.id],
     queryFn: () => localityApi.listApprovalHistories(submission!.id, { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
@@ -292,22 +318,93 @@ export default function LocalityCriteriaPage() {
   const latestRevisionReason = useMemo(() => {
     const items = revisionHistoriesQuery.data?.items ?? [];
     const revisionItem = items.find((item) => item.action?.toLowerCase() === 'requestrevision');
-    return revisionItem?.reason ?? null;
+    return extractRevisionReason(revisionItem?.reason);
   }, [revisionHistoriesQuery.data]);
 
-  const specialistRevisionReason = useMemo(() => {
-    const specialistRevision = (revisionHistoriesQuery.data?.items ?? []).find((item) => (
+  const latestSpecialistRevision = useMemo(() => (
+    (revisionHistoriesQuery.data?.items ?? []).find((item) => (
       item.action?.toLowerCase() === 'requestrevision' && item.stageLevel === 'LocalSubmitted'
-    ));
-    return specialistRevision?.reason ?? null;
-  }, [revisionHistoriesQuery.data]);
+    )) ?? null
+  ), [revisionHistoriesQuery.data]);
 
-  // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
+  const specialistRevisionReason = useMemo(
+    () => extractRevisionReason(latestSpecialistRevision?.reason),
+    [latestSpecialistRevision],
+  );
+
+  const specialistRevisionCriteriaIds = useMemo(() => {
+    if (!latestSpecialistRevision) return null;
+    const resultIds = parseSubmissionResultIds(latestSpecialistRevision.changedData);
+    if (resultIds.length === 0) return null;
+    const resultIdSet = new Set(resultIds);
+    const criteriaIds = new Set<string>();
+    for (const result of submissionDetailQuery.data?.results ?? []) {
+      if (resultIdSet.has(result.id)) criteriaIds.add(result.criteriaId);
+    }
+    return criteriaIds;
+  }, [latestSpecialistRevision, submissionDetailQuery.data]);
+
+  // Tiêu chí bổ sung do Chuyên viên thêm cho riêng hồ sơ này.
+  const supplementaryCriteriaIds = useMemo(() => {
+    const submissionId = submissionDetailQuery.data?.id ?? submission?.id;
+    if (!submissionId) return new Set<string>();
+    return new Set(
+      (groupDetailQuery.data?.criteria ?? [])
+        .filter((criterion) => criterion.type === 'Supplementary' && criterion.targetSubmissionId === submissionId)
+        .map((criterion) => criterion.id),
+    );
+  }, [groupDetailQuery.data, submissionDetailQuery.data, submission?.id]);
+
+  // Khi hồ sơ ở RequiresRevision: chỉ cho nhập tiêu chí bổ sung + tiêu chí được yêu cầu chỉnh sửa.
+  const revisionEditableCriteriaIds = useMemo<ReadonlySet<string> | null>(() => {
+    if (!isRevisionStage) return null;
+    // Yêu cầu chỉnh sửa không chỉ định tiêu chí (dữ liệu cũ) → cho phép sửa toàn bộ.
+    if (latestSpecialistRevision && !specialistRevisionCriteriaIds) return null;
+    const editableIds = new Set(specialistRevisionCriteriaIds ?? []);
+    supplementaryCriteriaIds.forEach((id) => editableIds.add(id));
+    // Không có yêu cầu nào xác định phạm vi → giữ hành vi cũ (sửa tất cả).
+    if (editableIds.size === 0) return null;
+    return editableIds;
+  }, [isRevisionStage, latestSpecialistRevision, specialistRevisionCriteriaIds, supplementaryCriteriaIds]);
+
+  const specialistRevisionReasons = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!specialistRevisionReason) return map;
+    if (specialistRevisionCriteriaIds) {
+      specialistRevisionCriteriaIds.forEach((criteriaId) => map.set(criteriaId, specialistRevisionReason));
+      return map;
+    }
+    detailCriteria.forEach((criterion) => map.set(criterion.id, specialistRevisionReason));
+    return map;
+  }, [specialistRevisionReason, specialistRevisionCriteriaIds, detailCriteria]);
+
+  // File đính kèm khi Chuyên viên thêm tiêu chí bổ sung (category = supplementary, gắn trên SubmissionResult).
+  const supplementaryFiles = useMemo(() => {
+    const criteriaIdByResultId = new Map(
+      (submissionDetailQuery.data?.results ?? []).map((result) => [result.id, result.criteriaId]),
+    );
+    const nameByCriteriaId = new Map(detailCriteria.map((criterion) => [criterion.id, criterion.name]));
+    return (evidenceFilesQuery.data ?? [])
+      .filter((file) => file.category?.toLowerCase() === 'supplementary')
+      .map((file) => {
+        const criteriaId = file.entityId ? criteriaIdByResultId.get(file.entityId) : undefined;
+        return { file, criteriaName: criteriaId ? nameByCriteriaId.get(criteriaId) : undefined };
+      });
+  }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria]);
+
+  // File đính kèm của yêu cầu chỉnh sửa: file mới gắn vào ApprovalHistory (history.files),
+  // file cũ (legacy) gắn vào Submission với category = revision-attachment.
   const revisionFilesQuery = useQuery({
     queryKey: ['locality-revision-files', submission?.id],
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 20 }),
     enabled: Boolean(submission?.id) && isRevisionStage,
   });
+
+  const revisionFiles = useMemo(() => {
+    const fromHistories = (revisionHistoriesQuery.data?.items ?? []).flatMap((item) => item.files ?? []);
+    const legacy = revisionFilesQuery.data?.items ?? [];
+    return [...fromHistories, ...legacy];
+  }, [revisionHistoriesQuery.data, revisionFilesQuery.data]);
 
   // Mutations
   const submitPointsMutation = useMutation({
@@ -387,8 +484,8 @@ export default function LocalityCriteriaPage() {
   // Địa phương được chỉnh sửa bản nháp hoặc hồ sơ bị yêu cầu chỉnh sửa.
   // Các giai đoạn đã chuyển tiếp khác chỉ cho phép xem và tải minh chứng đã có.
   const submissionAllowsEditing = !submission
-    || submission.currentStage === 'Draft'
-    || submission.currentStage === 'RequiresRevision';
+    || currentSubmissionStage === 'Draft'
+    || currentSubmissionStage === 'RequiresRevision';
   const submissionLockedReason = submission
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;
@@ -478,15 +575,19 @@ export default function LocalityCriteriaPage() {
         // Có bản nháp trên server: upload file bulk song song + submitPoints 1 lần
         const results = submissionDetailQuery.data?.results ?? [];
         const uploadJobs = collectUploadJobs(collected);
-        const items = results.map((r) => {
+        const items = results.flatMap((r) => {
           const v = collected.get(r.criteriaId);
-          return {
+          return v ? [{
             submissionResultId: r.id,
-            point: v?.proposedScore ?? r.point,
-            bonusPoint: v?.proposedBonusScore ?? r.bonusPoint,
-            explanation: v?.explanation ?? r.explanation,
-          };
+            point: v.proposedScore,
+            bonusPoint: v.proposedBonusScore,
+            explanation: v.explanation,
+          }] : [];
         });
+        if (items.length === 0) {
+          toast.error('Không có tiêu chí nào cần chỉnh sửa để gửi.');
+          return;
+        }
         const settled = await Promise.allSettled(uploadJobs);
         const failedUploads = settled.filter((s) => s.status === 'rejected').length;
         if (failedUploads > 0) {
@@ -603,26 +704,43 @@ export default function LocalityCriteriaPage() {
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-          <p className="font-medium text-warning-foreground">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại từ đầu chuỗi duyệt.</p>
+          <p className="font-medium text-warning-foreground">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại.</p>
           {latestRevisionReason && (
             <div className="text-sm">
               <span className="text-muted-foreground">Lý do yêu cầu chỉnh sửa: </span>
               <span className="italic">{latestRevisionReason}</span>
             </div>
           )}
-          {(revisionFilesQuery.data?.items ?? []).length > 0 && (
+          {revisionFiles.length > 0 && (
             <div className="space-y-1">
               <span className="text-muted-foreground">File đính kèm:</span>
               <div className="flex flex-wrap gap-2">
-                {(revisionFilesQuery.data?.items ?? []).map((file) => (
-                  <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                {revisionFiles.map((file) => (
+                  <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
                     <FileText className="h-3 w-3 text-muted-foreground" />
                     {file.displayName ?? file.originalName}
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
           )}
+        </div>
+      )}
+      {supplementaryFiles.length > 0 && (
+        <div className="max-w-2xl space-y-2 rounded-md border border-info/40 bg-info/10 px-4 py-3 text-sm">
+          <p className="font-medium text-info">Chuyên viên đã thêm tiêu chí bổ sung. Vui lòng nhập minh chứng cho tiêu chí bổ sung.</p>
+          <div className="space-y-1">
+            <span className="text-muted-foreground">File đính kèm yêu cầu bổ sung:</span>
+            <div className="flex flex-wrap gap-2">
+              {supplementaryFiles.map(({ file, criteriaName }) => (
+                <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                  <FileText className="h-3 w-3 text-muted-foreground" />
+                  {file.displayName ?? file.originalName}
+                  {criteriaName && <span className="text-muted-foreground">· {criteriaName}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
       <LocalityScoreTable
@@ -635,7 +753,8 @@ export default function LocalityCriteriaPage() {
         nowMs={currentTimeMs}
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}
-        specialistRevisionReason={specialistRevisionReason}
+        specialistRevisionReasons={specialistRevisionReasons}
+        editableCriteriaIds={revisionEditableCriteriaIds}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {

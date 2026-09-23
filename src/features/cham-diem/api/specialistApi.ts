@@ -209,13 +209,19 @@ export const specialistApi = {
       data: payload,
     }),
 
-  // RequestRevision — chuyên viên yêu cầu địa phương chỉnh sửa hồ sơ
-  requestRevision: (payload: { submissionId: string; reason: string }) =>
-    request<{ processed: boolean; submissionId: string; action: string }>({
-      url: '/api/v1/submissions/approve',
+  // RequestRevision — yêu cầu chỉnh sửa kèm tệp đính kèm (gắn vào ApprovalHistory của lần yêu cầu)
+  requestRevision: (payload: { submissionId: string; reason: string; submissionResultIds?: string[]; file?: File | null }) => {
+    const form = new FormData();
+    form.append('submissionId', payload.submissionId);
+    form.append('reason', payload.reason);
+    (payload.submissionResultIds ?? []).forEach((id) => form.append('submissionResultIds', id));
+    if (payload.file) form.append('files', payload.file);
+    return request<ApprovalHistoryApi>({
+      url: '/api/v1/submissions/request-revision',
       method: 'POST',
-      data: { ...payload, action: 'RequestRevision' },
-    }),
+      data: form,
+    });
+  },
 
   // Ban Thường trực công bố kết quả cuối cùng của hồ sơ đã qua Hội đồng.
   finalizeSubmission: (submissionId: string) =>

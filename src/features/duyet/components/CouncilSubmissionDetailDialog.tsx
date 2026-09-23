@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { TableColumnVisibility } from '@/components/core';
+import { FilePreviewDialog, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import type { SubmissionApi } from '@/features/cham-diem/api/specialistApi';
@@ -19,6 +20,7 @@ function displayNumber(value: number) {
 }
 
 export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, group }: CouncilSubmissionDetailDialogProps) {
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   if (!submission) return null;
 
   const criteriaById = new Map((group?.criteria ?? []).map((criterion) => [criterion.id, criterion]));
@@ -83,7 +85,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                       <TableCell className="text-right font-semibold tabular-nums">{displayNumber((result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint))}</TableCell>
                       <TableCell className="max-w-[220px] whitespace-normal text-muted-foreground">{result.officialReason || '—'}</TableCell>
                       <TableCell className="max-w-[210px] whitespace-normal">
-                        {result.files.length ? <div className="space-y-1">{result.files.map((file) => file.url ? <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-primary hover:underline"><FileText className="size-3.5 shrink-0" />{file.originalName}</a> : <span key={file.id} className="flex items-center gap-1 text-muted-foreground"><FileText className="size-3.5 shrink-0" />{file.originalName}</span>)}</div> : <span className="text-muted-foreground">—</span>}
+                        {result.files.length ? <div className="space-y-1">{result.files.map((file) => <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex items-center gap-1 text-primary hover:underline"><FileText className="size-3.5 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="max-w-[190px] whitespace-normal text-muted-foreground">{criterion?.note || '—'}</TableCell>
                     </TableRow>
@@ -95,6 +97,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
             </div>
           </div>
         </div>
+        <FilePreviewDialog file={previewFile} onOpenChange={(isOpen) => { if (!isOpen) setPreviewFile(null); }} />
       </DialogContent>
     </Dialog>
   );

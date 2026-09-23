@@ -10,6 +10,8 @@ const ROLE_ACTIONS: Record<Role, Action[]> = {
   // Hội đồng và Ủy ban chỉ xem, duyệt/công bố hoặc yêu cầu bổ sung; không sửa điểm trực tiếp.
   COUNCIL: ['view', 'approve', 'reject'],
   COMMITTEE: ['view', 'approve', 'reject', 'publish'],
+  // Admin quản trị hệ thống — không chấm/duyệt điểm
+  ADMIN: ['view'],
 };
 
 const STATE_ACTIONS: Record<ScoreState, Action[]> = {
@@ -30,7 +32,7 @@ export function can(user: AuthUser | null, action: Action, context?: { state?: S
 }
 
 export const ROUTE_ROLES: Record<string, Role[]> = {
-  '/thi-dua/admin': ['SPECIALIST'],
+  '/thi-dua/admin': ['SPECIALIST', 'ADMIN'],
   '/thi-dua/dia-phuong': ['LOCAL'],
   '/thi-dua/cham-diem': ['SPECIALIST'],
   '/chuyen-vien': ['SPECIALIST'],
@@ -42,7 +44,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   '/uy-ban/lich-su': ['COMMITTEE'],
   // Tạm tắt trang tổng quan — bật lại cùng với route trong App.tsx
   // '/thi-dua/dashboard-tong-quan': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
-  '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
+  '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'LOCAL'],
 };
 
 export function rolesForPath(pathname: string): Role[] | null {
@@ -61,5 +63,6 @@ export function defaultRouteForRole(role: Role, user?: Pick<AuthUser, 'banId'> |
     case 'COUNCIL': return ROUTES.DUYET_COUNCIL;
     case 'COMMITTEE': return ROUTES.DUYET_STANDING;
     case 'SPECIALIST': return ROUTES.SPECIALIST_REVIEW;
+    case 'ADMIN': return ROUTES.ADMIN_CRITERIA_LIST;
   }
 }

@@ -3,7 +3,8 @@ export type Role =
   | 'SPECIALIST'
   | 'LEADER'
   | 'COUNCIL'
-  | 'COMMITTEE';
+  | 'COMMITTEE'
+  | 'ADMIN';
 
 export type ScoreState =
   | 'DRAFT'
