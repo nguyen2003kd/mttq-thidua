@@ -156,7 +156,7 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
   return <TableRow className="bg-muted/[0.18] hover:bg-muted/40">
     <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p></div></TableCell>
     <TableCell className="whitespace-normal border-r border-primary/10 px-4 py-3 align-top text-sm leading-5 text-muted-foreground">{result?.explanation || criterion.note || '—'}</TableCell>
-    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint + criterion.maxBonusPoint} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedScore} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedBonus} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={provinceScore} /></TableCell>
@@ -258,12 +258,11 @@ export default function LocalityResultsPage() {
     enabled: submissions.length > 0,
     queryFn: async () => {
       const pages = await Promise.all(submissions.map((submission) => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 })));
-      const comments = new Map<string, { council: string | null; committee: string | null }>();
+      const comments = new Map<string, { council: string | null }>();
       pages.forEach((page, index) => {
         const items = page.items;
         comments.set(submissions[index].id, {
           council: [...items].reverse().find((item) => item.stageLevel === 'LeaderApproved' && item.reason)?.reason ?? null,
-          committee: [...items].reverse().find((item) => (item.stageLevel === 'CouncilApproved' || item.stageLevel === 'CommitteeFinalized') && item.reason)?.reason ?? null,
         });
       });
       return comments;
@@ -285,7 +284,9 @@ export default function LocalityResultsPage() {
         status: group.status,
         currentPoint: group.currentPoint,
         maxPoint: group.maxPoint,
-        proposedPoint: submission?.totalProposedPoint ?? null,
+        // totalProposedPoint đã gồm bonus → phải tính riêng điểm tự chấm
+        // từ results để không cộng thưởng 2 lần ở cột Tổng.
+        proposedPoint: submission ? submission.results.reduce((total, result) => total + result.point, 0) : null,
         proposedBonus: submission ? submission.results.reduce((total, result) => total + result.bonusPoint, 0) : null,
         officialPoint: submission ? submission.results.reduce((total, result) => total + (result.officialPoint ?? result.point), 0) : null,
         officialBonus: submission ? submission.results.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0) : null,
@@ -358,7 +359,7 @@ export default function LocalityResultsPage() {
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <p className="text-xs font-medium text-muted-foreground">Nhận xét Ban thường trực</p>
-                <CommentButton label="Nhận xét từ Ban thường trực" value={selectedComments?.committee} />
+                <CommentButton label="Nhận xét từ Ban thường trực" value={publication?.publicationNote} />
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:col-span-2">
                 <p className="text-xs font-medium text-muted-foreground">Tệp đính kèm công bố</p>
@@ -381,7 +382,7 @@ export default function LocalityResultsPage() {
           </div>
         </div>
         <Table className="min-w-[1660px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[19%]" /><col className="w-[17%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
-          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Xã (phường) chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng của tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tổng xã (phường) chấm</TableHead><TableHead className="whitespace-normal px-4 py-3 text-center leading-5 text-primary-foreground">Tổng tỉnh chấm</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng của tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tổng xã (phường) chấm</TableHead><TableHead className="whitespace-normal px-4 py-3 text-center leading-5 text-primary-foreground">Tổng tỉnh chấm</TableHead></TableRow></TableHeader>
           <TableBody>
             {filteredRows.flatMap((row) => {
               const expanded = expandedGroupIds.has(row.criteriaGroupId);
@@ -442,7 +443,7 @@ export default function LocalityResultsPage() {
           <p className="mt-2 text-xs text-muted-foreground">Ngày công bố {detailPublishedAt ? formatDate(detailPublishedAt) : '—'}</p>
         </div>
         <div className="grid min-w-0 flex-[2] basis-[380px] grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-          <div><p className="text-xs text-muted-foreground">Tổng điểm đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission?.totalProposedPoint ?? '—'}</p></div>
+          <div><p className="text-xs text-muted-foreground">Tổng điểm đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission ? detailSubmission.results.reduce((total, result) => total + result.point, 0) : '—'}</p></div>
           <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission ? detailProposedBonus : '—'}</p></div>
           <div><p className="text-xs text-muted-foreground">Tổng điểm thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{detailSubmission?.totalFinalPoint ?? detailPubGroup?.currentPoint ?? 0}</p></div>
           <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{detailSubmission ? detailOfficialBonus : 0}</p></div>
