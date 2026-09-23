@@ -142,13 +142,43 @@ export async function getFilePreviewUrl(id: string): Promise<string> {
   return file.url;
 }
 
+/** Lấy nội dung tệp; thử URL dự phòng khi endpoint download lỗi hoặc trả về rỗng. */
+export async function getFileBlob(id: string, fallbackUrl?: string | null): Promise<Blob> {
+  try {
+    const blob = await mainInstance<Blob>({
+      url: `/api/v1/files/${id}/download`,
+      method: 'GET',
+      responseType: 'blob',
+    });
+    if (blob instanceof Blob && blob.size > 0) return blob;
+  } catch {
+    // Thử URL tệp mới từ metadata ở dưới.
+  }
+
+  let freshUrl: string | null = null;
+  try {
+    freshUrl = (await filesApi.get(id)).url;
+  } catch {
+    // Lịch sử có thể vẫn chứa URL hợp lệ dù metadata không còn truy cập được.
+  }
+
+  for (const url of new Set([freshUrl, fallbackUrl].filter((value): value is string => Boolean(value)))) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const blob = await response.blob();
+      if (blob.size > 0) return blob;
+    } catch {
+      // URL hết hạn, storage lỗi hoặc không cho phép CORS; thử URL còn lại.
+    }
+  }
+
+  throw new Error('Không tải được nội dung tệp từ máy chủ. Tệp có thể đã rỗng hoặc không còn trong kho lưu trữ; vui lòng chọn tệp khác.');
+}
+
 /** Tải file về máy qua endpoint download (binary + Content-Disposition tên gốc). */
-export async function downloadFile(id: string, fileName: string) {
-  const response = await mainInstance<Blob>({
-    url: `/api/v1/files/${id}/download`,
-    method: 'GET',
-    responseType: 'blob',
-  });
+export async function downloadFile(id: string, fileName: string, fallbackUrl?: string | null) {
+  const response = await getFileBlob(id, fallbackUrl);
   const objectUrl = URL.createObjectURL(response);
   const anchor = document.createElement('a');
   anchor.href = objectUrl;
@@ -156,7 +186,7 @@ export async function downloadFile(id: string, fileName: string) {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(objectUrl);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 export function getFilesApiError(error: unknown) {

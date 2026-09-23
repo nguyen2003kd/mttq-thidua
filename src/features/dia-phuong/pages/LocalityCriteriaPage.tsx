@@ -7,6 +7,7 @@ import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FormDi
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
+import type { SpecialistRevisionFile } from '@/features/workflow/components/LocalityScoreTable';
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -94,7 +95,7 @@ export default function LocalityCriteriaPage() {
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Evidence | null>(null);
-  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string; url?: string | null } | null>(null);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -377,6 +378,18 @@ export default function LocalityCriteriaPage() {
     detailCriteria.forEach((criterion) => map.set(criterion.id, specialistRevisionReason));
     return map;
   }, [specialistRevisionReason, specialistRevisionCriteriaIds, detailCriteria]);
+
+  const specialistRevisionFiles = useMemo(() => {
+    const map = new Map<string, SpecialistRevisionFile[]>();
+    const files = latestSpecialistRevision?.files ?? [];
+    if (files.length === 0) return map;
+    if (specialistRevisionCriteriaIds) {
+      specialistRevisionCriteriaIds.forEach((criteriaId) => map.set(criteriaId, files));
+    } else {
+      detailCriteria.forEach((criterion) => map.set(criterion.id, files));
+    }
+    return map;
+  }, [latestSpecialistRevision, specialistRevisionCriteriaIds, detailCriteria]);
 
   // File đính kèm khi Chuyên viên thêm tiêu chí bổ sung (category = supplementary, gắn trên SubmissionResult).
   const supplementaryFiles = useMemo(() => {
@@ -711,19 +724,19 @@ export default function LocalityCriteriaPage() {
               <span className="italic">{latestRevisionReason}</span>
             </div>
           )}
-          {revisionFiles.length > 0 && (
-            <div className="space-y-1">
-              <span className="text-muted-foreground">File đính kèm:</span>
-              <div className="flex flex-wrap gap-2">
-                {revisionFiles.map((file) => (
-                  <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
-                    <FileText className="h-3 w-3 text-muted-foreground" />
-                    {file.displayName ?? file.originalName}
-                  </button>
-                ))}
+            {/* {revisionFiles.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-muted-foreground">File đính kèm:</span>
+                <div className="flex flex-wrap gap-2">
+                  {revisionFiles.map((file) => (
+                    <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                      <FileText className="h-3 w-3 text-muted-foreground" />
+                      {file.displayName ?? file.originalName}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )} */}
         </div>
       )}
       {supplementaryFiles.length > 0 && (
@@ -754,6 +767,8 @@ export default function LocalityCriteriaPage() {
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}
         specialistRevisionReasons={specialistRevisionReasons}
+        specialistRevisionFiles={specialistRevisionFiles}
+        onPreviewRevisionFile={(file) => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })}
         editableCriteriaIds={revisionEditableCriteriaIds}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}

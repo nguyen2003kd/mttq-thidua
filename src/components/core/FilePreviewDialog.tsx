@@ -1,14 +1,15 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { File as FileIcon } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
+import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from './Button';
-import { downloadFile, filesApi, type FileItemApi } from '@/features/files/api/filesApi';
+import { downloadFile, filesApi, getFileBlob, getFilesApiError, type FileItemApi } from '@/features/files/api/filesApi';
 import { cn } from '@/lib/utils';
 
 export interface FilePreviewDialogProps {
   /** File cần xem — null = đóng. Chỉ bắt buộc id; metadata (mimeType/extension/url) tự fetch. */
-  file: { id: string; displayName?: string | null; originalName?: string | null } | null;
+  file: { id: string; displayName?: string | null; originalName?: string | null; url?: string | null } | null;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -161,30 +162,58 @@ function sheetToRows(ws: XLSX.WorkSheet): { rows: SheetRowView[]; colWidths: num
  * loại khác hiển thị thông tin + nút tải xuống. Metadata + presigned URL fetch mới mỗi lần mở (hạn 1h).
  */
 export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps) {
+  const fileId = file?.id;
+  const fileUrl = file?.url;
   const [resolved, setResolved] = useState<FileItemApi | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [useBlobPreview, setUseBlobPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [sheetViews, setSheetViews] = useState<SheetView[] | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
 
   useEffect(() => {
-    if (!file) return;
+    if (!fileId) return;
     let cancelled = false;
     setResolved(null);
-    filesApi.get(file.id)
-      .then((item) => { if (!cancelled) setResolved(item); })
+    setBlobUrl(null);
+    setUseBlobPreview(false);
+    setPreviewError(null);
+    filesApi.get(fileId)
+      .then((item) => {
+        if (cancelled) return;
+        setResolved(item);
+        if (!item.url && !fileUrl) setUseBlobPreview(true);
+      })
       .catch((error) => {
         if (!cancelled) {
           console.warn('Không lấy được đường dẫn xem file:', error);
-          onOpenChange(false);
+          if (!fileUrl) setUseBlobPreview(true);
         }
       });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onOpenChange ổn định theo caller
-  }, [file]);
+  }, [fileId, fileUrl]);
 
-  const url = resolved?.url ?? null;
+  useEffect(() => {
+    if (!fileId || !useBlobPreview) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    getFileBlob(fileId, fileUrl)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      })
+      .catch((error) => { if (!cancelled) setPreviewError(getFilesApiError(error)); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileId, fileUrl, useBlobPreview]);
+
+  const url = useBlobPreview ? blobUrl : (resolved?.url ?? file?.url ?? null);
   const fileName = file?.displayName || file?.originalName || resolved?.displayName || resolved?.originalName || '';
-  const isImage = !!resolved?.mimeType.startsWith('image/');
-  const ext = (resolved?.extension ?? '').toLowerCase().replace('.', '');
+  const ext = (resolved?.extension || fileName.split('.').pop() || '').toLowerCase().replace('.', '');
+  const isImage = !!resolved?.mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
   const isCsv = ext === 'csv' || resolved?.mimeType === 'text/csv';
   // xls/xlsx/doc/ppt → Office viewer; csv → render in-app bằng SheetJS
   const isOfficeDoc = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)
@@ -221,13 +250,26 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
           <DialogTitle className="truncate">{fileName}</DialogTitle>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 items-center justify-center bg-surface-muted p-4">
-          {!file || !url ? (
+          {previewError ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <FileIcon className="h-10 w-10 text-muted-foreground" />
+              <p className="max-w-lg text-sm text-destructive">{previewError}</p>
+            </div>
+          ) : !file || !url ? (
             <div className="flex w-full flex-col items-center gap-2 py-10">
               <FileIcon className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Đang mở file…</p>
             </div>
           ) : isImage ? (
-            <img src={url} alt={fileName} className="max-h-full w-auto max-w-full rounded-md object-contain" />
+            <img
+              src={url}
+              alt={fileName}
+              className="max-h-full w-auto max-w-full rounded-md object-contain"
+              onError={() => {
+                if (useBlobPreview) setPreviewError('Tệp ảnh không đọc được. Vui lòng chọn tệp khác.');
+                else setUseBlobPreview(true);
+              }}
+            />
           ) : isPdf ? (
             <iframe src={url} title={fileName} className="h-full w-full rounded-md border-0 bg-white" />
           ) : isOfficeDoc ? (
@@ -357,7 +399,10 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
           <Button
             type="button"
             disabled={!file}
-            onClick={() => { if (file) void downloadFile(file.id, fileName || 'file'); }}
+            onClick={() => {
+              if (file) void downloadFile(file.id, fileName || 'file', file.url)
+                .catch((error) => toast.error('Không tải được tệp.', { description: getFilesApiError(error) }));
+            }}
           >
             Tải xuống
           </Button>

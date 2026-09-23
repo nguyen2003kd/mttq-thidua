@@ -9,4 +9,6 @@ export interface ApprovalRequest {
   reason?: string | null;
   /** @nullable */
   scoreItems?: ApprovalScoreItem[] | null;
+  /** @nullable */
+  submissionResultIds?: string[] | null;
 }

@@ -17,18 +17,20 @@ interface ForwardSubmissionDialogProps {
 }
 
 export function ForwardSubmissionDialog({ open, onOpenChange, localityName, groupName, targetLabel = 'Lãnh đạo ban', explanationLabel = 'Diễn giải hồ sơ từ chuyên viên', onConfirm }: ForwardSubmissionDialogProps) {
+  const defaultExplanation = `Hồ sơ đã được đối chiếu, đủ điều kiện chuyển ${targetLabel} phê duyệt.`;
   const [submitting, setSubmitting] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
-  const [explanation, setExplanation] = useState('');
+  const [explanation, setExplanation] = useState(defaultExplanation);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setExplanation(defaultExplanation);
+    } else {
       setFiles([]);
-      setExplanation('');
       setUploadProgress({});
     }
-  }, [open]);
+  }, [open, defaultExplanation]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -80,7 +82,6 @@ export function ForwardSubmissionDialog({ open, onOpenChange, localityName, grou
           id="forwarding-explanation"
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
-          placeholder={`Ví dụ: Hồ sơ đã được đối chiếu, đủ điều kiện chuyển ${targetLabel} phê duyệt.`}
           rows={3}
           disabled={submitting}
         />
