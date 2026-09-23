@@ -287,8 +287,9 @@ export default function LocalityCriteriaPage() {
       (submissionDetailQuery.data?.results ?? []).map((result) => [result.id, result.criteriaId]),
     );
     return (evidenceFilesQuery.data ?? []).flatMap((file) => {
-      // File đính kèm yêu cầu bổ sung của Chuyên viên không phải minh chứng của địa phương — tách riêng.
-      if (file.category?.toLowerCase() === 'supplementary') return [];
+      // File đính kèm yêu cầu bổ sung của Chuyên viên và tệp đính kèm khi sửa điểm không phải minh chứng của địa phương — tách riêng.
+      const category = file.category?.toLowerCase();
+      if (category === 'supplementary' || category === 'score-update' || category === 'leaderscoring') return [];
       const criteriaId = file.entityId ? criteriaIdByResultId.get(file.entityId) : undefined;
       if (!criteriaId) return [];
       return [{
@@ -391,12 +392,19 @@ export default function LocalityCriteriaPage() {
       });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria]);
 
-  // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
+  // File đính kèm của yêu cầu chỉnh sửa: file mới gắn vào ApprovalHistory (history.files),
+  // file cũ (legacy) gắn vào Submission với category = revision-attachment.
   const revisionFilesQuery = useQuery({
     queryKey: ['locality-revision-files', submission?.id],
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 20 }),
     enabled: Boolean(submission?.id) && isRevisionStage,
   });
+
+  const revisionFiles = useMemo(() => {
+    const fromHistories = (revisionHistoriesQuery.data?.items ?? []).flatMap((item) => item.files ?? []);
+    const legacy = revisionFilesQuery.data?.items ?? [];
+    return [...fromHistories, ...legacy];
+  }, [revisionHistoriesQuery.data, revisionFilesQuery.data]);
 
   // Mutations
   const submitPointsMutation = useMutation({
@@ -703,15 +711,15 @@ export default function LocalityCriteriaPage() {
               <span className="italic">{latestRevisionReason}</span>
             </div>
           )}
-          {(revisionFilesQuery.data?.items ?? []).length > 0 && (
+          {revisionFiles.length > 0 && (
             <div className="space-y-1">
               <span className="text-muted-foreground">File đính kèm:</span>
               <div className="flex flex-wrap gap-2">
-                {(revisionFilesQuery.data?.items ?? []).map((file) => (
-                  <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                {revisionFiles.map((file) => (
+                  <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
                     <FileText className="h-3 w-3 text-muted-foreground" />
                     {file.displayName ?? file.originalName}
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -725,11 +733,11 @@ export default function LocalityCriteriaPage() {
             <span className="text-muted-foreground">File đính kèm yêu cầu bổ sung:</span>
             <div className="flex flex-wrap gap-2">
               {supplementaryFiles.map(({ file, criteriaName }) => (
-                <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
                   <FileText className="h-3 w-3 text-muted-foreground" />
                   {file.displayName ?? file.originalName}
                   {criteriaName && <span className="text-muted-foreground">· {criteriaName}</span>}
-                </a>
+                </button>
               ))}
             </div>
           </div>

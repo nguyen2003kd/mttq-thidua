@@ -38,12 +38,14 @@ function LeaderCriterionDetailDialog({
   item,
   onEdit,
   editDisabled,
+  onPreview,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: { criterion: { content: string; maxPoint: number; maxBonusPoint: number; type: string }; result?: SubmissionResultItem; leader?: LeaderScoreDraft } | undefined;
   onEdit: () => void;
   editDisabled: boolean;
+  onPreview: (file: PreviewableFile) => void;
 }) {
   if (!item) return null;
   const { criterion, result, leader } = item;
@@ -68,7 +70,7 @@ function LeaderCriterionDetailDialog({
         <div><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{result?.explanation || 'Chưa có diễn giải.'}</p></div>
         {result?.officialReason && <div><p className="text-xs font-medium text-muted-foreground">Lý do sửa điểm của Chuyên viên</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{result.officialReason}</p></div>}
         {leader?.reason && <div><p className="text-xs font-medium text-muted-foreground">Lý do Lãnh đạo sửa điểm</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{leader.reason}</p></div>}
-        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3"><p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p><p className="mt-0.5 text-xs text-muted-foreground">{result?.files.length ?? 0} file đính kèm</p>{result?.files.length ? <div className="mt-3 space-y-2">{result.files.map((file) => file.url ? <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline"><FileText className="size-4 shrink-0" />{file.originalName}</a> : <p key={file.id} className="flex items-center gap-2 text-sm text-muted-foreground"><FileText className="size-4 shrink-0" />{file.originalName}</p>)}</div> : null}</div>
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3"><p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p><p className="mt-0.5 text-xs text-muted-foreground">{result?.files.length ?? 0} file đính kèm</p>{result?.files.length ? <div className="mt-3 space-y-2">{result.files.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex items-center gap-2 text-sm text-primary hover:underline"><FileText className="size-4 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : null}</div>
       </div>
       <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>{criterion.type !== 'Supplementary' && <Button type="button" disabled={editDisabled} disabledReason={editDisabled ? 'Hồ sơ đã chuyển bước nên không thể cập nhật điểm.' : undefined} onClick={onEdit}><Edit3 className="size-4" />Sửa điểm</Button>}</DialogFooter>
     </DialogContent>
@@ -273,10 +275,7 @@ export default function BanLeaderReviewDetailPage() {
       return false;
     }
     try {
-      if (file) {
-        await filesApi.upload(file, { entityType: 'Submission', entityId: submission.id, category: 'revision-attachment' });
-      }
-      await specialistApi.requestRevision({ submissionId: submission.id, reason, submissionResultIds: selectedResultIds });
+      await specialistApi.requestRevision({ submissionId: submission.id, reason, submissionResultIds: selectedResultIds, file });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['leader-submissions'] }),
         queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group'] }),
@@ -356,6 +355,7 @@ export default function BanLeaderReviewDetailPage() {
       item={selectedResultItem ? { criterion: selectedResultItem.criterion, result: selectedResultItem.result, leader: leaderScoreFor(selectedResultItem.result) } : undefined}
       editDisabled={!canProcess}
       onEdit={() => { setCriterionDetailOpen(false); setScoreEditOpen(true); }}
+      onPreview={setPreviewFile}
     />
     <OfficialScoreRevisionDialog open={Boolean(scoreRevisionResult)} onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }} result={scoreRevisionResult} criterionLabel={scoreRevisionResult?.criteriaContent ?? selectedResultItem?.criterion.content ?? 'Tiêu chí con'} />
 

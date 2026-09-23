@@ -141,10 +141,7 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
       return false;
     }
     return processSubmission(async (item) => {
-      if (file) {
-        await filesApi.upload(file, { entityType: 'Submission', entityId: item.id, category: 'revision-attachment' });
-      }
-      await specialistApi.requestRevision({ submissionId: item.id, reason, submissionResultIds: selectedResultIds });
+      await specialistApi.requestRevision({ submissionId: item.id, reason, submissionResultIds: selectedResultIds, file });
     }, 'Đã gửi yêu cầu chỉnh sửa về Chuyên viên.');
   };
 

@@ -40,6 +40,7 @@ export interface SubmissionResultFile {
   originalName: string;
   displayName: string | null;
   sizeBytes: number;
+  category: string | null;
   createdAt: string;
   url: string | null;
 }
@@ -88,6 +89,7 @@ export interface ApprovalHistoryItem {
   action: string;
   reason: string | null;
   changedData: string | null;
+  files: SubmissionResultFile[];
   createdAt: string;
 }
 

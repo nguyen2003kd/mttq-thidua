@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, FileText, Paperclip } from 'lucide-react';
-import { AppDialog, AuditTimeline } from '@/components/core';
+import { AppDialog, AuditTimeline, FilePreviewDialog } from '@/components/core';
 import type { AuditEntry } from '@/types/domain';
 import type { Role, ActionType } from '@/types/rbac';
 import {
@@ -221,6 +221,7 @@ interface LocalityCriteriaHistoryDialogProps {
 
 export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, groupName }: LocalityCriteriaHistoryDialogProps) {
   const hasSubmission = Boolean(submission?.id);
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
 
   const historiesQuery = useQuery({
     queryKey: ['locality-approval-histories', submission?.id],
@@ -228,13 +229,17 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
     enabled: open && hasSubmission,
   });
 
-  // File đính kèm của yêu cầu chỉnh sửa (category = revision-attachment, entityType = Submission)
+  // File đính kèm của yêu cầu chỉnh sửa: file mới gắn vào ApprovalHistory (history.files),
+  // file cũ (legacy) gắn vào Submission với category = revision-attachment.
   const revisionFilesQuery = useQuery({
     queryKey: ['locality-revision-files-history', submission?.id],
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
     enabled: open && hasSubmission,
   });
-  const revisionFiles = revisionFilesQuery.data?.items ?? [];
+  const revisionFiles = [
+    ...(historiesQuery.data?.items ?? []).flatMap((item) => item.files ?? []),
+    ...(revisionFilesQuery.data?.items ?? []),
+  ];
 
   const entries = (historiesQuery.data?.items ?? [])
     .map(mapHistoryToAudit)
@@ -263,11 +268,11 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
                   </div>
                   <div className="space-y-1">
                     {revisionFiles.map((file) => (
-                      <a key={file.id} href={file.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-xs hover:bg-muted">
+                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-left text-xs hover:bg-muted">
                         <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{file.displayName ?? file.originalName}</span>
                         <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -288,6 +293,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
             </section>
           )}
       </div>
+      <FilePreviewDialog file={previewFile} onOpenChange={(isOpen) => { if (!isOpen) setPreviewFile(null); }} />
     </AppDialog>
   );
 }
