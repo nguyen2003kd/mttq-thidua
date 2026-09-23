@@ -210,7 +210,7 @@ export const specialistApi = {
     }),
 
   // RequestRevision — chuyên viên yêu cầu địa phương chỉnh sửa hồ sơ
-  requestRevision: (payload: { submissionId: string; reason: string }) =>
+  requestRevision: (payload: { submissionId: string; reason: string; submissionResultIds?: string[] }) =>
     request<{ processed: boolean; submissionId: string; action: string }>({
       url: '/api/v1/submissions/approve',
       method: 'POST',

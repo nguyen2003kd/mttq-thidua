@@ -10,3 +10,4 @@ export { LocalityScoreTable, type LocalityScoreTableHandle } from './LocalitySco
 export { ForwardSubmissionDialog } from './ForwardSubmissionDialog';
 export { OfficialScoreRevisionDialog } from './OfficialScoreRevisionDialog';
 export { ForwardingDocumentsDialog, type ForwardingDocument, type ForwardingDocumentFile } from './ForwardingDocumentsDialog';
+export { RevisionRequestDialog, type RevisionRequestCriterion } from './RevisionRequestDialog';

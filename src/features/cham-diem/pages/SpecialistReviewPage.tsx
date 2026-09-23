@@ -39,7 +39,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ForwardingDocumentsDialog, ForwardSubmissionDialog } from '@/features/workflow/components';
+import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import {
   localityApi,
@@ -250,6 +250,7 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
   RequestRevision: 'Yêu cầu chỉnh sửa',
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
+  ResubmitAfterRevision: 'Nộp lại sau chỉnh sửa',
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
   Finalize: 'Công bố kết quả',
 };
@@ -294,13 +295,39 @@ function translateLegacyReason(reason: string | null): string | null {
 
 type RevisionRequestStage = 'SpecialistApproved' | 'LeaderApproved' | 'CouncilApproved';
 
-/** Lấy nội dung yêu cầu chỉnh sửa mới nhất theo cấp xử lý của hồ sơ. */
-function getLatestRevisionReason(histories: ApprovalHistoryItem[], stageLevel: RevisionRequestStage) {
-  return histories
-    .filter((history) => history.stageLevel === stageLevel && resolveHistoryAction(history.action, history.reason) === 'RequestRevision')
+interface RevisionNote {
+  reason: string;
+  /** null = request không chỉ định submissionResultIds → áp dụng cho toàn bộ tiêu chí. */
+  resultIds: string[] | null;
+}
+
+function parseRevisionResultIds(changedData: string | null): string[] | null {
+  if (!changedData) return null;
+  try {
+    const parsed = JSON.parse(changedData) as { submissionResultIds?: unknown };
+    return Array.isArray(parsed.submissionResultIds)
+      ? parsed.submissionResultIds.filter((id): id is string => typeof id === 'string')
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Lấy yêu cầu chỉnh sửa mới nhất theo cấp xử lý của hồ sơ. */
+function getLatestRevisionNote(histories: ApprovalHistoryItem[], stageLevel: RevisionRequestStage): RevisionNote | null {
+  const history = histories
+    .filter((item) => item.stageLevel === stageLevel && resolveHistoryAction(item.action, item.reason) === 'RequestRevision')
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-    .map((history) => translateLegacyReason(history.reason))
-    .find((reason): reason is string => Boolean(reason?.trim())) ?? null;
+    .find((item) => Boolean(translateLegacyReason(item.reason)?.trim()));
+  if (!history) return null;
+  return { reason: translateLegacyReason(history.reason)!, resultIds: parseRevisionResultIds(history.changedData) };
+}
+
+/** Chỉ trả reason khi submissionResult thuộc danh sách được yêu cầu chỉnh sửa. */
+function revisionNoteForResult(note: RevisionNote | null, result: SubmissionResultItem | undefined): string | null {
+  if (!note) return null;
+  if (note.resultIds === null) return note.reason;
+  return result && note.resultIds.includes(result.id) ? note.reason : null;
 }
 
 function parseFileSnapshot(oldFiles: string | null): FileSnapshotItem[] {
@@ -342,6 +369,7 @@ function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, current
         resolvedAction === 'RequestRevision' && 'bg-warning',
         resolvedAction === 'UpdateScore' && 'bg-muted-foreground',
         resolvedAction === 'Approve' && 'bg-success',
+        resolvedAction === 'ResubmitAfterRevision' && 'bg-info',
         resolvedAction === 'AddSupplementaryCriteria' && 'bg-primary',
         !resolvedAction && 'bg-muted-foreground',
       )} />
@@ -353,6 +381,7 @@ function SubmissionHistoryEntry({ item, currentPoint, currentBonusPoint, current
             resolvedAction === 'RequestRevision' && 'bg-destructive/10 text-destructive',
             resolvedAction === 'UpdateScore' && 'bg-info/10 text-info',
             resolvedAction === 'Approve' && 'bg-success/10 text-success',
+            resolvedAction === 'ResubmitAfterRevision' && 'bg-info/10 text-info',
             resolvedAction === 'AddSupplementaryCriteria' && 'bg-primary/10 text-primary',
             !resolvedAction && 'bg-muted text-muted-foreground',
           )}>
@@ -835,73 +864,6 @@ function SupplementaryDialog({
 //   );
 // }
 
-const revisionSchema = z.object({
-  reason: z.string().trim().min(1, 'Vui lòng nhập nội dung yêu cầu chỉnh sửa.'),
-  file: z.instanceof(File).nullable().refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
-});
-
-type RevisionForm = z.infer<typeof revisionSchema>;
-
-function RevisionDialog({
-  open,
-  onOpenChange,
-  localityName,
-  criterionLabel,
-  onSubmit,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  localityName: string;
-  criterionLabel?: string;
-  onSubmit: (reason: string, file: File | null) => Promise<boolean>;
-}) {
-  const form = useForm<RevisionForm>({
-    resolver: zodResolver(revisionSchema),
-    defaultValues: { reason: '', file: null },
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const selectedFile = form.watch('file');
-
-  useEffect(() => {
-    if (open) form.reset({ reason: '', file: null });
-  }, [form, open]);
-
-  return (
-    <FormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Yêu cầu địa phương chỉnh sửa"
-      description={criterionLabel
-        ? `Yêu cầu ${localityName} bổ sung/chỉnh sửa tiêu chí: ${criterionLabel}.`
-        : `Mở lại quyền sửa hồ sơ cho ${localityName}.`}
-      onSubmit={form.handleSubmit(async ({ reason, file }) => {
-        setSubmitting(true);
-        const success = await onSubmit(reason, file);
-        setSubmitting(false);
-        if (success) onOpenChange(false);
-      })}
-      submitLabel={submitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
-      cancelLabel="Đóng"
-    >
-      <div className="space-y-1.5">
-        <Label htmlFor="revision-reason">Nội dung yêu cầu chỉnh sửa <span className="text-destructive">★</span></Label>
-        <Textarea id="revision-reason" rows={4} {...form.register('reason')} placeholder="Ví dụ: Minh chứng chưa rõ nét, đề nghị bổ sung ảnh chụp thực tế" />
-        {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
-      </div>
-      <div className="space-y-1.5">
-        <Label>File đính kèm</Label>
-        <FileUpload
-          value={selectedFile ? [selectedFile] : []}
-          onChange={(files) => form.setValue('file', files[0] ?? null, { shouldValidate: true })}
-          multiple={false}
-          maxSizeMb={20}
-          error={form.formState.errors.file?.message}
-        />
-      </div>
-    </FormDialog>
-  );
-}
-
 function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
   if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge>;
   if (status === 'DA_DUYET') return <Badge variant="success">Đã duyệt</Badge>;
@@ -1285,6 +1247,7 @@ export default function SpecialistReviewPage() {
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
+  const defaultSelectedCriteriaIds = useMemo(() => (selectedCriterionId ? [selectedCriterionId] : []), [selectedCriterionId]);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
@@ -1505,9 +1468,9 @@ export default function SpecialistReviewPage() {
   const selectedRevisionNotes = useMemo(() => {
     const histories = selectedRevisionHistoriesQuery.data?.items ?? [];
     return {
-      leader: getLatestRevisionReason(histories, 'SpecialistApproved'),
-      council: getLatestRevisionReason(histories, 'LeaderApproved'),
-      committee: getLatestRevisionReason(histories, 'CouncilApproved'),
+      leader: getLatestRevisionNote(histories, 'SpecialistApproved'),
+      council: getLatestRevisionNote(histories, 'LeaderApproved'),
+      committee: getLatestRevisionNote(histories, 'CouncilApproved'),
     };
   }, [selectedRevisionHistoriesQuery.data]);
 
@@ -1907,6 +1870,7 @@ export default function SpecialistReviewPage() {
   const selectedCriterion = selectedCriterionId
     ? displayGroup.items.find((item) => item.id === selectedCriterionId)
     : undefined;
+  const revisionCriteria = displayGroup.items.filter((item) => !item.isAddedBySpecialist && resultByCriteriaId.has(item.id));
   const scoreRevisionCriterionLabel = scoreRevisionResult?.criteriaContent
     ?? displayGroup.items.find((item) => item.id === scoreRevisionResult?.criteriaId)?.title
     ?? 'Tiêu chí con';
@@ -2176,7 +2140,7 @@ export default function SpecialistReviewPage() {
             <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
             <Button variant="outline" onClick={openSupplementaryDialog} disabled={specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             {selectedCriterion && (
-              <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined} onClick={() => setRevisionOpen(true)}>
+              <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistActionsLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistActionsLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
                 <AlertCircle className="size-4 text-warning" />Yêu cầu địa phương chỉnh sửa
               </Button>
             )}
@@ -2214,6 +2178,9 @@ export default function SpecialistReviewPage() {
             <TableBody>
               {displayGroup.items.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
+                const leaderNote = revisionNoteForResult(selectedRevisionNotes.leader, result);
+                const councilNote = revisionNoteForResult(selectedRevisionNotes.council, result);
+                const committeeNote = revisionNoteForResult(selectedRevisionNotes.committee, result);
                 const historyExpanded = expandedCriterionHistoryId === item.id;
                 return (
                   <Fragment key={item.id}>
@@ -2301,9 +2268,9 @@ export default function SpecialistReviewPage() {
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={selectedRevisionNotes.leader} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={selectedRevisionNotes.council} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><TruncatedText as="p" value={selectedRevisionNotes.committee} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={leaderNote} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><TruncatedText as="p" value={councilNote} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
+                  <TableCell className="px-4 py-5 text-center align-top"><TruncatedText as="p" value={committeeNote} maxLines={3} className="text-sm leading-5 text-muted-foreground" /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -2328,6 +2295,9 @@ export default function SpecialistReviewPage() {
         <div className="divide-y divide-border xl:hidden">
           {displayGroup.items.map((item) => {
             const result = resultByCriteriaId.get(item.id);
+            const leaderNote = revisionNoteForResult(selectedRevisionNotes.leader, result);
+            const councilNote = revisionNoteForResult(selectedRevisionNotes.council, result);
+            const committeeNote = revisionNoteForResult(selectedRevisionNotes.committee, result);
             const historyExpanded = expandedCriterionHistoryId === item.id;
             return (
             <article key={item.id} className="p-4 sm:p-5">
@@ -2356,11 +2326,11 @@ export default function SpecialistReviewPage() {
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
-                  {(selectedRevisionNotes.leader || selectedRevisionNotes.council || selectedRevisionNotes.committee) && (
+                  {(leaderNote || councilNote || committeeNote) && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      {selectedRevisionNotes.leader && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo</dt><dd className="mt-1 text-sm leading-5 text-foreground">{selectedRevisionNotes.leader}</dd></div>}
-                      {selectedRevisionNotes.council && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Hội đồng</dt><dd className="mt-1 text-sm leading-5 text-foreground">{selectedRevisionNotes.council}</dd></div>}
-                      {selectedRevisionNotes.committee && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Ủy ban</dt><dd className="mt-1 text-sm leading-5 text-foreground">{selectedRevisionNotes.committee}</dd></div>}
+                      {leaderNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo</dt><dd className="mt-1 text-sm leading-5 text-foreground">{leaderNote}</dd></div>}
+                      {councilNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Hội đồng</dt><dd className="mt-1 text-sm leading-5 text-foreground">{councilNote}</dd></div>}
+                      {committeeNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Ủy ban</dt><dd className="mt-1 text-sm leading-5 text-foreground">{committeeNote}</dd></div>}
                     </dl>
                   )}
                 </div>
@@ -2537,12 +2507,14 @@ export default function SpecialistReviewPage() {
         criterionLabel={scoreRevisionCriterionLabel}
       />
       <FilePreviewDialog file={forwardingPreviewFile} onOpenChange={(open) => { if (!open) setForwardingPreviewFile(null); }} />
-      <RevisionDialog
+      <RevisionRequestDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
+        title="Yêu cầu địa phương chỉnh sửa"
         localityName={district.localityName}
-        criterionLabel={selectedCriterion ? `${selectedCriterion.code} · ${selectedCriterion.title}` : undefined}
-        onSubmit={async (reason, file) => {
+        criteria={revisionCriteria}
+        defaultSelectedCriteriaIds={defaultSelectedCriteriaIds}
+        onSubmit={async ({ criteriaIds, reason, file }) => {
           if (specialistActionsLocked) {
             toast.info(specialistLockReason);
             return false;
@@ -2552,14 +2524,22 @@ export default function SpecialistReviewPage() {
             toast.error('Nhóm này chưa có hồ sơ để yêu cầu chỉnh sửa.');
             return false;
           }
+          const selectedResultIds = criteriaIds
+            .map((criteriaId) => resultByCriteriaId.get(criteriaId)?.id)
+            .filter((id): id is string => Boolean(id));
+          if (selectedResultIds.length === 0) {
+            toast.error('Vui lòng chọn ít nhất một tiêu chí có kết quả để yêu cầu chỉnh sửa.');
+            return false;
+          }
           try {
             if (file) {
               await filesApi.upload(file, { entityType: 'Submission', entityId: submission.id, category: 'revision-attachment' });
             }
-            const targetedReason = selectedCriterion
-              ? `[${selectedCriterion.code}] ${selectedCriterion.title}\n\n${reason}`
-              : reason;
-            await specialistApi.requestRevision({ submissionId: submission.id, reason: targetedReason });
+            await specialistApi.requestRevision({
+              submissionId: submission.id,
+              reason,
+              submissionResultIds: selectedResultIds,
+            });
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
               queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
