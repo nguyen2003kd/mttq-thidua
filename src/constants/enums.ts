@@ -30,6 +30,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   LEADER: 'Lãnh đạo',
   COUNCIL: 'Hội đồng',
   COMMITTEE: 'Ủy ban',
+  ADMIN: 'Quản trị',
 };
 
 export const ACTION_LABELS: Record<ActionType, string> = {

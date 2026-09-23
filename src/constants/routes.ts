@@ -15,6 +15,7 @@ export const ROUTES = {
   // NOTE: ADMIN_CRITERIA_NEW trỏ tới route `bang-tieu-chi/:id` với id="new";
   // CriteriaFormPage tự nhận biết qua `id === 'new'`. Không có route literal riêng.
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
+  ADMIN_USERS: '/thi-dua/admin/tai-khoan',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
   ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 

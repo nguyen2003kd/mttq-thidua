@@ -17,6 +17,7 @@ const APP_ROLES: Role[] = [
   'LEADER',
   'COUNCIL',
   'COMMITTEE',
+  'ADMIN',
 ];
 
 /** Response envelope returned by Mttq.Tctd.Api's AuthController. */
@@ -45,7 +46,7 @@ function resolveAppRole(roles: string[]): Role | null {
     if (normalizedRole === 'BAN_LEADER') return 'LEADER';
     if (normalizedRole === 'COUNCIL_CHAIR' || normalizedRole === 'COUNCIL_VICE') return 'COUNCIL';
     if (normalizedRole === 'STANDING_COMMITTEE') return 'COMMITTEE';
-    if (normalizedRole === 'ADMIN' || normalizedRole === 'SYSTEM_ADMIN') return 'SPECIALIST';
+    if (normalizedRole === 'ADMIN' || normalizedRole === 'SYSTEM_ADMIN') return 'ADMIN';
   }
 
   return null;
