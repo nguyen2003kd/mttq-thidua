@@ -1,20 +1,20 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, Eye, FileText, MessageSquareText, Trophy } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, ListTree, MessageSquareText, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
-import { Button, DataTable, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AuditTimeline } from '@/components/core';
 import { localityApi, getLocalityApiError, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
 
@@ -135,6 +135,37 @@ function ScorePair({ point, bonus, maxPoint, maxBonus }: { point: number; bonus:
   return <div className="grid grid-cols-2 gap-1.5"><div className="min-w-0 rounded-md border border-border bg-muted/30 px-2 py-1.5"><p className="whitespace-nowrap text-xs text-muted-foreground">Điểm</p><p className="mt-0.5 whitespace-nowrap text-sm font-semibold tabular-nums">{point}<span className="ml-1 text-xs font-medium text-success">/ {maxPoint}</span></p></div><div className="min-w-0 rounded-md border border-border bg-muted/30 px-2 py-1.5"><p className="whitespace-nowrap text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-0.5 whitespace-nowrap text-sm font-semibold tabular-nums">{bonus}<span className="ml-1 text-xs font-medium text-success">/ {maxBonus}</span></p></div></div>;
 }
 
+function formatScore(value: number | null | undefined) {
+  if (value === null || value === undefined) return '—';
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value);
+}
+
+function ScoreValue({ value, strong = false }: { value: number | null | undefined; strong?: boolean }) {
+  return <span className={cn('tabular-nums text-foreground', strong ? 'font-semibold' : 'font-medium')}>{formatScore(value)}</span>;
+}
+
+/** Dòng tiêu chí con trong bảng cây kết quả. */
+function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?: SubmissionResultItem }) {
+  const proposedScore = result?.point;
+  const proposedBonus = result?.bonusPoint;
+  const provinceScore = result ? result.officialPoint ?? result.point : null;
+  const provinceBonus = result ? result.officialBonusPoint ?? result.bonusPoint : null;
+  const proposedTotal = proposedScore === undefined || proposedBonus === undefined ? null : proposedScore + proposedBonus;
+  const provinceTotal = provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus;
+
+  return <TableRow className="bg-muted/[0.18] hover:bg-muted/40">
+    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p></div></TableCell>
+    <TableCell className="whitespace-normal border-r border-primary/10 px-4 py-3 align-top text-sm leading-5 text-muted-foreground">{result?.explanation || criterion.note || '—'}</TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedScore} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedBonus} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={provinceScore} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={provinceBonus} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedTotal} /></TableCell>
+    <TableCell className="px-4 py-3 text-center align-top"><ScoreValue value={provinceTotal} /></TableCell>
+  </TableRow>;
+}
+
 /** Nút nhận xét — bấm mở popup hiển thị nhận xét của một cấp xét duyệt. */
 function CommentButton({ label, value }: { label: string; value?: string | null }) {
   const [open, setOpen] = useState(false);
@@ -180,6 +211,8 @@ export default function LocalityResultsPage() {
   const [criterionDialog, setCriterionDialog] = useState<{ criterion: CriteriaApi; result: SubmissionResultItem | null } | null>(null);
   const [publicationPreviewFile, setPublicationPreviewFile] = useState<{ id: string; displayName?: string | null; originalName?: string | null } | null>(null);
   const [mobilePage, setMobilePage] = useState(1);
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
 
   const submissionsQuery = useQuery({
     queryKey: ['locality-final-submissions'],
@@ -260,15 +293,17 @@ export default function LocalityResultsPage() {
     });
   }, [groupById, publicationQuery.data, submissionById]);
 
-  const columns = useMemo<ColumnDef<ResultRow>[]>(() => [
-    { accessorFn: (row) => row.groupName, header: 'Nhóm tiêu chí', cell: ({ row }) => <TruncatedText as="p" value={row.original.groupName} maxLines={2} className="font-semibold leading-5 text-foreground" />, meta: { list: { width: 'minmax(220px,1.2fr)' }, disableTooltip: true } },
-    { accessorFn: (row) => row.groupContent, header: 'Nội dung', cell: ({ row }) => <TruncatedText as="p" value={row.original.groupContent || '—'} maxLines={2} className="text-sm leading-5 text-muted-foreground" />, meta: { list: { width: 'minmax(240px,1.3fr)' }, disableTooltip: true } },
-    { accessorFn: (row) => row.proposedPoint ?? -1, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.proposedPoint ?? '—'}</span>, meta: { align: 'right', list: { width: 'minmax(130px,.65fr)' } } },
-    { accessorFn: (row) => row.proposedBonus ?? -1, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus ?? '—'}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.7fr)' } } },
-    { accessorFn: (row) => row.officialPoint ?? -1, header: 'Điểm được chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.officialPoint ?? '—'}</span>, meta: { align: 'right', list: { width: 'minmax(130px,.65fr)' } } },
-    { accessorFn: (row) => row.officialBonus ?? -1, header: 'Điểm thưởng được chấm', cell: ({ row }) => <span className="tabular-nums">{row.original.officialBonus ?? '—'}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.7fr)' } } },
-    { accessorFn: (row) => row.currentPoint, header: 'Điểm kết quả', cell: ({ row }) => <span className="font-semibold tabular-nums text-primary">{row.original.currentPoint}<span className="ml-1 text-xs font-normal text-muted-foreground">/ {row.original.maxPoint}</span></span>, meta: { align: 'right', list: { width: 'minmax(120px,.6fr)' } } },
-  ], []);
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return rows;
+    return rows.filter((row) => row.groupName.toLowerCase().includes(keyword) || row.groupContent.toLowerCase().includes(keyword));
+  }, [rows, search]);
+
+  const toggleGroup = (groupId: string) => setExpandedGroupIds((current) => {
+    const next = new Set(current);
+    if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+    return next;
+  });
 
   if (!localityId) return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương." />;
 
@@ -337,22 +372,41 @@ export default function LocalityResultsPage() {
         </section>
       )}
       <FilePreviewDialog file={publicationPreviewFile} onOpenChange={(open) => { if (!open) setPublicationPreviewFile(null); }} />
-      <div className="hidden md:block"><DataTable
-        data={rows}
-        columns={columns}
-        pageSize={10}
-        variant="list"
-        searchable
-        searchPlaceholder="Tìm tên nhóm tiêu chí..."
-        getRowId={(row) => row.submissionId ?? row.criteriaGroupId}
-        selectedRowId={selectedRow?.submissionId ?? selectedRow?.criteriaGroupId}
-        onRowClick={setSelectedRow}
-        onRowDoubleClick={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}`)}
-        toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một kết quả để xem chi tiết." onClick={() => selectedRow && navigate(`/dia-phuong/ket-qua/${selectedRow.submissionId ?? selectedRow.criteriaGroupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
-        emptyState={{ title: 'Chưa có kết quả được công bố', description: 'Kết quả sẽ xuất hiện tại đây sau khi hồ sơ được Ủy ban thường trực công bố.', icon: <Trophy className="size-8" /> }}
-        stickyTitle="Kết quả tiêu chí thi đua"
-        stickyDescription="Danh sách nhóm tiêu chí đã công bố"
-      /></div>
+      <section className="hidden overflow-hidden rounded-lg border border-border bg-card md:block" aria-label="Bảng chi tiết kết quả">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary"><ListTree className="size-5" /></span><div><h2 className="text-base font-semibold text-foreground">Chi tiết điểm theo nhóm tiêu chí</h2><p className="mt-0.5 text-sm text-muted-foreground">Bấm vào một nhóm để xem các tiêu chí con.</p></div></div>
+          <div className="flex items-center gap-3">
+            <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm tên nhóm tiêu chí..." className="w-64 pl-9" /></div>
+            <Badge variant="secondary">{filteredRows.length} nhóm</Badge>
+          </div>
+        </div>
+        <Table className="min-w-[1660px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[19%]" /><col className="w-[17%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
+          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Xã (phường) chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng của tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tổng xã (phường) chấm</TableHead><TableHead className="whitespace-normal px-4 py-3 text-center leading-5 text-primary-foreground">Tổng tỉnh chấm</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {filteredRows.flatMap((row) => {
+              const expanded = expandedGroupIds.has(row.criteriaGroupId);
+              const criteria = groupById.get(row.criteriaGroupId)?.criteria ?? [];
+              const resultsByCriteriaId = new Map((row.submission?.results ?? []).map((result) => [result.criteriaId, result]));
+              const proposedTotal = row.proposedPoint === null || row.proposedBonus === null ? null : row.proposedPoint + row.proposedBonus;
+              return [
+                <TableRow key={row.criteriaGroupId} className="cursor-pointer bg-primary/[0.035] hover:bg-primary/[0.07]" onClick={() => { toggleGroup(row.criteriaGroupId); setSelectedRow(row); }}>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4"><div className="flex items-start gap-2"><span className="mt-0.5 text-primary">{expanded ? <ChevronDown className="size-5" /> : <ChevronRight className="size-5" />}</span><div><p className="font-semibold leading-5 text-foreground">{row.groupName}</p><p className="mt-1 text-xs text-muted-foreground">{criteria.length} tiêu chí con</p></div></div></TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 text-sm leading-5 text-muted-foreground">{row.groupContent || '—'}</TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.maxPoint} strong /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.proposedPoint} strong /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.proposedBonus} strong /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.officialPoint} strong /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.officialBonus} strong /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={proposedTotal} strong /></TableCell>
+                  <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums text-primary">{formatScore(row.currentPoint)}</span></TableCell>
+                </TableRow>,
+                ...(expanded ? criteria.map((criterion) => <ChildResultRow key={`${row.criteriaGroupId}-${criterion.id}`} criterion={criterion} result={resultsByCriteriaId.get(criterion.id)} />) : []),
+              ];
+            })}
+            {!filteredRows.length && <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Chưa có kết quả được công bố.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </section>
       <ResultCards rows={rows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}`)} />
     </div>;
   }
