@@ -4,9 +4,11 @@ import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
+import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 
 const COMMITTEE_STAGE = 'CouncilApproved' as const;
+const COMMITTEE_VISIBLE_STAGES = [COMMITTEE_STAGE, 'CommitteeFinalized'] as const;
 
 interface CommitteeCriteriaGroupRow {
   groupId: string;
@@ -19,12 +21,17 @@ interface CommitteeCriteriaGroupRow {
   officialBonus: number;
 }
 
-async function listEveryCommitteeSubmission() {
-  const firstPage = await specialistApi.listAllSubmissions({ stage: COMMITTEE_STAGE, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
+async function listStageSubmissions(stage: string) {
+  const firstPage = await specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
   const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
-  if (pageCount <= 1) return firstPage;
-  const pages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ stage: COMMITTEE_STAGE, page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
-  return { ...firstPage, items: [firstPage.items, ...pages.flatMap((page) => page.items)].flat().filter(isRealSubmission) };
+  if (pageCount <= 1) return firstPage.items;
+  const pages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ stage, page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+  return [firstPage.items, ...pages.map((page) => page.items)].flat();
+}
+
+async function listEveryCommitteeSubmission() {
+  const items = await Promise.all(COMMITTEE_VISIBLE_STAGES.map(listStageSubmissions));
+  return { items: items.flat().filter(isRealSubmission) };
 }
 
 function getLocalityCode(localityId: string) { return localityId.startsWith('loc-') ? localityId.slice(4) : localityId; }
@@ -59,15 +66,15 @@ export default function CommitteeCriteriaGroupsPage() {
     { accessorFn: (row) => row.proposedScore, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.officialScore, header: 'Tổng điểm thực tế', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.officialScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.officialBonus, header: 'Tổng điểm thưởng', cell: ({ row }) => <span className="tabular-nums">{row.original.officialBonus}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
-    { id: 'state', header: 'Trạng thái', cell: () => <ScoreStateBadge state="CHO_DUYET_BTT" />, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
+    { id: 'state', accessorFn: (row) => row.submission.currentStage === COMMITTEE_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === COMMITTEE_STAGE ? <ScoreStateBadge state="CHO_DUYET_BTT" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
   ], []);
   if (!localityId) return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không hợp lệ." />;
   if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải các nhóm tiêu chí…" />;
   if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được dữ liệu" description="Vui lòng thử lại sau." />;
-  if (!submissions.length) return <EmptyState title="Không tìm thấy hồ sơ" description="Địa phương này chưa có nhóm tiêu chí chờ công bố." />;
+  if (!submissions.length) return <EmptyState title="Không tìm thấy hồ sơ" description="Địa phương này chưa có nhóm tiêu chí để Ban Thường trực theo dõi." />;
   const openDetail = (row: CommitteeCriteriaGroupRow) => navigate(`/thi-dua/duyet/ban-thuong-truc/${localityId}/${row.groupId}`);
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Chọn một nhóm để đối chiếu chi tiết các tiêu chí con trước khi công bố." actions={<Button variant="outline" render={<Link to="/thi-dua/duyet/ban-thuong-truc" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={openDetail} toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Không có nhóm nào ở bước chờ công bố.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={openDetail} toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Ban Thường trực theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }
