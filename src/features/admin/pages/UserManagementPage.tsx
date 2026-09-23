@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, DataTable, Button, FilterSelect, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -102,12 +103,13 @@ export default function UserManagementPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
 
   const usersQuery = useQuery({
-    queryKey: ['admin-users', { search, statusFilter, roleFilter }],
+    queryKey: ['admin-users', { search: debouncedSearch, statusFilter, roleFilter }],
     queryFn: async () => {
       const raw = await getApiV1Users({
-        Search: search.trim() || undefined,
+        Search: debouncedSearch.trim() || undefined,
         Status: statusFilter || undefined,
         Role: roleFilter || undefined,
         Page: 1,

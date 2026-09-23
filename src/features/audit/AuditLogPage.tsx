@@ -1,25 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
-  FilePlus2,
   FileText,
   History,
-  Paperclip,
-  Send,
-  UploadCloud,
-  UserRound,
+  Search,
+  X,
 } from 'lucide-react';
-import { Button, EmptyState, FilePreviewDialog, FilterSelect, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading } from '@/components/core';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
-import { criteriaGroupsApi } from '@/features/admin/api/criteriaGroupsApi';
 import { downloadFile, getFilePreviewUrl } from '@/features/files/api/filesApi';
 import { auditLogsApi, type AuditLogItem, type AuditLogQuery } from './api/auditLogsApi';
 
@@ -29,6 +25,7 @@ const actionLabels: Record<string, string> = {
   Created: 'thêm mới',
   Updated: 'cập nhật',
   Deleted: 'xóa',
+  Published: 'công bố',
 };
 
 const entityLabels: Record<string, string> = {
@@ -44,6 +41,8 @@ const entityLabels: Record<string, string> = {
   Role: 'vai trò người dùng',
   FileEntity: 'tệp tin',
   FileVariant: 'phiên bản tệp tin',
+  PublicationBatch: 'đợt công bố',
+  FinalDecision: 'quyết định cuối cùng',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -51,6 +50,7 @@ const moduleLabels: Record<string, string> = {
   Submission: 'Hồ sơ thi đua',
   Files: 'Tài liệu',
   ResultPublication: 'Công bố kết quả',
+  System: 'Hệ thống',
 };
 
 function getActionLabel(action: string) {
@@ -61,21 +61,15 @@ function getEntityLabel(entityName: string | null) {
   return entityName ? entityLabels[entityName] ?? entityName : 'dữ liệu hệ thống';
 }
 
-function isBusinessChange(item: AuditLogItem) {
-  return item.module !== 'Identity'
-    && item.module !== 'Notifications'
-    && item.entityName !== 'CriteriaHistory'
-    && item.entityName !== 'UserSession'
-    && !item.requestPath?.includes('/auth/login')
-    && ['Created', 'Updated', 'Deleted'].includes(item.action);
-}
-
 const fieldLabels: Record<string, string> = {
   Content: 'Nội dung',
   Name: 'Tên',
   Description: 'Mô tả',
   MaxPoint: 'Điểm tối đa',
   MaxBonusPoint: 'Điểm thưởng tối đa',
+  SnapshotMaxPoint: 'Điểm tối đa',
+  SnapshotMaxBonusPoint: 'Điểm thưởng tối đa',
+  OfficialReason: 'Lý do chính thức',
   Deadline: 'Hạn nộp',
   Status: 'Trạng thái',
   Type: 'Loại',
@@ -89,9 +83,71 @@ const fieldLabels: Record<string, string> = {
   OriginalName: 'Tên tệp gốc',
   FileSize: 'Dung lượng',
   ContentType: 'Loại tệp',
+  Explanation: 'Giải thích',
+  ReviewStatus: 'Trạng thái xem xét',
+  CriteriaId: 'Tiêu chí',
+  CriteriaGroupId: 'Nhóm tiêu chí',
+  TotalFinalPoint: 'Tổng điểm chính thức',
+  TotalProposedPoint: 'Tổng điểm đề xuất',
+  OfficialPoint: 'Điểm chính thức',
+  OfficialBonusPoint: 'Điểm thưởng chính thức',
 };
 
-const noiseAuditFields = new Set(['Id', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy']);
+/** Màu chữ theo loại hành động: xanh lá=tạo, vàng=sửa, đỏ=xóa — chỉ tô chữ, không badge. */
+const actionConfig: Record<string, { label: string; text: string; accent: string }> = {
+  Created: { label: 'Tạo mới', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
+  Updated: { label: 'Cập nhật', text: 'text-amber-600', accent: 'border-l-amber-500' },
+  Deleted: { label: 'Xóa', text: 'text-rose-600', accent: 'border-l-rose-500' },
+  Published: { label: 'Công bố', text: 'text-sky-700', accent: 'border-l-sky-500' },
+};
+
+const defaultActionStyle = {
+  label: '',
+  text: 'text-foreground/70',
+  accent: 'border-l-border',
+};
+
+/** Nhãn + màu theo hành động nghiệp vụ (actionKind từ backend) — phân biệt thao tác của từng role.
+ *  `verb` là dạng ngắn để ghép với cấp (vd "Lãnh đạo duyệt"); chỉ cần cho thao tác có actionLevel. */
+const businessActionConfig: Record<string, { label: string; verb?: string; text: string; accent: string }> = {
+  submit: { label: 'Nộp điểm', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
+  upload: { label: 'Tải lên', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
+  approve: { label: 'Phê duyệt', verb: 'duyệt', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
+  finalize: { label: 'Kết thúc duyệt', verb: 'phê duyệt', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
+  rescore: { label: 'Chấm lại', verb: 'chấm lại', text: 'text-sky-700', accent: 'border-l-sky-500' },
+  review: { label: 'Thẩm định', verb: 'thẩm định', text: 'text-sky-700', accent: 'border-l-sky-500' },
+  add_criteria: { label: 'Bổ sung tiêu chí', verb: 'bổ sung tiêu chí', text: 'text-sky-700', accent: 'border-l-sky-500' },
+  publish: { label: 'Công bố', verb: 'công bố', text: 'text-sky-700', accent: 'border-l-sky-500' },
+  update_score: { label: 'Cập nhật điểm', text: 'text-amber-600', accent: 'border-l-amber-500' },
+  stage_transition: { label: 'Chuyển giai đoạn', text: 'text-amber-600', accent: 'border-l-amber-500' },
+  request_revision: { label: 'Yêu cầu sửa', verb: 'yêu cầu sửa', text: 'text-rose-600', accent: 'border-l-rose-500' },
+  delete_file: { label: 'Xóa tệp', text: 'text-rose-600', accent: 'border-l-rose-500' },
+};
+
+/** Ưu tiên nhãn/màu theo hành động nghiệp vụ (actionKind); ghép cấp (actionLevel) → "Lãnh đạo duyệt"; fallback CRUD. */
+function getActionDisplay(item: Pick<AuditLogItem, 'action' | 'actionKind' | 'actionLevel'>) {
+  const business = item.actionKind ? businessActionConfig[item.actionKind] : undefined;
+  if (business) {
+    const label = item.actionLevel && business.verb ? `${item.actionLevel} ${business.verb}` : business.label;
+    return { ...business, label };
+  }
+  return actionConfig[item.action] ?? defaultActionStyle;
+}
+
+/** Thứ tự ưu tiên hiển thị field trong bảng chi tiết: định danh → điểm → trạng thái → ghi chú → tệp. */
+const fieldPriority: Record<string, number> = {
+  Name: 0, Content: 1, Description: 2,
+  CriteriaGroupId: 3, CriteriaId: 4,
+  Point: 10, BonusPoint: 11, OfficialPoint: 12, OfficialBonusPoint: 13,
+  MaxPoint: 14, MaxBonusPoint: 15, SnapshotMaxPoint: 14, SnapshotMaxBonusPoint: 15,
+  TotalProposedPoint: 16, TotalFinalPoint: 17,
+  Status: 20, ReviewStatus: 21, CurrentStage: 22, IsApplied: 23,
+  Explanation: 30, Note: 31, OfficialReason: 32,
+  Deadline: 40, SubmittedAt: 41,
+  FileName: 50, OriginalName: 51, FileSize: 52, ContentType: 53,
+};
+
+const noiseAuditFields = new Set(['Id', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'SubmissionId', 'EntityId']);
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|heic|heif|avif)$/i;
 
@@ -128,51 +184,9 @@ function formatAuditValue(field: string, value: unknown) {
   return String(value);
 }
 
-interface AuditGroup {
-  key: string;
-  traceId: string;
-  actor: string;
-  createdAt: string;
-  requestPath: string | null;
-  items: AuditLogItem[];
-}
-
-function groupAuditItems(items: AuditLogItem[]): AuditGroup[] {
-  const groups: AuditGroup[] = [];
-  for (const item of items) {
-    const last = groups[groups.length - 1];
-    if (last && item.traceId && last.traceId === item.traceId) {
-      last.items.push(item);
-    } else {
-      groups.push({
-        key: item.traceId || item.id,
-        traceId: item.traceId ?? '',
-        actor: item.actor,
-        createdAt: item.createdAt,
-        requestPath: item.requestPath,
-        items: [item],
-      });
-    }
-  }
-  return groups;
-}
-
-function getGroupTitle(path: string | null): string {
-  const p = path ?? '';
-  if (p.includes('/submissions/submit-points')) return 'Nộp điểm hồ sơ thi đua';
-  if (p.includes('/files/upload-bulk')) return 'Tải lên minh chứng';
-  if (p.includes('/submissions')) return 'Tạo hồ sơ thi đua';
-  if (p.includes('/files')) return 'Thao tác tệp tin';
-  return 'Thay đổi dữ liệu';
-}
-
-function getGroupIcon(path: string | null) {
-  const p = path ?? '';
-  if (p.includes('/submissions/submit-points')) return Send;
-  if (p.includes('/files/upload')) return UploadCloud;
-  if (p.includes('/submissions')) return FilePlus2;
-  if (p.includes('/files')) return Paperclip;
-  return History;
+/** BE display đôi khi trả số thập phân dạng chuỗi ("10.00") — normalize về dạng gọn. */
+function normDisplay(value: string | null) {
+  return value !== null && /^-?\d+\.\d+$/.test(value) ? Number(value).toLocaleString('vi-VN') : value;
 }
 
 function getMeaningfulDiff(item: AuditLogItem) {
@@ -184,27 +198,42 @@ function getMeaningfulDiff(item: AuditLogItem) {
     .map(([field, value]) => {
       const change = value as { before?: unknown; after?: unknown };
       return {
+        field,
         label: fieldLabels[field] ?? field,
-        before: formatAuditValue(field, change?.before),
-        after: formatAuditValue(field, change?.after),
+        before: normDisplay(formatAuditValue(field, change?.before)) ?? 'Chưa có',
+        after: normDisplay(formatAuditValue(field, change?.after)) ?? 'Chưa có',
       };
     });
 }
 
 // Ưu tiên `changes` BE đã enrich (label + display tiếng Việt), fallback tự parse changedData.
 function getDisplayChanges(item: AuditLogItem) {
-  if (item.changes?.length) {
-    return item.changes.map((change) => ({
-      label: change.label ?? change.field,
-      before: change.beforeDisplay ?? formatAuditValue(change.field, change.before),
-      after: change.afterDisplay ?? formatAuditValue(change.field, change.after),
-    }));
-  }
-  return getMeaningfulDiff(item);
+  const rows = item.changes?.length
+    ? item.changes
+        .filter((change) => !noiseAuditFields.has(change.field))
+        .map((change) => ({
+          field: change.field,
+          label: fieldLabels[change.field] ?? change.label ?? change.field,
+          before: normDisplay(change.beforeDisplay ?? formatAuditValue(change.field, change.before)) ?? 'Chưa có',
+          after: normDisplay(change.afterDisplay ?? formatAuditValue(change.field, change.after)) ?? 'Chưa có',
+        }))
+        // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
+        .filter((field) => field.before !== field.after)
+    : getMeaningfulDiff(item);
+  return rows.sort((a, b) => (fieldPriority[a.field] ?? 100) - (fieldPriority[b.field] ?? 100));
 }
 
 function getActorLabel(actor: string) {
   return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(actor) ? 'Người dùng hệ thống' : actor || 'Hệ thống tự động';
+}
+
+/** Tách giờ / ngày để hiển thị 2 dòng, dễ quét hơn chuỗi dài. */
+function formatTimeParts(value: string) {
+  const d = new Date(value);
+  return {
+    time: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    date: d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+  };
 }
 
 /** Dòng log FileEntity: render file cũ → mới (URL presigned sẵn từ BE), fallback fetch theo id. */
@@ -254,27 +283,27 @@ function AuditFileRow({ item }: { item: AuditLogItem }) {
   const showOld = Boolean(oldFile ?? beforeFileId);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2.5 py-2 hover:bg-muted/30">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-3.5 py-3 shadow-sm">
       <span className="flex min-w-0 items-center gap-2 text-sm">
         {showOld && (
           <>
             <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
-              {oldFile?.url ?? beforeThumb
+              {isImage && (oldFile?.url ?? beforeThumb)
                 ? <img src={oldFile?.url ?? beforeThumb ?? ''} alt={beforeFileName ?? ''} className="size-8 rounded-md object-cover opacity-50" />
-                : <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />}
+                : <FileText className="size-3.5 shrink-0 text-muted-foreground" />}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground line-through">{beforeFileName ?? '—'}</span>
             <span className="shrink-0 text-xs text-muted-foreground">→</span>
           </>
         )}
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
-          {newFile?.url ?? thumb
+          {isImage && (newFile?.url ?? thumb)
             ? <img src={newFile?.url ?? thumb ?? ''} alt={fileName} className="size-8 rounded-md object-cover" />
-            : <Paperclip className="size-3.5 text-primary/70" />}
+            : <FileText className="size-3.5 text-primary/70" />}
         </span>
         <span className="truncate font-medium text-foreground">{fileName}</span>
       </span>
-      <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-muted-foreground">
+      <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-foreground/70">
         {formatAuditValue('FileSize', newFile?.sizeBytes ?? after.SizeBytes)}
         {fileId && (
           <>
@@ -312,214 +341,197 @@ function AuditFileRow({ item }: { item: AuditLogItem }) {
   );
 }
 
-interface AuditNameMaps {
-  criteriaNames: Map<string, string>;
-  groupNames: Map<string, string>;
+interface DiffField {
+  field: string;
+  label: string;
+  before: string;
+  after: string;
 }
 
-function AuditRow({ item, names }: { item: AuditLogItem; names: AuditNameMaps }) {
-  const after = parseJsonRecord(item.afterData) ?? parseJsonRecord(item.beforeData) ?? {};
-  const before = parseJsonRecord(item.beforeData) ?? {};
-  const num = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('vi-VN') : '—');
-  const changeMap = new Map((item.changes ?? []).map((change) => [change.field, change]));
-  const display = (field: string) => changeMap.get(field)?.afterDisplay ?? null;
-  const rawAfter = (...keys: string[]) => {
-    for (const key of keys) {
-      if (typeof after[key] === 'number') return after[key] as number;
-    }
-    return null;
-  };
-
-  if (item.entityName === 'SubmissionResult') {
-    const criteriaName = display('criteriaId') ?? display('CriteriaId') ?? display('Criteria')
-      ?? names.criteriaNames.get(String(after.criteriaId ?? after.CriteriaId ?? ''))
-      ?? 'Kết quả tiêu chí';
-    const pointRaw = rawAfter('point', 'Point');
-    const point = display('point') ?? display('Point') ?? (pointRaw !== null ? num(pointRaw) : '—');
-    const maxPointRaw = rawAfter('snapshotMaxPoint', 'SnapshotMaxPoint');
-    const maxPoint = display('snapshotMaxPoint') ?? display('SnapshotMaxPoint') ?? (maxPointRaw !== null ? num(maxPointRaw) : '—');
-    const bonus = display('bonusPoint') ?? display('BonusPoint') ?? (rawAfter('bonusPoint', 'BonusPoint') !== null ? num(rawAfter('bonusPoint', 'BonusPoint')) : null);
-    const maxBonusRaw = rawAfter('snapshotMaxBonusPoint', 'SnapshotMaxBonusPoint');
-    const maxBonus = maxBonusRaw !== null && maxBonusRaw > 0
-      ? display('snapshotMaxBonusPoint') ?? display('SnapshotMaxBonusPoint') ?? num(maxBonusRaw)
-      : null;
-    const beforePoint = changeMap.get('point')?.beforeDisplay ?? changeMap.get('Point')?.beforeDisplay
-      ?? (typeof before.point === 'number' ? num(before.point) : typeof before.Point === 'number' ? num(before.Point) : null);
-    const beforeBonus = changeMap.get('bonusPoint')?.beforeDisplay ?? changeMap.get('BonusPoint')?.beforeDisplay
-      ?? (typeof before.bonusPoint === 'number' ? num(before.bonusPoint) : typeof before.BonusPoint === 'number' ? num(before.BonusPoint) : null);
-    const pointText = beforePoint !== null
-      ? (beforePoint !== point ? `${beforePoint} → ${point}` : point)
-      : (item.action === 'Created' ? `— → ${point}` : point);
-    const bonusText = bonus
-      ? (beforeBonus !== null
-        ? (beforeBonus !== bonus ? `${beforeBonus} → +${bonus}` : `+${bonus}`)
-        : `— → +${bonus}`)
-      : null;
-    return (
-      <div className="flex items-center justify-between gap-x-3 gap-y-1 px-2.5 py-2 transition-colors hover:bg-muted/30">
-        <span className="flex min-w-0 items-center gap-2 text-sm">
-          <FileText className="size-3.5 shrink-0 text-primary/70" />
-          <TruncatedText value={criteriaName} className="font-medium text-foreground" />
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
-          <span className="rounded bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">Điểm: {pointText}/{maxPoint}</span>
-          {maxBonus && bonusText && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">Thưởng: {bonusText}/{maxBonus}</span>
-          )}
-        </span>
-      </div>
-    );
-  }
-
-  if (item.entityName === 'FileEntity') {
-    return <AuditFileRow item={item} />;
-  }
-
-  const diff = getDisplayChanges(item);
-  const groupName = item.entityName === 'Submission'
-    ? display('criteriaGroupId') ?? display('CriteriaGroupId')
-      ?? names.groupNames.get(String(after.criteriaGroupId ?? after.CriteriaGroupId ?? ''))
-    : undefined;
-
-  if (item.entityName === 'Submission') {
-    return (
-      <div className="overflow-hidden rounded-md ring-1 ring-primary/25">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-primary px-2.5 py-1.5 text-sm font-semibold text-white">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0"><span className="capitalize">{getActionLabel(item.action)}</span> hồ sơ thi đua</span>
-            {groupName && (
-              <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-white/85" title={groupName}>
-                <FileText className="size-3.5 shrink-0" />
-                <span className="truncate">Nhóm tiêu chí: {groupName}</span>
-              </span>
-            )}
-          </span>
-          {item.action === 'Created' && (
-            <span className="shrink-0 text-xs tabular-nums text-white/90">Tổng điểm đề xuất: {num(after.TotalProposedPoint)}</span>
-          )}
-        </div>
-        {diff.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-2.5 py-1.5">
-            {diff.map((field) => (
-              <span key={field.label} className="inline-flex items-center gap-1.5 rounded bg-background px-1.5 py-0.5 text-xs tabular-nums ring-1 ring-border">
-                <span className="text-muted-foreground">{field.label}:</span>
-                <span className="text-muted-foreground line-through">{field.before}</span>
-                <span className="text-muted-foreground">→</span>
-                <span className="font-semibold text-primary">{field.after}</span>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
+/** Bảng chi tiết: luôn 3 cột Trường | Giá trị cũ | Giá trị mới. Giá trị render dạng chip có viền cho gọn, ô trống hiển thị "—" mờ. */
+function DiffTable({ diff }: { diff: DiffField[] }) {
   return (
-    <div className="rounded-md px-2.5 py-1.5 hover:bg-muted/30">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-        <span className="font-medium text-foreground">
-          <span className="capitalize">{getActionLabel(item.action)}</span> {getEntityLabel(item.entityName)}
-        </span>
-      </div>
-      {diff.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {diff.map((field) => (
-            <span key={field.label} className="inline-flex items-center gap-1.5 rounded bg-background px-1.5 py-0.5 text-xs tabular-nums ring-1 ring-border">
-              <span className="text-muted-foreground">{field.label}:</span>
-              <span className="text-muted-foreground line-through">{field.before}</span>
-              <span className="text-muted-foreground">→</span>
-              <span className="font-semibold text-primary">{field.after}</span>
-            </span>
-          ))}
-        </div>
-      )}
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <table className="w-full text-[13px]">
+        <thead>
+          <tr className="border-b border-border bg-muted/60">
+            <th className="w-[200px] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Trường</th>
+            <th className="w-[38%] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Giá trị cũ</th>
+            <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Giá trị mới</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/70">
+          {diff.map((field) => {
+            const hasBefore = field.before !== 'Chưa có';
+            const hasAfter = field.after !== 'Chưa có';
+            return (
+              <tr key={field.label} className="align-top">
+                <td className="px-3 py-2.5 font-semibold text-foreground">{field.label}</td>
+                <td className="px-3 py-2.5">
+                  {hasBefore ? (
+                    <span className="inline-block max-w-full break-words rounded-md bg-rose-100 px-2 py-0.5 font-medium text-rose-800 ring-1 ring-inset ring-rose-300">
+                      {field.before}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5">
+                  {hasAfter ? (
+                    <span className="inline-block max-w-full break-words rounded-md bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-300">
+                      {field.after}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function AuditGroupRow({ group, names }: { group: AuditGroup; names: AuditNameMaps }) {
-  const [open, setOpen] = useState(false);
-  const Icon = getGroupIcon(group.requestPath);
-  const summary = group.items.find((item) => item.summary)?.summary;
-  const submissions = group.items.filter((item) => item.entityName === 'Submission');
-  const results = group.items.filter((item) => item.entityName === 'SubmissionResult');
-  const files = group.items.filter((item) => item.entityName === 'FileEntity');
-  const others = group.items.filter((item) => !['Submission', 'SubmissionResult', 'FileEntity'].includes(item.entityName ?? ''));
-
+/** Nội dung chi tiết trong modal: file → preview, còn lại → bảng diff (có tiêu đề nhỏ theo hành động). */
+function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) {
+  if (item.entityName === 'FileEntity') {
+    return (
+      <div>
+        <p className="mb-2.5 text-sm font-semibold text-foreground">Tệp đính kèm</p>
+        <AuditFileRow item={item} />
+      </div>
+    );
+  }
+  if (diff.length === 0) {
+    return <p className="text-sm text-muted-foreground">Không có thay đổi giá trị — thao tác chỉ ghi nhận thời điểm lưu.</p>;
+  }
+  const title = item.action === 'Created' ? 'Dữ liệu đã tạo'
+    : item.action === 'Deleted' ? 'Dữ liệu đã xóa'
+    : 'Chi tiết thay đổi';
   return (
-    <>
-      <tr className="cursor-pointer transition-colors hover:bg-muted/30" onClick={() => setOpen((value) => !value)}>
-        <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-muted-foreground">{formatDateTime(group.createdAt)}</td>
-        <td className="px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Icon className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">{summary ?? getGroupTitle(group.requestPath)}</p>
-              <p className="text-xs text-muted-foreground">{getActorLabel(group.actor)}</p>
-            </div>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <span className="whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-            {moduleLabels[group.items[0].module] ?? group.items[0].module}
-          </span>
-        </td>
-        <td className="whitespace-nowrap px-4 py-3 text-right">
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            {group.items.length} thay đổi
-            <ChevronDown className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-          </span>
-        </td>
-      </tr>
-      {open && (
-        <tr className="bg-muted/20">
-          <td colSpan={4} className="px-4 py-3">
-            <div className="space-y-3">
-              {submissions.length > 0 && (
-                <section>
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Hồ sơ</p>
-                  <div className="space-y-1.5">
-                    {submissions.map((item) => <AuditRow key={item.id} item={item} names={names} />)}
-                  </div>
-                </section>
-              )}
-              {results.length > 0 && (
-                <section>
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Điểm theo tiêu chí</p>
-                  <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
-                    {results.map((item) => <AuditRow key={item.id} item={item} names={names} />)}
-                  </div>
-                </section>
-              )}
-              {files.length > 0 && (
-                <section>
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Bằng chứng</p>
-                  <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
-                    {files.map((item) => <AuditRow key={item.id} item={item} names={names} />)}
-                  </div>
-                </section>
-              )}
-              {others.length > 0 && (
-                <section>
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Thay đổi khác</p>
-                  <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card">
-                    {others.map((item) => <AuditRow key={item.id} item={item} names={names} />)}
-                  </div>
-                </section>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+    <div>
+      <p className="mb-2.5 text-sm font-semibold text-foreground">{title}</p>
+      <DiffTable diff={diff} />
+    </div>
   );
 }
 
-export default function AuditLogPage() {
-  const user = useAuthStore((s) => s.user);
-  const isLocal = user?.role === 'LOCAL';
+/** Modal chi tiết một bản ghi audit — dùng AppDialog (header đỏ), body gồm meta + diff/file. Giữ item cũ khi đóng để animation mượt. */
+function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; onOpenChange: (open: boolean) => void }) {
+  const lastItem = useRef<AuditLogItem | null>(null);
+  if (item) lastItem.current = item;
+  const current = item ?? lastItem.current;
+  if (!current) return null;
+  const { time, date } = formatTimeParts(current.createdAt);
+  const cfg = getActionDisplay(current);
+  const diff = getDisplayChanges(current);
+  const title = current.summary ?? `${getActionLabel(current.action)} ${getEntityLabel(current.entityName)}`;
+  return (
+    <AppDialog
+      open={item !== null}
+      onOpenChange={onOpenChange}
+      title={title}
+      subtitle={getActorLabel(current.actor)}
+      size="max-w-4xl sm:max-w-4xl"
+      height="h-[80vh] max-h-[80vh]"
+    >
+      <div className="space-y-5">
+        {/* Lưới thông tin có nhãn — tránh trùng lặp, dễ quét */}
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-border bg-muted/40 px-4 py-3 sm:grid-cols-4">
+          <div className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Hành động</dt>
+            <dd className={`mt-0.5 truncate text-sm font-bold ${cfg.text}`}>{cfg.label || current.action}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Phân hệ</dt>
+            <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{moduleLabels[current.module] ?? current.module}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Đối tượng</dt>
+            <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{getEntityLabel(current.entityName)}</dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Thời gian</dt>
+            <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums text-foreground">{time} · {date}</dd>
+          </div>
+        </dl>
+        <AuditDetail item={current} diff={diff} />
+      </div>
+    </AppDialog>
+  );
+}
+
+function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: AuditLogItem) => void }) {
+  const after = parseJsonRecord(item.afterData) ?? parseJsonRecord(item.beforeData) ?? {};
+  const changeMap = new Map((item.changes ?? []).map((change) => [change.field, change]));
+  const display = (field: string) => normDisplay(changeMap.get(field)?.afterDisplay ?? null);
+  const isFile = item.entityName === 'FileEntity';
+  const { time, date } = formatTimeParts(item.createdAt);
+  const cfg = getActionDisplay(item);
+
+  let subtitle = getEntityLabel(item.entityName);
+  if (item.entityName === 'SubmissionResult') {
+    subtitle = display('criteriaId') ?? display('CriteriaId') ?? display('Criteria') ?? subtitle;
+  } else if (item.entityName === 'Submission') {
+    subtitle = display('criteriaGroupId') ?? display('CriteriaGroupId') ?? subtitle;
+  } else if (isFile) {
+    const newFile = item.files?.[0];
+    subtitle = newFile?.displayName ?? newFile?.originalName
+      ?? String(after.OriginalName ?? after.DisplayName ?? subtitle);
+  }
+
+  const title = item.summary ?? `${getActionLabel(item.action)} ${getEntityLabel(item.entityName)}`;
+
+  return (
+    <TableRow className="cursor-pointer transition-colors hover:bg-muted/40" onClick={() => onOpen(item)}>
+      <TableCell className="border-r border-border/60 py-3">
+        <div className="leading-tight">
+          <div className="text-sm font-semibold tabular-nums text-foreground">{time}</div>
+          <div className="text-xs tabular-nums text-foreground/60">{date}</div>
+        </div>
+      </TableCell>
+      <TableCell className="border-r border-border/60 py-3 whitespace-normal">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
+          <p className="truncate text-xs text-foreground/60">{subtitle} · {getActorLabel(item.actor)}</p>
+        </div>
+      </TableCell>
+      <TableCell className="border-r border-border/60 py-3">
+        <span className={`whitespace-nowrap text-xs font-semibold ${cfg.text}`}>
+          {cfg.label || item.action}
+        </span>
+      </TableCell>
+      <TableCell className="border-r border-border/60 py-3">
+        <span className="whitespace-nowrap text-xs text-foreground/70">
+          {moduleLabels[item.module] ?? item.module}
+        </span>
+      </TableCell>
+      <TableCell className="py-3 text-right">
+        <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** Filter khoảng ngày theo contract của FilterDropdown (value dạng 'from|to'). */
+function DateRangeFilter({ label, value, onChange }: { label?: string; value: string; onChange: (value: string) => void }) {
+  const [from = '', to = ''] = value.split('|');
+  return (
+    <div className="space-y-1.5">
+      {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
+      <div className="flex items-center gap-1.5">
+        <Input type="date" aria-label="Từ ngày" className="h-9 min-w-0 flex-1" value={from} onChange={(event) => onChange(`${event.target.value}|${to}`)} />
+        <span className="shrink-0 text-xs text-muted-foreground">đến</span>
+        <Input type="date" aria-label="Đến ngày" className="h-9 min-w-0 flex-1" value={to} onChange={(event) => onChange(`${from}|${event.target.value}`)} />
+      </div>
+    </div>
+  );
+}
+
+/** Nội dung trang lịch sử audit: filter + bảng + modal chi tiết. Backend tự scope — role thường chỉ thấy log của mình, ADMIN thấy tất cả. Dùng lại cho trang lịch sử của từng role. */
+export function AuditLogView({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   const [page, setPage] = useState(1);
   const [module, setModule] = useState('');
   const [action, setAction] = useState('');
@@ -527,6 +539,7 @@ export default function AuditLogPage() {
   const [searchInput, setSearchInput] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [selected, setSelected] = useState<AuditLogItem | null>(null);
   const search = useDebounce(searchInput, 350);
 
   const query = useMemo<AuditLogQuery>(() => ({
@@ -545,93 +558,115 @@ export default function AuditLogPage() {
   const logsQuery = useQuery({ queryKey: ['audit-logs', query], queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;
 
-  // Resolve tên tiêu chí / nhóm tiêu chí (BE chưa luôn trả afterDisplay cho GUID).
-  const groupsMetaQuery = useQuery({
-    queryKey: ['audit-criteria-groups'],
-    queryFn: () => criteriaGroupsApi.list({ page: 1, pageSize: 100 }),
-    staleTime: 5 * 60_000,
-  });
-  const criteriaGroupItems = groupsMetaQuery.data?.items ?? [];
-  const criteriaListQueries = useQueries({
-    queries: criteriaGroupItems.map((group) => ({
-      queryKey: ['audit-criteria', group.id],
-      queryFn: () => criteriaGroupsApi.listCriteria(group.id, { page: 1, pageSize: 200 }),
-      staleTime: 5 * 60_000,
-    })),
-  });
-  const criteriaDataStamp = criteriaListQueries.map((q) => q.dataUpdatedAt).join(',');
-  const nameMaps = useMemo(() => {
-    const criteriaNames = new Map<string, string>();
-    for (const q of criteriaListQueries) {
-      for (const c of q.data?.items ?? []) criteriaNames.set(c.id, c.content);
-    }
-    const groupNames = new Map(criteriaGroupItems.map((group) => [group.id, group.name]));
-    return { criteriaNames, groupNames };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [criteriaDataStamp, criteriaGroupItems]);
-
   const resetPage = () => setPage(1);
   const clearFilters = () => {
     setModule(''); setAction(''); setEntityName(''); setSearchInput(''); setFrom(''); setTo(''); resetPage();
   };
 
+  const handleDateRangeChange = (value: string) => {
+    const [nextFrom = '', nextTo = ''] = value.split('|');
+    setFrom(nextFrom);
+    setTo(nextTo);
+    resetPage();
+  };
+
+  const activeFilters = [
+    ...(module ? [{ label: 'Phân hệ', value: moduleLabels[module] ?? module, onClear: () => { setModule(''); resetPage(); } }] : []),
+    ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : action, onClear: () => { setAction(''); resetPage(); } }] : []),
+    ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
+    ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setFrom(''); setTo(''); resetPage(); } }] : []),
+  ];
+
   if (logsQuery.isPending) return <PageLoading label="Đang tải lịch sử thay đổi…" />;
   if (logsQuery.isError) return <EmptyState variant="error" title="Không tải được lịch sử thay đổi" description={logsQuery.error instanceof Error ? logsQuery.error.message : 'Vui lòng thử lại sau.'} />;
   if (!result) return <EmptyState title="Chưa có dữ liệu lịch sử" />;
-  const visibleItems = result.items.filter(isBusinessChange);
+  const visibleItems = result.items;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={isLocal ? 'Lịch sử thao tác' : LABELS.AUDIT_TIMELINE_TITLE}
-        description={
-          isLocal
-            ? 'Lịch sử các thay đổi do tài khoản của bạn thực hiện: nộp/sửa hồ sơ, cập nhật điểm, tải tệp…'
-            : 'Theo dõi các thay đổi dữ liệu trong hệ thống theo cách dễ đọc và dễ tra cứu.'
-        }
-      />
+      <PageHeader title={title} description={description} actions={actions} />
 
-      <section className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={Object.entries(moduleLabels).map(([value, label]) => ({ value, label }))} />
-          <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={Object.entries(actionLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
-          <div className="relative min-w-[240px] flex-1">
-            <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="h-9 pl-9" placeholder="Tìm theo thao tác hoặc đối tượng…" value={searchInput} onChange={(event) => { setSearchInput(event.target.value); resetPage(); }} />
+      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3">
+          <div className="relative w-full max-w-[300px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              value={searchInput}
+              onChange={(event) => { setSearchInput(event.target.value); resetPage(); }}
+              placeholder="Tìm theo thao tác hoặc đối tượng…"
+              className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => { setSearchInput(''); resetPage(); }}
+                aria-label="Xóa tìm kiếm"
+                className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-          <Button type="button" variant="outline" onClick={clearFilters}>Xóa bộ lọc</Button>
-          <span className="text-xs text-muted-foreground">{result.total} thay đổi</span>
+          <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters}>
+            <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={Object.entries(moduleLabels).map(([value, label]) => ({ value, label }))} />
+            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={Object.entries(actionLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
+            <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={Object.entries(entityLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
+            <DateRangeFilter label="Khoảng ngày" value={`${from}|${to}`} onChange={handleDateRangeChange} />
+          </FilterDropdown>
+          <span className="ml-auto text-xs text-muted-foreground">{result.total} thay đổi</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input className="h-9 w-[150px]" type="date" aria-label="Từ ngày" value={from} onChange={(event) => { setFrom(event.target.value); resetPage(); }} />
-          <span className="text-xs text-muted-foreground">đến</span>
-          <Input className="h-9 w-[150px]" type="date" aria-label="Đến ngày" value={to} onChange={(event) => { setTo(event.target.value); resetPage(); }} />
-          <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={Object.entries(entityLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
-        </div>
+
+        {visibleItems.length === 0 ? (
+          <div className="bg-card p-10">
+            <EmptyState icon={<History className="size-8" />} title="Chưa có thay đổi phù hợp" description="Thử thay đổi điều kiện lọc hoặc khoảng thời gian." />
+          </div>
+        ) : (
+          <>
+            <Table className="min-w-[640px]">
+            <TableHeader>
+              <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
+                <TableHead className="w-[120px] border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Thời gian</TableHead>
+                <TableHead className="border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Thao tác</TableHead>
+                <TableHead className="w-[110px] border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Hành động</TableHead>
+                <TableHead className="w-[140px] border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Phân hệ</TableHead>
+                <TableHead className="w-[64px] text-right text-xs font-bold uppercase tracking-wide text-primary-foreground">Chi tiết</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleItems.map((item) => <AuditItemRow key={item.id} item={item} onOpen={setSelected} />)}
+            </TableBody>
+          </Table>
+          <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1">
+            <div className="text-xs text-muted-foreground">
+              Hiển thị {result.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, result.total)} / {result.total}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button type="button" variant="outline" size="icon-sm" className="size-8" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} aria-label="Trang trước"><ChevronLeft className="h-3.5 w-3.5" /></Button>
+              <Button type="button" variant="outline" size="icon-sm" className="size-8" disabled={page >= result.totalPages} onClick={() => setPage((value) => value + 1)} aria-label="Trang sau"><ChevronRight className="h-3.5 w-3.5" /></Button>
+            </div>
+          </div>
+          </>
+        )}
       </section>
 
-      {visibleItems.length === 0 ? (
-        <EmptyState icon={<History className="size-8" />} title="Chưa có thay đổi phù hợp" description="Thử thay đổi điều kiện lọc hoặc khoảng thời gian." />
-      ) : (
-        <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left">
-              <thead>
-                <tr className="border-b bg-muted/30 text-xs text-muted-foreground">
-                  <th className="px-4 py-2.5 font-medium">Thời gian</th>
-                  <th className="px-4 py-2.5 font-medium">Thao tác</th>
-                  <th className="px-4 py-2.5 font-medium">Phân hệ</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Thay đổi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {groupAuditItems(visibleItems).map((group) => <AuditGroupRow key={group.key} group={group} names={nameMaps} />)}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between border-t px-4 py-3 text-sm"><span className="text-muted-foreground">Trang {result.page}/{Math.max(result.totalPages, 1)}</span><div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft className="size-4" />Trước</Button><Button type="button" variant="outline" size="sm" disabled={page >= result.totalPages} onClick={() => setPage((value) => value + 1)}>Sau<ChevronRight className="size-4" /></Button></div></div>
-        </section>
-      )}
+      <AuditDetailDialog item={selected} onOpenChange={(open) => { if (!open) setSelected(null); }} />
     </div>
+  );
+}
+
+/** Trang lịch sử audit chung (/thi-dua/lich-su-thay-doi). ADMIN thấy toàn hệ thống, role thường chỉ thấy log của mình. */
+export default function AuditLogPage() {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'ADMIN';
+  return (
+    <AuditLogView
+      title={isAdmin ? LABELS.AUDIT_TIMELINE_TITLE : 'Lịch sử thao tác'}
+      description={
+        isAdmin
+          ? 'Theo dõi các thay đổi dữ liệu trong hệ thống theo cách dễ đọc và dễ tra cứu.'
+          : 'Lịch sử các thay đổi do tài khoản của bạn thực hiện trong hệ thống.'
+      }
+    />
   );
 }

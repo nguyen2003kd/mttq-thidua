@@ -354,7 +354,7 @@ export default function App() {
               path="/thi-dua/lich-su-thay-doi/:diaPhuongId?"
               element={
                 <RequireAuth>
-                  <RequireRole roles={[...INTERNAL_ROLES, 'LOCAL']}>
+                  <RequireRole roles={[...INTERNAL_ROLES, 'LOCAL', 'ADMIN']}>
                     <AppLayout>
                       <AuditLogPage />
                     </AppLayout>

@@ -43,11 +43,11 @@ export function AppDialog({
 }: AppDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogOverlay className="bg-[#1F1B1A]/50 backdrop-blur-sm" />
+      <DialogOverlay className="bg-[#1F1B1A]/45" />
       <DialogContent
         showCloseButton={false}
         className={cn(
-          'flex flex-col gap-0 overflow-hidden rounded-lg border-0 p-0',
+          'flex flex-col gap-0 overflow-hidden rounded-lg border-0 p-0 will-change-auto',
           height,
           size,
         )}
