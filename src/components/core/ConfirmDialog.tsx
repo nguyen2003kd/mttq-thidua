@@ -62,7 +62,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setKeywordInput(''); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-start gap-3">
             {variant === 'destructive' && (

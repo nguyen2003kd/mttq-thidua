@@ -70,7 +70,7 @@ export function RejectDialog({
         else onOpenChange(true);
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

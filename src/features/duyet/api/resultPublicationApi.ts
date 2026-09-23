@@ -89,6 +89,8 @@ export interface LocalResultPublication {
   publishedAt: string | null;
   publicationNote: string | null;
   localityName: string | null;
+  rank: number | null;
+  rankTotal: number;
   files: FileItemApi[];
   criteriaGroups: LocalResultPublicationGroup[];
 }
