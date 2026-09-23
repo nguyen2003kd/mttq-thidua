@@ -1105,7 +1105,7 @@ function CriterionDetailDialog({
             </Button>
           </div>
         </div>
-        <DialogFooter className="border-t border-border px-6 py-4">
+        <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
           {!item.isAddedBySpecialist && (
             <Button type="button" disabled={editDisabled} disabledReason={editDisabledReason} onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
@@ -1173,13 +1173,13 @@ function ScoreEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <DialogHeader className="border-b border-border bg-muted/25 px-6 py-5 pr-12">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="shrink-0 border-b border-border bg-muted/25 px-6 py-5 pr-12">
           <DialogTitle>Sửa điểm chuyên viên</DialogTitle>
           <DialogDescription className="line-clamp-2">{item.code} · {item.title}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(submit)}>
-          <div className="space-y-5 px-6 py-5">
+        <form onSubmit={form.handleSubmit(submit)} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
             <div className="grid grid-cols-2 divide-x divide-border overflow-hidden rounded-lg border border-border">
               <SnapshotField label="Địa phương đề xuất" value={`${item.proposedScore} / ${item.maxProposedScore}`} />
               <SnapshotField label="Điểm thưởng đề xuất" value={`${item.proposedBonusScore} / ${item.maxProposedBonusScore}`} />
@@ -1220,7 +1220,7 @@ function ScoreEditDialog({
               <p className="text-xs text-muted-foreground">Bạn có thể bỏ qua nếu không cần bổ sung minh chứng cho việc sửa điểm.</p>
             </div>
           </div>
-          <DialogFooter className="border-t border-border px-6 py-4">
+          <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-lg border-t border-border px-6 py-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
             <Button type="submit"><Save className="size-4" />Áp dụng điểm</Button>
           </DialogFooter>
