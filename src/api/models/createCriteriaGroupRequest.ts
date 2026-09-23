@@ -8,6 +8,4 @@ export interface CreateCriteriaGroupRequest {
   maxPoint?: number;
   /** @nullable */
   deadline?: string | null;
-  /** @nullable */
-  periodId?: string | null;
 }

@@ -155,7 +155,7 @@ export default function App() {
               <Route index element={<Navigate to={ROUTES.LOCALITY_CRITERIA} replace />} />
               <Route path="tieu-chi" element={<LocalityCriteriaPage />} />
               <Route path="tieu-chi/:id" element={<LocalityCriteriaPage />} />
-              <Route path="ket-qua" element={<LocalityResultsPage />} />
+              <Route path="ket-qua" element={<KetQuaPage />} />
               <Route path="ket-qua/:id" element={<LocalityResultsPage />} />
             </Route>
 

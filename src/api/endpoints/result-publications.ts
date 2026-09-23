@@ -19,7 +19,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  PublishResultBatchRequest
+  PostApiV1ResultPublicationsPublishBody
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
@@ -390,15 +390,22 @@ export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<
 
 
 export const postApiV1ResultPublicationsPublish = (
-    publishResultBatchRequest?: PublishResultBatchRequest,
+    postApiV1ResultPublicationsPublishBody?: PostApiV1ResultPublicationsPublishBody,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
+      const formData = new FormData();
+if(postApiV1ResultPublicationsPublishBody?.Note !== undefined) {
+ formData.append(`Note`, postApiV1ResultPublicationsPublishBody.Note);
+ }
+if(postApiV1ResultPublicationsPublishBody?.File !== undefined) {
+ formData.append(`File`, postApiV1ResultPublicationsPublishBody.File);
+ }
 
       return mainInstance<void>(
       {url: `/api/v1/result-publications/publish`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: publishResultBatchRequest, signal
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData, signal
     },
       options);
     }
@@ -436,9 +443,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostApiV1ResultPublicationsPublishMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1ResultPublicationsPublish>>>
-    export type PostApiV1ResultPublicationsPublishMutationBody = PublishResultBatchRequest | undefined
+    export type PostApiV1ResultPublicationsPublishMutationBody = PostApiV1ResultPublicationsPublishBody | undefined
     export type PostApiV1ResultPublicationsPublishMutationError = unknown
-    export type PostApiV1ResultPublicationsPublishMutationVariables = {data?: PublishResultBatchRequest}
+    export type PostApiV1ResultPublicationsPublishMutationVariables = {data?: PostApiV1ResultPublicationsPublishBody}
 
     export const usePostApiV1ResultPublicationsPublish = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1ResultPublicationsPublish>>, TError,PostApiV1ResultPublicationsPublishMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
