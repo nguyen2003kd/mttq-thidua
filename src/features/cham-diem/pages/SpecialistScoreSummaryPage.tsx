@@ -4,7 +4,6 @@ import {
   Award,
   ChevronDown,
   ChevronUp,
-  Medal,
   Search,
   Trophy,
 } from "lucide-react";

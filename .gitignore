@@ -33,3 +33,5 @@ vite.config.js
 vite.config.d.ts
 # env
 .env
+Python
+.cache
