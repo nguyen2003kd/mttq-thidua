@@ -37,7 +37,6 @@ const BanLeaderHistoryPage = lazy(() => import('@/features/duyet/pages/BanLeader
 const CouncilApprovalPage = lazy(() => import('@/features/duyet/pages/CouncilApprovalPage'));
 const CouncilCriteriaGroupsPage = lazy(() => import('@/features/duyet/pages/CouncilCriteriaGroupsPage'));
 const CouncilHistoryPage = lazy(() => import('@/features/duyet/pages/CouncilHistoryPage'));
-const ResultPublicationPage = lazy(() => import('@/features/duyet/pages/ResultPublicationPage'));
 const CommitteeApprovalPage = lazy(() => import('@/features/duyet/pages/CommitteeApprovalPage'));
 const CommitteeCriteriaGroupsPage = lazy(() => import('@/features/duyet/pages/CommitteeCriteriaGroupsPage'));
 const ReadOnlyApprovalDetailPage = lazy(() => import('@/features/duyet/pages/ReadOnlyApprovalDetailPage'));
@@ -386,10 +385,6 @@ export default function App() {
                   </RequireRole>
                 </RequireAuth>
               }
-            />
-            <Route
-              path="/thi-dua/duyet/ban-thuong-truc/cong-bo"
-              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><ResultPublicationPage /></AppLayout></RequireRole></RequireAuth>}
             />
             <Route
               path="/thi-dua/duyet/ban-thuong-truc/duyet"

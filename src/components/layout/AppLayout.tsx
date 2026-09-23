@@ -123,7 +123,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     if (user?.role === 'COMMITTEE') {
       items.push({ to: ROUTES.DUYET_STANDING_REVIEW, label: 'Duyệt theo địa phương', icon: FileCheck });
-      items.push({ to: ROUTES.DUYET_STANDING_PUBLICATION, label: 'Công bố kết quả', icon: Trophy });
     }
 
     if (user?.role && user.role !== 'LOCAL') {
