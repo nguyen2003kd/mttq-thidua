@@ -16,6 +16,13 @@ export interface States {
   username: string | null;
   first_name: string | null;
   last_name: string | null;
+  /** Họ tên người đại diện — tên hiển thị chính (ưu tiên cao nhất). */
+  full_name: string | null;
+  phone: string | null;
+  /** Mã phường/xã của tài khoản địa phương — resolve tên qua vnWards. */
+  ward_code: string | null;
+  /** true = thiếu fullName/phone → bắt buộc hoàn thiện hồ sơ. null = chưa kiểm tra. */
+  requires_profile_completion: boolean | null;
   roles: string[] | null;
   permissions: string[] | null;
   status: string | null;
@@ -45,6 +52,10 @@ export interface SetStoreActionValues {
   username?: States['username'];
   first_name?: States['first_name'];
   last_name?: States['last_name'];
+  full_name?: States['full_name'];
+  phone?: States['phone'];
+  ward_code?: States['ward_code'];
+  requires_profile_completion?: States['requires_profile_completion'];
   roles?: States['roles'];
   permissions?: States['permissions'];
   status?: States['status'];
@@ -84,6 +95,10 @@ const INITIAL_STATES: States = {
   username: null,
   first_name: null,
   last_name: null,
+  full_name: null,
+  phone: null,
+  ward_code: null,
+  requires_profile_completion: null,
   roles: null,
   permissions: null,
   status: null,
@@ -154,6 +169,10 @@ export const useAuthStore = create<Store>()(
         username: state.username,
         first_name: state.first_name,
         last_name: state.last_name,
+        full_name: state.full_name,
+        phone: state.phone,
+        ward_code: state.ward_code,
+        requires_profile_completion: state.requires_profile_completion,
         roles: state.roles,
         permissions: state.permissions,
         status: state.status,

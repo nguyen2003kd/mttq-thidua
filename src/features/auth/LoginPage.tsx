@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, Lock, User, Star, ShieldCheck } from 'lucide-react';
 import type { Role } from '@/types/rbac';
 import { defaultRouteForRole } from '@/lib/rbac';
+import { ROUTES } from '@/constants/routes';
 
 const APP_ROLES: Role[] = [
   'LOCAL',
@@ -32,6 +33,8 @@ interface LoginApiResponse {
     sessionId: string;
     roles: string[];
     permissions: string[];
+    /** true khi user thiếu fullName/phone → bắt buộc hoàn thiện hồ sơ. */
+    requiresProfileCompletion?: boolean;
   } | null;
   errors?: Array<{
     messages?: { vi?: string | null; en?: string | null } | null;
@@ -139,6 +142,7 @@ export default function LoginPage() {
         access_token_expires_at: new Date(sessionExpiresAt),
         refresh_token_expires_at: new Date(refreshExpiresAt),
         storedUsername: remember ? username.trim() : null,
+        requires_profile_completion: loginData.requiresProfileCompletion ?? null,
         user: {
           id: loginData.userId,
           name: accountName,
@@ -147,6 +151,11 @@ export default function LoginPage() {
           banId: role === 'LEADER' ? 'ban1' : undefined,
         },
       });
+      if (loginData.requiresProfileCompletion) {
+        toast.success('Đăng nhập thành công', { description: 'Vui lòng bổ sung thông tin người đại diện.' });
+        navigate(ROUTES.PROFILE_COMPLETION, { replace: true });
+        return;
+      }
       toast.success('Đăng nhập thành công', { description: 'Đang chuyển đến trang làm việc...' });
       navigate(defaultRouteForRole(role));
     } catch (error) {
@@ -213,7 +222,7 @@ export default function LoginPage() {
         className="flex-1 flex flex-col items-center justify-center px-6 py-12 sm:px-12 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/login-right.png')" }}
       >
-        <div className="w-full max-w-[440px]">
+        <div className="w-full max-w-110">
           {/* Form card */}
           <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-[0_18px_45px_rgba(41,20,20,0.16)] border border-white/60 p-8 sm:p-10 space-y-7">
             {/* Header */}

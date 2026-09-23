@@ -19,10 +19,16 @@ import {
 } from '@/api/endpoints/users';
 import type { CreateUserRequest, UpdateUserRequest } from '@/api/models';
 
+// Swagger gen chưa cập nhật fullName — mở rộng local cho tới khi chạy lại gen:api.
+type CreateUserBody = CreateUserRequest & { fullName?: string | null };
+type UpdateUserBody = UpdateUserRequest & { fullName?: string | null };
+
 interface ManagedUser {
   id: string;
   email: string;
   username: string | null;
+  /** Họ tên người đại diện — tên hiển thị chính. */
+  fullName: string | null;
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
@@ -121,8 +127,8 @@ export default function UserManagementPage() {
 
   const users = usersQuery.data?.items ?? [];
 
-  const createMutation = useMutation({ mutationFn: (body: CreateUserRequest) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserRequest }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
+  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
+  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
   const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
   const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
 
@@ -134,6 +140,7 @@ export default function UserManagementPage() {
 
   const [fEmail, setFEmail] = useState('');
   const [fUsername, setFUsername] = useState('');
+  const [fFullName, setFFullName] = useState('');
   const [fFirstName, setFFirstName] = useState('');
   const [fLastName, setFLastName] = useState('');
   const [fPhone, setFPhone] = useState('');
@@ -141,6 +148,7 @@ export default function UserManagementPage() {
   const [fPassword, setFPassword] = useState('');
   const [fRole, setFRole] = useState('local');
 
+  const [eFullName, setEFullName] = useState('');
   const [eFirstName, setEFirstName] = useState('');
   const [eLastName, setELastName] = useState('');
   const [ePhone, setEPhone] = useState('');
@@ -151,6 +159,7 @@ export default function UserManagementPage() {
 
   const openEdit = (u: ManagedUser) => {
     setSelected(u);
+    setEFullName(u.fullName ?? '');
     setEFirstName(u.firstName ?? '');
     setELastName(u.lastName ?? '');
     setEPhone(u.phone ?? '');
@@ -166,6 +175,7 @@ export default function UserManagementPage() {
     createMutation.mutate({
       email: fEmail.trim(),
       username: fUsername.trim() || null,
+      fullName: fFullName.trim() || null,
       firstName: fFirstName.trim() || null,
       lastName: fLastName.trim() || null,
       phone: fPhone.trim() || null,
@@ -183,6 +193,7 @@ export default function UserManagementPage() {
     updateMutation.mutate({
       id: selected.id,
       body: {
+        fullName: eFullName.trim() || null,
         firstName: eFirstName.trim() || null,
         lastName: eLastName.trim() || null,
         phone: ePhone.trim() || null,
@@ -215,7 +226,8 @@ export default function UserManagementPage() {
       id: 'fullName',
       header: 'Họ và tên',
       meta: { className: 'font-medium', list: { width: 'minmax(180px, 1.4fr)' } },
-      cell: ({ row }) => `${row.original.lastName ?? ''} ${row.original.firstName ?? ''}`.trim() || '—',
+      // Ưu tiên fullName (người đại diện) → fallback firstName + lastName.
+      cell: ({ row }) => row.original.fullName?.trim() || `${row.original.lastName ?? ''} ${row.original.firstName ?? ''}`.trim() || '—',
     },
     {
       accessorKey: 'email',
@@ -304,7 +316,7 @@ export default function UserManagementPage() {
           description: 'Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
-          <Button size="sm" className="!h-9" onClick={() => { setFEmail(''); setFUsername(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFWardCode(''); setFPassword(''); setFRole('local'); setCreateOpen(true); }} action="create">
+          <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFWardCode(''); setFPassword(''); setFRole('local'); setCreateOpen(true); }} action="create">
             <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
           </Button>
         }
@@ -329,6 +341,10 @@ export default function UserManagementPage() {
             <Label htmlFor="u-username">Tên đăng nhập</Label>
             <Input id="u-username" value={fUsername} onChange={(e) => setFUsername(e.target.value)} placeholder="Bỏ trống tự sinh từ email" />
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="u-full-name">Họ tên người đại diện</Label>
+          <Input id="u-full-name" value={fFullName} onChange={(e) => setFFullName(e.target.value)} placeholder="VD: Nguyễn Văn A — tên hiển thị chính" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -377,6 +393,10 @@ export default function UserManagementPage() {
         submitAction="edit"
         submitDisabled={updateMutation.isPending}
       >
+        <div className="space-y-1.5">
+          <Label htmlFor="e-full-name">Họ tên người đại diện</Label>
+          <Input id="e-full-name" value={eFullName} onChange={(e) => setEFullName(e.target.value)} placeholder="Tên hiển thị chính trong hệ thống" />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="e-last-name">Họ</Label>

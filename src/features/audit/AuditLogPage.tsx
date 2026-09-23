@@ -87,6 +87,13 @@ const fieldLabels: Record<string, string> = {
   ReviewStatus: 'Trạng thái xem xét',
   CriteriaId: 'Tiêu chí',
   CriteriaGroupId: 'Nhóm tiêu chí',
+  Action: 'Hành động',
+  Reason: 'Lý do',
+  Level: 'Cấp xử lý',
+  ActionLevel: 'Cấp xử lý',
+  ActorName: 'Người thực hiện',
+  ChangedData: 'Dữ liệu thay đổi',
+  SubmissionResultIds: 'Kết quả tiêu chí',
   TotalFinalPoint: 'Tổng điểm chính thức',
   TotalProposedPoint: 'Tổng điểm đề xuất',
   OfficialPoint: 'Điểm chính thức',
@@ -147,7 +154,8 @@ const fieldPriority: Record<string, number> = {
   FileName: 50, OriginalName: 51, FileSize: 52, ContentType: 53,
 };
 
-const noiseAuditFields = new Set(['Id', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'SubmissionId', 'EntityId']);
+// RevisionRound là counter nội bộ của SubmissionHistory (sequence toàn cục) — không có nghĩa với người xem.
+const noiseAuditFields = new Set(['Id', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'SubmissionId', 'EntityId', 'RevisionRound', 'revisionRound']);
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|heic|heif|avif)$/i;
 
@@ -158,6 +166,48 @@ function parseJsonRecord(value: string | null) {
   } catch {
     return null;
   }
+}
+
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Danh từ cho mảng ID theo tên key — render "N kết quả tiêu chí" thay vì liệt kê GUID. */
+const idListNouns: Record<string, string> = {
+  submissionresultids: 'kết quả tiêu chí',
+  submissionids: 'hồ sơ',
+  criteriaids: 'tiêu chí',
+  criteriagroupids: 'nhóm tiêu chí',
+  fileids: 'tệp tin',
+  userids: 'người dùng',
+};
+
+/** Giá trị JSON (object/array hoặc chuỗi JSON) → text đọc được. Trả null nếu không phải JSON cấu trúc. */
+function formatStructuredValue(value: unknown, keyHint?: string): string | null {
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    const trimmed = parsed.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) return 'Không có';
+    if (parsed.every((v) => typeof v === 'string' && GUID_RE.test(v))) {
+      const noun = (keyHint && idListNouns[keyHint.toLowerCase()]) ?? 'mục';
+      return `${parsed.length} ${noun}`;
+    }
+    return parsed.map((v) => formatStructuredValue(v) ?? String(v)).join(', ');
+  }
+  if (parsed && typeof parsed === 'object') {
+    const entries = Object.entries(parsed as Record<string, unknown>);
+    if (entries.length === 0) return 'Không có';
+    return entries
+      .map(([key, v]) => `${fieldLabels[key] ?? key}: ${formatStructuredValue(v, key) ?? formatAuditValue(key, v)}`)
+      .join(' · ');
+  }
+  return null;
 }
 
 function formatAuditValue(field: string, value: unknown) {
@@ -181,6 +231,8 @@ function formatAuditValue(field: string, value: unknown) {
 
   if (typeof value === 'number') return value.toLocaleString('vi-VN');
   if (typeof value === 'boolean') return value ? 'Có' : 'Không';
+  const structured = formatStructuredValue(value, field);
+  if (structured !== null) return structured;
   return String(value);
 }
 
@@ -214,8 +266,8 @@ function getDisplayChanges(item: AuditLogItem) {
         .map((change) => ({
           field: change.field,
           label: fieldLabels[change.field] ?? change.label ?? change.field,
-          before: normDisplay(change.beforeDisplay ?? formatAuditValue(change.field, change.before)) ?? 'Chưa có',
-          after: normDisplay(change.afterDisplay ?? formatAuditValue(change.field, change.after)) ?? 'Chưa có',
+          before: normDisplay(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before)) ?? 'Chưa có',
+          after: normDisplay(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after)) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
@@ -407,7 +459,8 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
   if (diff.length === 0) {
     return <p className="text-sm text-muted-foreground">Không có thay đổi giá trị — thao tác chỉ ghi nhận thời điểm lưu.</p>;
   }
-  const title = item.action === 'Created' ? 'Dữ liệu đã tạo'
+  const title = item.actionKind === 'request_revision' ? 'Nội dung yêu cầu chỉnh sửa'
+    : item.action === 'Created' ? 'Dữ liệu đã tạo'
     : item.action === 'Deleted' ? 'Dữ liệu đã xóa'
     : 'Chi tiết thay đổi';
   return (
