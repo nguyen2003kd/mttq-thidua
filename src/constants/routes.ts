@@ -33,7 +33,6 @@ export const ROUTES = {
   DUYET_COUNCIL: '/thi-dua/duyet/hoi-dong-tdkt',
   DUYET_STANDING: '/thi-dua/duyet/ban-thuong-truc',
   DUYET_STANDING_REVIEW: '/thi-dua/duyet/ban-thuong-truc/duyet',
-  DUYET_STANDING_PUBLICATION: '/thi-dua/duyet/ban-thuong-truc/cong-bo',
 
   // Audit log
   AUDIT_LOG: '/thi-dua/lich-su-thay-doi/:diaPhuongId',

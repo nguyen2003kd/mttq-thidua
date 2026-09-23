@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Edit3, Eye, FileText, History, MessageSquareWarning, Save, Send } from 'lucide-react';
+import { ArrowLeft, Download, Edit3, Eye, FileText, History, MessageSquareWarning, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, EmptyState, FilePreviewDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, OfficialScoreRevisionDialog, ReviewScoreModal, RevisionRequestDialog } from '@/features/workflow/components';
-import { isRealSubmission, specialistApi, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
-import { filesApi } from '@/features/files/api/filesApi';
+import { isRealSubmission, specialistApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
+import { downloadFile, filesApi } from '@/features/files/api/filesApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
 const LEADER_VISIBLE_STAGES = [LEADER_STAGE, 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'] as const;
@@ -87,6 +87,7 @@ export default function BanLeaderReviewDetailPage() {
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
+  const [evidenceDialog, setEvidenceDialog] = useState<{ criterionName: string; files: SubmissionResultFile[] } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, LeaderScoreDraft>>({});
   const [pendingAttachments, setPendingAttachments] = useState<Record<string, File>>({});
   const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(() => new Set());
@@ -339,7 +340,16 @@ export default function BanLeaderReviewDetailPage() {
           const revised = leaderScoreFor(result);
           return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
             <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
-            <TableCell className="border-r border-primary/15 px-4 py-5">{result?.files.length ? <div className="space-y-1">{result.files.map((file) => file.url ? <a key={file.id} href={file.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 text-sm text-primary hover:underline"><FileText className="size-4" />{file.originalName}</a> : <p key={file.id} className="flex items-center gap-1 text-sm text-muted-foreground"><FileText className="size-4" />{file.originalName}</p>)}</div> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5">
+              {result?.files.length ? (
+                <Button type="button" variant="outline" size="sm" onClick={(event) => {
+                  event.stopPropagation();
+                  setEvidenceDialog({ criterionName: criterion.content, files: result.files });
+                }}>
+                  <FileText className="size-4" />Xem file ({result.files.length})
+                </Button>
+              ) : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}
+            </TableCell>
             <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell>
             <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={revised?.point ?? result?.officialPoint ?? result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={revised?.bonusPoint ?? result?.officialBonusPoint ?? result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell>
             <TableCell className="px-4 py-5 text-sm leading-6 text-muted-foreground"><p title={result?.explanation || '—'} className="line-clamp-4">{result?.explanation || '—'}</p></TableCell>
@@ -403,6 +413,39 @@ export default function BanLeaderReviewDetailPage() {
       onSubmit={requestRevision}
     />
     <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={groupQuery.data.name} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} />
+    <ListDialog
+      open={Boolean(evidenceDialog)}
+      onOpenChange={(open) => { if (!open) setEvidenceDialog(null); }}
+      title="Bằng chứng đã nộp"
+      description={evidenceDialog?.criterionName}
+      items={(evidenceDialog?.files ?? []).map((file) => ({
+        id: file.id,
+        label: file.displayName || file.originalName,
+        description: `${Math.ceil(file.sizeBytes / 1024)} KB`,
+      }))}
+      emptyText="Tiêu chí này chưa có file bằng chứng."
+      className="w-[min(96vw,1100px)] max-w-[calc(100%-1rem)] sm:max-w-[min(96vw,1100px)]"
+      maxItemsVisible={10}
+      renderItem={(item) => {
+        const file = evidenceDialog?.files.find((candidate) => candidate.id === item.id);
+        return (
+          <div key={item.id} className="flex min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5">
+            <FileText className="size-4 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="break-all text-sm font-medium">{item.label}</p>
+              <p className="text-xs text-muted-foreground">{item.description}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => { if (file) setPreviewFile(file); }}><Eye className="size-4" />Xem</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                if (file) void downloadFile(file.id, file.displayName || file.originalName)
+                  .catch(() => toast.error('Không thể tải file. Vui lòng thử lại.'));
+              }}><Download className="size-4" />Tải về</Button>
+            </div>
+          </div>
+        );
+      }}
+    />
     <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
   </div>;
 }

@@ -258,6 +258,65 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPutApiV1CriteriaGroupsIdMutationOptions(options), queryClient);
     }
+    export const deleteApiV1CriteriaGroupsId = (
+    id: string,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/criteria-groups/${id}`, method: 'DELETE', signal
+    },
+      options);
+    }
+
+
+
+
+export const getDeleteApiV1CriteriaGroupsIdMutationKey = () => ['deleteApiV1CriteriaGroupsId'] as const;
+
+export const getDeleteApiV1CriteriaGroupsIdMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1CriteriaGroupsId>>, TError,DeleteApiV1CriteriaGroupsIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1CriteriaGroupsId>>, TError,DeleteApiV1CriteriaGroupsIdMutationVariables, TContext> => {
+
+const mutationKey = getDeleteApiV1CriteriaGroupsIdMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteApiV1CriteriaGroupsId>>, DeleteApiV1CriteriaGroupsIdMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteApiV1CriteriaGroupsId(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteApiV1CriteriaGroupsIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteApiV1CriteriaGroupsId>>>
+
+    export type DeleteApiV1CriteriaGroupsIdMutationError = unknown
+    export type DeleteApiV1CriteriaGroupsIdMutationVariables = {id: string}
+
+    export const useDeleteApiV1CriteriaGroupsId = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1CriteriaGroupsId>>, TError,DeleteApiV1CriteriaGroupsIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteApiV1CriteriaGroupsId>>,
+        TError,
+        DeleteApiV1CriteriaGroupsIdMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteApiV1CriteriaGroupsIdMutationOptions(options), queryClient);
+    }
     export const getApiV1CriteriaGroupsId = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal

@@ -47,7 +47,7 @@ import {
   type SubmissionHistoryItem,
   type FileSnapshotItem,
 } from '@/features/dia-phuong/api/localityApi';
-import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
+import { downloadFile, filesApi, getFileBlob, getFilesApiError } from '@/features/files/api/filesApi';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatDateTime, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -297,6 +297,7 @@ type RevisionRequestStage = 'SpecialistApproved' | 'LeaderApproved' | 'CouncilAp
 
 interface RevisionNote {
   reason: string;
+  createdAt: string;
   /** null = request không chỉ định submissionResultIds → áp dụng cho toàn bộ tiêu chí. */
   resultIds: string[] | null;
   /** Tệp đính kèm của yêu cầu chỉnh sửa (gắn vào ApprovalHistory). */
@@ -322,7 +323,7 @@ function getLatestRevisionNote(histories: ApprovalHistoryItem[], stageLevel: Rev
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
     .find((item) => Boolean(translateLegacyReason(item.reason)?.trim()));
   if (!history) return null;
-  return { reason: translateLegacyReason(history.reason)!, resultIds: parseRevisionResultIds(history.changedData), files: history.files ?? [] };
+  return { reason: translateLegacyReason(history.reason)!, createdAt: history.createdAt, resultIds: parseRevisionResultIds(history.changedData), files: history.files ?? [] };
 }
 
 /** Chỉ trả note khi submissionResult thuộc danh sách được yêu cầu chỉnh sửa. */
@@ -1308,9 +1309,9 @@ export default function SpecialistReviewPage() {
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
-  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string; url?: string | null } | null>(null);
   const openRevisionFilePreview = (file: SubmissionResultFile) =>
-    setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName });
+    setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url });
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
@@ -1530,6 +1531,16 @@ export default function SpecialistReviewPage() {
       committee: getLatestRevisionNote(histories, 'CouncilApproved'),
     };
   }, [selectedRevisionHistoriesQuery.data]);
+
+  const applicableRevisionNotes = useMemo(() => {
+    if (!selectedCriterionId) return [];
+    const result = selectedSubmissionDetailQuery.data?.results.find((item) => item.criteriaId === selectedCriterionId);
+    return [selectedRevisionNotes.leader, selectedRevisionNotes.council, selectedRevisionNotes.committee]
+      .filter((note): note is RevisionNote => Boolean(note && revisionNoteForResult(note, result)))
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  }, [selectedCriterionId, selectedSubmissionDetailQuery.data?.results, selectedRevisionNotes]);
+  const selectedRevisionNote = applicableRevisionNotes[0] ?? null;
+  const inheritedRevisionFile = applicableRevisionNotes.find((note) => note.files.length > 0)?.files[0] ?? null;
 
   // Local state cho điểm chuyên viên chấm (đè lên dữ liệu API)
   const [scoreOverrides, setScoreOverrides] = useState<Map<string, Partial<SpecialistCriteriaItem>>>(new Map());
@@ -2563,7 +2574,6 @@ export default function SpecialistReviewPage() {
         result={scoreRevisionResult}
         criterionLabel={scoreRevisionCriterionLabel}
       />
-      <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <RevisionRequestDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
@@ -2571,7 +2581,14 @@ export default function SpecialistReviewPage() {
         localityName={district.localityName}
         criteria={revisionCriteria}
         defaultSelectedCriteriaIds={defaultSelectedCriteriaIds}
-        onSubmit={async ({ criteriaIds, reason, file }) => {
+        defaultReason={selectedRevisionNote?.reason ?? ''}
+        inheritedFile={inheritedRevisionFile ? {
+          id: inheritedRevisionFile.id,
+          name: inheritedRevisionFile.displayName || inheritedRevisionFile.originalName,
+          sizeBytes: inheritedRevisionFile.sizeBytes,
+        } : null}
+        onPreviewInheritedFile={inheritedRevisionFile ? () => openRevisionFilePreview(inheritedRevisionFile) : undefined}
+        onSubmit={async ({ criteriaIds, reason, file, inheritedFileId }) => {
           if (specialistActionsLocked) {
             toast.info(specialistLockReason);
             return false;
@@ -2589,11 +2606,17 @@ export default function SpecialistReviewPage() {
             return false;
           }
           try {
+            let attachment = file;
+            if (!attachment && inheritedFileId) {
+              if (inheritedRevisionFile?.id !== inheritedFileId) throw new Error('Không tìm thấy tệp đính kèm của yêu cầu trước.');
+              const blob = await getFileBlob(inheritedFileId, inheritedRevisionFile.url);
+              attachment = new File([blob], inheritedRevisionFile.displayName || inheritedRevisionFile.originalName, { type: blob.type });
+            }
             await specialistApi.requestRevision({
               submissionId: submission.id,
               reason,
               submissionResultIds: selectedResultIds,
-              file,
+              file: attachment,
             });
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
@@ -2607,6 +2630,7 @@ export default function SpecialistReviewPage() {
           }
         }}
       />
+      <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <ForwardSubmissionDialog
         open={forwardOpen}
         onOpenChange={setForwardOpen}

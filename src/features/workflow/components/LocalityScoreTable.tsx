@@ -34,12 +34,22 @@ interface LocalityScoreTableProps {
   selectedCriterionId?: string;
   /** Lý do chỉnh sửa theo từng tiêu chí được Chuyên viên yêu cầu. */
   specialistRevisionReasons?: ReadonlyMap<string, string>;
+  /** Tệp của yêu cầu chỉnh sửa Chuyên viên mới nhất, gắn theo tiêu chí. */
+  specialistRevisionFiles?: ReadonlyMap<string, SpecialistRevisionFile[]>;
+  onPreviewRevisionFile?: (file: SpecialistRevisionFile) => void;
   /** Khi có danh sách này, chỉ các tiêu chí được yêu cầu mới cho phép chỉnh sửa. */
   editableCriteriaIds?: ReadonlySet<string> | null;
   uploading?: boolean;
   toolbar?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
   onDeleteEvidence?: (id: string) => void;
+}
+
+export interface SpecialistRevisionFile {
+  id: string;
+  originalName: string;
+  displayName: string | null;
+  url: string | null;
 }
 
 export interface LocalityScoreTableHandle {
@@ -190,6 +200,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   selected = false,
   visibleColumnIds,
   specialistRevisionReasons,
+  specialistRevisionFiles,
+  onPreviewRevisionFile,
   editableCriteriaIds,
 }, ref) {
   const [score, setScore] = useState('');
@@ -218,6 +230,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
   const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
+  const revisionFiles = specialistRevisionFiles?.get(criterion.id) ?? [];
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
   const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
@@ -322,13 +335,13 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
       {isColumnVisible('name') && <TableCell className="align-top">
         <Tooltip>
-          <TooltipTrigger render={<p className="line-clamp-2 whitespace-normal break-words text-left font-medium leading-5" />}>
+          <TooltipTrigger render={<p className="line-clamp-5 whitespace-normal break-words text-left font-medium leading-5" />}>
             {criterion.name}
           </TooltipTrigger>
           <TooltipContent className="max-w-sm whitespace-normal break-words">{criterion.name}</TooltipContent>
         </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
-        {revisionReason && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
+        {(revisionReason || revisionFiles.length > 0) && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>}
       {isColumnVisible('deadline') && <TableCell className="align-middle text-center text-sm text-muted-foreground">
         <Tooltip>
@@ -338,22 +351,22 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TooltipContent>{criterion.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'}</TooltipContent>
         </Tooltip>
       </TableCell>}
-      {isColumnVisible('proposedScore') && <TableCell className="align-top">
+      {isColumnVisible('proposedScore') && <TableCell className="align-middle">
         {criterion.type === 'Supplementary' ? (
           <p className="text-sm text-muted-foreground">—</p>
         ) : (
-          <div className="relative">
+          <div className="relative mx-auto w-full max-w-[108px]">
             <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
           </div>
         )}
         {scoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{scoreError}</p>}
       </TableCell>}
-      {isColumnVisible('bonusScore') && <TableCell className="align-top">
+      {isColumnVisible('bonusScore') && <TableCell className="align-middle">
         {criterion.type === 'Supplementary' ? (
           <p className="text-sm text-muted-foreground">—</p>
         ) : (
-          <div className="relative">
+          <div className="relative mx-auto w-full max-w-[108px]">
             <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-12 text-right text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
           </div>
@@ -379,12 +392,29 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         </div>
       </TableCell>}
       {isColumnVisible('specialistRevision') && <TableCell className="align-middle">
-        <TruncatedText
-          as="p"
-          value={revisionReason || '—'}
-          maxLines={4}
-          className="whitespace-normal break-words text-sm leading-5 text-muted-foreground"
-        />
+        <div className="space-y-1.5">
+          <TruncatedText
+            as="p"
+            value={revisionReason || '—'}
+            maxLines={4}
+            className="whitespace-normal break-words text-sm leading-5 text-muted-foreground"
+          />
+          {revisionFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {revisionFiles.map((file) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); onPreviewRevisionFile?.(file); }}
+                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+                >
+                  <FileText className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{file.displayName || file.originalName}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </TableCell>}
     </TableRow>
   );
@@ -400,6 +430,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   draftValues,
   selectedCriterionId,
   specialistRevisionReasons,
+  specialistRevisionFiles,
+  onPreviewRevisionFile,
   editableCriteriaIds,
   uploading,
   toolbar,
@@ -496,6 +528,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               selected={selected}
               visibleColumnIds={visibleColumnIds}
               specialistRevisionReasons={specialistRevisionReasons}
+              specialistRevisionFiles={specialistRevisionFiles}
+              onPreviewRevisionFile={onPreviewRevisionFile}
               editableCriteriaIds={editableCriteriaIds}
               uploading={uploading}
               onSelect={onSelect}
