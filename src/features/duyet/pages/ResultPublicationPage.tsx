@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, History, Send, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -7,9 +7,19 @@ import { Button, EmptyState, FileUpload, PageHeader, PageLoading } from '@/compo
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { isRealSubmission, specialistApi } from '@/features/cham-diem/api/specialistApi';
 import { resultPublicationApi, type ResultPublicationCriteriaGroup } from '../api/resultPublicationApi';
 
-const dateFormatter = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
+// Gọi API y hệt các trang duyệt: một endpoint /api/v1/submissions, gộp tất cả trang.
+async function listEverySubmissionForPublication() {
+  const firstPage = await specialistApi.listAllSubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+}
 
 function GroupRow({ group }: { group: ResultPublicationCriteriaGroup }) {
   const inProgress = group.localitiesInProgress ?? Math.max(
@@ -42,6 +52,18 @@ export default function ResultPublicationPage() {
     queryKey: ['result-publication-overview'],
     queryFn: resultPublicationApi.getOverview,
   });
+  const submissionsQuery = useQuery({
+    queryKey: ['result-publication-submissions'],
+    queryFn: listEverySubmissionForPublication,
+  });
+  // Chỉ được công bố khi TẤT CẢ hồ sơ của tất cả địa phương đã ở trạng thái
+  // CouncilApproved hoặc CommitteeFinalized (hồ sơ đã công bố).
+  const allSubmissionsReady = useMemo(
+    () => (submissionsQuery.data?.items ?? [])
+      .filter(isRealSubmission)
+      .every((submission) => submission.currentStage === 'CouncilApproved' || submission.currentStage === 'CommitteeFinalized'),
+    [submissionsQuery.data],
+  );
   const previewQuery = useQuery({
     queryKey: ['result-publication-preview'],
     queryFn: resultPublicationApi.getPreview,
@@ -88,7 +110,7 @@ export default function ResultPublicationPage() {
     publishMutation.mutate({ note, file: publicationFile[0] ?? null });
   };
 
-  if (overviewQuery.isLoading) return <PageLoading label="Đang tải tổng quan công bố kết quả…" />;
+  if (overviewQuery.isLoading || submissionsQuery.isLoading) return <PageLoading label="Đang tải tổng quan công bố kết quả…" />;
   if (overviewQuery.isError || !overviewQuery.data) {
     return <EmptyState variant="error" title="Không tải được dữ liệu công bố" description="Vui lòng thử lại sau." />;
   }
@@ -111,28 +133,15 @@ export default function ResultPublicationPage() {
             </Button>
             <Button
               className="bg-accent text-foreground hover:bg-accent/90"
-              disabled={overview.isPublished}
-              disabledReason={overview.isPublished ? 'Kết quả đã được công bố.' : undefined}
+              disabled={!allSubmissionsReady}
+              disabledReason={!allSubmissionsReady ? 'Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.' : undefined}
               onClick={() => setPreviewOpen(true)}
             >
-              <Trophy className="mr-1.5 size-4" />{overview.isPublished ? 'Đã công bố' : 'Công bố kết quả'}
+              <Trophy className="mr-1.5 size-4" />Công bố kết quả
             </Button>
           </div>
         }
       />
-
-      {overview.isPublished && (
-        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
-          <div>
-            <p className="font-semibold">Kết quả đã được công bố</p>
-            <p className="mt-1 text-sm">
-              {overview.publishedByName ? `Người công bố: ${overview.publishedByName}. ` : ''}
-              {overview.publishedAt ? `Thời gian: ${dateFormatter.format(new Date(overview.publishedAt))}.` : ''}
-            </p>
-          </div>
-        </div>
-      )}
 
       <section className="rounded-xl border bg-card p-5 shadow-sm">
         <div>
@@ -162,9 +171,9 @@ export default function ResultPublicationPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
         <div>
           <p className="font-semibold">Công bố chung cho toàn bộ địa phương</p>
-          <p className="mt-1 text-sm text-muted-foreground">Sau khi công bố, dữ liệu của đợt hiện tại sẽ được khóa để bảo đảm kết quả không thay đổi.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.</p>
         </div>
-        <Button variant="outline" onClick={() => setPreviewOpen(true)} disabled={overview.isPublished}>
+        <Button variant="outline" onClick={() => setPreviewOpen(true)} disabled={!allSubmissionsReady} disabledReason={!allSubmissionsReady ? 'Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.' : undefined}>
           <Send className="mr-1.5 size-4" />Xem trước công bố
         </Button>
       </div>
@@ -174,7 +183,7 @@ export default function ResultPublicationPage() {
           <DialogHeader>
             <DialogTitle>Xác nhận công bố kết quả</DialogTitle>
             <DialogDescription>
-              Một lần công bố sẽ áp dụng cho toàn bộ địa phương trong đợt hiện tại. Dữ liệu chưa nộp hoặc đang yêu cầu chỉnh sửa sẽ được tính là 0.
+              Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm. Công bố có thể thực hiện lại sau khi dữ liệu thay đổi.
             </DialogDescription>
           </DialogHeader>
 
@@ -224,7 +233,7 @@ export default function ResultPublicationPage() {
             <Button variant="outline" onClick={closePreview} disabled={publishMutation.isPending}>Hủy</Button>
             <Button
               className="bg-accent text-foreground hover:bg-accent/90"
-              disabled={!previewQuery.data?.canPublish || publishMutation.isPending}
+              disabled={!allSubmissionsReady || !previewQuery.data?.canPublish || publishMutation.isPending}
               onClick={submitPublication}
             >
               <Send className="mr-1.5 size-4" />{publishMutation.isPending ? 'Đang lưu và gửi…' : 'Lưu và gửi'}

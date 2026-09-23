@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useScoreStore } from '@/store/scoreStore';
 import {
   PageHeader,
   DataTable,
+  ConfirmDialog,
   FilterSelect,
   FormDialog,
   FileUpload,
@@ -19,7 +20,7 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info } from 'lucide-react';
+import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -95,10 +96,22 @@ export default function CriteriaListPage() {
     totalScore: number;
     message: string;
   } | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
   const { uploading: fileUploading, uploadProgress: fileProgress, uploadFiles } = useFileUpload();
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => criteriaGroupsApi.delete(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+      setSelectedTable(null);
+      setDeleteOpen(false);
+      toast.success('Đã xóa nhóm tiêu chí nháp.');
+    },
+    onError: (error) => toast.error(getCriteriaApiError(error)),
+  });
 
   const columns = useMemo<ColumnDef<CriteriaTable>[]>(
     () => [
@@ -391,6 +404,23 @@ export default function CriteriaListPage() {
                 >
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
+                <Button
+                  variant="outline"
+                  disabled={!selectedTable || selectedTable.status !== 'DRAFT' || deleteMutation.isPending}
+                  disabledReason={
+                    !selectedTable
+                      ? 'Chọn một nhóm tiêu chí để xóa.'
+                      : selectedTable.status !== 'DRAFT'
+                        ? 'Chỉ có thể xóa nhóm tiêu chí ở trạng thái Nháp.'
+                        : undefined
+                  }
+                  className="border-danger text-danger hover:bg-danger/5"
+                  onClick={() => {
+                    if (selectedTable?.status === 'DRAFT') setDeleteOpen(true);
+                  }}
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Xóa
+                </Button>
               </>
             <Button variant="outline" onClick={() => { setDeadlineValue(toDateTimeInput(deadline)); setDeadlineOpen(true); }}>Đặt thời gian gợi ý công bố kết quả</Button>
             <Button onClick={openCreateDialog} action="create">
@@ -521,6 +551,19 @@ export default function CriteriaListPage() {
         </div>
         {applyError && <p role="alert" className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm font-medium text-danger"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{applyError}</p>}
       </FormDialog>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Xóa nhóm tiêu chí"
+        description={`Bạn có chắc muốn xóa nhóm “${selectedTable?.name ?? ''}” không? Nhóm, các tiêu chí con và dữ liệu liên quan sẽ bị xóa. Chỉ nhóm ở trạng thái Nháp mới được phép xóa.`}
+        confirmLabel={deleteMutation.isPending ? 'Đang xóa...' : 'Xóa nhóm tiêu chí'}
+        cancelLabel="Hủy"
+        variant="destructive"
+        onConfirm={() => {
+          if (selectedTable?.status === 'DRAFT') deleteMutation.mutate(selectedTable.id);
+        }}
+      />
 
       <FormDialog
         open={deadlineOpen}
