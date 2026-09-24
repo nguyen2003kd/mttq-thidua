@@ -405,20 +405,6 @@ export default function LocalityCriteriaPage() {
       });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria]);
 
-  // File đính kèm của yêu cầu chỉnh sửa: file mới gắn vào ApprovalHistory (history.files),
-  // file cũ (legacy) gắn vào Submission với category = revision-attachment.
-  const revisionFilesQuery = useQuery({
-    queryKey: ['locality-revision-files', submission?.id],
-    queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 20 }),
-    enabled: Boolean(submission?.id) && isRevisionStage,
-  });
-
-  const revisionFiles = useMemo(() => {
-    const fromHistories = (revisionHistoriesQuery.data?.items ?? []).flatMap((item) => item.files ?? []);
-    const legacy = revisionFilesQuery.data?.items ?? [];
-    return [...fromHistories, ...legacy];
-  }, [revisionHistoriesQuery.data, revisionFilesQuery.data]);
-
   // Mutations
   const submitPointsMutation = useMutation({
     mutationFn: localityApi.submitPoints,
@@ -724,19 +710,6 @@ export default function LocalityCriteriaPage() {
               <span className="italic">{latestRevisionReason}</span>
             </div>
           )}
-            {/* {revisionFiles.length > 0 && (
-              <div className="space-y-1">
-                <span className="text-muted-foreground">File đính kèm:</span>
-                <div className="flex flex-wrap gap-2">
-                  {revisionFiles.map((file) => (
-                    <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
-                      <FileText className="h-3 w-3 text-muted-foreground" />
-                      {file.displayName ?? file.originalName}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )} */}
         </div>
       )}
       {supplementaryFiles.length > 0 && (
