@@ -165,9 +165,17 @@ const COMPETITION_CLUSTERS = [
   ],
 ] as const;
 
+function normalizeLocalityName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/đ/giu, "d")
+    .toLocaleLowerCase("vi");
+}
+
 const CLUSTER_LOOKUP = COMPETITION_CLUSTERS.flatMap((localities, index) =>
   localities.map((locality, localityOrder) => ({
-    locality: locality.toLocaleLowerCase("vi"),
+    locality: normalizeLocalityName(locality),
     // Giữ đúng cách gọi cụm và số lượng đơn vị của file Bảng tổng.
     cluster: `Cụm ${index + 1} (${localities.length} đơn vị)`,
     clusterOrder: index + 1,
@@ -184,12 +192,13 @@ function normalizeLocalityCode(submission: SubmissionApi) {
 }
 
 function getCompetitionCluster(localityName: string) {
-  const normalized = localityName
-    .normalize("NFC")
-    .trim()
-    .replace(/^(xã|phường|x\.?|p\.?)\s*/iu, "")
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase("vi");
+  const normalized = normalizeLocalityName(
+    localityName
+      .normalize("NFC")
+      .trim()
+      .replace(/^(xã|phường|x\.?|p\.?)\s*/iu, "")
+      .replace(/\s+/g, " "),
+  );
   const matchedCluster = CLUSTER_LOOKUP.find(
     ({ locality }) =>
       normalized === locality ||

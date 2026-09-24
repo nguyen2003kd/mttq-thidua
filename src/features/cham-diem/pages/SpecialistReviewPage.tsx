@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1309,6 +1309,16 @@ export default function SpecialistReviewPage() {
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
+  const [detailToolbarElement, setDetailToolbarElement] = useState<HTMLDivElement | null>(null);
+  const [detailToolbarHeight, setDetailToolbarHeight] = useState(0);
+  useEffect(() => {
+    if (!detailToolbarElement) return;
+    const updateHeight = () => setDetailToolbarHeight(detailToolbarElement.getBoundingClientRect().height);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(detailToolbarElement);
+    return () => observer.disconnect();
+  }, [detailToolbarElement]);
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string; url?: string | null } | null>(null);
   const openRevisionFilePreview = (file: SubmissionResultFile) =>
     setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url });
@@ -2168,7 +2178,10 @@ export default function SpecialistReviewPage() {
         </div>
       )}
 
-      <div className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card">
+      <div
+        className="rounded-lg border border-border border-t-2 border-t-primary bg-card"
+        style={{ '--specialist-table-header-top': `${Math.max(0, detailToolbarHeight - 24)}px` } as CSSProperties}
+      >
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
           countLabel={`${selectedGroup.items.length} tiêu chí`}
@@ -2179,7 +2192,7 @@ export default function SpecialistReviewPage() {
           }
         />
 
-        <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
+        <div ref={setDetailToolbarElement} className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <TableColumnVisibility
               storageKey="specialist-review-criteria"
@@ -2219,7 +2232,7 @@ export default function SpecialistReviewPage() {
           </div>
         </div>
 
-        <div className="hidden overflow-x-auto xl:block">
+        <div className="hidden xl:block">
           <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1940px] table-fixed">
             <colgroup>
               <col className="w-[14%]" />
@@ -2233,14 +2246,14 @@ export default function SpecialistReviewPage() {
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Hội đồng</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Ủy ban</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Hội đồng</TableHead>
+                <TableHead className="sticky top-[var(--specialist-table-header-top)] z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Ủy ban</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
