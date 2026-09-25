@@ -1,94 +1,158 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { Building2, Eye, FileSearch, History, Search } from 'lucide-react';
-import { useScoreStore } from '@/store/scoreStore';
-import { PageHeader, EmptyState, Button, ScoreStateBadge, TableColumnVisibility } from '@/components/core';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AuditTrailPopup } from '@/features/workflow/components';
-import type { Locality } from '@/types/domain';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Eye, Search } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Button, DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
+import { Badge } from '@/components/ui/badge';
+import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 
+const STAGE_BADGE: Record<SubmissionStage, { label: string; variant: 'outline' | 'warning' | 'destructive' | 'info' | 'success' }> = {
+  Draft: { label: 'Nháp', variant: 'outline' },
+  LocalSubmitted: { label: 'Chờ chấm', variant: 'warning' },
+  ScorerSubmitted: { label: 'Chờ review', variant: 'warning' },
+  ReviewerApproved: { label: 'Đã review', variant: 'info' },
+  RequiresRevision: { label: 'Yêu cầu chỉnh sửa', variant: 'destructive' },
+  SpecialistApproved: { label: 'Đã chuyển lãnh đạo', variant: 'info' },
+  LeaderApproved: { label: 'Đã chuyển hội đồng', variant: 'info' },
+  CouncilApproved: { label: 'Đã chuyển ủy ban', variant: 'info' },
+  CommitteeFinalized: { label: 'Đã duyệt', variant: 'success' },
+};
+
+interface LocalityScoreRow {
+  code: string;
+  name: string;
+  submission: SubmissionApi;
+  totalScore: number;
+}
+
+/** Lấy hết submissions của một nhóm tiêu chí, gộp mọi trang. */
+async function listEverySubmissionByGroup(groupId: string) {
+  const firstPage = await specialistApi.listSubmissionsByGroup(groupId, {
+    page: 1,
+    pageSize: 100,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listSubmissionsByGroup(groupId, {
+      page: index + 2,
+      pageSize: 100,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+}
+
+/** Tầng 1: chọn nhóm tiêu chí. Tầng 2 (có :id): liệt kê địa phương đã nộp nhóm đó. */
 export default function ScoreByCriteriaPage() {
-  const { id } = useParams<{ id?: string }>();
-  const criteriaTables = useScoreStore((state) => state.criteriaTables);
-  const localities = useScoreStore((state) => state.localities);
-  const assignments = useScoreStore((state) => state.assignments);
-  const scores = useScoreStore((state) => state.scores);
-  const emptyRecord = useScoreStore((state) => state.emptyRecord);
-  const audits = useScoreStore((state) => state.audits);
-  const [search, setSearch] = useState('');
-  const [historyLocality, setHistoryLocality] = useState<Locality | null>(null);
+  const { id: groupId } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
+  const [selectedRow, setSelectedRow] = useState<LocalityScoreRow | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<CriteriaGroupApi | null>(null);
 
-  const table = criteriaTables.find((item) => item.id === id) ?? criteriaTables[0];
-  const rows = useMemo(() => {
-    if (!table) return [];
-    const keyword = search.trim().toLocaleLowerCase('vi');
-    return localities
-      .filter((locality) => assignments[table.id]?.includes(locality.id))
-      .filter((locality) => !keyword || `${locality.name} ${locality.code}`.toLocaleLowerCase('vi').includes(keyword))
-      .map((locality) => ({ locality, record: scores[table.id]?.[locality.id] ?? emptyRecord }));
-  }, [table, search, localities, assignments, scores, emptyRecord]);
+  const groupsQuery = useQuery({
+    queryKey: ['score-criteria-groups'],
+    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    enabled: !groupId,
+  });
+  const groupQuery = useQuery({
+    queryKey: ['score-criteria-group', groupId],
+    queryFn: () => specialistApi.getCriteriaGroup(groupId!),
+    enabled: Boolean(groupId),
+    retry: false,
+  });
+  const submissionsQuery = useQuery({
+    queryKey: ['score-group-submissions', groupId],
+    queryFn: () => listEverySubmissionByGroup(groupId!),
+    enabled: Boolean(groupId) && groupQuery.isSuccess,
+  });
 
-  if (!table) {
-    return <EmptyState title="Chưa có nhóm tiêu chí" description="Tạo và áp dụng nhóm tiêu chí trước khi chấm điểm." icon={<FileSearch className="h-8 w-8" />} />;
+  const groupColumns = useMemo<ColumnDef<CriteriaGroupApi>[]>(() => [
+    { accessorFn: (group) => group.name, header: 'Nhóm tiêu chí', cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+    { accessorFn: (group) => group.status, header: 'Trạng thái', cell: ({ row }) => <Badge variant={row.original.status === 'Applied' || row.original.status === 'Published' ? 'success' : 'outline'}>{row.original.status}</Badge>, meta: { align: 'center', list: { width: 'minmax(140px,.7fr)' } } },
+  ], []);
+
+  const rows = useMemo<LocalityScoreRow[]>(() => (submissionsQuery.data?.items ?? [])
+    .filter(isRealSubmission)
+    .map((submission) => ({
+      code: (submission.createdByWardCode ?? submission.createdBy ?? '').replace(/^loc-/i, ''),
+      name: submission.localityFullName ?? submission.createdByUsername ?? 'Địa phương',
+      submission,
+      totalScore: submission.totalFinalPoint || submission.totalProposedPoint,
+    })), [submissionsQuery.data]);
+
+  const columns = useMemo<ColumnDef<LocalityScoreRow>[]>(() => [
+    { accessorFn: (row) => row.name, header: 'Địa phương', cell: ({ row }) => <span className="font-medium">{row.original.name}</span>, meta: { list: { width: 'minmax(240px,1.4fr)' } } },
+    { accessorFn: (row) => row.code, header: 'Mã', meta: { list: { width: 'minmax(120px,.7fr)' } } },
+    { accessorFn: (row) => row.totalScore, header: 'Tổng điểm hiện tại', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.totalScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
+    { id: 'stage', accessorFn: (row) => row.submission.currentStage, header: 'Trạng thái', cell: ({ row }) => { const badge = STAGE_BADGE[row.original.submission.currentStage]; return <Badge variant={badge.variant}>{badge.label}</Badge>; }, meta: { align: 'center', list: { width: 'minmax(190px,1fr)' } } },
+  ], []);
+
+  if (groupId ? groupQuery.isLoading : groupsQuery.isLoading) return <PageLoading label="Đang tải dữ liệu…" />;
+
+  if (!groupId) {
+    const groups = (groupsQuery.data?.items ?? []).filter((group) => group.status === 'Applied' || group.status === 'Published');
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Chấm điểm theo nhóm tiêu chí" description="Chọn một nhóm tiêu chí để xem danh sách địa phương đã nộp hồ sơ." />
+        <DataTable
+          data={groups}
+          columns={groupColumns}
+          pageSize={10}
+          variant="list"
+          searchable
+          searchPlaceholder="Tìm tên nhóm tiêu chí..."
+          getRowId={(group) => group.id}
+          selectedRowId={selectedGroup?.id}
+          onRowClick={setSelectedGroup}
+          onRowDoubleClick={(group) => navigate(`/thi-dua/cham-diem/theo-tieu-chi/${group.id}`)}
+          toolbar={<Button variant="info" disabled={!selectedGroup} disabledReason="Chọn một nhóm tiêu chí để xem địa phương." onClick={() => selectedGroup && navigate(`/thi-dua/cham-diem/theo-tieu-chi/${selectedGroup.id}`)}><Eye className="mr-1.5 size-4" />Xem địa phương</Button>}
+          emptyState={{ title: 'Chưa có nhóm tiêu chí', description: 'Chưa có nhóm tiêu chí nào được áp dụng.', icon: <Search className="size-8" /> }}
+          stickyTitle="Nhóm tiêu chí"
+          stickyDescription="Chọn nhóm để xem địa phương"
+        />
+      </div>
+    );
   }
 
-  const waiting = rows.filter((row) => row.record.state === 'CHO_CHUYEN_VIEN').length;
+  if (groupQuery.isError) {
+    return <EmptyState
+      title="Không tìm thấy nhóm tiêu chí"
+      description="Nhóm tiêu chí này không tồn tại hoặc đã bị xóa."
+      icon={<Search className="size-8" />}
+      action={<Button variant="outline" render={<Link to="/thi-dua/cham-diem" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Về danh sách địa phương</Button>}
+    />;
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Chuyên viên chấm tiêu chí thi đua" description="COL.01.04 · Chọn địa phương để xem nhóm tiêu chí, minh chứng và thực hiện chấm điểm." />
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Địa phương đã áp dụng</p><p className="mt-1 text-2xl font-bold">{rows.length}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Chờ chuyên viên</p><p className="mt-1 text-2xl font-bold text-primary">{waiting}</p></CardContent></Card>
-        <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Đã chuyển cấp trên</p><p className="mt-1 text-2xl font-bold">{rows.length - waiting}</p></CardContent></Card>
-      </div>
-
-      <div className="rounded-xl border bg-card">
-        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-semibold">{table.name}</p>
-            <p className="text-xs text-muted-foreground">Danh sách địa phương</p>
-          </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <div className="relative min-w-0 flex-1 sm:w-80">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm kiếm địa phương..." className="pl-9" />
-            </div>
-            <TableColumnVisibility
-              storageKey="score-by-criteria-localities"
-              columns={[
-                { id: 'locality', label: 'Địa phương' },
-                { id: 'code', label: 'Mã' },
-                { id: 'score', label: 'Tổng điểm hiện tại' },
-                { id: 'status', label: 'Trạng thái' },
-                { id: 'actions', label: 'Thao tác' },
-              ]}
-            />
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <Table data-column-visibility-table="score-by-criteria-localities">
-            <TableHeader><TableRow className="bg-muted/35"><TableHead>Địa phương</TableHead><TableHead>Mã</TableHead><TableHead className="text-center">Tổng điểm hiện tại</TableHead><TableHead className="text-center">Trạng thái</TableHead><TableHead className="text-right">Thao tác</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {rows.map(({ locality, record }) => (
-                <TableRow key={locality.id}>
-                  <TableCell><div className="flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" /><span className="font-medium">{locality.name}</span></div></TableCell>
-                  <TableCell className="text-muted-foreground">{locality.code}</TableCell>
-                  <TableCell className="text-center font-semibold tabular-nums">{record.totalScore}</TableCell>
-                  <TableCell className="text-center"><ScoreStateBadge state={record.state} /></TableCell>
-                  <TableCell><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => setHistoryLocality(locality)}><History className="mr-1.5 h-3.5 w-3.5" />Lịch sử</Button><Button size="sm" render={<Link to={`/thi-dua/cham-diem/theo-dia-phuong/${locality.id}`} />} nativeButton={false}><Eye className="mr-1.5 h-3.5 w-3.5" />Xem chi tiết</Button></div></TableCell>
-                </TableRow>
-              ))}
-              {rows.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">Không tìm thấy địa phương phù hợp.</TableCell></TableRow>}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <AuditTrailPopup open={!!historyLocality} onOpenChange={(open) => { if (!open) setHistoryLocality(null); }} title={historyLocality?.name} entries={historyLocality ? audits.filter((item) => item.fieldName.endsWith(` - ${historyLocality.id}`)) : []} />
+      <PageHeader
+        title={groupQuery.data?.name ?? 'Chấm điểm theo nhóm tiêu chí'}
+        description="Chọn một địa phương để xem và chấm hồ sơ."
+        actions={<Button variant="outline" render={<Link to="/thi-dua/cham-diem/theo-tieu-chi" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>}
+      />
+      <DataTable
+        data={rows}
+        columns={columns}
+        pageSize={10}
+        variant="list"
+        searchable
+        searchPlaceholder="Tìm theo tên địa phương..."
+        getRowId={(row) => row.code}
+        selectedRowId={selectedRow?.code}
+        onRowClick={setSelectedRow}
+        onRowDoubleClick={(row) => navigate(`/thi-dua/cham-diem/${row.code}/${groupId}`)}
+        toolbar={<Button variant="info" disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
+        emptyState={{ title: 'Chưa có hồ sơ', description: 'Chưa có địa phương nào nộp hồ sơ cho nhóm tiêu chí này.', icon: <Search className="size-8" /> }}
+        stickyTitle="Danh sách địa phương"
+        stickyDescription={groupQuery.data?.name ?? ''}
+      />
     </div>
   );
 }

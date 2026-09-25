@@ -108,7 +108,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
       }
       items.push({ to: ROUTES.SPECIALIST_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
-      items.push({ to: ROUTES.SPECIALIST_HISTORY, label: 'Lịch sử chấm', icon: History });
+      // items.push({ to: ROUTES.SPECIALIST_HISTORY, label: 'Lịch sử chấm', icon: History });
       items.push({ to: ROUTES.ADMIN_USERS, label: 'Quản lý tài khoản', icon: Users });
       items.push({ to: ROUTES.ADMIN_DEPARTMENTS, label: 'Quản lý Ban', icon: Building2 });
     }

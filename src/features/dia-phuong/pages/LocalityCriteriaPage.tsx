@@ -52,6 +52,8 @@ function getSubmissionStageLabel(stage: SubmissionStage | null) {
     case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
     // Địa phương chỉ cần biết hồ sơ đã rời bước nộp hay đang cần xử lý lại;
     // không hiển thị chi tiết các cấp duyệt nội bộ.
+    case 'ScorerSubmitted':
+    case 'ReviewerApproved':
     case 'SpecialistApproved':
     case 'LeaderApproved':
     case 'CouncilApproved':
