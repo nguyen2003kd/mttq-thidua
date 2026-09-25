@@ -3,7 +3,6 @@ export const ROUTES = {
   SPECIALIST_CRITERIA: '/chuyen-vien/tieu-chi',
   SPECIALIST_REVIEW: '/chuyen-vien/duyet',
   SPECIALIST_SCORE_SUMMARY: '/chuyen-vien/tong-hop-cham-diem',
-  SPECIALIST_HISTORY: '/chuyen-vien/lich-su',
   LOCALITY_CRITERIA: '/dia-phuong/tieu-chi',
   LOCALITY_RESULTS: '/dia-phuong/ket-qua',
 
