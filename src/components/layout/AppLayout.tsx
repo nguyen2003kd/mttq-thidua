@@ -117,13 +117,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
       });
     }
 
+    // if (user?.role === 'COMMITTEE') {
+    //   items.push({ to: ROUTES.DUYET_STANDING_REVIEW, label: 'Duyệt theo địa phương', icon: FileCheck });
+    // }
+
     if (user?.role === 'COUNCIL') {
       items.push({ to: ROUTES.DUYET_COUNCIL, label: 'Duyệt — Hội đồng TĐKT', icon: FileCheck });
     }
 
-    if (user?.role === 'COMMITTEE') {
-      items.push({ to: ROUTES.DUYET_STANDING_REVIEW, label: 'Duyệt theo địa phương', icon: FileCheck });
-    }
+
 
     if (user?.role && user.role !== 'LOCAL') {
       items.push({ to: ROUTES.AUDIT_LOG.replace('/:diaPhuongId', ''), label: LABELS.AUDIT_TIMELINE_TITLE, icon: History });
