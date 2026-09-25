@@ -1591,9 +1591,9 @@ export default function SpecialistReviewPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" />
-        <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+        <div className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(0,32,96,0.07)]">
           <TableSectionHeader title="Hồ sơ địa phương" countLabel={`${visibleRows.length} địa phương`} />
-          <div className="border-b border-border bg-[linear-gradient(135deg,rgba(168,32,44,0.035),transparent_42%)] px-4 py-3 sm:px-5">
+          <div className="border-b border-border bg-[linear-gradient(135deg,rgba(0,32,96,0.035),transparent_42%)] px-4 py-3 sm:px-5">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <Tabs value={submissionStageFilter || 'ALL'} onValueChange={(value) => setSubmissionStageFilter(value === 'ALL' ? '' : value as SubmissionStageFilter)}>
                 <TabsList variant="line" className="h-auto w-full flex-wrap justify-start gap-1 pb-1">
@@ -2254,7 +2254,7 @@ export default function SpecialistReviewPage() {
                   <Fragment key={item.id}>
                   <TableRow
                   aria-selected={selectedCriterionId === item.id}
-                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}
+                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#002060] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}
                   onClick={() => setSelectedCriterionId(item.id)}
                 >
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">

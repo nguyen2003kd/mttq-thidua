@@ -83,12 +83,12 @@ function publicationStatusLabel(status: string) {
 function publicationStatusBadge(status: string) {
   const label = publicationStatusLabel(status);
   if (status === 'CommitteeFinalized' || status === 'CouncilApproved')
-    return <Badge className="border-[#2D2A26] bg-[#2D2A26] text-white">{label}</Badge>;
+    return <Badge className="border-primary bg-primary text-primary-foreground">{label}</Badge>;
   if (status === 'RequiresRevision')
-    return <Badge className="border-[#D9773D]/30 bg-[#D9773D]/15 text-[#8A4A1F]">{label}</Badge>;
+    return <Badge className="border-destructive/25 bg-destructive/10 text-destructive">{label}</Badge>;
   if (status === 'InProgress')
-    return <Badge className="border-[#E8B923]/30 bg-[#E8B923]/15 text-[#6E570B]">{label}</Badge>;
-  return <Badge className="border-[#9CA3AF]/25 bg-[#9CA3AF]/10 text-[#626A76]">{label}</Badge>;
+    return <Badge className="border-primary/25 bg-primary/10 text-primary">{label}</Badge>;
+  return <Badge className="border-primary/15 bg-primary/5 text-muted-foreground">{label}</Badge>;
 }
 
 interface ResultRow {

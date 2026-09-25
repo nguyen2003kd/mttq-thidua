@@ -436,7 +436,7 @@ export function DataTable<TData, TValue = unknown>({
       <>
         {/* Header nằm ngoài vùng cuộn ngang để sticky theo vùng cuộn trang. */}
         <div
-          className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)]"
+          className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(0,32,96,0.18)]"
           style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
         >
           <div
@@ -674,7 +674,7 @@ export function DataTable<TData, TValue = unknown>({
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => {
                 const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
-                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
+                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(0,32,96,0.18)] hover:bg-transparent">
                   {visibleHeaders.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');

@@ -226,7 +226,7 @@ export default function LoginPage() {
       >
         <div className="w-full max-w-110">
           {/* Form card */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-[0_18px_45px_rgba(41,20,20,0.16)] border border-white/60 p-8 sm:p-10 space-y-7">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-[0_18px_45px_rgba(0,32,96,0.16)] border border-white/60 p-8 sm:p-10 space-y-7">
             {/* Header */}
             <div className="space-y-3 text-center">
               <div className="mx-auto w-14 h-14 rounded-full border-2 border-primary/20 bg-primary/5 flex items-center justify-center">
