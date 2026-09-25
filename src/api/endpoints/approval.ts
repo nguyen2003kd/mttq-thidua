@@ -25,7 +25,8 @@ import type {
   GetApiV1SubmissionResultsResultIdHistoriesParams,
   GetApiV1SubmissionsScoreHistoriesParams,
   GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams,
-  PostApiV1SubmissionsForwardBody
+  PostApiV1SubmissionsForwardBody,
+  PostApiV1SubmissionsRequestRevisionBody
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
@@ -182,6 +183,80 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getPostApiV1SubmissionsForwardMutationOptions(options), queryClient);
+    }
+    export const postApiV1SubmissionsRequestRevision = (
+    postApiV1SubmissionsRequestRevisionBody?: PostApiV1SubmissionsRequestRevisionBody,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+      const formData = new FormData();
+if(postApiV1SubmissionsRequestRevisionBody?.SubmissionId !== undefined) {
+ formData.append(`SubmissionId`, postApiV1SubmissionsRequestRevisionBody.SubmissionId);
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.Reason !== undefined) {
+ formData.append(`Reason`, postApiV1SubmissionsRequestRevisionBody.Reason);
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.SubmissionResultIds !== undefined) {
+ postApiV1SubmissionsRequestRevisionBody?.SubmissionResultIds.forEach(value => formData.append(`SubmissionResultIds`, value));
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.Files !== undefined) {
+ postApiV1SubmissionsRequestRevisionBody?.Files.forEach(value => formData.append(`Files`, value));
+ }
+
+      return mainInstance<void>(
+      {url: `/api/v1/submissions/request-revision`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData, signal
+    },
+      options);
+    }
+
+
+
+
+export const getPostApiV1SubmissionsRequestRevisionMutationKey = () => ['postApiV1SubmissionsRequestRevision'] as const;
+
+export const getPostApiV1SubmissionsRequestRevisionMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, TError,PostApiV1SubmissionsRequestRevisionMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, TError,PostApiV1SubmissionsRequestRevisionMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsRequestRevisionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, PostApiV1SubmissionsRequestRevisionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1SubmissionsRequestRevision(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsRequestRevisionMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>>
+    export type PostApiV1SubmissionsRequestRevisionMutationBody = PostApiV1SubmissionsRequestRevisionBody | undefined
+    export type PostApiV1SubmissionsRequestRevisionMutationError = unknown
+    export type PostApiV1SubmissionsRequestRevisionMutationVariables = {data?: PostApiV1SubmissionsRequestRevisionBody}
+
+    export const usePostApiV1SubmissionsRequestRevision = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, TError,PostApiV1SubmissionsRequestRevisionMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>,
+        TError,
+        PostApiV1SubmissionsRequestRevisionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsRequestRevisionMutationOptions(options), queryClient);
     }
     export const postApiV1SubmissionsSupplementaryCriteria = (
     addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest,

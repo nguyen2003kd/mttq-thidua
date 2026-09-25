@@ -11,7 +11,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(106,18,24,0.2)] hover:bg-primary/90 hover:shadow-[0_1px_3px_rgba(106,18,24,0.26)]",
+          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,32,96,0.2)] hover:bg-primary/90 hover:shadow-[0_1px_3px_rgba(0,32,96,0.26)]",
         outline:
           "border-border bg-background text-foreground hover:border-foreground/25 hover:bg-muted hover:text-foreground aria-expanded:border-foreground/25 aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
@@ -22,10 +22,10 @@ const buttonVariants = cva(
           "border-destructive/55 bg-background text-destructive hover:border-destructive hover:bg-destructive/10 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "h-auto border-0 px-0 text-primary underline-offset-4 hover:underline",
         success:
-          "bg-success text-success-foreground shadow-[0_1px_2px_rgba(20,105,66,0.16)] hover:bg-success/90",
+          "bg-success text-success-foreground shadow-[0_1px_2px_rgba(0,32,96,0.16)] hover:bg-success/90",
         info: "bg-info text-info-foreground shadow-[0_1px_2px_rgba(26,85,180,0.16)] hover:bg-info/90",
         warning:
-          "bg-warning text-warning-foreground shadow-[0_1px_2px_rgba(145,91,9,0.16)] hover:bg-warning/90",
+          "bg-warning text-warning-foreground shadow-[0_1px_2px_rgba(255,0,0,0.16)] hover:bg-warning/90",
       },
       size: {
         default:

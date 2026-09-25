@@ -26,21 +26,21 @@ const scoreStateVariant: Record<ScoreState, BadgeVariant> = {
 };
 
 const scoreStateClassName: Record<ScoreState, string> = {
-  DRAFT: 'border-[#9CA3AF]/25 bg-[#9CA3AF]/10 text-[#626A76]',
-  CHO_CHUYEN_VIEN: 'border-[#E8B923]/30 bg-[#E8B923]/15 text-[#6E570B]',
-  CHO_DUYET_BAN: 'border-[#E8B923]/25 bg-[#E8B923]/15 text-[#6E570B]',
-  CHO_DUYET_HOI_DONG: 'border-[#E8B923]/25 bg-[#E8B923]/15 text-[#6E570B]',
-  CHO_DUYET_BTT: 'border-[#E8B923]/25 bg-[#E8B923]/15 text-[#6E570B]',
-  DA_CONG_BO: 'border-[#2D2A26] bg-[#2D2A26] text-white',
+  DRAFT: 'border-primary/20 bg-primary/5 text-muted-foreground',
+  CHO_CHUYEN_VIEN: 'border-primary/25 bg-primary/10 text-primary',
+  CHO_DUYET_BAN: 'border-primary/25 bg-primary/10 text-primary',
+  CHO_DUYET_HOI_DONG: 'border-primary/25 bg-primary/10 text-primary',
+  CHO_DUYET_BTT: 'border-primary/25 bg-primary/10 text-primary',
+  DA_CONG_BO: 'border-primary bg-primary text-primary-foreground',
 };
 
 const scoreStateDot: Record<ScoreState, string> = {
-  DRAFT: 'bg-[#9CA3AF]',
-  CHO_CHUYEN_VIEN: 'bg-[#E8B923]',
-  CHO_DUYET_BAN: 'bg-[#E8B923]',
-  CHO_DUYET_HOI_DONG: 'bg-[#E8B923]',
-  CHO_DUYET_BTT: 'bg-[#E8B923]',
-  DA_CONG_BO: 'bg-[#E8B923]',
+  DRAFT: 'bg-primary/40',
+  CHO_CHUYEN_VIEN: 'bg-accent',
+  CHO_DUYET_BAN: 'bg-accent',
+  CHO_DUYET_HOI_DONG: 'bg-accent',
+  CHO_DUYET_BTT: 'bg-accent',
+  DA_CONG_BO: 'bg-primary-foreground',
 };
 
 const localityStatusVariant: Record<LocalityStatus, BadgeVariant> = {

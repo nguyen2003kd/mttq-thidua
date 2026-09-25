@@ -183,8 +183,8 @@ export default function CriteriaListPage() {
             : row.original.status === 'PUBLISHED'
               ? <Badge className="bg-success/15 text-success">Đã công bố</Badge>
             : row.original.status === 'EXPIRED'
-              ? <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Đã kết thúc</Badge>
-              : <Badge className="bg-[#9CA3AF]/15 text-[#626A76]">Nháp</Badge>,
+              ? <Badge className="bg-primary/5 text-muted-foreground">Đã kết thúc</Badge>
+              : <Badge className="bg-primary/5 text-muted-foreground">Nháp</Badge>,
         meta: {
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
         },
@@ -305,7 +305,7 @@ export default function CriteriaListPage() {
       />
 
       {applyValidationError && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 border-l-4 border-danger bg-[#FFF8F8] px-4 py-3 text-sm text-danger">
+        <div role="alert" className="flex flex-wrap items-center gap-3 border-l-4 border-danger bg-destructive/5 px-4 py-3 text-sm text-danger">
           <div className="flex min-w-0 flex-1 items-start gap-2.5">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div>
