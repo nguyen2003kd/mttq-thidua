@@ -25,6 +25,8 @@ const request = async <T>(config: AxiosRequestConfig) => {
 export type SubmissionStage =
   | 'Draft'
   | 'LocalSubmitted'
+  | 'ScorerSubmitted'
+  | 'ReviewerApproved'
   | 'SpecialistApproved'
   | 'LeaderApproved'
   | 'CouncilApproved'
@@ -39,16 +41,47 @@ export const SPECIALIST_FORWARDED_STAGES = [
   'CommitteeFinalized',
 ] as const satisfies readonly SubmissionStage[];
 
+export type ScoringRole = 'SCORER' | 'REVIEWER' | 'SPECIALIST';
+
 /**
- * Quyền thao tác của Chuyên viên trên một hồ sơ. Dùng chung cho mọi nút chấm,
- * lưu nháp và chuyển duyệt để UI không bị lệch điều kiện khóa/mở.
+ * Stage mà mỗi role được thao tác (chấm/duyệt/trả về) — phải khớp ma trận
+ * role × stage ở backend (ApprovalService.ResolveApproveTarget).
  */
-export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined) {
-  const isForwarded = Boolean(stage && SPECIALIST_FORWARDED_STAGES.includes(stage as typeof SPECIALIST_FORWARDED_STAGES[number]));
+const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
+  SCORER: ['LocalSubmitted', 'RequiresRevision'],
+  REVIEWER: ['ScorerSubmitted'],
+  SPECIALIST: ['LocalSubmitted', 'ScorerSubmitted', 'ReviewerApproved', 'RequiresRevision'],
+};
+
+const FORWARD_LABELS: Record<ScoringRole, string> = {
+  SCORER: 'Gửi người review',
+  REVIEWER: 'Gửi chuyên viên',
+  SPECIALIST: 'Gửi Lãnh đạo ban',
+};
+
+const LOCK_REASONS: Record<ScoringRole, string> = {
+  SCORER: 'Hồ sơ đã được gửi lên người review hoặc đang chờ cấp trên xử lý. Người chấm chỉ có thể xem thông tin.',
+  REVIEWER: 'Hồ sơ không ở bước review của bạn. Người review chỉ có thể xem thông tin.',
+  SPECIALIST: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên chỉ có thể xem thông tin.',
+};
+
+/**
+ * Quyền thao tác trên một hồ sơ theo role chấm điểm. Dùng chung cho mọi nút
+ * chấm, lưu nháp và chuyển duyệt để UI không bị lệch điều kiện khóa/mở.
+ * Mặc định SPECIALIST để tương thích các chỗ gọi cũ.
+ */
+export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined, role: ScoringRole = 'SPECIALIST') {
+  const isActionable = Boolean(stage && ACTIONABLE_STAGES[role].includes(stage));
   return {
-    canEdit: !isForwarded,
-    isForwarded,
-    disabledReason: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên chỉ có thể xem thông tin.',
+    /** Được nhập/sửa điểm — reviewer chỉ duyệt, không chấm. */
+    canEdit: isActionable && role !== 'REVIEWER',
+    /** Được duyệt/gửi hồ sơ lên cấp tiếp theo tại stage hiện tại. */
+    canApprove: isActionable,
+    /** Được yêu cầu chỉnh sửa — người chấm là đầu chuỗi nên không trả về được. */
+    canRequestRevision: isActionable && role !== 'SCORER',
+    isForwarded: !isActionable,
+    disabledReason: LOCK_REASONS[role],
+    forwardLabel: FORWARD_LABELS[role],
   };
 }
 

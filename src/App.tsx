@@ -1,6 +1,6 @@
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/api/mutator/query-client';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LocalityLayout } from '@/components/layout/LocalityLayout';
@@ -9,7 +9,6 @@ import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
-import { useScoreStore } from '@/store/scoreStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
 import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
@@ -55,11 +54,10 @@ const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/Local
 
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'];
 
-function ScoreRedirect() {
-  const criteriaTables = useScoreStore((s) => s.criteriaTables);
-  const target = criteriaTables.find((t) => t.status === 'ACTIVE') ?? criteriaTables[0];
-  if (!target) return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
-  return <Navigate to={`/thi-dua/cham-diem/theo-tieu-chi/${target.id}`} replace />;
+/** URL cũ /cham-diem/theo-dia-phuong/:id → flow mới /cham-diem/:diaPhuongId. */
+function ScoreLocalityRedirect() {
+  const { id } = useParams<{ id?: string }>();
+  return <Navigate to={`/thi-dua/cham-diem/${id}`} replace />;
 }
 
 /** Trang chủ điều hướng thẳng tới công việc của vai trò, không dùng Dashboard tổng quan. */
@@ -282,9 +280,12 @@ export default function App() {
                 </RequireAuth>
               }
             >
-                <Route index element={<ScoreRedirect />} />
+              <Route index element={<SpecialistReviewPage basePath="/thi-dua/cham-diem" />} />
+              <Route path="theo-tieu-chi" element={<ScoreByCriteriaPage />} />
               <Route path="theo-tieu-chi/:id" element={<ScoreByCriteriaPage />} />
-              <Route path="theo-dia-phuong/:id" element={<ScoreByLocalityPage />} />
+              <Route path="theo-dia-phuong/:id" element={<ScoreLocalityRedirect />} />
+              <Route path=":diaPhuongId" element={<ScoreByLocalityPage />} />
+              <Route path=":diaPhuongId/:nhomTieuChiId" element={<ScoreByLocalityPage />} />
             </Route>
 
             {/* Duyệt routes */}
