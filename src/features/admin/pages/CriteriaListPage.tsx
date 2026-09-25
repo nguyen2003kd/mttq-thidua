@@ -24,6 +24,8 @@ import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info, Trash2 } from '
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
+import { departmentsApi } from '@/features/admin/api/departmentsApi';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 
@@ -40,6 +42,8 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   totalScore: group.maxPoint,
   content: group.content ?? undefined,
   status: toTableStatus(group.status),
+  departmentId: group.departmentId ?? undefined,
+  departmentName: group.departmentName ?? undefined,
   criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
   assignedLocalityCount: group.status === 'Applied' || group.status === 'Published' ? 1 : 0,
   openDate: group.createdAt,
@@ -69,6 +73,13 @@ export default function CriteriaListPage() {
     [criteriaTables],
   );
 
+  const departmentsQuery = useQuery({
+    queryKey: ['admin-departments-all'],
+    queryFn: () => departmentsApi.listAll(),
+    staleTime: 60_000,
+  });
+  const departments = departmentsQuery.data ?? [];
+
   const filteredTables = useMemo(() => {
     return criteriaTables.filter((t) => {
       const yearMatch =
@@ -84,6 +95,7 @@ export default function CriteriaListPage() {
   const [closeDate, setCloseDate] = useState('');
   const [totalScore, setTotalScore] = useState('');
   const [content, setContent] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
@@ -122,6 +134,13 @@ export default function CriteriaListPage() {
           className: 'font-medium',
           list: { width: 'minmax(220px, 1.5fr)' },
         },
+      },
+      {
+        id: 'departmentName',
+        accessorFn: (row) => row.departmentName ?? '',
+        header: 'Ban xử lý',
+        cell: ({ row }) => row.original.departmentName ?? '—',
+        meta: { list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
       {
         id: 'content',
@@ -187,6 +206,7 @@ export default function CriteriaListPage() {
     setCloseDate('');
     setTotalScore('');
     setContent('');
+    setDepartmentId('');
     setEditingTable(null);
   };
 
@@ -201,6 +221,7 @@ export default function CriteriaListPage() {
     setCloseDate(toDateTimeInput(table.closeDate));
     setTotalScore(String(table.totalScore));
     setContent(table.content ?? '');
+    setDepartmentId(table.departmentId ?? '');
     setOpen(true);
   };
 
@@ -250,7 +271,7 @@ export default function CriteriaListPage() {
 
     setSaving(true);
     try {
-      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null };
+      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId: departmentId && departmentId !== 'none' ? departmentId : null };
       if (editingTable) {
         const latestGroup = await criteriaGroupsApi.get(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
@@ -481,6 +502,16 @@ export default function CriteriaListPage() {
               <Info className="size-3.5" />
               Có thể để trống nếu chưa quy định hạn nộp.
             </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="criteria-department" className="text-[13.5px] font-semibold">Ban xử lý <span className="text-xs font-normal text-muted-foreground">Chuyên viên và lãnh đạo ban sẽ xử lý hồ sơ của nhóm này</span></Label>
+            <Select value={departmentId} onValueChange={(v) => setDepartmentId(v ?? '')}>
+              <SelectTrigger id="criteria-department" className="h-11 bg-muted"><SelectValue placeholder="Chọn ban phụ trách" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Chưa gán ban</SelectItem>
+                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </FormDialog>

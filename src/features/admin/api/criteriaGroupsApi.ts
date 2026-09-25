@@ -46,6 +46,8 @@ export interface CriteriaGroupApi {
   maxPoint: number;
   deadline: string | null;
   status: CriteriaGroupStatusApi;
+  departmentId: string | null;
+  departmentName: string | null;
   createdAt: string;
   updatedAt: string | null;
   criteria: CriteriaApi[];
@@ -75,6 +77,7 @@ export interface CriteriaGroupPayload {
   content?: string;
   maxPoint: number;
   deadline?: string | null;
+  departmentId?: string | null;
 }
 
 export interface CriteriaPayload {

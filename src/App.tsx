@@ -28,6 +28,7 @@ const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineCon
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
 const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
 const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagementPage'));
+const DepartmentManagementPage = lazy(() => import('@/features/admin/pages/DepartmentManagementPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
@@ -125,7 +126,7 @@ function ProfileGate() {
       phone: profile.phone,
       ward_code: profile.wardCode,
       requires_profile_completion: profileNeedsCompletion(profile),
-      ...(current ? { user: { ...current, name: profileDisplayName(profile) } } : {}),
+      ...(current ? { user: { ...current, name: profileDisplayName(profile), banId: profile.departmentId ?? undefined } } : {}),
     });
   }, [profileQuery.data, setStore]);
 
@@ -244,6 +245,7 @@ export default function App() {
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
               <Route path="tai-khoan" element={<UserManagementPage />} />
+              <Route path="ban" element={<DepartmentManagementPage />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>

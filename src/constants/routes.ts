@@ -16,6 +16,7 @@ export const ROUTES = {
   // CriteriaFormPage tự nhận biết qua `id === 'new'`. Không có route literal riêng.
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
   ADMIN_USERS: '/thi-dua/admin/tai-khoan',
+  ADMIN_DEPARTMENTS: '/thi-dua/admin/ban',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
   ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 
