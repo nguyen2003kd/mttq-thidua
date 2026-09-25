@@ -1746,7 +1746,7 @@ export default function SpecialistReviewPage() {
   }
 
   if (!district) {
-    return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không tồn tại trong dữ liệu." />;
+    return <EmptyState title="Địa phương chưa nộp hồ sơ" description="Địa phương này chưa nộp hồ sơ nên chưa có dữ liệu chấm điểm để xem chi tiết." />;
   }
 
   if (!nhomTieuChiId) {
