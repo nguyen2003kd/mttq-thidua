@@ -80,7 +80,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
             <div className="py-8 text-center text-sm text-muted-foreground">Đang chuẩn bị dữ liệu xem trước…</div>
           ) : previewQuery.data ? (
             <div className="space-y-4">
-              <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 <p>{previewQuery.data.message}</p>
               </div>

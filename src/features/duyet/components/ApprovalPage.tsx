@@ -387,7 +387,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           <MessageSquare className="mr-1.5 h-4 w-4" />Nhận xét
         </Button>
       )}
-      <Button variant="outline" disabled={!canProcessSelectedRow} disabledReason={!selectedRow ? 'Chọn một hồ sơ để yêu cầu chỉnh sửa.' : 'Hồ sơ này không còn ở bước chờ Hội đồng.'} className="border-[#D9773D]/70 text-[#B85C27] hover:bg-[#D9773D]/10" action="reject" state={config.targetState} onClick={() => selectedRow && setRejectRow(selectedRow)}>
+      <Button variant="outline" disabled={!canProcessSelectedRow} disabledReason={!selectedRow ? 'Chọn một hồ sơ để yêu cầu chỉnh sửa.' : 'Hồ sơ này không còn ở bước chờ Hội đồng.'} className="border-warning/70 text-destructive hover:bg-warning/10" action="reject" state={config.targetState} onClick={() => selectedRow && setRejectRow(selectedRow)}>
         <X className="mr-1.5 h-4 w-4" />Yêu cầu chỉnh sửa
       </Button>
       <Button disabled={!canProcessSelectedRow || !canApprove} disabledReason={!selectedRow ? 'Chọn một hồ sơ để duyệt.' : !canApprove ? 'Tài khoản hiện tại không có quyền duyệt hồ sơ.' : 'Hồ sơ này không còn ở bước chờ Hội đồng.'} action={config.approveAction} state={config.targetState} onClick={() => selectedRow && (config.useConfirmDialog ? setConfirmRow(selectedRow) : handleApprove(selectedRow))}>

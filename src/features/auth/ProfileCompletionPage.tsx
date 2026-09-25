@@ -67,7 +67,7 @@ export default function ProfileCompletionPage() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-surface-muted px-4 py-10">
-      <div className="w-full max-w-110 rounded-lg border border-border bg-card p-8 shadow-[0_18px_45px_rgba(41,20,20,0.12)] sm:p-10">
+      <div className="w-full max-w-110 rounded-lg border border-border bg-card p-8 shadow-[0_18px_45px_rgba(0,32,96,0.12)] sm:p-10">
         <div className="space-y-3 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5">
             <ShieldCheck className="h-7 w-7 text-primary" />

@@ -100,12 +100,12 @@ const fieldLabels: Record<string, string> = {
   OfficialBonusPoint: 'Điểm thưởng chính thức',
 };
 
-/** Màu chữ theo loại hành động: xanh lá=tạo, vàng=sửa, đỏ=xóa — chỉ tô chữ, không badge. */
+/** Dùng màu thương hiệu cho thao tác thông thường, màu cảnh báo cho sửa/xóa. */
 const actionConfig: Record<string, { label: string; text: string; accent: string }> = {
-  Created: { label: 'Tạo mới', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
-  Updated: { label: 'Cập nhật', text: 'text-amber-600', accent: 'border-l-amber-500' },
-  Deleted: { label: 'Xóa', text: 'text-rose-600', accent: 'border-l-rose-500' },
-  Published: { label: 'Công bố', text: 'text-sky-700', accent: 'border-l-sky-500' },
+  Created: { label: 'Tạo mới', text: 'text-primary', accent: 'border-l-primary' },
+  Updated: { label: 'Cập nhật', text: 'text-info', accent: 'border-l-info' },
+  Deleted: { label: 'Xóa', text: 'text-destructive', accent: 'border-l-destructive' },
+  Published: { label: 'Công bố', text: 'text-primary', accent: 'border-l-primary' },
 };
 
 const defaultActionStyle = {
@@ -117,18 +117,18 @@ const defaultActionStyle = {
 /** Nhãn + màu theo hành động nghiệp vụ (actionKind từ backend) — phân biệt thao tác của từng role.
  *  `verb` là dạng ngắn để ghép với cấp (vd "Lãnh đạo duyệt"); chỉ cần cho thao tác có actionLevel. */
 const businessActionConfig: Record<string, { label: string; verb?: string; text: string; accent: string }> = {
-  submit: { label: 'Nộp điểm', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
-  upload: { label: 'Tải lên', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
-  approve: { label: 'Phê duyệt', verb: 'duyệt', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
-  finalize: { label: 'Kết thúc duyệt', verb: 'phê duyệt', text: 'text-emerald-700', accent: 'border-l-emerald-500' },
-  rescore: { label: 'Chấm lại', verb: 'chấm lại', text: 'text-sky-700', accent: 'border-l-sky-500' },
-  review: { label: 'Thẩm định', verb: 'thẩm định', text: 'text-sky-700', accent: 'border-l-sky-500' },
-  add_criteria: { label: 'Bổ sung tiêu chí', verb: 'bổ sung tiêu chí', text: 'text-sky-700', accent: 'border-l-sky-500' },
-  publish: { label: 'Công bố', verb: 'công bố', text: 'text-sky-700', accent: 'border-l-sky-500' },
-  update_score: { label: 'Cập nhật điểm', text: 'text-amber-600', accent: 'border-l-amber-500' },
-  stage_transition: { label: 'Chuyển giai đoạn', text: 'text-amber-600', accent: 'border-l-amber-500' },
-  request_revision: { label: 'Yêu cầu sửa', verb: 'yêu cầu sửa', text: 'text-rose-600', accent: 'border-l-rose-500' },
-  delete_file: { label: 'Xóa tệp', text: 'text-rose-600', accent: 'border-l-rose-500' },
+  submit: { label: 'Nộp điểm', text: 'text-primary', accent: 'border-l-primary' },
+  upload: { label: 'Tải lên', text: 'text-primary', accent: 'border-l-primary' },
+  approve: { label: 'Phê duyệt', verb: 'duyệt', text: 'text-primary', accent: 'border-l-primary' },
+  finalize: { label: 'Kết thúc duyệt', verb: 'phê duyệt', text: 'text-primary', accent: 'border-l-primary' },
+  rescore: { label: 'Chấm lại', verb: 'chấm lại', text: 'text-info', accent: 'border-l-info' },
+  review: { label: 'Thẩm định', verb: 'thẩm định', text: 'text-info', accent: 'border-l-info' },
+  add_criteria: { label: 'Bổ sung tiêu chí', verb: 'bổ sung tiêu chí', text: 'text-info', accent: 'border-l-info' },
+  publish: { label: 'Công bố', verb: 'công bố', text: 'text-primary', accent: 'border-l-primary' },
+  update_score: { label: 'Cập nhật điểm', text: 'text-info', accent: 'border-l-info' },
+  stage_transition: { label: 'Chuyển giai đoạn', text: 'text-info', accent: 'border-l-info' },
+  request_revision: { label: 'Yêu cầu sửa', verb: 'yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
+  delete_file: { label: 'Xóa tệp', text: 'text-destructive', accent: 'border-l-destructive' },
 };
 
 /** Ưu tiên nhãn/màu theo hành động nghiệp vụ (actionKind); ghép cấp (actionLevel) → "Lãnh đạo duyệt"; fallback CRUD. */
@@ -421,7 +421,7 @@ function DiffTable({ diff }: { diff: DiffField[] }) {
                 <td className="px-3 py-2.5 font-semibold text-foreground">{field.label}</td>
                 <td className="px-3 py-2.5">
                   {hasBefore ? (
-                    <span className="inline-block max-w-full break-words rounded-md bg-rose-100 px-2 py-0.5 font-medium text-rose-800 ring-1 ring-inset ring-rose-300">
+                    <span className="inline-block max-w-full break-words rounded-md bg-destructive/10 px-2 py-0.5 font-medium text-destructive ring-1 ring-inset ring-destructive/30">
                       {field.before}
                     </span>
                   ) : (
@@ -430,7 +430,7 @@ function DiffTable({ diff }: { diff: DiffField[] }) {
                 </td>
                 <td className="px-3 py-2.5">
                   {hasAfter ? (
-                    <span className="inline-block max-w-full break-words rounded-md bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-300">
+                    <span className="inline-block max-w-full break-words rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary ring-1 ring-inset ring-primary/30">
                       {field.after}
                     </span>
                   ) : (

@@ -356,8 +356,8 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
                                   ? {
                                     backgroundColor:
                                       ri === 0
-                                        ? (sheetViews[activeSheet]?.headerRow ? '#F6E9EA' : '#FFFFFF')
-                                        : (sheetViews[activeSheet]?.headerRow && ri % 2 === 0 ? '#FCFBFA' : '#FFFFFF'),
+                                        ? (sheetViews[activeSheet]?.headerRow ? '#EEF2FA' : '#FFFFFF')
+                                        : (sheetViews[activeSheet]?.headerRow && ri % 2 === 0 ? '#F7F9FD' : '#FFFFFF'),
                                   }
                                   : {}),
                               }}

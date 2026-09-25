@@ -33,10 +33,10 @@ function GroupRow({ group }: { group: ResultPublicationCriteriaGroup }) {
         <p className="font-semibold text-foreground">{group.name}</p>
         <p className="mt-1 text-xs text-muted-foreground">{group.criteriaCount} tiêu chí</p>
       </td>
-      <td className="px-4 py-3 text-center font-semibold tabular-nums text-blue-700">{group.localitiesCompleted}</td>
-      <td className="px-4 py-3 text-center font-semibold tabular-nums text-amber-700">{group.localitiesRequiresRevision}</td>
-      <td className="px-4 py-3 text-center font-semibold tabular-nums text-red-700">{group.localitiesNotSubmitted}</td>
-      <td className="px-4 py-3 text-center font-semibold tabular-nums text-slate-600">{inProgress}</td>
+      <td className="px-4 py-3 text-center font-semibold tabular-nums text-primary">{group.localitiesCompleted}</td>
+      <td className="px-4 py-3 text-center font-semibold tabular-nums text-destructive">{group.localitiesRequiresRevision}</td>
+      <td className="px-4 py-3 text-center font-semibold tabular-nums text-destructive">{group.localitiesNotSubmitted}</td>
+      <td className="px-4 py-3 text-center font-semibold tabular-nums text-muted-foreground">{inProgress}</td>
     </tr>
   );
 }
@@ -192,7 +192,7 @@ export default function ResultPublicationPage() {
               <div className="py-8 text-center text-sm text-muted-foreground">Đang chuẩn bị dữ liệu xem trước…</div>
             ) : previewQuery.data ? (
               <div className="space-y-4">
-                <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <div className="flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-destructive">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                   <p>{previewQuery.data.message}</p>
                 </div>

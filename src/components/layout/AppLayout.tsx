@@ -313,7 +313,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       </span>
                     )}
                     <span
-                      className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-primary ${connected ? 'bg-green-400' : 'bg-gray-400'}`}
+                      className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-primary ${connected ? 'bg-white' : 'bg-white/40'}`}
                     />
                   </button>
                 }
@@ -322,7 +322,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <div className="flex items-center justify-between border-b px-3 py-2">
                   <span className="text-sm font-semibold">Thông báo</span>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs ${connected ? 'text-green-600' : 'text-muted-foreground'}`}>
+                    <span className={`text-xs ${connected ? 'text-primary' : 'text-muted-foreground'}`}>
                       {connected ? '● Đã kết nối' : '○ Chưa kết nối'}
                     </span>
                     {unreadCount > 0 && (

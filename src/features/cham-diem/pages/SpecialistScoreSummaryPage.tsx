@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Award,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Search,
   Trophy,
@@ -292,6 +293,75 @@ function ScoreCell({ value }: { value: number | null }) {
   );
 }
 
+/** Mỗi nhóm chỉ tải hồ sơ chi tiết sau khi người dùng mở tiêu chí cha. */
+function CriteriaGroupRows({
+  submission,
+  index,
+}: {
+  submission: SubmissionApi;
+  index: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const detailQuery = useQuery({
+    queryKey: ["specialist-score-summary-submission-detail", submission.id],
+    queryFn: () => specialistApi.getSubmission(submission.id),
+    enabled: expanded,
+    staleTime: 5 * 60 * 1000,
+  });
+  const totals = getTotals([submission]);
+  const name = submission.criteriaGroupName?.trim() || `Nhóm tiêu chí ${index + 1}`;
+  const childPanelId = `score-summary-group-${submission.id}`;
+
+  return (
+    <Fragment>
+      <TableRow className="border-b border-border hover:bg-muted/40">
+        <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
+          <button
+            type="button"
+            className="flex w-full items-start gap-2 text-left font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-expanded={expanded}
+            aria-controls={expanded ? childPanelId : undefined}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? <ChevronDown className="mt-0.5 size-4 shrink-0 text-primary" /> : <ChevronRight className="mt-0.5 size-4 shrink-0 text-primary" />}
+            <span className="min-w-0 leading-5">{name}</span>
+          </button>
+        </TableCell>
+        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.proposedScore} /></TableCell>
+        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.proposedBonus} /></TableCell>
+        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.hasProvinceScore ? totals.provinceScore : null} /></TableCell>
+        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.hasProvinceScore ? totals.provinceBonus : null} /></TableCell>
+        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.proposedScore + totals.proposedBonus} /></TableCell>
+        <TableCell className="px-4 py-3"><ScoreCell value={totals.hasProvinceScore ? totals.provinceScore + totals.provinceBonus : null} /></TableCell>
+      </TableRow>
+      {expanded && (
+        <Fragment>
+          {detailQuery.isLoading ? (
+            <TableRow><TableCell colSpan={7} className="bg-muted/20 px-10 py-4 text-sm text-muted-foreground" id={childPanelId}>Đang tải tiêu chí con…</TableCell></TableRow>
+          ) : detailQuery.isError ? (
+            <TableRow><TableCell colSpan={7} className="bg-muted/20 px-10 py-4" id={childPanelId}><div className="flex items-center gap-3 text-sm text-destructive">Không tải được tiêu chí con.<Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>Thử lại</Button></div></TableCell></TableRow>
+          ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
+            <TableRow><TableCell colSpan={7} className="bg-muted/20 px-10 py-4 text-sm text-muted-foreground" id={childPanelId}>Nhóm này chưa có kết quả tiêu chí con.</TableCell></TableRow>
+          ) : detailQuery.data?.results.map((result, childIndex) => (
+            <TableRow key={result.id} id={childIndex === 0 ? childPanelId : undefined} className="border-b border-border bg-muted/25 hover:bg-muted/40">
+              <TableCell className="whitespace-normal border-r border-primary/15 py-3 pl-10 pr-4">
+                <p className="text-sm font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || `Tiêu chí con ${childIndex + 1}`}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}</p>
+              </TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
+              <TableCell className="px-4 py-3"><ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0) : null} /></TableCell>
+            </TableRow>
+          ))}
+        </Fragment>
+      )}
+    </Fragment>
+  );
+}
+
 function getDistribution(
   rows: LocalityScoreSummary[],
   field: "proposedClassification" | "provinceClassification",
@@ -360,6 +430,15 @@ function ResultSummary({
 export default function SpecialistScoreSummaryPage() {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [expandedLocalityIds, setExpandedLocalityIds] = useState<Set<string>>(() => new Set());
+  const toggleLocality = (localityId: string) => {
+    setExpandedLocalityIds((current) => {
+      const next = new Set(current);
+      if (next.has(localityId)) next.delete(localityId);
+      else next.add(localityId);
+      return next;
+    });
+  };
   // Backend là nguồn sự thật: chỉ công bố được khi mọi địa phương đã nộp và
   // hoàn tất mọi nhóm tiêu chí.
   const publicationPreviewQuery = useQuery({
@@ -711,13 +790,13 @@ export default function SpecialistScoreSummaryPage() {
             <TableBody>
               {groupedRows.flatMap((group) =>
                 group.rows.map((row, rowIndex) => (
+                  <Fragment key={row.localityId}>
                   <TableRow
-                    key={row.localityId}
                     className="border-b-2 border-border hover:bg-muted/40"
                   >
                     {rowIndex === 0 && (
                       <TableCell
-                        rowSpan={group.rows.length}
+                        rowSpan={group.rows.length + group.rows.filter((item) => expandedLocalityIds.has(item.localityId) && item.submissions.length > 0).length}
                         className="whitespace-normal border-r border-primary/15 bg-muted/30 px-3 text-center align-middle"
                       >
                         <p className="font-semibold leading-5 text-foreground">
@@ -729,9 +808,18 @@ export default function SpecialistScoreSummaryPage() {
                       </TableCell>
                     )}
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
-                      <p className="font-semibold leading-5 text-foreground">
-                        {row.localityName}
-                      </p>
+                      {row.submissions.length > 0 ? (
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 text-left font-semibold leading-5 text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-expanded={expandedLocalityIds.has(row.localityId)}
+                          aria-controls={expandedLocalityIds.has(row.localityId) ? `score-summary-locality-${row.localityId}` : undefined}
+                          onClick={() => toggleLocality(row.localityId)}
+                        >
+                          {expandedLocalityIds.has(row.localityId) ? <ChevronDown className="size-4 shrink-0 text-primary" /> : <ChevronRight className="size-4 shrink-0 text-primary" />}
+                          <span>{row.localityName}</span>
+                        </button>
+                      ) : <p className="font-semibold leading-5 text-foreground">{row.localityName}</p>}
                     </TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-3">
                       <ScoreCell
@@ -768,6 +856,36 @@ export default function SpecialistScoreSummaryPage() {
                       <ScoreCell value={row.provinceTotal} />
                     </TableCell>
                   </TableRow>
+                  {expandedLocalityIds.has(row.localityId) && row.submissions.length > 0 && (
+                    <TableRow className="border-b-2 border-border bg-primary/[0.025] hover:bg-primary/[0.025]">
+                      <TableCell colSpan={7} className="px-4 py-4 align-top">
+                        <div id={`score-summary-locality-${row.localityId}`} className="overflow-hidden rounded-md border border-border bg-card" role="region" aria-label={`Nhóm tiêu chí của ${row.localityName}`}>
+                          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                            <p className="text-sm font-semibold text-foreground">Nhóm tiêu chí của {row.localityName}</p>
+                            <Badge variant="secondary">{row.submissions.length} nhóm</Badge>
+                          </div>
+                          <Table className="min-w-[1080px] table-fixed">
+                            <colgroup><col className="w-[28%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /></colgroup>
+                            <TableHeader>
+                              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-foreground">Nhóm tiêu chí / tiêu chí con</TableHead>
+                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Xã chấm</TableHead>
+                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Thưởng xã</TableHead>
+                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Tỉnh chấm</TableHead>
+                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Thưởng tỉnh</TableHead>
+                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Tổng xã</TableHead>
+                                <TableHead className="whitespace-normal px-4 py-3 text-right text-foreground">Tổng tỉnh</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {row.submissions.map((submission, index) => <CriteriaGroupRows key={submission.id} submission={submission} index={index} />)}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
                 )),
               )}
             </TableBody>
