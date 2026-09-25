@@ -46,6 +46,9 @@ export interface CriteriaTable {
   /** Nội dung/mô tả của nhóm tiêu chí. */
   content?: string;
   status: CriteriaTableStatus;
+  /** Ban (department) phụ trách xử lý nhóm tiêu chí. */
+  departmentId?: string;
+  departmentName?: string;
   criteria: CriteriaItem[];
   assignedLocalityCount: number;
   assignmentAttachments?: CriteriaTableAttachment[];

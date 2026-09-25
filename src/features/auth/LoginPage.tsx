@@ -148,7 +148,7 @@ export default function LoginPage() {
           name: accountName,
           role,
           localityId: role === 'LOCAL' ? 'loc-25195' : undefined,
-          banId: role === 'LEADER' ? 'ban1' : undefined,
+          // banId được ProfileGate điền từ profile.departmentId sau khi fetch.
         },
       });
       if (loginData.requiresProfileCompletion) {

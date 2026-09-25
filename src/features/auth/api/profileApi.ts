@@ -12,6 +12,9 @@ export interface UserProfile {
   fullName: string | null;
   phone: string | null;
   wardCode: string | null;
+  /** Ban (department) tài khoản thuộc về — null nếu chưa được phân công. */
+  departmentId: string | null;
+  departmentName: string | null;
   avatarId: string | null;
   status: string;
   roles: string[];

@@ -22,6 +22,8 @@ export interface FormDialogProps {
   cancelLabel?: string;
   /** Ẩn nút cancel (dùng khi chỉ cần 1 nút Đóng). */
   hideCancel?: boolean;
+  /** Ẩn nút submit (dialog chỉ xem / thao tác qua nút riêng). */
+  hideSubmit?: boolean;
   submitDisabled?: boolean;
   /** RBAC cho nút submit. */
   submitAction?: Action;
@@ -39,6 +41,7 @@ export function FormDialog({
   submitLabel = 'Lưu',
   cancelLabel = 'Hủy',
   hideCancel = false,
+  hideSubmit = false,
   submitDisabled,
   submitAction,
   size = 'max-w-lg sm:max-w-lg',
@@ -61,9 +64,11 @@ export function FormDialog({
                 {cancelLabel}
               </Button>
             )}
-            <Button type="submit" action={submitAction} disabled={submitDisabled}>
-              {submitLabel}
-            </Button>
+            {!hideSubmit && (
+              <Button type="submit" action={submitAction} disabled={submitDisabled}>
+                {submitLabel}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

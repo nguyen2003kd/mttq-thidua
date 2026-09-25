@@ -18,10 +18,12 @@ import {
   postApiV1UsersIdResetPassword,
 } from '@/api/endpoints/users';
 import type { CreateUserRequest, UpdateUserRequest } from '@/api/models';
+import { departmentsApi } from '../api/departmentsApi';
+import { useAuthStore } from '@/store/authStore';
 
-// Swagger gen chưa cập nhật fullName — mở rộng local cho tới khi chạy lại gen:api.
-type CreateUserBody = CreateUserRequest & { fullName?: string | null };
-type UpdateUserBody = UpdateUserRequest & { fullName?: string | null };
+// Swagger gen chưa cập nhật fullName/departmentId — mở rộng local cho tới khi chạy lại gen:api.
+type CreateUserBody = CreateUserRequest & { fullName?: string | null; departmentId?: string | null };
+type UpdateUserBody = UpdateUserRequest & { fullName?: string | null; departmentId?: string | null };
 
 interface ManagedUser {
   id: string;
@@ -33,6 +35,9 @@ interface ManagedUser {
   lastName: string | null;
   phone: string | null;
   wardCode: string | null;
+  /** Ban (department) tài khoản thuộc về. */
+  departmentId: string | null;
+  departmentName: string | null;
   status: string;
   roles: string[];
   createdAt: string;
@@ -106,6 +111,8 @@ function formatDate(value: string | null): string {
 
 export default function UserManagementPage() {
   const queryClient = useQueryClient();
+  // SPECIALIST được xem danh sách và gán ban cho tài khoản; chỉ ADMIN mới tạo/xóa/reset mật khẩu.
+  const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -127,6 +134,13 @@ export default function UserManagementPage() {
 
   const users = usersQuery.data?.items ?? [];
 
+  const departmentsQuery = useQuery({
+    queryKey: ['admin-departments-all'],
+    queryFn: () => departmentsApi.listAll(),
+    staleTime: 60_000,
+  });
+  const departments = departmentsQuery.data ?? [];
+
   const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
   const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
   const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
@@ -147,6 +161,7 @@ export default function UserManagementPage() {
   const [fWardCode, setFWardCode] = useState('');
   const [fPassword, setFPassword] = useState('');
   const [fRole, setFRole] = useState('local');
+  const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
   const [eFirstName, setEFirstName] = useState('');
@@ -154,6 +169,7 @@ export default function UserManagementPage() {
   const [ePhone, setEPhone] = useState('');
   const [eWardCode, setEWardCode] = useState('');
   const [eStatus, setEStatus] = useState('Active');
+  const [eDepartment, setEDepartment] = useState('');
 
   const [resetPassword, setResetPassword] = useState('');
 
@@ -165,6 +181,7 @@ export default function UserManagementPage() {
     setEPhone(u.phone ?? '');
     setEWardCode(u.wardCode ?? '');
     setEStatus(u.status || 'Active');
+    setEDepartment(u.departmentId ?? '');
     setEditOpen(true);
   };
 
@@ -180,6 +197,7 @@ export default function UserManagementPage() {
       lastName: fLastName.trim() || null,
       phone: fPhone.trim() || null,
       wardCode: fWardCode.trim() || null,
+      departmentId: fDepartment && fDepartment !== 'none' ? fDepartment : null,
       password: fPassword || null,
       role: fRole,
     }, {
@@ -198,6 +216,7 @@ export default function UserManagementPage() {
         lastName: eLastName.trim() || null,
         phone: ePhone.trim() || null,
         wardCode: eWardCode.trim() || null,
+        departmentId: eDepartment && eDepartment !== 'none' ? eDepartment : null,
         status: eStatus,
       },
     }, {
@@ -251,6 +270,12 @@ export default function UserManagementPage() {
           ))}
         </div>
       ),
+    },
+    {
+      id: 'department',
+      header: 'Ban',
+      meta: { list: { width: 'minmax(120px, 1fr)' } },
+      cell: ({ row }) => row.original.departmentName ?? '—',
     },
     {
       accessorKey: 'status',
@@ -316,9 +341,11 @@ export default function UserManagementPage() {
           description: 'Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
-          <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFWardCode(''); setFPassword(''); setFRole('local'); setCreateOpen(true); }} action="create">
-            <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
-          </Button>
+          isAdmin ? (
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFWardCode(''); setFPassword(''); setFRole('local'); setCreateOpen(true); }} action="create">
+              <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
+            </Button>
+          ) : undefined
         }
       />
 
@@ -381,6 +408,18 @@ export default function UserManagementPage() {
             <Input id="u-password" type="password" value={fPassword} onChange={(e) => setFPassword(e.target.value)} placeholder="Bỏ trống dùng mật khẩu mặc định" autoComplete="new-password" />
           </div>
         </div>
+        {(fRole === 'specialist' || fRole === 'leader') && (
+          <div className="space-y-1.5">
+            <Label htmlFor="u-department">Ban xử lý</Label>
+            <Select value={fDepartment} onValueChange={(v) => setFDepartment(v ?? '')}>
+              <SelectTrigger id="u-department"><SelectValue placeholder="Chọn ban (tùy chọn)" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Không gán ban</SelectItem>
+                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </FormDialog>
 
       {/* Sửa tài khoản */}
@@ -426,6 +465,16 @@ export default function UserManagementPage() {
             </SelectContent>
           </Select>
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="e-department">Ban xử lý</Label>
+          <Select value={eDepartment} onValueChange={(v) => setEDepartment(v ?? '')}>
+            <SelectTrigger id="e-department"><SelectValue placeholder="Chọn ban (tùy chọn)" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Không gán ban</SelectItem>
+              {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <p className="text-xs text-muted-foreground">Không thể đổi vai trò sau khi tạo. Email không thể thay đổi.</p>
       </FormDialog>
 
@@ -460,7 +509,7 @@ export default function UserManagementPage() {
       />
 
       {/* Actions row cho dòng được chọn */}
-      {selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
+      {isAdmin && selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
         <div className="mt-3 flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
             <KeyRound className="h-3.5 w-3.5" /> Đặt lại mật khẩu
