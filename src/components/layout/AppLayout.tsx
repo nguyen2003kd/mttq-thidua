@@ -16,6 +16,8 @@ import {
   Users,
   UserRound,
   Building2,
+  Layers,
+  CalendarRange,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -111,6 +113,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       // items.push({ to: ROUTES.SPECIALIST_HISTORY, label: 'Lịch sử chấm', icon: History });
       items.push({ to: ROUTES.ADMIN_USERS, label: 'Quản lý tài khoản', icon: Users });
       items.push({ to: ROUTES.ADMIN_DEPARTMENTS, label: 'Quản lý Ban', icon: Building2 });
+      items.push({ to: ROUTES.ADMIN_CLUSTERS, label: 'Quản lý Cụm', icon: Layers });
+      items.push({ to: ROUTES.ADMIN_PERIODS, label: 'Quản lý kỳ', icon: CalendarRange });
     }
 
     if (user?.role === 'ADMIN') {
@@ -119,6 +123,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
       items.push({ to: ROUTES.ADMIN_LOCALITY, label: 'Địa phương', icon: Trophy });
       items.push({ to: ROUTES.ADMIN_USERS, label: 'Quản lý tài khoản', icon: Users });
       items.push({ to: ROUTES.ADMIN_DEPARTMENTS, label: 'Quản lý Ban', icon: Building2 });
+      items.push({ to: ROUTES.ADMIN_CLUSTERS, label: 'Quản lý Cụm', icon: Layers });
+      items.push({ to: ROUTES.ADMIN_PERIODS, label: 'Quản lý kỳ', icon: CalendarRange });
     }
 
     if (user?.role === 'LEADER') {

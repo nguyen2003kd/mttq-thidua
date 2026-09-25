@@ -25,6 +25,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
 import { departmentsApi } from '@/features/admin/api/departmentsApi';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
@@ -44,6 +45,8 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   status: toTableStatus(group.status),
   departmentId: group.departmentId ?? undefined,
   departmentName: group.departmentName ?? undefined,
+  periodId: group.periodId ?? undefined,
+  periodName: group.periodName ?? undefined,
   criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
   assignedLocalityCount: group.status === 'Applied' || group.status === 'Published' ? 1 : 0,
   openDate: group.createdAt,
@@ -61,6 +64,7 @@ export default function CriteriaListPage() {
   const [statusFilter, setStatusFilter] = useState<CriteriaGroupStatusApi | ''>('');
   const [sort, setSort] = useState('createdAt-desc');
   const [yearFilter, setYearFilter] = useState<string>('');
+  const [periodFilter, setPeriodFilter] = useState<string>('');
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
     queryKey: ['criteria-groups', { search, statusFilter, sortBy, sortOrder }],
@@ -80,15 +84,23 @@ export default function CriteriaListPage() {
   });
   const departments = departmentsQuery.data ?? [];
 
+  const periodsQuery = useQuery({
+    queryKey: ['admin-periods-all'],
+    queryFn: () => periodsApi.listAll(),
+    staleTime: 60_000,
+  });
+  const periods = periodsQuery.data ?? [];
+
   const filteredTables = useMemo(() => {
     return criteriaTables.filter((t) => {
       const yearMatch =
         !yearFilter ||
         new Date(t.openDate).getFullYear().toString() === yearFilter ||
         new Date(t.closeDate).getFullYear().toString() === yearFilter;
-      return yearMatch;
+      const periodMatch = !periodFilter || t.periodId === periodFilter;
+      return yearMatch && periodMatch;
     });
-  }, [criteriaTables, yearFilter]);
+  }, [criteriaTables, yearFilter, periodFilter]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -96,6 +108,7 @@ export default function CriteriaListPage() {
   const [totalScore, setTotalScore] = useState('');
   const [content, setContent] = useState('');
   const [departmentId, setDepartmentId] = useState('');
+  const [periodId, setPeriodId] = useState('');
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
@@ -141,6 +154,13 @@ export default function CriteriaListPage() {
         header: 'Ban xử lý',
         cell: ({ row }) => row.original.departmentName ?? '—',
         meta: { list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
+      },
+      {
+        id: 'periodName',
+        accessorFn: (row) => row.periodName ?? '',
+        header: 'Kỳ',
+        cell: ({ row }) => row.original.periodName ?? '—',
+        meta: { list: { label: 'Kỳ', width: '110px' } },
       },
       {
         id: 'content',
@@ -207,6 +227,7 @@ export default function CriteriaListPage() {
     setTotalScore('');
     setContent('');
     setDepartmentId('');
+    setPeriodId('');
     setEditingTable(null);
   };
 
@@ -222,6 +243,7 @@ export default function CriteriaListPage() {
     setTotalScore(String(table.totalScore));
     setContent(table.content ?? '');
     setDepartmentId(table.departmentId ?? '');
+    setPeriodId(table.periodId ?? '');
     setOpen(true);
   };
 
@@ -263,6 +285,11 @@ export default function CriteriaListPage() {
       return;
     }
 
+    if (!editingTable && !periodId) {
+      toast.error('Vui lòng chọn kỳ thi đua cho nhóm tiêu chí.');
+      return;
+    }
+
     const originalCloseDate = editingTable ? toDateTimeInput(editingTable.closeDate) : '';
     if (closeDate && closeDate !== originalCloseDate && new Date(closeDate).getTime() < Date.now()) {
       toast.error('Hạn nộp không được ở thời gian quá khứ.');
@@ -271,7 +298,7 @@ export default function CriteriaListPage() {
 
     setSaving(true);
     try {
-      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId: departmentId && departmentId !== 'none' ? departmentId : null };
+      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId: departmentId && departmentId !== 'none' ? departmentId : null, periodId: periodId || undefined };
       if (editingTable) {
         const latestGroup = await criteriaGroupsApi.get(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
@@ -366,6 +393,12 @@ export default function CriteriaListPage() {
               onChange={setYearFilter}
               options={availableYears.map((year) => ({ value: year, label: year }))}
             />
+            <FilterSelect
+              label="Kỳ"
+              value={periodFilter}
+              onChange={setPeriodFilter}
+              options={periods.map((p) => ({ value: p.id, label: p.name }))}
+            />
           </>
         }
         activeFilters={[
@@ -379,15 +412,19 @@ export default function CriteriaListPage() {
           ...(yearFilter
             ? [{ label: 'Năm', value: yearFilter, onClear: () => setYearFilter('') }]
             : []),
+          ...(periodFilter
+            ? [{ label: 'Kỳ', value: periods.find((p) => p.id === periodFilter)?.name ?? periodFilter, onClear: () => setPeriodFilter('') }]
+            : []),
           ...(sort !== 'createdAt-desc'
             ? [{ label: 'Sắp xếp', value: sort === 'name-asc' ? 'Tên A–Z' : sort === 'name-desc' ? 'Tên Z–A' : sort === 'deadline-asc' ? 'Hạn nộp gần nhất' : 'Điểm cao nhất', onClear: () => setSort('createdAt-desc') }]
             : []),
         ]}
         onClearFilters={
-          statusFilter || yearFilter || sort !== 'createdAt-desc'
+          statusFilter || yearFilter || periodFilter || sort !== 'createdAt-desc'
             ? () => {
                 setStatusFilter('');
                 setYearFilter('');
+                setPeriodFilter('');
                 setSort('createdAt-desc');
               }
             : undefined
@@ -502,6 +539,15 @@ export default function CriteriaListPage() {
               <Info className="size-3.5" />
               Có thể để trống nếu chưa quy định hạn nộp.
             </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="criteria-period" className="text-[13.5px] font-semibold">Kỳ thi đua <span className="text-destructive">*</span></Label>
+            <Select value={periodId} onValueChange={(v) => setPeriodId(v ?? '')}>
+              <SelectTrigger id="criteria-period" className="h-11 bg-muted"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.status !== 'Active' ? ` (${p.status === 'Draft' ? 'Nháp' : 'Đã kết thúc'})` : ''}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="criteria-department" className="text-[13.5px] font-semibold">Ban xử lý <span className="text-xs font-normal text-muted-foreground">Chuyên viên và lãnh đạo ban sẽ xử lý hồ sơ của nhóm này</span></Label>
