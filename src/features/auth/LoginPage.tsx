@@ -14,6 +14,8 @@ import { ROUTES } from '@/constants/routes';
 
 const APP_ROLES: Role[] = [
   'LOCAL',
+  'SCORER',
+  'REVIEWER',
   'SPECIALIST',
   'LEADER',
   'COUNCIL',

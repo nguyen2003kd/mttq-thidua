@@ -54,7 +54,7 @@ const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaC
 const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
 const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/LocalityResultsPage'));
 
-const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
+const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'];
 
 function ScoreRedirect() {
   const criteriaTables = useScoreStore((s) => s.criteriaTables);
@@ -70,6 +70,8 @@ function RoleHomeRedirect() {
 
   switch (user.role) {
     case 'LOCAL': return <Navigate to={ROUTES.LOCALITY_CRITERIA} replace />;
+    case 'SCORER': return <Navigate to="/thi-dua/cham-diem" replace />;
+    case 'REVIEWER': return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
     case 'SPECIALIST': return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
     case 'LEADER': return <Navigate to={`/thi-dua/duyet/lanh-dao-ban/${user.banId ?? 'ban1'}`} replace />;
     case 'COUNCIL': return <Navigate to={ROUTES.DUYET_COUNCIL} replace />;
@@ -192,7 +194,7 @@ export default function App() {
               path="/chuyen-vien"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST']}>
+                  <RequireRole roles={['SPECIALIST', 'REVIEWER']}>
                     <AppLayout><Outlet /></AppLayout>
                   </RequireRole>
                 </RequireAuth>
@@ -274,7 +276,7 @@ export default function App() {
               path="/thi-dua/cham-diem"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST']}>
+                  <RequireRole roles={['SPECIALIST', 'SCORER']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>
