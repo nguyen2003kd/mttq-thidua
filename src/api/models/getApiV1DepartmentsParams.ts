@@ -1,10 +1,7 @@
 /* eslint-disable */
 
-export type GetApiV1UsersParams = {
+export type GetApiV1DepartmentsParams = {
 Search?: string;
-Status?: string;
-Role?: string;
-DepartmentId?: string;
 Page?: number;
 PageSize?: number;
 SortBy?: string;
