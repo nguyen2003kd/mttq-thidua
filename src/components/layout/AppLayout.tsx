@@ -94,6 +94,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
       items.push({ to: '/thi-dua/lich-su-thay-doi', label: 'Lịch sử thao tác', icon: History });
     }
 
+    if (user?.role === 'SCORER') {
+      items.push({ to: '/thi-dua/cham-diem', label: 'Chấm điểm', icon: ClipboardCheck });
+    }
+
+    if (user?.role === 'REVIEWER') {
+      items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Thẩm định', icon: FileCheck });
+    }
+
     if (user?.role === 'SPECIALIST') {
       if (criteriaTables[0]) {
         items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });

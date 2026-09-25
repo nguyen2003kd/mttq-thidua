@@ -1,5 +1,7 @@
 export type Role =
   | 'LOCAL'
+  | 'SCORER'
+  | 'REVIEWER'
   | 'SPECIALIST'
   | 'LEADER'
   | 'COUNCIL'
