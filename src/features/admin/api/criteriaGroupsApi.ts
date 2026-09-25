@@ -48,6 +48,8 @@ export interface CriteriaGroupApi {
   status: CriteriaGroupStatusApi;
   departmentId: string | null;
   departmentName: string | null;
+  periodId: string | null;
+  periodName: string | null;
   createdAt: string;
   updatedAt: string | null;
   criteria: CriteriaApi[];
@@ -78,6 +80,8 @@ export interface CriteriaGroupPayload {
   maxPoint: number;
   deadline?: string | null;
   departmentId?: string | null;
+  /** Bắt buộc khi tạo mới nhóm tiêu chí. */
+  periodId?: string;
 }
 
 export interface CriteriaPayload {
@@ -102,6 +106,7 @@ export const criteriaGroupsApi = {
   list: (params?: {
     search?: string;
     status?: CriteriaGroupStatusApi;
+    periodId?: string;
     page?: number;
     pageSize?: number;
     sortBy?: CriteriaGroupSortBy;

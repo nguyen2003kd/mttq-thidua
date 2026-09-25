@@ -28,6 +28,8 @@ const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashbo
 const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
 const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagementPage'));
 const DepartmentManagementPage = lazy(() => import('@/features/admin/pages/DepartmentManagementPage'));
+const ClusterManagementPage = lazy(() => import('@/features/admin/pages/ClusterManagementPage'));
+const PeriodManagementPage = lazy(() => import('@/features/admin/pages/PeriodManagementPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
@@ -244,6 +246,8 @@ export default function App() {
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
               <Route path="tai-khoan" element={<UserManagementPage />} />
               <Route path="ban" element={<DepartmentManagementPage />} />
+              <Route path="cum" element={<ClusterManagementPage />} />
+              <Route path="ky" element={<PeriodManagementPage />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>

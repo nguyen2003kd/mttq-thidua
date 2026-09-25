@@ -49,6 +49,9 @@ export interface CriteriaTable {
   /** Ban (department) phụ trách xử lý nhóm tiêu chí. */
   departmentId?: string;
   departmentName?: string;
+  /** Kỳ thi đua mà nhóm tiêu chí thuộc về. */
+  periodId?: string;
+  periodName?: string;
   criteria: CriteriaItem[];
   assignedLocalityCount: number;
   assignmentAttachments?: CriteriaTableAttachment[];

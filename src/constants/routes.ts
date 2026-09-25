@@ -16,6 +16,8 @@ export const ROUTES = {
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
   ADMIN_USERS: '/thi-dua/admin/tai-khoan',
   ADMIN_DEPARTMENTS: '/thi-dua/admin/ban',
+  ADMIN_CLUSTERS: '/thi-dua/admin/cum',
+  ADMIN_PERIODS: '/thi-dua/admin/ky',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
   ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 
