@@ -23,6 +23,8 @@ import {
   specialistApi,
   type SubmissionApi,
 } from "@/features/cham-diem/api/specialistApi";
+import { resultPublicationApi } from "@/features/duyet/api/resultPublicationApi";
+import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
 
 interface ScoreTotals {
   proposedScore: number;
@@ -357,6 +359,14 @@ function ResultSummary({
 /** Bảng tổng hợp điểm toàn tỉnh của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
 export default function SpecialistScoreSummaryPage() {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  // Backend là nguồn sự thật: chỉ công bố được khi mọi địa phương đã nộp và
+  // hoàn tất mọi nhóm tiêu chí.
+  const publicationPreviewQuery = useQuery({
+    queryKey: ["result-publication-preview"],
+    queryFn: resultPublicationApi.getPreview,
+  });
+  const canPublish = publicationPreviewQuery.data?.canPublish === true;
   const submissionsQuery = useQuery({
     queryKey: ["specialist-score-summary-submissions"],
     queryFn: listEverySubmission,
@@ -473,6 +483,22 @@ export default function SpecialistScoreSummaryPage() {
           <div></div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{rows.length} đơn vị</Badge>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-accent text-foreground hover:bg-accent/90"
+              disabled={!canPublish}
+              disabledReason={
+                !canPublish
+                  ? (publicationPreviewQuery.data?.message ??
+                    "Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.")
+                  : undefined
+              }
+              onClick={() => setPublishOpen(true)}
+            >
+              <Trophy className="size-4" />
+              Công bố kết quả
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -748,6 +774,7 @@ export default function SpecialistScoreSummaryPage() {
           </Table>
         )}
       </section>
+      <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />
     </div>
   );
 }
