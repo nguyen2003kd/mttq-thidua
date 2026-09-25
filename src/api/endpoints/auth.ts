@@ -27,6 +27,7 @@ import type {
   MobileLoginRequest,
   RefreshTokenRequest,
   RegisterRequest,
+  UpdateProfileRequest,
   ZaloLoginRequest
 } from '../models';
 
@@ -562,7 +563,68 @@ export function useGetApiV1AuthProfile<TData = Awaited<ReturnType<typeof getApiV
 
 
 
-export const postApiV1AuthChangePassword = (
+export const putApiV1AuthProfile = (
+    updateProfileRequest?: UpdateProfileRequest,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/auth/profile`, method: 'PUT',
+      headers: {'Content-Type': 'application/json', },
+      data: updateProfileRequest, signal
+    },
+      options);
+    }
+
+
+
+
+export const getPutApiV1AuthProfileMutationKey = () => ['putApiV1AuthProfile'] as const;
+
+export const getPutApiV1AuthProfileMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiV1AuthProfile>>, TError,PutApiV1AuthProfileMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof putApiV1AuthProfile>>, TError,PutApiV1AuthProfileMutationVariables, TContext> => {
+
+const mutationKey = getPutApiV1AuthProfileMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putApiV1AuthProfile>>, PutApiV1AuthProfileMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  putApiV1AuthProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutApiV1AuthProfileMutationResult = NonNullable<Awaited<ReturnType<typeof putApiV1AuthProfile>>>
+    export type PutApiV1AuthProfileMutationBody = UpdateProfileRequest | undefined
+    export type PutApiV1AuthProfileMutationError = unknown
+    export type PutApiV1AuthProfileMutationVariables = {data?: UpdateProfileRequest}
+
+    export const usePutApiV1AuthProfile = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putApiV1AuthProfile>>, TError,PutApiV1AuthProfileMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof putApiV1AuthProfile>>,
+        TError,
+        PutApiV1AuthProfileMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPutApiV1AuthProfileMutationOptions(options), queryClient);
+    }
+    export const postApiV1AuthChangePassword = (
     changePasswordRequest?: ChangePasswordRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {

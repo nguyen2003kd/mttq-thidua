@@ -12,6 +12,8 @@ export interface RegisterRequest {
   /** @nullable */
   lastName?: string | null;
   /** @nullable */
+  fullName?: string | null;
+  /** @nullable */
   phone?: string | null;
   /** @nullable */
   role?: string | null;
