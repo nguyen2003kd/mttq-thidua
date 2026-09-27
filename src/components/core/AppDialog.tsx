@@ -43,7 +43,7 @@ export function AppDialog({
 }: AppDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogOverlay className="bg-[#002060]/45" />
+      <DialogOverlay className="bg-[#009ee3]/45" />
       <DialogContent
         showCloseButton={false}
         className={cn(

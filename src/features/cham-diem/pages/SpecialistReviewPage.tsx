@@ -2336,7 +2336,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <Fragment key={item.id}>
                   <TableRow
                   aria-selected={selectedCriterionId === item.id}
-                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#002060] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}
+                  className={selectedCriterionId === item.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#009ee3] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}
                   onClick={() => setSelectedCriterionId(item.id)}
                 >
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">

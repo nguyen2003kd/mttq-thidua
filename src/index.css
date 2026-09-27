@@ -9,116 +9,116 @@
 
 @layer base {
   :root {
-    /* Bảng màu thương hiệu: xanh cô-ban #002060, đỏ #FF0000, trắng #FFFFFF. */
+    /* Bảng màu thương hiệu: xanh dương #009EE3 (accent), xanh đậm tương tác ~#0074A8, đỏ #FF0000, trắng #FFFFFF. */
     --background: 0 0% 100%;
-    --foreground: 220 100% 18.82%;
+    --foreground: 198 100% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 100% 18.82%;
+    --card-foreground: 198 100% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 100% 18.82%;
+    --popover-foreground: 198 100% 20%;
 
-    --primary: 220 100% 18.82%;
+    --primary: 198 100% 28%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 100% 97%;
-    --secondary-foreground: 220 100% 18.82%;
+    --secondary: 198 100% 96%;
+    --secondary-foreground: 198 100% 20%;
 
-    --muted: 220 100% 97%;
-    --muted-foreground: 220 34% 40%;
+    --muted: 198 100% 96%;
+    --muted-foreground: 198 34% 38%;
 
-    --accent: 0 100% 50%;
-    --accent-foreground: 0 0% 7%;
+    --accent: 198 100% 44.51%;
+    --accent-foreground: 198 100% 15%;
 
     /* Các trạng thái dùng sắc độ của xanh hoặc đỏ để giữ đủ tương phản. */
     --destructive: 0 100% 38%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 220 100% 18.82%;
-    --success-foreground: 0 0% 100%;
+    --success: 198 100% 44.51%;
+    --success-foreground: 198 100% 15%;
 
-    --warning: 0 100% 50%;
+    --warning: 38 92% 44%;
     --warning-foreground: 0 0% 7%;
 
-    --info: 220 100% 18.82%;
-    --info-foreground: 0 0% 100%;
+    --info: 198 100% 44.51%;
+    --info-foreground: 198 100% 15%;
 
-    --border: 220 30% 87%;
-    --input: 220 30% 87%;
-    --ring: 220 100% 18.82%;
+    --border: 198 30% 85%;
+    --input: 198 30% 85%;
+    --ring: 198 100% 44.51%;
 
     --radius: 0.625rem;
 
     --sidebar-width: 260px;
-    --sidebar: 220 100% 18.82%;
+    --sidebar: 198 100% 22%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-border: 220 100% 15%;
-    --sidebar-primary: 0 100% 50%;
-    --sidebar-primary-foreground: 0 0% 7%;
-    --sidebar-accent: 220 100% 24%;
+    --sidebar-border: 198 100% 16%;
+    --sidebar-primary: 198 100% 44.51%;
+    --sidebar-primary-foreground: 198 100% 15%;
+    --sidebar-accent: 198 100% 30%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-ring: 0 100% 50%;
+    --sidebar-ring: 198 100% 44.51%;
 
-    --chart-1: 220 100% 18.82%;
+    --chart-1: 198 100% 44.51%;
     --chart-2: 0 100% 50%;
-    --chart-3: 220 72% 40%;
+    --chart-3: 198 72% 40%;
     --chart-4: 0 72% 62%;
-    --chart-5: 220 35% 66%;
+    --chart-5: 198 35% 66%;
   }
 
   .dark {
-    --background: 220 100% 8%;
+    --background: 198 100% 8%;
     --foreground: 0 0% 100%;
 
-    --card: 220 85% 12%;
+    --card: 198 85% 12%;
     --card-foreground: 0 0% 100%;
 
-    --popover: 220 85% 12%;
+    --popover: 198 85% 12%;
     --popover-foreground: 0 0% 100%;
 
     --primary: 0 0% 100%;
-    --primary-foreground: 220 100% 18.82%;
+    --primary-foreground: 198 100% 20%;
 
-    --secondary: 220 75% 18%;
+    --secondary: 198 75% 18%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 75% 18%;
-    --muted-foreground: 220 35% 78%;
+    --muted: 198 75% 18%;
+    --muted-foreground: 198 35% 78%;
 
-    --accent: 0 100% 50%;
-    --accent-foreground: 0 0% 7%;
+    --accent: 198 100% 50%;
+    --accent-foreground: 198 100% 12%;
 
     --destructive: 0 100% 65%;
     --destructive-foreground: 0 0% 100%;
 
     --success: 0 0% 100%;
-    --success-foreground: 220 100% 18.82%;
+    --success-foreground: 198 100% 20%;
 
-    --warning: 0 100% 58%;
+    --warning: 38 92% 55%;
     --warning-foreground: 0 0% 7%;
 
     --info: 0 0% 100%;
-    --info-foreground: 220 100% 18.82%;
+    --info-foreground: 198 100% 20%;
 
     --border: 0 0% 100% / 18%;
     --input: 0 0% 100% / 22%;
     --ring: 0 0% 100%;
 
-    --sidebar: 220 100% 18.82%;
+    --sidebar: 198 100% 22%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-border: 0 0% 100% / 18%;
-    --sidebar-primary: 0 100% 50%;
-    --sidebar-primary-foreground: 0 0% 7%;
-    --sidebar-accent: 220 75% 25%;
+    --sidebar-primary: 198 100% 50%;
+    --sidebar-primary-foreground: 198 100% 12%;
+    --sidebar-accent: 198 100% 30%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-ring: 0 100% 50%;
+    --sidebar-ring: 198 100% 50%;
 
     --chart-1: 0 0% 100%;
     --chart-2: 0 100% 50%;
-    --chart-3: 220 60% 78%;
+    --chart-3: 198 60% 78%;
     --chart-4: 0 70% 72%;
-    --chart-5: 220 32% 60%;
+    --chart-5: 198 32% 60%;
   }
   .theme {
     --font-heading: var(--font-sans);

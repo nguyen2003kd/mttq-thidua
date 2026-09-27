@@ -11,7 +11,7 @@ import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
-import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
+import { ActionProgressOverlay, PageLoading } from '@/components/core';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -142,7 +142,6 @@ function ProfileGate() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <GlobalApiLoading />
       <ActionProgressOverlay />
       <BrowserRouter>
         <AuthEvents />

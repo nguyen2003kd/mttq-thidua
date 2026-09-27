@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode, type ComponentType } from 'react';
+import { Suspense, useMemo, useState, type ReactNode, type ComponentType } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Trophy,
@@ -9,6 +9,7 @@ import {
   History,
   LogOut,
   Bell,
+  Inbox,
   ChevronDown,
   CheckCheck,
   Menu,
@@ -28,7 +29,7 @@ import { notificationsApi } from '@/features/notifications/api/notificationsApi'
 import { ROLE_LABELS } from '@/constants/enums';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
-import { NavItem } from '@/components/core';
+import { NavItem, PageLoading } from '@/components/core';
 import { vnWards } from '@/data/vn-wards';
 import {
   DropdownMenu,
@@ -64,6 +65,20 @@ function renderNotificationBody(body: string): ReactNode {
   });
 }
 
+/** Định dạng thời gian tương đối: "Vừa xong", "5 phút trước", … fallback ngày vi-VN. */
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60_000);
+  if (minutes < 1) return 'Vừa xong';
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} ngày trước`;
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const wardCode = useAuthStore((s) => s.ward_code);
@@ -76,7 +91,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // SSE notifications
   useSseNotifications();
   const unreadCount = useNotificationStore((s) => s.unreadCount);
-  const connected = useNotificationStore((s) => s.connected);
   const notifications = useNotificationStore((s) => s.notifications);
   const markAllReadStore = useNotificationStore((s) => s.markAllRead);
   const markReadStore = useNotificationStore((s) => s.markRead);
@@ -188,12 +202,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex h-dvh bg-background">
       {/* Sidebar trái — chỉ cho role ADMIN */}
       {isAdmin && (
-        <aside className="hidden w-60 shrink-0 flex-col bg-primary text-white xl:flex">
+        <aside className="hidden w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground xl:flex">
           <div className="flex items-center gap-2 border-b border-white/20 px-5 py-4">
             <Trophy className="h-6 w-6 shrink-0 text-accent" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">Mặt Trận Tổ Quốc</p>
-              <p className="text-[11px] text-white/75">Phân hệ Quản lý Thi đua</p>
+              <p className="text-[11px] text-white/90">Phân hệ Quản lý Thi đua</p>
             </div>
           </div>
           <nav className="flex-1 space-y-1 overflow-y-auto p-3" aria-label="Điều hướng quản trị">
@@ -208,7 +222,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     isActive ? 'bg-white text-primary' : 'text-white hover:bg-white/10'
                   }`}
                 >
-                  <item.icon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-white/75'}`} />
+                  <item.icon className={`size-4 shrink-0 ${isActive ? 'text-primary' : 'text-white/90'}`} />
                   <span className="truncate">{item.label}</span>
                 </button>
               );
@@ -217,7 +231,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           {user && (
             <div className="border-t border-white/20 px-5 py-4">
               <p className="truncate text-sm font-semibold text-white">{user.name}</p>
-              <p className="mt-0.5 text-xs text-white/75">{ROLE_LABELS[user.role]}</p>
+              <p className="mt-0.5 text-xs text-white/90">{ROLE_LABELS[user.role]}</p>
             </div>
           )}
         </aside>
@@ -249,7 +263,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="ml-auto hidden min-w-0 flex-col justify-center border-l border-white/25 pl-4 xl:flex">
               <h1 className="truncate text-[13px] font-semibold tracking-tight leading-relaxed">{stickyTitle}</h1>
               {stickyDescription && (
-                <p className="truncate text-[10px] text-white/75 leading-relaxed">{stickyDescription}</p>
+                <p className="truncate text-[10px] text-white/90 leading-relaxed">{stickyDescription}</p>
               )}
             </div>
           )}
@@ -273,7 +287,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     <Trophy className="size-6 text-accent" />
                     <SheetTitle className="text-base font-semibold text-white">Mặt Trận Tổ Quốc</SheetTitle>
                   </div>
-                  <SheetDescription className="mt-1 text-xs text-white/75">Phân hệ Quản lý Thi đua</SheetDescription>
+                  <SheetDescription className="mt-1 text-xs text-white/90">Phân hệ Quản lý Thi đua</SheetDescription>
                 </SheetHeader>
                 <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Điều hướng chính">
                   {navItems.map((item) => {
@@ -314,41 +328,48 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground ring-2 ring-primary">
+                      <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-primary">
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                     )}
-                    <span
-                      className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-primary ${connected ? 'bg-white' : 'bg-white/40'}`}
-                    />
                   </button>
                 }
               />
-              <DropdownMenuContent align="end" sideOffset={6} className="w-80 p-0">
-                <div className="flex items-center justify-between border-b px-3 py-2">
-                  <span className="text-sm font-semibold">Thông báo</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs ${connected ? 'text-primary' : 'text-muted-foreground'}`}>
-                      {connected ? '● Đã kết nối' : '○ Chưa kết nối'}
-                    </span>
+              <DropdownMenuContent align="end" sideOffset={6} className="w-[360px] overflow-hidden overflow-y-hidden rounded-xl p-0">
+                <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">Thông báo</span>
+                    {unreadCount > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive/10 px-1.5 text-[11px] font-bold text-destructive">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
                     {unreadCount > 0 && (
                       <button
                         type="button"
                         onClick={handleMarkAllRead}
-                        className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-muted"
+                        title="Đánh dấu đã đọc tất cả"
+                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-primary transition-colors duration-150 hover:bg-primary/10"
                       >
-                        <CheckCheck className="h-3.5 w-3.5" />
-                        Đã đọc tất cả
+                        <CheckCheck className="h-4 w-4" />
                       </button>
                     )}
                   </div>
                 </div>
                 <div
-                  className="max-h-80 overflow-y-auto"
+                  className="max-h-[min(24rem,60vh)] space-y-1 overflow-y-auto p-2"
                   onScroll={handleNotificationScroll}
                 >
                   {notifications.length === 0 && !loadingNotifications ? (
-                    <p className="px-3 py-6 text-center text-sm text-muted-foreground">Chưa có thông báo</p>
+                    <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        <Inbox className="h-5 w-5" />
+                      </span>
+                      <p className="text-sm font-medium text-foreground">Chưa có thông báo</p>
+                      <p className="text-xs text-muted-foreground">Thông báo mới sẽ xuất hiện tại đây</p>
+                    </div>
                   ) : (
                     <>
                       {notifications.map((n) => (
@@ -356,24 +377,44 @@ export function AppLayout({ children }: { children: ReactNode }) {
                           key={n.id}
                           type="button"
                           onClick={() => handleNotificationClick(n.id, n.isRead)}
-                          className={`block w-full cursor-pointer border-b px-3 py-2.5 text-left last:border-0 transition-colors hover:bg-muted/50 ${
-                            n.isRead ? 'opacity-60' : ''
+                          className={`flex w-full cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted/70 ${
+                            n.isRead ? '' : 'bg-primary/[0.06]'
                           }`}
                         >
-                          <span className="flex items-start gap-2">
-                            {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />}
-                            <span className="min-w-0">
-                              <p className={`text-sm ${n.isRead ? 'font-normal' : 'font-semibold'}`}>{n.title}</p>
-                              <p className="mt-0.5 text-xs text-muted-foreground">{renderNotificationBody(n.body)}</p>
+                          <span
+                            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                              n.isRead ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                            }`}
+                          >
+                            <Bell className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span
+                                className={`min-w-0 flex-1 truncate text-sm leading-5 ${
+                                  n.isRead ? 'font-medium text-foreground/90' : 'font-semibold text-foreground'
+                                }`}
+                              >
+                                {n.title}
+                              </span>
+                              {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+                            </span>
+                            {n.body && (
+                              <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-muted-foreground">
+                                {renderNotificationBody(n.body)}
+                              </span>
+                            )}
+                            <span className="mt-1 block text-[11px] text-muted-foreground/75">
+                              {formatRelativeTime(n.createdAt)}
                             </span>
                           </span>
                         </button>
                       ))}
                       {loadingNotifications && (
-                        <p className="px-3 py-3 text-center text-xs text-muted-foreground">Đang tải…</p>
+                        <p className="px-3 py-2.5 text-center text-xs text-muted-foreground">Đang tải…</p>
                       )}
                       {!loadingNotifications && !hasMoreNotifications && notifications.length > 0 && (
-                        <p className="px-3 py-2 text-center text-xs text-muted-foreground">Đã hiển thị tất cả</p>
+                        <p className="px-3 py-2 text-center text-[11px] text-muted-foreground/75">— Đã hiển thị tất cả —</p>
                       )}
                     </>
                   )}
@@ -391,11 +432,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       <span className="hidden items-center gap-2 sm:flex">
                         <span className="max-w-40 truncate text-[13px] font-medium">{user.name}</span>
                         <span className="h-3.5 w-px shrink-0 bg-white/30" aria-hidden="true" />
-                        <span className="max-w-40 truncate text-xs text-white/70">
+                        <span className="max-w-40 truncate text-xs text-white/85">
                           {(wardCode && wardNameByCode.get(wardCode)) || ROLE_LABELS[user.role]}
                         </span>
                       </span>
-                      <ChevronDown className="h-3.5 w-3.5 text-white/75 transition-transform data-[popup-open]:rotate-180" />
+                      <ChevronDown className="h-3.5 w-3.5 text-white/90 transition-transform data-[popup-open]:rotate-180" />
                     </button>
                   }
                 />
@@ -426,7 +467,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+          <Suspense fallback={<PageLoading overlay label="Đang tải trang…" />}>
+            {children}
+          </Suspense>
+        </main>
       </div>
     </div>
   );

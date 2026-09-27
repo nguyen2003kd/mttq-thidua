@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-import { useIsFetching } from '@tanstack/react-query';
 import { LoaderCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -20,12 +18,13 @@ export function PageLoading({
       aria-live="polite"
       aria-label={label}
       className={cn(
-        'flex items-center justify-center bg-background',
+        'fade-in flex items-center justify-center bg-background',
         overlay
           ? 'fixed inset-x-0 bottom-0 top-14 z-40 bg-background/80 backdrop-blur-[2px]'
-          : 'min-h-[240px] w-full',
+          : 'h-full min-h-[calc(100dvh-8rem)] w-full',
         className,
       )}
+      style={{ animationDelay: '150ms', animationFillMode: 'both' }}
     >
       <div className="flex min-w-48 flex-col items-center gap-3 rounded-lg border border-border bg-card px-6 py-5">
         <span className="relative flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -38,24 +37,4 @@ export function PageLoading({
       </div>
     </div>
   );
-}
-
-/** Hiển thị khi một query đang tải dữ liệu lần đầu; không che màn hình lúc refetch nền. */
-export function GlobalApiLoading() {
-  const initialFetchingCount = useIsFetching({
-    predicate: (query) => query.state.fetchStatus === 'fetching' && query.state.data === undefined,
-  });
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (initialFetchingCount === 0) {
-      setVisible(false);
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => setVisible(true), 150);
-    return () => window.clearTimeout(timer);
-  }, [initialFetchingCount]);
-
-  return visible ? <PageLoading overlay /> : null;
 }

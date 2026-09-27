@@ -33,13 +33,13 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
             'h-9 gap-2 px-3 text-[13px]',
             isActive
               ? 'bg-white/15 text-white'
-              : 'text-white/75 hover:bg-white/10 hover:text-white',
+              : 'text-white/90 hover:bg-white/10 hover:text-white',
           )
         }
       >
         {({ isActive }) => (
           <>
-            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-accent' : 'text-white/60')} />
+            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-accent' : 'text-white/75')} />
             <span className="truncate">{label}</span>
           </>
         )}
@@ -75,13 +75,13 @@ export function NavItem({ to, label, icon: Icon, theme = 'sidebar', roles }: Nav
           'h-10 px-4 rounded-lg',
           isActive
             ? 'bg-accent text-accent-foreground'
-            : 'text-white/75 hover:bg-white/10 hover:text-white',
+            : 'text-white/90 hover:bg-white/10 hover:text-white',
         )
       }
     >
       {({ isActive }) => (
         <>
-          <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-current' : 'text-white/60')} />
+          <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-current' : 'text-white/75')} />
           <span className="truncate">{label}</span>
         </>
       )}

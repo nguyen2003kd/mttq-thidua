@@ -375,6 +375,8 @@ export function DataTable<TData, TValue = unknown>({
   }, 0);
 
   const totalRows = table.getRowCount();
+  /** Pagination chỉ hiển thị khi đủ điều kiện — giữ đồng bộ với renderPagination. */
+  const showPaginationBar = showPagination && !loading && totalRows > 0;
   const pageIndex = table.getState().pagination.pageIndex;
   const pageSizeState = table.getState().pagination.pageSize;
   const startRow = totalRows === 0 ? 0 : pageIndex * pageSizeState + 1;
@@ -383,7 +385,7 @@ export function DataTable<TData, TValue = unknown>({
   const renderPagination = () => {
     if (!showPagination || loading || totalRows === 0) return null;
     return (
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1">
+      <div className={cn('flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1', (variant === 'list' || !footer) && 'rounded-b-[calc(var(--radius)_-_1px)]')}>
         <div className="text-xs text-muted-foreground">
           {enableRowSelection && table.getSelectedRowModel().rows.length > 0 && (
             <span className="mr-3">
@@ -436,7 +438,10 @@ export function DataTable<TData, TValue = unknown>({
       <>
         {/* Header nằm ngoài vùng cuộn ngang để sticky theo vùng cuộn trang. */}
         <div
-          className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(0,32,96,0.18)]"
+          className={cn(
+            'sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(0,100,143,0.22)]',
+            !hasToolbar && 'rounded-t-[calc(var(--radius)_-_1px)]',
+          )}
           style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
         >
           <div
@@ -496,10 +501,10 @@ export function DataTable<TData, TValue = unknown>({
         {/* Body */}
         {loading ? (
           <div>
-            {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+            {Array.from({ length: Math.min(pageSize, 5) }).map((_, i, arr) => (
               <div
                 key={`list-skeleton-${i}`}
-                className="grid items-center gap-0 bg-card"
+                className={cn('grid items-center gap-0 bg-card', i === arr.length - 1 && 'rounded-b-[calc(var(--radius)_-_1px)]')}
                 style={{ gridTemplateColumns: listGridTemplate }}
               >
                 {visibleColumns.map((col, sIdx) => (
@@ -514,7 +519,7 @@ export function DataTable<TData, TValue = unknown>({
             ))}
           </div>
         ) : table.getRowModel().rows.length === 0 ? (
-          <div className="bg-card p-10">
+          <div className="rounded-b-[calc(var(--radius)_-_1px)] bg-card p-10">
             {emptyState ? (
               <EmptyState
                 title={emptyState.title}
@@ -538,6 +543,7 @@ export function DataTable<TData, TValue = unknown>({
                 onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row.original) : undefined}
                 className={cn(
                   'relative z-0 grid items-center gap-0 border-b border-border/40 bg-card transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted',
+                  !showPaginationBar && 'last:rounded-b-[calc(var(--radius)_-_1px)]',
                   (enableRowSelection || onRowClick) && 'cursor-pointer',
                   (row.getIsSelected() || row.id === selectedRowId) && 'bg-primary/10',
                 )}
@@ -599,7 +605,7 @@ export function DataTable<TData, TValue = unknown>({
       <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
       {/* Toolbar */}
       {hasToolbar && (
-        <div ref={toolbarRef} className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
+        <div ref={toolbarRef} className="sticky top-0 z-30 flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius)_-_1px)] border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
           {searchable && (
             <div className="relative w-full max-w-[300px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -674,18 +680,18 @@ export function DataTable<TData, TValue = unknown>({
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => {
                 const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
-                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(0,32,96,0.18)] hover:bg-transparent">
+                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(0,100,143,0.22)] hover:bg-transparent">
                   {visibleHeaders.map((header, idx) => {
                     const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
                     const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
 
                     return (
-                      <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, meta?.className)}>
+                      <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', meta?.className)}>
                         {header.isPlaceholder ? null : (
                           <div
                             className={cn(
                               'flex items-center gap-1.5',
-                              header.column.getCanSort() && 'cursor-pointer select-none hover:text-white/75',
+                              header.column.getCanSort() && 'cursor-pointer select-none hover:text-primary-foreground/75',
                               alignClass === 'text-right' && 'justify-end',
                               alignClass === 'text-center' && 'justify-center',
                             )}
@@ -702,7 +708,7 @@ export function DataTable<TData, TValue = unknown>({
                               ) : headerContent;
                             })()}
                             {header.column.getCanSort() && (
-                              <span className="text-white/50">
+                              <span className="text-primary-foreground/50">
                                 {header.column.getIsSorted() === 'asc' ? (
                                   <ChevronUp className="h-3.5 w-3.5" />
                                 ) : header.column.getIsSorted() === 'desc' ? (
@@ -801,7 +807,7 @@ export function DataTable<TData, TValue = unknown>({
 
           {renderPagination()}
           {footer && (
-            <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
+            <div className="sticky bottom-0 z-10 rounded-b-[calc(var(--radius)_-_1px)] border-t border-border bg-card/95 px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
               {footer}
             </div>
           )}
