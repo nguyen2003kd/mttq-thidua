@@ -56,6 +56,7 @@ print(html.unescape(re.sub(r'<[^>]+>', '', xml)))
 - Spacing bội 4px (4/8/12/16/24/32). Radius: Button/Input 6px — Card/Modal 10px — Badge 999px.
 - Shadow chỉ cho Modal/Dropdown. Ngày giờ: `dd/mm/yyyy hh:mm`.
 - Cột bảng: Text trái · Number/Điểm phải · Trạng thái giữa (Badge) · Hành động luôn cuối, bên phải.
+- Nội dung hướng tới người dùng phải dùng tiếng Việt; không hiển thị nhãn tiếng Anh, ID/UUID, role key, tên biến/property hoặc enum API. Với giá trị nội bộ trong Select, luôn ánh xạ sang nhãn nghiệp vụ dễ hiểu; fallback cũng phải thân thiện, không trả về mã thô.
 
 ### 3. Archetype — 5 mẫu layout (Mục A7)
 
