@@ -40,6 +40,8 @@ export interface ResultPublicationCriteriaGroup {
 }
 
 export interface ResultPublicationOverview {
+  periodId: string;
+  periodName: string;
   totalLocalities: number;
   localitiesWithData: number;
   localitiesCompleted: number;
@@ -56,6 +58,8 @@ export interface ResultPublicationOverview {
 }
 
 export interface ResultPublicationPreview {
+  periodId: string;
+  periodName: string;
   canPublish: boolean;
   isPublished: boolean;
   totalLocalities: number;
@@ -66,6 +70,8 @@ export interface ResultPublicationPreview {
 }
 
 export interface ResultPublicationResult {
+  periodId: string;
+  periodName: string;
   publicationId: string;
   published: boolean;
   publishedBy: string;
@@ -84,6 +90,8 @@ export interface LocalResultPublicationGroup {
 }
 
 export interface LocalResultPublication {
+  periodId: string;
+  periodName: string;
   publicationId: string | null;
   isPublished: boolean;
   publishedAt: string | null;
@@ -96,12 +104,13 @@ export interface LocalResultPublication {
 }
 
 export const resultPublicationApi = {
-  getOverview: () => request<ResultPublicationOverview>({ url: '/api/v1/result-publications/overview', method: 'GET' }),
-  getCriteriaGroups: () => request<ResultPublicationCriteriaGroup[]>({ url: '/api/v1/result-publications/criteria-groups', method: 'GET' }),
-  getCriteriaGroup: (id: string) => request<ResultPublicationCriteriaGroup>({ url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET' }),
-  getPreview: () => request<ResultPublicationPreview>({ url: '/api/v1/result-publications/preview', method: 'GET' }),
-  publish: (note?: string, file?: File | null) => {
+  getOverview: (periodId: string) => request<ResultPublicationOverview>({ url: '/api/v1/result-publications/overview', method: 'GET', params: { periodId } }),
+  getCriteriaGroups: (periodId: string) => request<ResultPublicationCriteriaGroup[]>({ url: '/api/v1/result-publications/criteria-groups', method: 'GET', params: { periodId } }),
+  getCriteriaGroup: (id: string, periodId: string) => request<ResultPublicationCriteriaGroup>({ url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET', params: { periodId } }),
+  getPreview: (periodId: string) => request<ResultPublicationPreview>({ url: '/api/v1/result-publications/preview', method: 'GET', params: { periodId } }),
+  publish: (periodId: string, note?: string, file?: File | null) => {
     const form = new FormData();
+    form.append('periodId', periodId);
     form.append('note', note?.trim() || '');
     if (file) form.append('file', file);
 
@@ -111,5 +120,5 @@ export const resultPublicationApi = {
       data: form,
     });
   },
-  getLocalResult: () => request<LocalResultPublication>({ url: '/api/v1/result-publications/local', method: 'GET' }),
+  getLocalResult: (periodId: string) => request<LocalResultPublication>({ url: '/api/v1/result-publications/local', method: 'GET', params: { periodId } }),
 };

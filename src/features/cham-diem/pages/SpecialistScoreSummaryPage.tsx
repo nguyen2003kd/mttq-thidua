@@ -35,7 +35,7 @@ import {
   type SubmissionApi,
 } from "@/features/cham-diem/api/specialistApi";
 import { clustersApi } from "@/features/admin/api/clustersApi";
-import { resultPublicationApi } from "@/features/duyet/api/resultPublicationApi";
+import { useAuthStore } from "@/store/authStore";
 import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
 
 interface ScoreTotals {
@@ -412,13 +412,7 @@ export default function SpecialistScoreSummaryPage() {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
-  // Backend là nguồn sự thật: chỉ công bố được khi mọi địa phương đã nộp và
-  // hoàn tất mọi nhóm tiêu chí.
-  const publicationPreviewQuery = useQuery({
-    queryKey: ["result-publication-preview"],
-    queryFn: resultPublicationApi.getPreview,
-  });
-  const canPublish = publicationPreviewQuery.data?.canPublish === true;
+  const canPublish = useAuthStore((state) => state.user?.role === 'SPECIALIST');
   const submissionsQuery = useQuery({
     queryKey: ["specialist-score-summary-submissions"],
     queryFn: listEverySubmission,
@@ -585,22 +579,17 @@ export default function SpecialistScoreSummaryPage() {
           <div></div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{rows.length} đơn vị</Badge>
-            <Button
-              type="button"
-              size="sm"
-              className="bg-accent text-foreground hover:bg-accent/90"
-              disabled={!canPublish}
-              disabledReason={
-                !canPublish
-                  ? (publicationPreviewQuery.data?.message ??
-                    "Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.")
-                  : undefined
-              }
-              onClick={() => setPublishOpen(true)}
-            >
-              <Trophy className="size-4" />
-              Công bố kết quả
-            </Button>
+            {canPublish && (
+              <Button
+                type="button"
+                size="sm"
+                className="bg-accent text-foreground hover:bg-accent/90"
+                onClick={() => setPublishOpen(true)}
+              >
+                <Trophy className="size-4" />
+                Công bố kết quả
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
