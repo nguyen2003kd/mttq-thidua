@@ -59,6 +59,8 @@ const STATUS_OPTIONS = [
 
 const ROLE_OPTIONS = [
   { value: 'local', label: 'Địa phương' },
+  { value: 'scorer', label: 'Chấm điểm' },
+  { value: 'reviewer', label: 'Đánh giá' },
   { value: 'specialist', label: 'Chuyên viên' },
   { value: 'leader', label: 'Lãnh đạo' },
   { value: 'council', label: 'Hội đồng' },
@@ -74,6 +76,8 @@ function roleLabel(raw: string): string {
   const normalized = raw.trim().toUpperCase().replace(/[-\s]/g, '_');
   const map: Record<string, string> = {
     LOCAL: 'Địa phương',
+    SCORER: 'Chấm điểm',
+    REVIEWER: 'Đánh giá',
     SPECIALIST: 'Chuyên viên',
     LEADER: 'Lãnh đạo',
     COUNCIL: 'Hội đồng',
