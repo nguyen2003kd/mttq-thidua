@@ -14,7 +14,7 @@ import {
   type ClusterApi,
 } from '../api/clustersApi';
 
-export default function ClusterManagementPage() {
+export default function ClusterManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -182,11 +182,11 @@ export default function ClusterManagementPage() {
 
   return (
     <div>
-      <PageHeader
+      {!embedded && <PageHeader
         title="Quản lý Cụm"
         description="Chia các phường/xã có tài khoản địa phương thành từng cụm để quản lý. Mỗi phường/xã chỉ thuộc một cụm."
         className="pb-3 border-b-0"
-      />
+      />}
 
       <DataTable
         data={clusters}

@@ -26,16 +26,16 @@ const scoreStateVariant: Record<ScoreState, BadgeVariant> = {
 };
 
 const scoreStateClassName: Record<ScoreState, string> = {
-  DRAFT: 'border-primary/20 bg-primary/5 text-muted-foreground',
-  CHO_CHUYEN_VIEN: 'border-primary/25 bg-primary/10 text-primary',
-  CHO_DUYET_BAN: 'border-primary/25 bg-primary/10 text-primary',
-  CHO_DUYET_HOI_DONG: 'border-primary/25 bg-primary/10 text-primary',
-  CHO_DUYET_BTT: 'border-primary/25 bg-primary/10 text-primary',
-  DA_CONG_BO: 'border-primary bg-primary text-primary-foreground',
+  DRAFT: 'border-border bg-muted text-muted-foreground',
+  CHO_CHUYEN_VIEN: 'border-warning/40 bg-warning/15 text-warning-foreground',
+  CHO_DUYET_BAN: 'border-warning/40 bg-warning/15 text-warning-foreground',
+  CHO_DUYET_HOI_DONG: 'border-warning/40 bg-warning/15 text-warning-foreground',
+  CHO_DUYET_BTT: 'border-warning/40 bg-warning/15 text-warning-foreground',
+  DA_CONG_BO: 'border-foreground bg-foreground text-background',
 };
 
 const scoreStateDot: Record<ScoreState, string> = {
-  DRAFT: 'bg-primary/40',
+  DRAFT: 'bg-muted-foreground/60',
   CHO_CHUYEN_VIEN: 'bg-accent',
   CHO_DUYET_BAN: 'bg-accent',
   CHO_DUYET_HOI_DONG: 'bg-accent',

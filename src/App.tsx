@@ -26,10 +26,7 @@ const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormP
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
 const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
-const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagementPage'));
-const DepartmentManagementPage = lazy(() => import('@/features/admin/pages/DepartmentManagementPage'));
-const ClusterManagementPage = lazy(() => import('@/features/admin/pages/ClusterManagementPage'));
-const PeriodManagementPage = lazy(() => import('@/features/admin/pages/PeriodManagementPage'));
+const AdminManagementPage = lazy(() => import('@/features/admin/pages/AdminManagementPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
@@ -243,10 +240,11 @@ export default function App() {
               <Route path="bang-tieu-chi/:id/chi-tiet" element={<CriteriaDetailPage />} />
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
-              <Route path="tai-khoan" element={<UserManagementPage />} />
-              <Route path="ban" element={<DepartmentManagementPage />} />
-              <Route path="cum" element={<ClusterManagementPage />} />
-              <Route path="ky" element={<PeriodManagementPage />} />
+              <Route path="quan-ly" element={<AdminManagementPage />} />
+              <Route path="tai-khoan" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=tai-khoan`} replace />} />
+              <Route path="ban" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ban`} replace />} />
+              <Route path="cum" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=cum`} replace />} />
+              <Route path="ky" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ky`} replace />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>

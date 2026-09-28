@@ -47,7 +47,7 @@ function userDisplayName(u: ManagedUser) {
   return u.fullName?.trim() || `${u.lastName ?? ''} ${u.firstName ?? ''}`.trim() || u.email;
 }
 
-export default function DepartmentManagementPage() {
+export default function DepartmentManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -189,11 +189,11 @@ export default function DepartmentManagementPage() {
 
   return (
     <div>
-      <PageHeader
+      {!embedded && <PageHeader
         title="Quản lý Ban"
         description="Tạo và quản lý các ban chuyên môn: chuyên viên xử lý và lãnh đạo ban."
         className="pb-3 border-b-0"
-      />
+      />}
 
       <DataTable
         data={departments}

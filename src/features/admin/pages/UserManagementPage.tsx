@@ -109,7 +109,7 @@ function formatDate(value: string | null): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function UserManagementPage() {
+export default function UserManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   // SPECIALIST được xem danh sách và gán ban cho tài khoản; chỉ ADMIN mới tạo/xóa/reset mật khẩu.
   const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
@@ -295,11 +295,11 @@ export default function UserManagementPage() {
 
   return (
     <div>
-      <PageHeader
+      {!embedded && <PageHeader
         title="Quản lý tài khoản"
         description="Quản lý người dùng hệ thống: tạo mới, cập nhật, đặt lại mật khẩu và xóa tài khoản."
         className="pb-3 border-b-0"
-      />
+      />}
 
       <DataTable
         data={users}

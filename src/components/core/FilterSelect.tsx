@@ -48,11 +48,11 @@ export function FilterSelect({
         <span className="font-medium text-foreground">{selected ? selected.label : allLabel}</span>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="" className="text-[13px] !rounded-none hover:bg-destructive/10 focus:bg-destructive/10 focus:text-foreground">
+        <SelectItem value="" className="text-[13px] !rounded-none hover:bg-primary/10 focus:bg-primary/10 focus:text-foreground">
           {allLabel}
         </SelectItem>
         {options.map((o) => (
-          <SelectItem key={o.value} value={o.value} className="text-[13px] !rounded-none hover:bg-destructive/10 focus:bg-destructive/10 focus:text-foreground">
+          <SelectItem key={o.value} value={o.value} className="text-[13px] !rounded-none hover:bg-primary/10 focus:bg-primary/10 focus:text-foreground">
             {o.label}
           </SelectItem>
         ))}
