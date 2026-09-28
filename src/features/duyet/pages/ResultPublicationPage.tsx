@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, History, Send, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -7,19 +7,9 @@ import { Button, EmptyState, FileUpload, PageHeader, PageLoading } from '@/compo
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { isRealSubmission, specialistApi } from '@/features/cham-diem/api/specialistApi';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi, type ResultPublicationCriteriaGroup } from '../api/resultPublicationApi';
-
-// Gọi API y hệt các trang duyệt: một endpoint /api/v1/submissions, gộp tất cả trang.
-async function listEverySubmissionForPublication() {
-  const firstPage = await specialistApi.listAllSubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
-  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
-  if (pageCount <= 1) return firstPage;
-  const remainingPages = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })),
-  );
-  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
-}
 
 function GroupRow({ group }: { group: ResultPublicationCriteriaGroup }) {
   const inProgress = group.localitiesInProgress ?? Math.max(
@@ -44,30 +34,33 @@ function GroupRow({ group }: { group: ResultPublicationCriteriaGroup }) {
 export default function ResultPublicationPage() {
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [periodId, setPeriodId] = useState('');
   const [publicationNote, setPublicationNote] = useState('');
   const [publicationFile, setPublicationFile] = useState<File[]>([]);
   const [publicationError, setPublicationError] = useState<string | null>(null);
 
+  const periodsQuery = useQuery({
+    queryKey: ['publication-periods'],
+    queryFn: periodsApi.listAll,
+  });
+  const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
+  const defaultPeriodId = selectablePeriods.find((period) => period.status === 'Active')?.id ?? selectablePeriods[0]?.id ?? '';
+  const selectedPeriod = selectablePeriods.find((period) => period.id === periodId);
+
+  useEffect(() => {
+    if (!selectablePeriods.some((period) => period.id === periodId))
+      setPeriodId(defaultPeriodId);
+  }, [defaultPeriodId, periodId, selectablePeriods]);
+
   const overviewQuery = useQuery({
-    queryKey: ['result-publication-overview'],
-    queryFn: resultPublicationApi.getOverview,
+    queryKey: ['result-publication-overview', periodId],
+    queryFn: () => resultPublicationApi.getOverview(periodId),
+    enabled: Boolean(periodId),
   });
-  const submissionsQuery = useQuery({
-    queryKey: ['result-publication-submissions'],
-    queryFn: listEverySubmissionForPublication,
-  });
-  // Chỉ được công bố khi TẤT CẢ hồ sơ của tất cả địa phương đã ở trạng thái
-  // CouncilApproved hoặc CommitteeFinalized (hồ sơ đã công bố).
-  const allSubmissionsReady = useMemo(
-    () => (submissionsQuery.data?.items ?? [])
-      .filter(isRealSubmission)
-      .every((submission) => submission.currentStage === 'CouncilApproved' || submission.currentStage === 'CommitteeFinalized'),
-    [submissionsQuery.data],
-  );
   const previewQuery = useQuery({
-    queryKey: ['result-publication-preview'],
-    queryFn: resultPublicationApi.getPreview,
-    enabled: previewOpen,
+    queryKey: ['result-publication-preview', periodId],
+    queryFn: () => resultPublicationApi.getPreview(periodId),
+    enabled: previewOpen && Boolean(periodId),
   });
 
   const closePreview = () => {
@@ -76,8 +69,8 @@ export default function ResultPublicationPage() {
   };
 
   const publishMutation = useMutation({
-    mutationFn: async ({ note, file }: { note: string; file: File | null }) => {
-      return resultPublicationApi.publish(note, file);
+    mutationFn: async ({ periodId: targetPeriodId, note, file }: { periodId: string; note: string; file: File | null }) => {
+      return resultPublicationApi.publish(targetPeriodId, note, file);
     },
     onSuccess: async (result) => {
       await Promise.all([
@@ -89,7 +82,7 @@ export default function ResultPublicationPage() {
       setPreviewOpen(false);
       setPublicationNote('');
       setPublicationFile([]);
-      toast.success(`Đã công bố kết quả và gửi thông báo đến ${result.notifiedUserCount} người dùng địa phương.`);
+      toast.success(`Đã công bố kết quả kỳ ${result.periodName} và gửi thông báo đến ${result.notifiedUserCount} người dùng địa phương.`);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Không thể công bố kết quả. Vui lòng kiểm tra lại trạng thái dữ liệu.');
@@ -98,6 +91,10 @@ export default function ResultPublicationPage() {
 
   const submitPublication = () => {
     const note = publicationNote.trim();
+    if (!periodId) {
+      setPublicationError('Vui lòng chọn kỳ thi đua cần công bố.');
+      return;
+    }
     if (!note) {
       setPublicationError('Vui lòng nhập nội dung nhận xét chung trước khi gửi.');
       return;
@@ -107,10 +104,11 @@ export default function ResultPublicationPage() {
       return;
     }
     setPublicationError(null);
-    publishMutation.mutate({ note, file: publicationFile[0] ?? null });
+    publishMutation.mutate({ periodId, note, file: publicationFile[0] ?? null });
   };
 
-  if (overviewQuery.isLoading || submissionsQuery.isLoading) return <PageLoading label="Đang tải tổng quan công bố kết quả…" />;
+  if (periodsQuery.isLoading || (periodId && overviewQuery.isLoading)) return <PageLoading label="Đang tải tổng quan công bố kết quả…" />;
+  if (!periodId) return <EmptyState title="Chưa có kỳ thi đua để công bố" description="Tạo hoặc kích hoạt một kỳ thi đua trước khi công bố kết quả." />;
   if (overviewQuery.isError || !overviewQuery.data) {
     return <EmptyState variant="error" title="Không tải được dữ liệu công bố" description="Vui lòng thử lại sau." />;
   }
@@ -122,9 +120,19 @@ export default function ResultPublicationPage() {
     <div className="space-y-6">
       <PageHeader
         title="Công bố kết quả thi đua"
-        description="Tổng quan trạng thái của từng nhóm tiêu chí trước khi công bố kết quả chung."
+        description={`Tổng quan trạng thái các nhóm tiêu chí trong kỳ ${selectedPeriod?.name ?? ''}.`}
         actions={
           <div className="flex flex-wrap gap-2">
+            <Select
+              value={periodId}
+              onValueChange={(value) => setPeriodId(value ?? '')}
+              itemToStringLabel={(id) => selectablePeriods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
+            >
+              <SelectTrigger aria-label="Kỳ thi đua"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
+              <SelectContent>
+                {selectablePeriods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Button variant="outline" render={<Link to="/thi-dua/duyet/ban-thuong-truc/duyet" />} nativeButton={false}>
               <CheckCircle2 className="mr-1.5 size-4" />Duyệt theo địa phương
             </Button>
@@ -133,8 +141,7 @@ export default function ResultPublicationPage() {
             </Button>
             <Button
               className="bg-accent text-foreground hover:bg-accent/90"
-              disabled={!allSubmissionsReady}
-              disabledReason={!allSubmissionsReady ? 'Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.' : undefined}
+              disabled={!periodId}
               onClick={() => setPreviewOpen(true)}
             >
               <Trophy className="mr-1.5 size-4" />Công bố kết quả
@@ -170,10 +177,10 @@ export default function ResultPublicationPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
         <div>
-          <p className="font-semibold">Công bố chung cho toàn bộ địa phương</p>
-          <p className="mt-1 text-sm text-muted-foreground">Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.</p>
+          <p className="font-semibold">Công bố kỳ thi đua {selectedPeriod?.name ?? ''}</p>
+          <p className="mt-1 text-sm text-muted-foreground">Chỉ công bố khi các địa phương đã hoàn tất mọi nhóm tiêu chí trong kỳ đã chọn.</p>
         </div>
-        <Button variant="outline" onClick={() => setPreviewOpen(true)} disabled={!allSubmissionsReady} disabledReason={!allSubmissionsReady ? 'Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm.' : undefined}>
+        <Button variant="outline" onClick={() => setPreviewOpen(true)} disabled={!periodId}>
           <Send className="mr-1.5 size-4" />Xem trước công bố
         </Button>
       </div>
@@ -183,7 +190,7 @@ export default function ResultPublicationPage() {
           <DialogHeader className="shrink-0 border-b border-border bg-muted/25 px-6 py-5 pr-12">
             <DialogTitle>Xác nhận công bố kết quả</DialogTitle>
             <DialogDescription>
-              Chỉ có thể công bố khi tất cả hồ sơ của tất cả địa phương đã được hội đồng chấm. Công bố có thể thực hiện lại sau khi dữ liệu thay đổi.
+              Chỉ công bố kỳ {selectedPeriod?.name ?? ''} khi tất cả địa phương đã hoàn tất các nhóm tiêu chí trong kỳ đó.
             </DialogDescription>
           </DialogHeader>
 
@@ -235,7 +242,7 @@ export default function ResultPublicationPage() {
             <Button variant="outline" onClick={closePreview} disabled={publishMutation.isPending}>Hủy</Button>
             <Button
               className="bg-accent text-foreground hover:bg-accent/90"
-              disabled={!allSubmissionsReady || !previewQuery.data?.canPublish || publishMutation.isPending}
+              disabled={!periodId || !previewQuery.data?.canPublish || publishMutation.isPending}
               onClick={submitPublication}
             >
               <Send className="mr-1.5 size-4" />{publishMutation.isPending ? 'Đang lưu và gửi…' : 'Lưu và gửi'}

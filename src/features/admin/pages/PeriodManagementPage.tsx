@@ -176,7 +176,11 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-status">Trạng thái</Label>
-        <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: (v ?? 'Draft') as PeriodStatusApi }))}>
+        <Select
+          value={form.status}
+          onValueChange={(v) => setForm((f) => ({ ...f, status: (v ?? 'Draft') as PeriodStatusApi }))}
+          itemToStringLabel={(status) => STATUS_LABELS[status as PeriodStatusApi] ?? 'Trạng thái kỳ thi đua'}
+        >
           <SelectTrigger id="p-status"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Draft">Nháp</SelectItem>

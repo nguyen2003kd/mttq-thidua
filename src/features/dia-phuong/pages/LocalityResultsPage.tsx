@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, ListTree, MessageSquareText, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,11 +8,14 @@ import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoad
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AuditTimeline } from '@/components/core';
 import { localityApi, getLocalityApiError, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { cn, formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
@@ -217,6 +220,32 @@ export default function LocalityResultsPage() {
   const [mobilePage, setMobilePage] = useState(1);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const periodsQuery = useQuery({
+    queryKey: ['publication-periods'],
+    queryFn: periodsApi.listAll,
+  });
+  const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
+  const defaultPeriodId = selectablePeriods.find((period) => period.status === 'Active')?.id ?? selectablePeriods[0]?.id ?? '';
+  const requestedPeriodId = searchParams.get('periodId') ?? '';
+  const periodId = selectablePeriods.some((period) => period.id === requestedPeriodId) ? requestedPeriodId : defaultPeriodId;
+
+  useEffect(() => {
+    if (!periodsQuery.isLoading && periodId && searchParams.get('periodId') !== periodId) {
+      setSearchParams((params) => {
+        const next = new URLSearchParams(params);
+        next.set('periodId', periodId);
+        return next;
+      }, { replace: true });
+    }
+  }, [periodId, periodsQuery.isLoading, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setSelectedRow(null);
+    setExpandedGroupIds(new Set());
+    setMobilePage(1);
+  }, [periodId]);
 
   const submissionsQuery = useQuery({
     queryKey: ['locality-final-submissions'],
@@ -228,15 +257,43 @@ export default function LocalityResultsPage() {
     queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
   const publicationQuery = useQuery({
-    queryKey: ['local-result-publication'],
-    queryFn: resultPublicationApi.getLocalResult,
+    queryKey: ['local-result-publication', periodId],
+    queryFn: () => resultPublicationApi.getLocalResult(periodId),
+    enabled: Boolean(periodId),
   });
 
-  const submissions = useMemo(
-    () => publicationQuery.data?.isPublished ? (submissionsQuery.data?.items ?? []) : [],
-    [publicationQuery.data?.isPublished, submissionsQuery.data],
+  const submissions = useMemo(() => {
+    if (!publicationQuery.data?.isPublished) return [];
+    const periodGroupIds = new Set(publicationQuery.data.criteriaGroups.map((group) => group.criteriaGroupId));
+    return (submissionsQuery.data?.items ?? []).filter((submission) => periodGroupIds.has(submission.criteriaGroupId));
+  }, [publicationQuery.data, submissionsQuery.data]);
+  const groupById = useMemo(
+    () => new Map((groupsQuery.data?.items ?? []).filter((group) => group.periodId === periodId).map((group) => [group.id, group])),
+    [groupsQuery.data, periodId],
   );
-  const groupById = useMemo(() => new Map((groupsQuery.data?.items ?? []).map((group) => [group.id, group])), [groupsQuery.data]);
+  const periodSelector = (
+    <div className="w-full max-w-xs space-y-1.5">
+      <Label htmlFor="locality-result-period">Kỳ thi đua</Label>
+      <Select
+        value={periodId}
+        onValueChange={(value) => {
+          if (!value) return;
+          setSearchParams((params) => {
+            const next = new URLSearchParams(params);
+            next.set('periodId', value);
+            return next;
+          });
+        }}
+        itemToStringLabel={(id) => selectablePeriods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
+        disabled={selectablePeriods.length === 0}
+      >
+        <SelectTrigger id="locality-result-period"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
+        <SelectContent>
+          {selectablePeriods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 
   const detailQuery = useQuery({
     queryKey: ['locality-final-submission', id],
@@ -314,8 +371,9 @@ export default function LocalityResultsPage() {
 
   // ── Danh sách kết quả đã công bố ────────────────────────────────────────────
   if (!id) {
-    if (submissionsQuery.isLoading || groupsQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
-    if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error)} />;
+    if (periodsQuery.isLoading || submissionsQuery.isLoading || groupsQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
+    if (periodsQuery.isError || submissionsQuery.isError || groupsQuery.isError || publicationQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(periodsQuery.error ?? submissionsQuery.error ?? groupsQuery.error ?? publicationQuery.error)} />;
+    if (!periodId) return <div className="space-y-5">{periodSelector}<EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
     const selectedComments = selectedRow?.submissionId ? commentsQuery.data?.get(selectedRow.submissionId) : null;
     const publication = publicationQuery.data;
@@ -323,13 +381,14 @@ export default function LocalityResultsPage() {
     const totalOfficialBonus = rows.reduce((sum, row) => sum + (row.officialBonus ?? 0), 0);
 
     return <div className="space-y-5">
+      {periodSelector}
       {publication?.isPublished && (
         <section className="overflow-hidden rounded-xl border border-primary/20 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10"><Trophy className="size-4.5 text-primary" /></span>
               <div className="min-w-0">
-                <h2 className="text-base font-semibold">Kết quả đã được công bố chung</h2>
+                <h2 className="text-base font-semibold">Kết quả kỳ {publication.periodName} đã được công bố</h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {[publication.localityName, publication.publishedAt ? `Công bố ngày ${formatDate(publication.publishedAt)}` : null].filter(Boolean).join(' · ')}
                 </p>
@@ -412,21 +471,21 @@ export default function LocalityResultsPage() {
           </TableBody>
         </Table>
       </section>
-      <ResultCards rows={rows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}`)} />
+      <ResultCards rows={rows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}?periodId=${encodeURIComponent(periodId)}`)} />
     </div>;
   }
 
   // ── Chi tiết kết quả ────────────────────────────────────────────────────────
-  if (detailQuery.isLoading || detailGroupQuery.isLoading || publicationQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
+  if (periodsQuery.isLoading || detailQuery.isLoading || detailGroupQuery.isLoading || publicationQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
+  if (!periodId) return <div className="space-y-5">{periodSelector}<EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
   // `id` can be a criteria group id when the locality has no submission for that group
   const group = detailGroupQuery.data ?? (id ? groupById.get(id) : undefined);
+  const detailPubGroup = group ? publicationQuery.data?.criteriaGroups.find((item) => item.criteriaGroupId === group.id) : undefined;
   if (detailQuery.isError && !group) return <EmptyState variant="error" title="Không tải được chi tiết kết quả" description={getLocalityApiError(detailQuery.error)} />;
-  if (!publicationQuery.data?.isPublished || !group || (detailSubmission && detailSubmission.currentStage !== FINAL_STAGE)) {
-    return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được Ủy ban thường trực công bố." action={<Button variant="outline" render={<Link to="/dia-phuong/ket-qua" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
+  if (!publicationQuery.data?.isPublished || !group || !detailPubGroup || (detailSubmission && (detailSubmission.currentStage !== FINAL_STAGE || detailPubGroup.submissionId !== detailSubmission.id))) {
+    return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được công bố trong kỳ thi đua đã chọn." action={<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
   }
-
-  const detailPubGroup = publicationQuery.data.criteriaGroups.find((item) => item.criteriaGroupId === group.id);
   const criteria = (group.criteria ?? []).filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === detailSubmission?.id);
   const resultByCriterion = new Map((detailSubmission?.results ?? []).map((result) => [result.criteriaId, result]));
   const audits = (historiesQuery.data?.items ?? []).map(mapHistoryToAudit).sort((left, right) => +new Date(right.timestamp) - +new Date(left.timestamp));
@@ -435,8 +494,9 @@ export default function LocalityResultsPage() {
   const detailPublishedAt = detailSubmission?.updatedAt ?? publicationQuery.data.publishedAt;
 
   return <div className="space-y-5">
-    <nav aria-label="Điều hướng" className="flex min-w-0 items-center gap-2 text-sm"><Link to="/dia-phuong/ket-qua" className="shrink-0 text-primary hover:underline">Kết quả tiêu chí thi đua</Link><span className="text-muted-foreground">/</span><span className="truncate text-muted-foreground">{group.name ?? detailSubmission?.criteriaGroupName ?? 'Chi tiết nhóm'}</span></nav>
-    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<Button variant="outline" render={<Link to="/dia-phuong/ket-qua" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    {periodSelector}
+    <nav aria-label="Điều hướng" className="flex min-w-0 items-center gap-2 text-sm"><Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} className="shrink-0 text-primary hover:underline">Kết quả tiêu chí thi đua</Link><span className="text-muted-foreground">/</span><span className="truncate text-muted-foreground">{group.name ?? detailSubmission?.criteriaGroupName ?? 'Chi tiết nhóm'}</span></nav>
+    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
 
     <Card>
       <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">
