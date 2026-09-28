@@ -52,6 +52,8 @@ function getSubmissionStageLabel(stage: SubmissionStage | null) {
     case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
     // Địa phương chỉ cần biết hồ sơ đã rời bước nộp hay đang cần xử lý lại;
     // không hiển thị chi tiết các cấp duyệt nội bộ.
+    case 'ScorerRevisionRequested':
+    case 'ReviewerRevisionRequested':
     case 'ScorerSubmitted':
     case 'ReviewerApproved':
     case 'SpecialistApproved':
@@ -309,7 +311,7 @@ export default function LocalityCriteriaPage() {
     });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
-  // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và riêng phản hồi từ Chuyên viên.
+  // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và theo từng tiêu chí.
   const currentSubmissionStage = submissionDetailQuery.data?.currentStage ?? submission?.currentStage;
   const isRevisionStage = currentSubmissionStage === 'RequiresRevision';
   const revisionHistoriesQuery = useQuery({
@@ -326,7 +328,8 @@ export default function LocalityCriteriaPage() {
 
   const latestSpecialistRevision = useMemo(() => (
     (revisionHistoriesQuery.data?.items ?? []).find((item) => (
-      item.action?.toLowerCase() === 'requestrevision' && item.stageLevel === 'LocalSubmitted'
+      item.action?.toLowerCase() === 'requestrevision'
+      && (item.stageLevel === 'LocalSubmitted' || item.stageLevel === 'ScorerRevisionRequested')
     )) ?? null
   ), [revisionHistoriesQuery.data]);
 

@@ -35,7 +35,9 @@ export type SubmissionStage =
   | 'LeaderApproved'
   | 'CouncilApproved'
   | 'CommitteeFinalized'
-  | 'RequiresRevision';
+  | 'RequiresRevision'
+  | 'ScorerRevisionRequested'
+  | 'ReviewerRevisionRequested';
 
 export interface SubmissionResultFile {
   id: string;
@@ -211,6 +213,8 @@ const STAGE_TO_STATE: Record<SubmissionStage, ScoreState> = {
   Draft: 'DRAFT',
   LocalSubmitted: 'CHO_CHUYEN_VIEN',
   ScorerSubmitted: 'CHO_CHUYEN_VIEN',
+  ScorerRevisionRequested: 'CHO_CHUYEN_VIEN',
+  ReviewerRevisionRequested: 'CHO_CHUYEN_VIEN',
   ReviewerApproved: 'CHO_CHUYEN_VIEN',
   SpecialistApproved: 'CHO_DUYET_BAN',
   LeaderApproved: 'CHO_DUYET_HOI_DONG',

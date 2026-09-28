@@ -31,7 +31,9 @@ export type SubmissionStage =
   | 'LeaderApproved'
   | 'CouncilApproved'
   | 'CommitteeFinalized'
-  | 'RequiresRevision';
+  | 'RequiresRevision'
+  | 'ScorerRevisionRequested'
+  | 'ReviewerRevisionRequested';
 
 /** Các stage này xác nhận hồ sơ đã rời bước xử lý của Chuyên viên. */
 export const SPECIALIST_FORWARDED_STAGES = [
@@ -48,9 +50,9 @@ export type ScoringRole = 'SCORER' | 'REVIEWER' | 'SPECIALIST';
  * role × stage ở backend (ApprovalService.ResolveApproveTarget).
  */
 const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
-  SCORER: ['LocalSubmitted', 'RequiresRevision'],
-  REVIEWER: ['ScorerSubmitted'],
-  SPECIALIST: ['LocalSubmitted', 'ScorerSubmitted', 'ReviewerApproved', 'RequiresRevision'],
+  SCORER: ['LocalSubmitted', 'ScorerRevisionRequested'],
+  REVIEWER: ['ScorerSubmitted', 'ReviewerRevisionRequested'],
+  SPECIALIST: ['LocalSubmitted', 'ScorerSubmitted', 'ReviewerApproved'],
 };
 
 const FORWARD_LABELS: Record<ScoringRole, string> = {
@@ -77,8 +79,8 @@ export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null
     canEdit: isActionable && role !== 'REVIEWER',
     /** Được duyệt/gửi hồ sơ lên cấp tiếp theo tại stage hiện tại. */
     canApprove: isActionable,
-    /** Được yêu cầu chỉnh sửa — người chấm là đầu chuỗi nên không trả về được. */
-    canRequestRevision: isActionable && role !== 'SCORER',
+    /** Được yêu cầu chỉnh sửa ở bước liền trước trong luồng. */
+    canRequestRevision: isActionable,
     isForwarded: !isActionable,
     disabledReason: LOCK_REASONS[role],
     forwardLabel: FORWARD_LABELS[role],

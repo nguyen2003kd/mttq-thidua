@@ -107,18 +107,21 @@ const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | Submi
   SCORER: [
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ chấm' },
-    { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'ScorerRevisionRequested', label: 'Yêu cầu người chấm chỉnh sửa' },
+    { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
     { value: 'ScorerSubmitted', label: 'Đã gửi review' },
   ],
   REVIEWER: [
     { value: '', label: 'Tất cả' },
     { value: 'ScorerSubmitted', label: 'Chờ review' },
+    { value: 'ReviewerRevisionRequested', label: 'Chờ review lại' },
     { value: 'ReviewerApproved', label: 'Đã chuyển chuyên viên' },
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ chuyên viên' },
-    { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'ReviewerApproved', label: 'Chờ chuyên viên' },
+    { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
     { value: 'SpecialistApproved', label: 'Đã chuyển lãnh đạo' },
   ],
 };
@@ -200,6 +203,8 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CouncilApproved: 'DA_DUYET',
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
+    ScorerRevisionRequested: 'YEU_CAU_SUA',
+    ReviewerRevisionRequested: 'DA_DUYET',
   },
   REVIEWER: {
     LocalSubmitted: 'CHO_DUYET',
@@ -210,6 +215,8 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CouncilApproved: 'DA_DUYET',
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
+    ScorerRevisionRequested: 'YEU_CAU_SUA',
+    ReviewerRevisionRequested: 'CHO_DUYET',
   },
   SPECIALIST: {
     LocalSubmitted: 'CHO_DUYET',
@@ -220,6 +227,8 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CouncilApproved: 'DA_DUYET',
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
+    ScorerRevisionRequested: 'CHO_DUYET',
+    ReviewerRevisionRequested: 'CHO_DUYET',
   },
 };
 
@@ -235,6 +244,8 @@ const STAGE_TO_GROUP_STATUS_BY_ROLE: Record<ScoringRole, Record<string, Speciali
     CouncilApproved: 'DA_CHAM',
     CommitteeFinalized: 'DA_CHAM',
     RequiresRevision: 'YEU_CAU_SUA',
+    ScorerRevisionRequested: 'YEU_CAU_SUA',
+    ReviewerRevisionRequested: 'DA_CHAM',
   },
   REVIEWER: {
     Draft: 'CHUA_NOP',
@@ -246,6 +257,8 @@ const STAGE_TO_GROUP_STATUS_BY_ROLE: Record<ScoringRole, Record<string, Speciali
     CouncilApproved: 'DA_CHAM',
     CommitteeFinalized: 'DA_CHAM',
     RequiresRevision: 'YEU_CAU_SUA',
+    ScorerRevisionRequested: 'YEU_CAU_SUA',
+    ReviewerRevisionRequested: 'CHO_DUYET',
   },
   SPECIALIST: {
     Draft: 'CHUA_NOP',
@@ -257,6 +270,8 @@ const STAGE_TO_GROUP_STATUS_BY_ROLE: Record<ScoringRole, Record<string, Speciali
     CouncilApproved: 'DA_CHAM',
     CommitteeFinalized: 'DA_CHAM',
     RequiresRevision: 'YEU_CAU_SUA',
+    ScorerRevisionRequested: 'CHO_CHAM',
+    ReviewerRevisionRequested: 'CHO_DUYET',
   },
 };
 
@@ -362,7 +377,7 @@ function translateLegacyReason(reason: string | null): string | null {
   return reason;
 }
 
-type RevisionRequestStage = 'SpecialistApproved' | 'LeaderApproved' | 'CouncilApproved';
+type RevisionRequestStage = 'ScorerSubmitted' | 'ReviewerApproved' | 'SpecialistApproved' | 'LeaderApproved' | 'CouncilApproved' | 'ReviewerRevisionRequested';
 
 interface RevisionNote {
   reason: string;
@@ -1455,7 +1470,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         submissionIds: realSubs.map((s) => s.id),
       };
     });
-  }, [totalAppliedGroups, visibleSubmissionItems]);
+  }, [scoringRole, totalAppliedGroups, visibleSubmissionItems]);
 
   // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp và
   // submission Draft — địa phương soạn nhưng chưa nộp thì không hiện thông tin)
@@ -1507,11 +1522,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
           totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
           status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
-          hasModificationRequest: submission?.currentStage === 'RequiresRevision',
+          hasModificationRequest: submission?.currentStage === 'RequiresRevision' || submission?.currentStage === 'ScorerRevisionRequested' || submission?.currentStage === 'ReviewerRevisionRequested',
           items,
         };
       });
-  }, [groupsQuery.data, submissionByGroup]);
+  }, [groupsQuery.data, scoringRole, submissionByGroup]);
 
   const district: LocalityRow | undefined = useMemo(
     () => localityRows.find((row) => row.localityId === localityCode),
@@ -1590,14 +1605,20 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
       totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
       status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
-      hasModificationRequest: submission?.currentStage === 'RequiresRevision',
+      hasModificationRequest: submission?.currentStage === 'RequiresRevision' || submission?.currentStage === 'ScorerRevisionRequested' || submission?.currentStage === 'ReviewerRevisionRequested',
       items,
     };
-  }, [nhomTieuChiId, selectedGroupDetailQuery.data, selectedSubmissionDetailQuery.data]);
+  }, [nhomTieuChiId, scoringRole, selectedGroupDetailQuery.data, selectedSubmissionDetailQuery.data]);
 
   const selectedRevisionNotes = useMemo(() => {
     const histories = selectedRevisionHistoriesQuery.data?.items ?? [];
+    const reviewerNotes = [
+      getLatestRevisionNote(histories, 'ScorerSubmitted'),
+      getLatestRevisionNote(histories, 'ReviewerRevisionRequested'),
+    ].filter((note): note is RevisionNote => Boolean(note));
     return {
+      specialist: getLatestRevisionNote(histories, 'ReviewerApproved'),
+      reviewer: reviewerNotes.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null,
       leader: getLatestRevisionNote(histories, 'SpecialistApproved'),
       council: getLatestRevisionNote(histories, 'LeaderApproved'),
       committee: getLatestRevisionNote(histories, 'CouncilApproved'),
@@ -1999,6 +2020,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const specialistApproveLocked = !specialistPermissions.canApprove;
   const specialistRevisionLocked = !specialistPermissions.canRequestRevision;
   const specialistLockReason = specialistPermissions.disabledReason;
+  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : scoringRole === 'SPECIALIST' ? 'người review' : 'địa phương';
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
@@ -2244,6 +2266,26 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         </div>
       )}
 
+      {scoringRole === 'REVIEWER' && selectedSubmissionStage === 'ReviewerRevisionRequested' && selectedRevisionNotes.specialist && (
+        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Yêu cầu chỉnh sửa từ Chuyên viên</p>
+            <div className="mt-1"><RevisionNoteView note={selectedRevisionNotes.specialist} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></div>
+          </div>
+        </div>
+      )}
+
+      {scoringRole === 'SCORER' && selectedSubmissionStage === 'ScorerRevisionRequested' && selectedRevisionNotes.reviewer && (
+        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Yêu cầu chỉnh sửa từ Người review</p>
+            <div className="mt-1"><RevisionNoteView note={selectedRevisionNotes.reviewer} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></div>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card">
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
@@ -2289,7 +2331,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             )}
             {selectedCriterion && (
               <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
-                <AlertCircle className="size-4 text-warning" />Yêu cầu {scoringRole === 'REVIEWER' ? 'người chấm' : 'địa phương'} chỉnh sửa
+                <AlertCircle className="size-4 text-warning" />Yêu cầu {revisionTargetLabel} chỉnh sửa
               </Button>
             )}
           </div>
@@ -2297,7 +2339,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             {specialistPermissions.canEdit && (
               <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked} disabledReason={specialistApproveLocked ? specialistLockReason : undefined}><Send className="size-4" />{specialistPermissions.forwardLabel}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked} disabledReason={specialistApproveLocked ? specialistLockReason : undefined}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
           </div>
         </div>
 
@@ -2659,8 +2701,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       <RevisionRequestDialog
         open={revisionOpen}
         onOpenChange={setRevisionOpen}
-        title={scoringRole === 'REVIEWER' ? 'Yêu cầu người chấm chỉnh sửa' : 'Yêu cầu địa phương chỉnh sửa'}
-        description={scoringRole === 'REVIEWER' ? `Yêu cầu người chấm chỉnh sửa các tiêu chí đã chọn (hồ sơ của ${district.localityName}).` : undefined}
+        title={`Yêu cầu ${revisionTargetLabel} chỉnh sửa`}
+        description={`Yêu cầu ${revisionTargetLabel} chỉnh sửa các tiêu chí đã chọn (hồ sơ của ${district.localityName}).`}
         localityName={district.localityName}
         criteria={revisionCriteria}
         defaultSelectedCriteriaIds={defaultSelectedCriteriaIds}
@@ -2705,7 +2747,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
               queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
             ]);
-            toast.success('Đã gửi yêu cầu chỉnh sửa đến địa phương.');
+            toast.success(`Đã gửi yêu cầu chỉnh sửa đến ${revisionTargetLabel}.`);
             return true;
           } catch (error) {
             toast.error('Không thể gửi yêu cầu chỉnh sửa.', { description: getFilesApiError(error) });

@@ -30,6 +30,8 @@ const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
   RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
   LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
   ScorerSubmitted: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  ScorerRevisionRequested: { role: 'SCORER', label: 'Chuyên viên cấp 2' },
+  ReviewerRevisionRequested: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
   ReviewerApproved: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
   SpecialistApproved: { role: 'LEADER', label: 'Lãnh đạo ban' },
   LeaderApproved: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
