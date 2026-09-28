@@ -14,6 +14,8 @@ const STAGE_BADGE: Record<SubmissionStage, { label: string; variant: 'outline' |
   ScorerSubmitted: { label: 'Chờ review', variant: 'warning' },
   ReviewerApproved: { label: 'Đã review', variant: 'info' },
   RequiresRevision: { label: 'Yêu cầu chỉnh sửa', variant: 'destructive' },
+  ScorerRevisionRequested: { label: 'Yêu cầu người chấm chỉnh sửa', variant: 'warning' },
+  ReviewerRevisionRequested: { label: 'Chuyên viên yêu cầu review lại', variant: 'warning' },
   SpecialistApproved: { label: 'Đã chuyển lãnh đạo', variant: 'info' },
   LeaderApproved: { label: 'Đã chuyển hội đồng', variant: 'info' },
   CouncilApproved: { label: 'Đã chuyển ủy ban', variant: 'info' },
