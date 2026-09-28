@@ -36,7 +36,7 @@ interface FormState {
 
 const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Draft' };
 
-export default function PeriodManagementPage() {
+export default function PeriodManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -190,11 +190,11 @@ export default function PeriodManagementPage() {
 
   return (
     <div>
-      <PageHeader
+      {!embedded && <PageHeader
         title="Quản lý Kỳ thi đua"
         description="Khai báo các kỳ thi đua. Mỗi nhóm tiêu chí thuộc một kỳ — khi công bố kết quả sẽ chọn theo kỳ."
         className="pb-3 border-b-0"
-      />
+      />}
 
       <DataTable
         data={periods}

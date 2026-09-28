@@ -90,6 +90,7 @@ export default function CriteriaListPage() {
     staleTime: 60_000,
   });
   const periods = periodsQuery.data ?? [];
+  const activePeriods = periods.filter((period) => period.status === 'Active');
 
   const filteredTables = useMemo(() => {
     return criteriaTables.filter((t) => {
@@ -290,6 +291,11 @@ export default function CriteriaListPage() {
       return;
     }
 
+    if (!departmentId) {
+      toast.error('Vui lòng chọn ban xử lý cho nhóm tiêu chí.');
+      return;
+    }
+
     const originalCloseDate = editingTable ? toDateTimeInput(editingTable.closeDate) : '';
     if (closeDate && closeDate !== originalCloseDate && new Date(closeDate).getTime() < Date.now()) {
       toast.error('Hạn nộp không được ở thời gian quá khứ.');
@@ -298,7 +304,7 @@ export default function CriteriaListPage() {
 
     setSaving(true);
     try {
-      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId: departmentId && departmentId !== 'none' ? departmentId : null, periodId: periodId || undefined };
+      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId, periodId: periodId || undefined };
       if (editingTable) {
         const latestGroup = await criteriaGroupsApi.get(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
@@ -542,20 +548,27 @@ export default function CriteriaListPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="criteria-period" className="text-[13.5px] font-semibold">Kỳ thi đua <span className="text-destructive">*</span></Label>
-            <Select value={periodId} onValueChange={(v) => setPeriodId(v ?? '')}>
+            <Select
+              value={periodId}
+              onValueChange={(v) => setPeriodId(v ?? '')}
+              itemToStringLabel={(id) => periods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
+            >
               <SelectTrigger id="criteria-period" className="h-11 bg-muted"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
               <SelectContent>
-                {periods.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.status !== 'Active' ? ` (${p.status === 'Draft' ? 'Nháp' : 'Đã kết thúc'})` : ''}</SelectItem>)}
+                {activePeriods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="criteria-department" className="text-[13.5px] font-semibold">Ban xử lý <span className="text-xs font-normal text-muted-foreground">Chuyên viên và lãnh đạo ban sẽ xử lý hồ sơ của nhóm này</span></Label>
-            <Select value={departmentId} onValueChange={(v) => setDepartmentId(v ?? '')}>
+            <Label htmlFor="criteria-department" className="text-[13.5px] font-semibold">Ban xử lý <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">Chuyên viên và lãnh đạo ban sẽ xử lý hồ sơ của nhóm này</span></Label>
+            <Select
+              value={departmentId}
+              onValueChange={(v) => setDepartmentId(v ?? '')}
+              itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban xử lý'}
+            >
               <SelectTrigger id="criteria-department" className="h-11 bg-muted"><SelectValue placeholder="Chọn ban phụ trách" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Chưa gán ban</SelectItem>
-                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                {departments.map((department) => <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

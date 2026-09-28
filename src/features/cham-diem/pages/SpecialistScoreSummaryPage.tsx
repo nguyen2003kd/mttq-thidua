@@ -1,15 +1,25 @@
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Award,
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Eye,
   Search,
   Trophy,
 } from "lucide-react";
 import { Button, EmptyState, PageLoading } from "@/components/core";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -24,6 +34,7 @@ import {
   specialistApi,
   type SubmissionApi,
 } from "@/features/cham-diem/api/specialistApi";
+import { clustersApi } from "@/features/admin/api/clustersApi";
 import { resultPublicationApi } from "@/features/duyet/api/resultPublicationApi";
 import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
 
@@ -40,6 +51,7 @@ type Classification = "EXCELLENT" | "GOOD" | "FAIR" | "BELOW" | "UNSCORED";
 interface LocalityScoreSummary extends ScoreTotals {
   localityId: string;
   localityName: string;
+  clusterId: string;
   cluster: string;
   clusterOrder: number;
   localityOrder: number;
@@ -50,161 +62,27 @@ interface LocalityScoreSummary extends ScoreTotals {
   provinceClassification: Classification;
 }
 
-const COMPETITION_CLUSTERS = [
-  [
-    "Trấn Biên",
-    "Biên Hòa",
-    "Tân Triều",
-    "Tam Hiệp",
-    "Long Bình",
-    "Trảng Dài",
-    "Hố Nai",
-    "Tam Phước",
-    "Long Hưng",
-    "Phước Tân",
-  ],
-  [
-    "Phước Sơn",
-    "Nghĩa Trung",
-    "Bù Đăng",
-    "Thọ Sơn",
-    "Đak Nhau",
-    "Bom Bo",
-    "Bù Gia Mập",
-    "Đăk Ơ",
-  ],
-  [
-    "Nhơn Trạch",
-    "Long Phước",
-    "Đại Phước",
-    "Phước An",
-    "Phước Thái",
-    "Long Thành",
-    "Bình An",
-    "An Phước",
-    "An Viễn",
-    "Bình Minh",
-    "Trảng Bom",
-    "Bàu Hàm",
-    "Hưng Thịnh",
-  ],
-  [
-    "Cẩm Mỹ",
-    "Sông Ray",
-    "Dầu Giây",
-    "Gia Kiệm",
-    "Thống Nhất",
-    "Trị An",
-    "Tân An",
-    "Phú Lý",
-  ],
-  [
-    "Xuân Lộc",
-    "Xuân Đường",
-    "Xuân Định",
-    "Xuân Phú",
-    "Xuân Hòa",
-    "Xuân Thành",
-    "Xuân Bắc",
-    "Xuân Đông",
-    "Xuân Quế",
-  ],
-  [
-    "Định Quán",
-    "La Ngà",
-    "Phú Vinh",
-    "Phú Hòa",
-    "Thanh Sơn",
-    "Tà Lài",
-    "Nam Cát Tiên",
-    "Tân Phú",
-    "Phú Lâm",
-    "Đak Lua",
-  ],
-  [
-    "Minh Hưng",
-    "Chơn Thành",
-    "Bình Long",
-    "An Lộc",
-    "Tân Khai",
-    "Tân Hưng",
-    "Minh Đức",
-    "Nha Bích",
-    "Tân Quan",
-  ],
-  [
-    "Long Khánh",
-    "Bình Lộc",
-    "Bảo Vinh",
-    "Xuân Lập",
-    "Hàng Gòn",
-    "Bình Phước",
-    "Đồng Xoài",
-    "Phước Bình",
-    "Phước Long",
-  ],
-  [
-    "Lộc Ninh",
-    "Lộc Thành",
-    "Lộc Hưng",
-    "Lộc Tấn",
-    "Lộc Thạnh",
-    "Lộc Quang",
-    "Tân Tiến",
-    "Thiện Hưng",
-    "Hưng Phước",
-  ],
-  [
-    "Đồng Tâm",
-    "Tân Lợi",
-    "Đồng Phú",
-    "Thuận Lợi",
-    "Phú Trung",
-    "Phú Riềng",
-    "Long Hà",
-    "Bình Tân",
-    "Đa Kia",
-    "Phú Nghĩa",
-  ],
-] as const;
+const UNASSIGNED_CLUSTER_ID = "__unassigned__";
 
-const CLUSTER_LOOKUP = COMPETITION_CLUSTERS.flatMap((localities, index) =>
-  localities.map((locality, localityOrder) => ({
-    locality: locality.toLocaleLowerCase("vi"),
-    // Giữ đúng cách gọi cụm và số lượng đơn vị của file Bảng tổng.
-    cluster: `Cụm ${index + 1} (${localities.length} đơn vị)`,
-    clusterOrder: index + 1,
-    localityOrder,
-  })),
-);
-
-function normalizeLocalityCode(submission: SubmissionApi) {
-  return (
-    submission.createdByWardCode ??
-    submission.createdBy ??
-    `submission:${submission.id}`
-  ).replace(/^loc-/i, "");
+function normalizeWardCode(code: string) {
+  return code.trim().replace(/^loc-/i, "").toLowerCase();
 }
 
-function getCompetitionCluster(localityName: string) {
-  const normalized = localityName
-    .normalize("NFC")
-    .trim()
-    .replace(/^(xã|phường|x\.?|p\.?)\s*/iu, "")
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase("vi");
-  const matchedCluster = CLUSTER_LOOKUP.find(
-    ({ locality }) =>
-      normalized === locality ||
-      normalized.startsWith(`${locality},`) ||
-      normalized.startsWith(`${locality} `),
-  );
-  return (
-    matchedCluster ?? {
-      cluster: "Chưa phân cụm",
-      clusterOrder: Number.MAX_SAFE_INTEGER,
-      localityOrder: Number.MAX_SAFE_INTEGER,
-    }
+async function listClustersWithWards() {
+  const clusters = await clustersApi.list();
+  // Một số response danh sách chỉ có wardCount; lấy detail khi thiếu danh sách xã/phường.
+  return Promise.all(clusters.map((cluster) =>
+    (cluster.wards?.length ?? 0) < cluster.wardCount
+      ? clustersApi.get(cluster.id)
+      : cluster,
+  ));
+}
+
+function normalizeLocalityCode(submission: SubmissionApi) {
+  return normalizeWardCode(
+    submission.createdByWardCode ??
+    submission.createdBy ??
+    `submission:${submission.id}`,
   );
 }
 
@@ -293,72 +171,175 @@ function ScoreCell({ value }: { value: number | null }) {
   );
 }
 
-/** Mỗi nhóm chỉ tải hồ sơ chi tiết sau khi người dùng mở tiêu chí cha. */
-function CriteriaGroupRows({
-  submission,
-  index,
+/** Danh sách nhóm và chi tiết tiêu chí con dùng chung một modal hai bước. */
+function LocalityCriteriaDialog({
+  locality,
+  onClose,
 }: {
-  submission: SubmissionApi;
-  index: number;
+  locality: LocalityScoreSummary | null;
+  onClose: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const selectedSubmission = locality?.submissions.find(
+    (submission) => submission.id === selectedSubmissionId,
+  );
+  const selectedGroupIndex = locality?.submissions.findIndex(
+    (submission) => submission.id === selectedSubmissionId,
+  ) ?? -1;
+  const selectedGroupName = selectedSubmission
+    ? selectedSubmission.criteriaGroupName?.trim() || "Nhóm tiêu chí " + (selectedGroupIndex + 1)
+    : null;
   const detailQuery = useQuery({
-    queryKey: ["specialist-score-summary-submission-detail", submission.id],
-    queryFn: () => specialistApi.getSubmission(submission.id),
-    enabled: expanded,
+    queryKey: ["specialist-score-summary-submission-detail", selectedSubmission?.id],
+    queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
+    enabled: Boolean(locality && selectedSubmission),
     staleTime: 5 * 60 * 1000,
   });
-  const totals = getTotals([submission]);
-  const name = submission.criteriaGroupName?.trim() || `Nhóm tiêu chí ${index + 1}`;
-  const childPanelId = `score-summary-group-${submission.id}`;
+
+  const closeDialog = () => {
+    setSelectedSubmissionId(null);
+    onClose();
+  };
 
   return (
-    <Fragment>
-      <TableRow className="border-b border-border hover:bg-muted/40">
-        <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
-          <button
-            type="button"
-            className="flex w-full items-start gap-2 text-left font-semibold text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-expanded={expanded}
-            aria-controls={expanded ? childPanelId : undefined}
-            onClick={() => setExpanded((value) => !value)}
-          >
-            {expanded ? <ChevronDown className="mt-0.5 size-4 shrink-0 text-primary" /> : <ChevronRight className="mt-0.5 size-4 shrink-0 text-primary" />}
-            <span className="min-w-0 leading-5">{name}</span>
-          </button>
-        </TableCell>
-        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.proposedScore} /></TableCell>
-        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.proposedBonus} /></TableCell>
-        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.hasProvinceScore ? totals.provinceScore : null} /></TableCell>
-        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.hasProvinceScore ? totals.provinceBonus : null} /></TableCell>
-        <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={totals.proposedScore + totals.proposedBonus} /></TableCell>
-        <TableCell className="px-4 py-3"><ScoreCell value={totals.hasProvinceScore ? totals.provinceScore + totals.provinceBonus : null} /></TableCell>
-      </TableRow>
-      {expanded && (
-        <Fragment>
-          {detailQuery.isLoading ? (
-            <TableRow><TableCell colSpan={7} className="bg-muted/20 px-10 py-4 text-sm text-muted-foreground" id={childPanelId}>Đang tải tiêu chí con…</TableCell></TableRow>
-          ) : detailQuery.isError ? (
-            <TableRow><TableCell colSpan={7} className="bg-muted/20 px-10 py-4" id={childPanelId}><div className="flex items-center gap-3 text-sm text-destructive">Không tải được tiêu chí con.<Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>Thử lại</Button></div></TableCell></TableRow>
-          ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
-            <TableRow><TableCell colSpan={7} className="bg-muted/20 px-10 py-4 text-sm text-muted-foreground" id={childPanelId}>Nhóm này chưa có kết quả tiêu chí con.</TableCell></TableRow>
-          ) : detailQuery.data?.results.map((result, childIndex) => (
-            <TableRow key={result.id} id={childIndex === 0 ? childPanelId : undefined} className="border-b border-border bg-muted/25 hover:bg-muted/40">
-              <TableCell className="whitespace-normal border-r border-primary/15 py-3 pl-10 pr-4">
-                <p className="text-sm font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || `Tiêu chí con ${childIndex + 1}`}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}</p>
-              </TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
-              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
-              <TableCell className="px-4 py-3"><ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0) : null} /></TableCell>
-            </TableRow>
-          ))}
-        </Fragment>
-      )}
-    </Fragment>
+    <Dialog open={Boolean(locality)} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+        <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
+          <DialogTitle>
+            {selectedGroupName ?? "Nhóm tiêu chí của " + (locality?.localityName ?? "")}
+          </DialogTitle>
+          <DialogDescription>
+            {selectedSubmission
+              ? "Đối chiếu điểm từng tiêu chí con của " + (locality?.localityName ?? "") + "."
+              : "Chọn một nhóm tiêu chí để xem các tiêu chí con và điểm chấm."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div key={selectedSubmissionId ?? "groups"} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {selectedSubmission ? (
+            <div className="space-y-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedSubmissionId(null)}>
+                <ArrowLeft className="size-4" />
+                Tất cả nhóm tiêu chí
+              </Button>
+
+              {detailQuery.isLoading ? (
+                <div className="space-y-3" aria-label="Đang tải tiêu chí con">
+                  <div className="h-16 animate-pulse rounded-md bg-muted" />
+                  <div className="h-16 animate-pulse rounded-md bg-muted/70" />
+                </div>
+              ) : detailQuery.isError ? (
+                <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  Không tải được tiêu chí con.
+                  <Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>
+                    Thử lại
+                  </Button>
+                </div>
+              ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
+                <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  Nhóm này chưa có kết quả tiêu chí con.
+                </p>
+              ) : (
+                <div className="overflow-hidden rounded-md border border-border">
+                  <Table className="min-w-[1080px] table-fixed">
+                    <colgroup>
+                      <col className="w-[28%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[12%]" />
+                    </colgroup>
+                    <TableHeader>
+                      <TableRow className="bg-primary hover:bg-primary">
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Xã chấm</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Thưởng xã</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tỉnh chấm</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Thưởng tỉnh</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng xã</TableHead>
+                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng tỉnh</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detailQuery.data?.results.map((result, index) => (
+                        <TableRow key={result.id} className="border-b border-border hover:bg-muted/40">
+                          <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
+                            <p className="font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || "Tiêu chí con " + (index + 1)}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}
+                            </p>
+                          </TableCell>
+                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
+                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
+                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
+                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
+                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
+                          <TableCell className="px-4 py-3">
+                            <ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null
+                              ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0)
+                              : null} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-foreground">Danh sách nhóm tiêu chí</h3>
+                <Badge variant="secondary">{locality?.submissions.length ?? 0} nhóm</Badge>
+              </div>
+              {(locality?.submissions.length ?? 0) === 0 ? (
+                <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  Địa phương này chưa có nhóm tiêu chí đã nộp.
+                </p>
+              ) : (
+                <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                  {locality?.submissions.map((submission, index) => {
+                    const totals = getTotals([submission]);
+                    return (
+                      <button
+                        key={submission.id}
+                        type="button"
+                        className="grid w-full grid-cols-2 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_110px_110px_20px]"
+                        onClick={() => setSelectedSubmissionId(submission.id)}
+                      >
+                        <span className="col-span-2 flex min-w-0 items-start gap-3 sm:col-span-1">
+                          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">{index + 1}</span>
+                          <span className="min-w-0 font-semibold leading-6 text-foreground">
+                            {submission.criteriaGroupName?.trim() || "Nhóm tiêu chí " + (index + 1)}
+                          </span>
+                        </span>
+                        <span className="text-sm">
+                          <span className="block text-xs text-muted-foreground">Tổng xã</span>
+                          <span className="font-semibold tabular-nums text-foreground">{formatScore(totals.proposedScore + totals.proposedBonus)}</span>
+                        </span>
+                        <span className="text-sm">
+                          <span className="block text-xs text-muted-foreground">Tổng tỉnh</span>
+                          <span className="font-semibold tabular-nums text-foreground">
+                            {formatScore(totals.hasProvinceScore ? totals.provinceScore + totals.provinceBonus : null)}
+                          </span>
+                        </span>
+                        <ChevronRight className="hidden size-4 text-primary sm:block" aria-hidden="true" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="mx-0 mb-0 shrink-0 rounded-none border-t border-border bg-card px-5 py-3 sm:px-6">
+          <Button type="button" variant="outline" onClick={closeDialog}>Đóng</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -430,15 +411,7 @@ function ResultSummary({
 export default function SpecialistScoreSummaryPage() {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [expandedLocalityIds, setExpandedLocalityIds] = useState<Set<string>>(() => new Set());
-  const toggleLocality = (localityId: string) => {
-    setExpandedLocalityIds((current) => {
-      const next = new Set(current);
-      if (next.has(localityId)) next.delete(localityId);
-      else next.add(localityId);
-      return next;
-    });
-  };
+  const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   // Backend là nguồn sự thật: chỉ công bố được khi mọi địa phương đã nộp và
   // hoàn tất mọi nhóm tiêu chí.
   const publicationPreviewQuery = useQuery({
@@ -450,8 +423,40 @@ export default function SpecialistScoreSummaryPage() {
     queryKey: ["specialist-score-summary-submissions"],
     queryFn: listEverySubmission,
   });
+  const clustersQuery = useQuery({
+    queryKey: ["specialist-score-summary-clusters"],
+    queryFn: listClustersWithWards,
+  });
+  const clusters = useMemo(
+    () => [...(clustersQuery.data ?? [])].sort((left, right) =>
+      left.name.localeCompare(right.name, "vi", { numeric: true }),
+    ),
+    [clustersQuery.data],
+  );
 
   const rows = useMemo<LocalityScoreSummary[]>(() => {
+    const clusterByWardCode = new Map<string, {
+      clusterId: string;
+      cluster: string;
+      clusterOrder: number;
+      localityOrder: number;
+      wardName: string | null;
+    }>();
+    clusters.forEach((cluster, clusterOrder) => {
+      (cluster.wards ?? []).forEach((ward, localityOrder) => {
+        const wardCode = normalizeWardCode(ward.wardCode);
+        if (wardCode && !clusterByWardCode.has(wardCode)) {
+          clusterByWardCode.set(wardCode, {
+            clusterId: cluster.id,
+            cluster: cluster.name,
+            clusterOrder,
+            localityOrder,
+            wardName: ward.wardFullName ?? ward.wardName,
+          });
+        }
+      });
+    });
+
     const byLocality = new Map<string, SubmissionApi[]>();
     for (const submission of submissionsQuery.data?.items ?? []) {
       const localityId = normalizeLocalityCode(submission);
@@ -461,16 +466,19 @@ export default function SpecialistScoreSummaryPage() {
       ]);
     }
 
-    return Array.from(byLocality.entries())
-      .map(([localityId, entries]) => {
+    const localityCodes = new Set([...clusterByWardCode.keys(), ...byLocality.keys()]);
+    return Array.from(localityCodes)
+      .map((localityId) => {
+        const entries = byLocality.get(localityId) ?? [];
+        const clusterMatch = clusterByWardCode.get(localityId);
         const submissions = entries
           .filter(isRealSubmission)
           .filter((submission) => submission.currentStage !== "Draft");
         const localityName =
-          entries[0]?.localityFullName ??
-          entries[0]?.createdByUsername ??
+          entries[0]?.localityFullName?.trim() ||
+          clusterMatch?.wardName?.trim() ||
+          entries[0]?.createdByUsername?.trim() ||
           localityId;
-        const clusterMatch = getCompetitionCluster(localityName);
         const totals = getTotals(submissions);
         const proposedTotal = totals.proposedScore + totals.proposedBonus;
         const provinceTotal = totals.hasProvinceScore
@@ -479,9 +487,10 @@ export default function SpecialistScoreSummaryPage() {
         return {
           localityId,
           localityName,
-          cluster: clusterMatch.cluster,
-          clusterOrder: clusterMatch.clusterOrder,
-          localityOrder: clusterMatch.localityOrder,
+          clusterId: clusterMatch?.clusterId ?? UNASSIGNED_CLUSTER_ID,
+          cluster: clusterMatch?.cluster ?? "Chưa phân cụm",
+          clusterOrder: clusterMatch?.clusterOrder ?? Number.MAX_SAFE_INTEGER,
+          localityOrder: clusterMatch?.localityOrder ?? Number.MAX_SAFE_INTEGER,
           submissions,
           ...totals,
           proposedTotal,
@@ -502,7 +511,8 @@ export default function SpecialistScoreSummaryPage() {
           left.localityName.localeCompare(right.localityName, "vi")
         );
       });
-  }, [submissionsQuery.data]);
+  }, [submissionsQuery.data, clusters]);
+  const selectedLocality = rows.find((row) => row.localityId === selectedLocalityId) ?? null;
 
   const proposedDistribution = useMemo(
     () => getDistribution(rows, "proposedClassification"),
@@ -514,20 +524,31 @@ export default function SpecialistScoreSummaryPage() {
   );
 
   const groupedRows = useMemo(() => {
-    const groups = new Map<string, LocalityScoreSummary[]>();
-    rows.forEach((row) =>
-      groups.set(row.cluster, [...(groups.get(row.cluster) ?? []), row]),
-    );
-    return Array.from(groups.entries())
-      .map(([cluster, localityRows]) => ({
-        cluster,
-        clusterOrder: localityRows[0]?.clusterOrder ?? Number.MAX_SAFE_INTEGER,
-        rows: localityRows
+    const groups = new Map<string, {
+      id: string;
+      cluster: string;
+      clusterOrder: number;
+      rows: LocalityScoreSummary[];
+    }>();
+    clusters.forEach((cluster, clusterOrder) => {
+      groups.set(cluster.id, { id: cluster.id, cluster: cluster.name, clusterOrder, rows: [] });
+    });
+    rows.forEach((row) => {
+      let group = groups.get(row.clusterId);
+      if (!group) {
+        group = { id: row.clusterId, cluster: row.cluster, clusterOrder: row.clusterOrder, rows: [] };
+        groups.set(row.clusterId, group);
+      }
+      group.rows.push(row);
+    });
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        rows: group.rows
           .slice()
-          .sort(
-            (left, right) =>
-              left.localityOrder - right.localityOrder ||
-              left.localityName.localeCompare(right.localityName, "vi"),
+          .sort((left, right) =>
+            left.localityOrder - right.localityOrder ||
+            left.localityName.localeCompare(right.localityName, "vi"),
           ),
       }))
       .sort(
@@ -535,22 +556,24 @@ export default function SpecialistScoreSummaryPage() {
           left.clusterOrder - right.clusterOrder ||
           left.cluster.localeCompare(right.cluster, "vi"),
       );
-  }, [rows]);
+  }, [clusters, rows]);
 
-  if (submissionsQuery.isLoading)
+  if (submissionsQuery.isLoading || clustersQuery.isLoading)
     return <PageLoading label="Đang tổng hợp và xếp hạng điểm…" />;
-  if (submissionsQuery.isError)
+  if (submissionsQuery.isError || clustersQuery.isError) {
+    const error = submissionsQuery.error ?? clustersQuery.error;
     return (
       <EmptyState
         variant="error"
-        title="Không tải được bảng tổng hợp"
+        title={clustersQuery.isError ? "Không tải được danh sách cụm" : "Không tải được bảng tổng hợp"}
         description={
-          submissionsQuery.error instanceof Error
-            ? submissionsQuery.error.message
+          error instanceof Error
+            ? error.message
             : "Vui lòng thử lại sau."
         }
       />
     );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-6 pb-8">
@@ -728,7 +751,7 @@ export default function SpecialistScoreSummaryPage() {
       </section>
 
       <section
-        className="overflow-hidden rounded-lg border border-border bg-card"
+        className="min-w-[1480px] overflow-clip rounded-lg border border-border bg-card"
         aria-label="Bảng tổng hợp chấm điểm toàn tỉnh"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
@@ -742,8 +765,8 @@ export default function SpecialistScoreSummaryPage() {
           />
         ) : (
           <Table
-            className="min-w-[1480px] table-fixed"
-            containerClassName="max-w-full"
+            className="table-fixed"
+            containerClassName="!overflow-visible"
           >
             <colgroup>
               <col className="w-[11%]" />
@@ -757,30 +780,30 @@ export default function SpecialistScoreSummaryPage() {
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground sm:top-[-24px]">
                   Cụm thi đua
                 </TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground sm:top-[-24px]">
                   Tên xã, phường
                 </TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Xã (phường) chấm
                 </TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Điểm thưởng xã
                 </TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Tỉnh chấm
                 </TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Điểm thưởng của tỉnh
                 </TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Xã (phường) chấm
                   <br />
                   (điểm tự chấm + điểm thưởng)
                 </TableHead>
-                <TableHead className="whitespace-normal px-4 py-3 text-right leading-5 text-primary-foreground">
+                <TableHead className="sticky top-[-16px] z-10 whitespace-normal bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Tỉnh chấm
                   <br />
                   (điểm chấm + điểm thưởng)
@@ -789,18 +812,24 @@ export default function SpecialistScoreSummaryPage() {
             </TableHeader>
             <TableBody>
               {groupedRows.flatMap((group) =>
-                group.rows.map((row, rowIndex) => (
-                  <Fragment key={row.localityId}>
-                  <TableRow
-                    className="border-b-2 border-border hover:bg-muted/40"
-                  >
+                group.rows.length === 0 ? [
+                  <TableRow key={group.id} className="border-b-2 border-border">
+                    <TableCell className="whitespace-normal border-r border-primary/15 bg-muted/30 px-3 text-center font-semibold">
+                      {group.cluster}
+                    </TableCell>
+                    <TableCell colSpan={7} className="px-4 py-4 text-sm text-muted-foreground">
+                      Chưa có xã, phường trong cụm.
+                    </TableCell>
+                  </TableRow>,
+                ] : group.rows.map((row, rowIndex) => (
+                  <TableRow key={row.localityId} className="border-b-2 border-border hover:bg-muted/40">
                     {rowIndex === 0 && (
                       <TableCell
-                        rowSpan={group.rows.length + group.rows.filter((item) => expandedLocalityIds.has(item.localityId) && item.submissions.length > 0).length}
+                        rowSpan={group.rows.length}
                         className="whitespace-normal border-r border-primary/15 bg-muted/30 px-3 text-center align-middle"
                       >
                         <p className="font-semibold leading-5 text-foreground">
-                          {group.cluster.replace(/\s*\((\d+) đơn vị\)/, "")}
+                          {group.cluster}
                         </p>
                         <p className="mt-1 text-xs leading-4 text-muted-foreground">
                           ({group.rows.length} đơn vị)
@@ -811,87 +840,48 @@ export default function SpecialistScoreSummaryPage() {
                       {row.submissions.length > 0 ? (
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 text-left font-semibold leading-5 text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-expanded={expandedLocalityIds.has(row.localityId)}
-                          aria-controls={expandedLocalityIds.has(row.localityId) ? `score-summary-locality-${row.localityId}` : undefined}
-                          onClick={() => toggleLocality(row.localityId)}
+                          className="flex w-full items-center justify-between gap-2 text-left font-semibold leading-5 text-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => setSelectedLocalityId(row.localityId)}
                         >
-                          {expandedLocalityIds.has(row.localityId) ? <ChevronDown className="size-4 shrink-0 text-primary" /> : <ChevronRight className="size-4 shrink-0 text-primary" />}
-                          <span>{row.localityName}</span>
+                          <span className="min-w-0">{row.localityName}</span>
+                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary">
+                            <Eye className="size-4" aria-hidden="true" />
+                            Xem
+                          </span>
                         </button>
-                      ) : <p className="font-semibold leading-5 text-foreground">{row.localityName}</p>}
+                      ) : (
+                        <p className="font-semibold leading-5 text-foreground">{row.localityName}</p>
+                      )}
                     </TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-3">
-                      <ScoreCell
-                        value={
-                          row.submissions.length > 0 ? row.proposedScore : null
-                        }
-                      />
+                      <ScoreCell value={row.submissions.length > 0 ? row.proposedScore : null} />
                     </TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-3">
-                      <ScoreCell
-                        value={
-                          row.submissions.length > 0 ? row.proposedBonus : null
-                        }
-                      />
+                      <ScoreCell value={row.submissions.length > 0 ? row.proposedBonus : null} />
                     </TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-3">
-                      <ScoreCell
-                        value={row.hasProvinceScore ? row.provinceScore : null}
-                      />
+                      <ScoreCell value={row.hasProvinceScore ? row.provinceScore : null} />
                     </TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-3">
-                      <ScoreCell
-                        value={row.hasProvinceScore ? row.provinceBonus : null}
-                      />
+                      <ScoreCell value={row.hasProvinceScore ? row.provinceBonus : null} />
                     </TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-3">
-                      <ScoreCell
-                        value={
-                          row.submissions.length > 0 ? row.proposedTotal : null
-                        }
-                      />
+                      <ScoreCell value={row.submissions.length > 0 ? row.proposedTotal : null} />
                     </TableCell>
                     <TableCell className="px-4 py-3">
                       <ScoreCell value={row.provinceTotal} />
                     </TableCell>
                   </TableRow>
-                  {expandedLocalityIds.has(row.localityId) && row.submissions.length > 0 && (
-                    <TableRow className="border-b-2 border-border bg-primary/[0.025] hover:bg-primary/[0.025]">
-                      <TableCell colSpan={7} className="px-4 py-4 align-top">
-                        <div id={`score-summary-locality-${row.localityId}`} className="overflow-hidden rounded-md border border-border bg-card" role="region" aria-label={`Nhóm tiêu chí của ${row.localityName}`}>
-                          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                            <p className="text-sm font-semibold text-foreground">Nhóm tiêu chí của {row.localityName}</p>
-                            <Badge variant="secondary">{row.submissions.length} nhóm</Badge>
-                          </div>
-                          <Table className="min-w-[1080px] table-fixed">
-                            <colgroup><col className="w-[28%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[12%]" /></colgroup>
-                            <TableHeader>
-                              <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-foreground">Nhóm tiêu chí / tiêu chí con</TableHead>
-                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Xã chấm</TableHead>
-                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Thưởng xã</TableHead>
-                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Tỉnh chấm</TableHead>
-                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Thưởng tỉnh</TableHead>
-                                <TableHead className="whitespace-normal border-r border-primary/15 px-4 py-3 text-right text-foreground">Tổng xã</TableHead>
-                                <TableHead className="whitespace-normal px-4 py-3 text-right text-foreground">Tổng tỉnh</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {row.submissions.map((submission, index) => <CriteriaGroupRows key={submission.id} submission={submission} index={index} />)}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  </Fragment>
                 )),
               )}
             </TableBody>
           </Table>
         )}
       </section>
+      <LocalityCriteriaDialog
+        locality={selectedLocality}
+        onClose={() => setSelectedLocalityId(null)}
+      />
       <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />
     </div>
   );

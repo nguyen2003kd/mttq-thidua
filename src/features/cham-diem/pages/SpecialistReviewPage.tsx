@@ -340,12 +340,10 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
 // stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
 const STAGE_ACTOR_LABELS: Record<string, string> = {
   Draft: 'Địa phương',
-  RequiresRevision: 'Chuyên viên',
-  LocalSubmitted: 'Chuyên viên',
-  ScorerSubmitted: 'Người review',
-  ReviewerApproved: 'Chuyên viên',
-  ScorerRevisionRequested: 'Người chấm',
-  ReviewerRevisionRequested: 'Người review',
+  RequiresRevision: 'Chuyên viên trưởng',
+  LocalSubmitted: 'Chuyên viên trưởng',
+  ScorerSubmitted: 'Lãnh đạo ban',
+  ReviewerApproved: 'Chuyên viên trưởng',
   SpecialistApproved: 'Lãnh đạo ban',
   LeaderApproved: 'Hội đồng thi đua',
   CouncilApproved: 'Ban thường trực',
