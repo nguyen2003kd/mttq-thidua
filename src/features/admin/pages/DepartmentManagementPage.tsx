@@ -33,16 +33,16 @@ interface UsersEnvelope {
 
 function roleLabel(raw: string): string {
   const map: Record<string, string> = {
-    SCORER: 'Chấm điểm',
-    REVIEWER: 'Đánh giá',
-    SPECIALIST: 'Chuyên viên',
-    LEADER: 'Lãnh đạo ban',
+    SPECIALIST: 'Chuyên viên trưởng',
+    LEADER: 'Lãnh đạo',
+    SCORER: 'Chuyên viên cấp 2',
+    REVIEWER: 'Lãnh đạo ban',
     LOCAL: 'Địa phương',
     COUNCIL: 'Hội đồng',
     COMMITTEE: 'Ủy ban',
     ADMIN: 'Quản trị',
   };
-  return map[raw.trim().toUpperCase()] ?? raw;
+  return map[raw.trim().toUpperCase()] ?? 'Vai trò khác';
 }
 
 function userDisplayName(u: ManagedUser) {
@@ -79,7 +79,7 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
     queryFn: async () => {
       const raw = await getApiV1Users({ Page: 1, PageSize: 200 });
       return ((raw as unknown as UsersEnvelope)?.data?.items ?? []).filter(
-        (u) => u.roles?.some((r) => ['SPECIALIST', 'LEADER'].includes(r.trim().toUpperCase())),
+        (u) => u.departmentId == null && u.roles?.some((r) => ['SCORER', 'REVIEWER'].includes(r.trim().toUpperCase())),
       );
     },
     enabled: editOpen,
@@ -141,7 +141,7 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
-  const members = membersQuery.data ?? [];
+  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const assignableUsers = (assignableUsersQuery.data ?? []).filter((u) => !memberIds.has(u.id));
 
@@ -289,8 +289,15 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
 
           <div className="flex items-end gap-2 pt-1">
             <div className="flex-1 space-y-1.5">
-              <Label htmlFor="d-assign-user">Thêm thành viên (chuyên viên / lãnh đạo)</Label>
-              <Select value={assignUserId} onValueChange={(v) => setAssignUserId(v ?? '')}>
+              <Label htmlFor="d-assign-user">Thêm thành viên</Label>
+              <Select
+                value={assignUserId}
+                onValueChange={(v) => setAssignUserId(v ?? '')}
+                itemToStringLabel={(id) => {
+                  const user = assignableUsers.find((u) => u.id === id);
+                  return user ? `${userDisplayName(user)} (${user.email})` : 'Tài khoản';
+                }}
+              >
                 <SelectTrigger id="d-assign-user"><SelectValue placeholder="Chọn tài khoản" /></SelectTrigger>
                 <SelectContent>
                   {assignableUsers.map((u) => (

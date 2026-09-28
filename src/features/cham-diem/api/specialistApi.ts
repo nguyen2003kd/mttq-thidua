@@ -54,15 +54,15 @@ const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
 };
 
 const FORWARD_LABELS: Record<ScoringRole, string> = {
-  SCORER: 'Gửi người review',
-  REVIEWER: 'Gửi chuyên viên',
+  SCORER: 'Gửi Lãnh đạo ban',
+  REVIEWER: 'Gửi Chuyên viên trưởng',
   SPECIALIST: 'Gửi Lãnh đạo ban',
 };
 
 const LOCK_REASONS: Record<ScoringRole, string> = {
-  SCORER: 'Hồ sơ đã được gửi lên người review hoặc đang chờ cấp trên xử lý. Người chấm chỉ có thể xem thông tin.',
-  REVIEWER: 'Hồ sơ không ở bước review của bạn. Người review chỉ có thể xem thông tin.',
-  SPECIALIST: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên chỉ có thể xem thông tin.',
+  SCORER: 'Hồ sơ đã được gửi lên Lãnh đạo ban hoặc đang chờ cấp trên xử lý. Chuyên viên cấp 2 chỉ có thể xem thông tin.',
+  REVIEWER: 'Hồ sơ không ở bước thẩm định của bạn. Lãnh đạo ban chỉ có thể xem thông tin.',
+  SPECIALIST: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên trưởng chỉ có thể xem thông tin.',
 };
 
 /**

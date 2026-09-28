@@ -59,14 +59,19 @@ const STATUS_OPTIONS = [
 
 const ROLE_OPTIONS = [
   { value: 'local', label: 'Địa phương' },
-  { value: 'scorer', label: 'Chấm điểm' },
-  { value: 'reviewer', label: 'Đánh giá' },
-  { value: 'specialist', label: 'Chuyên viên' },
+  { value: 'specialist', label: 'Chuyên viên trưởng' },
   { value: 'leader', label: 'Lãnh đạo' },
   { value: 'council', label: 'Hội đồng' },
   { value: 'committee', label: 'Ủy ban' },
   { value: 'admin', label: 'Quản trị' },
   { value: 'system_admin', label: 'Quản trị hệ thống' },
+  { value: 'Scorer', label: 'Chuyên viên cấp 2' },
+  { value: 'Reviewer', label: 'Lãnh đạo ban' },
+];
+
+const CREATE_ROLE_OPTIONS = [
+  { value: 'Scorer', label: 'Chuyên viên cấp 2' },
+  { value: 'Reviewer', label: 'Lãnh đạo ban' },
 ];
 
 const statusLabels: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
@@ -76,17 +81,17 @@ function roleLabel(raw: string): string {
   const normalized = raw.trim().toUpperCase().replace(/[-\s]/g, '_');
   const map: Record<string, string> = {
     LOCAL: 'Địa phương',
-    SCORER: 'Chấm điểm',
-    REVIEWER: 'Đánh giá',
-    SPECIALIST: 'Chuyên viên',
+    SPECIALIST: 'Chuyên viên trưởng',
     LEADER: 'Lãnh đạo',
     COUNCIL: 'Hội đồng',
     COMMITTEE: 'Ủy ban',
     ADMIN: 'Quản trị',
     SYSTEM_ADMIN: 'Quản trị hệ thống',
+    SCORER: 'Chuyên viên cấp 2',
+    REVIEWER: 'Lãnh đạo ban',
     USER: 'Người dùng',
   };
-  return map[normalized] ?? raw;
+  return map[normalized] ?? 'Vai trò khác';
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -110,13 +115,15 @@ function formatDate(value: string | null): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 export default function UserManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  // SPECIALIST được xem danh sách và gán ban cho tài khoản; chỉ ADMIN mới tạo/xóa/reset mật khẩu.
-  const isAdmin = useAuthStore((s) => s.user?.role === 'ADMIN');
+  // SPECIALIST được xem danh sách và tạo tài khoản chấm; chỉ ADMIN/SYSTEM_ADMIN mới xóa/reset mật khẩu.
+  const currentRole = useAuthStore((s) => s.user?.role);
+  const canManageAccounts = ['ADMIN', 'SYSTEM_ADMIN'].includes(currentRole ?? '');
+  const canCreateAccounts = canManageAccounts || currentRole === 'SPECIALIST';
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -162,10 +169,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const [fFirstName, setFFirstName] = useState('');
   const [fLastName, setFLastName] = useState('');
   const [fPhone, setFPhone] = useState('');
-  const [fWardCode, setFWardCode] = useState('');
-  const [fPassword, setFPassword] = useState('');
-  const [fRole, setFRole] = useState('local');
-  const [fDepartment, setFDepartment] = useState('');
+  const [fRole, setFRole] = useState('Scorer');
 
   const [eFullName, setEFullName] = useState('');
   const [eFirstName, setEFirstName] = useState('');
@@ -192,7 +196,6 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
-    if (fRole === 'local' && !fWardCode.trim()) { toast.error('Tài khoản địa phương cần nhập mã phường/xã.'); return; }
     createMutation.mutate({
       email: fEmail.trim(),
       username: fUsername.trim() || null,
@@ -200,9 +203,6 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       firstName: fFirstName.trim() || null,
       lastName: fLastName.trim() || null,
       phone: fPhone.trim() || null,
-      wardCode: fWardCode.trim() || null,
-      departmentId: fDepartment && fDepartment !== 'none' ? fDepartment : null,
-      password: fPassword || null,
       role: fRole,
     }, {
       onError: (err) => toast.error(extractErrorMessage(err)),
@@ -220,7 +220,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         lastName: eLastName.trim() || null,
         phone: ePhone.trim() || null,
         wardCode: eWardCode.trim() || null,
-        departmentId: eDepartment && eDepartment !== 'none' ? eDepartment : null,
+        departmentId: eDepartment || null,
         status: eStatus,
       },
     }, {
@@ -292,7 +292,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
-      meta: { align: 'right', list: { width: '150px' } },
+      meta: { align: 'right', list: { width: '130px' } },
       cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
   ], []);
@@ -345,8 +345,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           description: 'Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
-          isAdmin ? (
-            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFWardCode(''); setFPassword(''); setFRole('local'); setCreateOpen(true); }} action="create">
+          canCreateAccounts ? (
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFRole('Scorer'); setCreateOpen(true); }} action="create">
               <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
             </Button>
           ) : undefined
@@ -387,43 +387,24 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
             <Input id="u-first-name" value={fFirstName} onChange={(e) => setFFirstName(e.target.value)} placeholder="Văn" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-phone">Số điện thoại</Label>
-            <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-ward">Mã phường/xã {fRole === 'local' && <span className="text-destructive">*</span>}</Label>
-            <Input id="u-ward" value={fWardCode} onChange={(e) => setFWardCode(e.target.value)} placeholder="VD: 12345" />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="u-phone">Số điện thoại</Label>
+          <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-role">Vai trò</Label>
-            <Select value={fRole} onValueChange={(v) => setFRole(v ?? 'local')}>
-              <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-password">Mật khẩu</Label>
-            <Input id="u-password" type="password" value={fPassword} onChange={(e) => setFPassword(e.target.value)} placeholder="Bỏ trống dùng mật khẩu mặc định" autoComplete="new-password" />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="u-role">Vai trò</Label>
+          <Select
+            value={fRole}
+            onValueChange={(v) => setFRole(v ?? 'Scorer')}
+            itemToStringLabel={(role) => roleLabels[role] ?? 'Vai trò khác'}
+          >
+            <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CREATE_ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-        {(fRole === 'specialist' || fRole === 'leader') && (
-          <div className="space-y-1.5">
-            <Label htmlFor="u-department">Ban xử lý</Label>
-            <Select value={fDepartment} onValueChange={(v) => setFDepartment(v ?? '')}>
-              <SelectTrigger id="u-department"><SelectValue placeholder="Chọn ban (tùy chọn)" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Không gán ban</SelectItem>
-                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">Mật khẩu khởi tạo sẽ lấy từ biến môi trường DEFAULT_PASSWORD.</p>
       </FormDialog>
 
       {/* Sửa tài khoản */}
@@ -462,7 +443,11 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="e-status">Trạng thái</Label>
-          <Select value={eStatus} onValueChange={(v) => setEStatus(v ?? 'Active')}>
+          <Select
+            value={eStatus}
+            onValueChange={(v) => setEStatus(v ?? 'Active')}
+            itemToStringLabel={(status) => statusLabels[status] ?? 'Trạng thái khác'}
+          >
             <SelectTrigger id="e-status"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -471,10 +456,13 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="e-department">Ban xử lý</Label>
-          <Select value={eDepartment} onValueChange={(v) => setEDepartment(v ?? '')}>
+          <Select
+            value={eDepartment}
+            onValueChange={(v) => setEDepartment(v ?? '')}
+            itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban xử lý'}
+          >
             <SelectTrigger id="e-department"><SelectValue placeholder="Chọn ban (tùy chọn)" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Không gán ban</SelectItem>
               {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -513,7 +501,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       />
 
       {/* Actions row cho dòng được chọn */}
-      {isAdmin && selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
+      {canManageAccounts && selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
         <div className="mt-3 flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
             <KeyRound className="h-3.5 w-3.5" /> Đặt lại mật khẩu
