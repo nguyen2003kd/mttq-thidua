@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowDownToLine, FileText, MessageSquareText, Trash2, Upload } from 'lucide-react';
+import { ArrowDownToLine, FileText, MessageSquareText, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, DataTable, FileUpload, FormDialog, TruncatedText } from '@/components/core';
+import { Button, DataTable, FormDialog, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -14,6 +14,7 @@ import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/do
 import type { EvidenceFormValue } from './EvidenceModal';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_FILES_PER_CRITERION = 10;
 
 function validateScore(value: string, maximum: number, label: string, required = false) {
   if (value.trim() === '') return required ? `Vui lòng nhập ${label.toLocaleLowerCase()}.` : '';
@@ -29,6 +30,7 @@ interface LocalityScoreTableProps {
   evidence: Evidence[];
   localityId: string;
   editable: boolean;
+  editDisabledReason?: string;
   nowMs: number;
   draftValues?: Map<string, EvidenceFormValue>;
   selectedCriterionId?: string;
@@ -74,76 +76,6 @@ interface EditableRowProps extends Omit<LocalityScoreTableProps, 'criteria' | 'r
   state: ScoreRecord['state'];
   selected?: boolean;
   visibleColumnIds?: string[];
-}
-
-interface EvidenceUploadDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  description: string;
-  value: File[];
-  uploadedFiles: Evidence[];
-  onConfirm: (files: File[]) => void;
-  onDeleteUploaded?: (id: string) => void;
-}
-
-function EvidenceUploadDialog({ open, onOpenChange, title, description, value, uploadedFiles, onConfirm, onDeleteUploaded }: EvidenceUploadDialogProps) {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!open) return;
-    setSelectedFiles(value);
-    setError('');
-  }, [open, value]);
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (selectedFiles.length === 0 && uploadedFiles.length === 0) {
-      setError('Vui lòng chọn ít nhất một file minh chứng.');
-      return;
-    }
-    if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
-      setError('Mỗi file minh chứng không được vượt quá 20MB.');
-      return;
-    }
-    onConfirm(selectedFiles);
-    onOpenChange(false);
-  };
-
-  return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={title} description={description} onSubmit={submit} submitLabel="Xác nhận file" cancelLabel="Đóng" size="max-w-xl sm:max-w-xl">
-      <FileUpload value={selectedFiles} onChange={(files) => { setSelectedFiles(files); setError(''); }} multiple error={error} />
-      <p className="text-xs text-muted-foreground">File sẽ được tải lên hệ thống khi bạn bấm “Lưu tất cả” ở cuối trang.</p>
-      {uploadedFiles.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold">File đã tải lên ({uploadedFiles.length})</p>
-          {uploadedFiles.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
-              <FileText className="h-4 w-4 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <TruncatedText as="p" value={item.fileName} className="text-sm font-medium" />
-                <p className="text-xs text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(item.uploadedAt)}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                title="Tải file về máy"
-                onClick={() => { void downloadFile(item.id, item.fileName).catch(() => toast.error('Không thể tải file. Vui lòng thử lại.')); }}
-              >
-                <ArrowDownToLine className="h-4 w-4" />
-              </Button>
-              {onDeleteUploaded && (
-                <Button variant="ghost" size="icon-xs" title="Xóa tệp" className="text-destructive" onClick={() => onDeleteUploaded(item.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </FormDialog>
-  );
 }
 
 interface ExplanationDialogProps {
@@ -193,6 +125,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   draft,
   state,
   editable,
+  editDisabledReason,
   nowMs,
   uploading = false,
   onSelect,
@@ -208,11 +141,11 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const [bonusScore, setBonusScore] = useState('0');
   const [explanation, setExplanation] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const evidenceInputRef = useRef<HTMLInputElement>(null);
   const [explanationError, setExplanationError] = useState('');
   const [evidenceError, setEvidenceError] = useState('');
   const [scoreError, setScoreError] = useState('');
   const [bonusScoreError, setBonusScoreError] = useState('');
-  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
   const [explanationDialogOpen, setExplanationDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -233,6 +166,19 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const revisionFiles = specialistRevisionFiles?.get(criterion.id) ?? [];
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
   const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
+  const evidenceDisabledReason = uploading
+    ? 'Đang lưu dữ liệu, vui lòng đợi.'
+    : !editable
+      ? editDisabledReason ?? 'Hồ sơ hiện không cho phép chỉnh sửa.'
+      : criterionDeadlineExpired
+        ? 'Tiêu chí đã quá hạn nộp, không thể thêm file minh chứng.'
+        : revisionLocked
+          ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.'
+          : entry?.locked
+            ? 'Tiêu chí này đã bị khóa, không thể thêm file minh chứng.'
+            : selectedFiles.length >= MAX_FILES_PER_CRITERION
+              ? `Đã chọn tối đa ${MAX_FILES_PER_CRITERION} file minh chứng cho tiêu chí này.`
+              : undefined;
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
     id: `empty-${criterion.id}`,
@@ -247,6 +193,17 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const isSupplementary = criterion.type === 'Supplementary';
   const isColumnVisible = (columnId: string) => !visibleColumnIds || visibleColumnIds.includes(columnId);
+  const addEvidenceFiles = (incoming: FileList | null) => {
+    if (!incoming?.length || locked || uploading) return;
+    const filesToAdd = Array.from(incoming);
+    setEvidenceError(filesToAdd.some((file) => file.size > MAX_FILE_SIZE) ? 'Mỗi file minh chứng không được vượt quá 20MB.' : '');
+    setSelectedFiles((current) => {
+      const acceptedFiles = filesToAdd
+        .filter((file) => file.size <= MAX_FILE_SIZE)
+        .filter((file) => !current.some((existing) => existing.name === file.name && existing.size === file.size));
+      return [...current, ...acceptedFiles].slice(0, MAX_FILES_PER_CRITERION);
+    });
+  };
 
   /** Không giữ giá trị vượt điểm tối đa trong state, tránh lưu nháp/nộp nhầm. */
   const updateScoreInput = (
@@ -379,16 +336,104 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TruncatedText value={explanation || 'Nhập nội dung diễn giải'} />
         </Button>
         {explanationError && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{explanationError}</p>}
-        <EvidenceUploadDialog open={evidenceDialogOpen} onOpenChange={setEvidenceDialogOpen} title="Nộp file minh chứng" description={criterion.name} value={selectedFiles} uploadedFiles={standardFiles} onConfirm={(nextFiles) => { setSelectedFiles(nextFiles); setEvidenceError(''); }} onDeleteUploaded={onDeleteEvidence} />
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={(value) => { setExplanation(value); setExplanationError(''); }} />
       </TableCell>}
-      {isColumnVisible('evidence') && <TableCell className="align-middle">
-        <div className="flex min-w-0 flex-col gap-2">
-          <Button type="button" variant="outline" className="w-full justify-center overflow-hidden" disabled={locked || uploading} onClick={(event) => { event.stopPropagation(); setEvidenceDialogOpen(true); }}>
-            <Upload className="size-4 shrink-0" />
-            <TruncatedText value={standardFiles.length + selectedFiles.length > 0 ? 'Nộp thêm file' : 'Nộp file'} />
+      {isColumnVisible('evidence') && <TableCell className="align-top overflow-hidden">
+        <div className="min-w-0 max-w-full space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="rounded-md border-success/40 bg-success/10 text-success hover:bg-success/20 hover:text-success"
+            disabled={Boolean(evidenceDisabledReason)}
+            disabledReason={evidenceDisabledReason}
+            title="Chọn file minh chứng"
+            aria-label={`Chọn file minh chứng ${criterion.name}`}
+            onClick={(event) => { event.stopPropagation(); evidenceInputRef.current?.click(); }}
+          >
+            <Plus className="size-5" />
           </Button>
+          <input
+            ref={evidenceInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            disabled={Boolean(evidenceDisabledReason)}
+            aria-label={`Chọn file minh chứng ${criterion.name}`}
+            onChange={(event) => {
+              addEvidenceFiles(event.currentTarget.files);
+              event.currentTarget.value = '';
+            }}
+          />
           {evidenceError && <p role="alert" className="text-xs font-medium text-destructive">{evidenceError}</p>}
+          {selectedFiles.length > 0 && (
+            <ul className="min-w-0 space-y-1.5">
+              {selectedFiles.map((file, index) => (
+                <li key={`${file.name}-${file.size}-${index}`} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-border bg-muted/30 px-2 py-1.5">
+                  <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <TruncatedText as="span" value={file.name} className="block text-xs font-medium" />
+                    <span className="block text-[11px] text-muted-foreground">{Math.ceil(file.size / 1024)} KB · Chờ lưu</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="shrink-0 text-destructive"
+                    disabled={locked || uploading}
+                    title="Bỏ file đã chọn"
+                    aria-label={`Bỏ file ${file.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+                      setEvidenceError('');
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* <p className="whitespace-normal break-words text-xs text-muted-foreground">File sẽ được tải lên khi bạn bấm “Lưu tất cả”.</p> */}
+          {standardFiles.length > 0 && (
+            <ul className="min-w-0 space-y-1.5">
+              {standardFiles.map((item) => (
+                <li key={item.id} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-border bg-card px-2 py-2">
+                  <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <TruncatedText as="span" value={item.fileName} className="block text-xs font-medium" />
+                    <span className="block text-[11px] text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(item.uploadedAt)}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="shrink-0"
+                    title="Tải file về máy"
+                    aria-label={`Tải file ${item.fileName} về máy`}
+                    onClick={(event) => { event.stopPropagation(); void downloadFile(item.id, item.fileName).catch(() => toast.error('Không thể tải file. Vui lòng thử lại.')); }}
+                  >
+                    <ArrowDownToLine className="size-4" />
+                  </Button>
+                  {onDeleteEvidence && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="shrink-0 text-destructive"
+                      disabled={locked || uploading}
+                      title="Xóa minh chứng"
+                      aria-label={`Xóa minh chứng ${item.fileName}`}
+                      onClick={(event) => { event.stopPropagation(); onDeleteEvidence(item.id); }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </TableCell>}
       {isColumnVisible('specialistRevision') && <TableCell className="align-middle">
@@ -426,6 +471,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   evidence,
   localityId,
   editable,
+  editDisabledReason,
   nowMs,
   draftValues,
   selectedCriterionId,
@@ -443,36 +489,43 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
     {
       accessorKey: 'name',
       header: 'Nội dung tiêu chí',
+      size: 250,
       meta: { className: 'h-12 w-[250px] border-r border-white/30', disableTooltip: true },
     },
     {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
+      size: 130,
       meta: { className: 'h-12 w-[130px] border-r border-white/30', disableTooltip: true },
     },
     {
       id: 'proposedScore',
       header: 'Điểm đề xuất ★',
+      size: 130,
       meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
     },
     {
       id: 'bonusScore',
       header: 'Điểm thưởng',
+      size: 130,
       meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
     },
     {
       id: 'explanation',
       header: 'Nội dung diễn giải ★',
+      size: 280,
       meta: { className: 'h-12 w-[280px] border-r border-white/30', disableTooltip: true },
     },
     {
       id: 'evidence',
       header: 'File minh chứng ★',
-      meta: { className: 'h-12 w-[180px] border-r border-white/30', disableTooltip: true },
+      size: 320,
+      meta: { className: 'h-12 w-[320px] min-w-[320px] border-r border-white/30', disableTooltip: true },
     },
     {
       id: 'specialistRevision',
-      header: 'Nội dung chỉnh sửa Chuyên viên',
+      header: 'Nội dung chỉnh sửa',
+      size: 260,
       meta: { className: 'h-12 w-[260px]', disableTooltip: true },
     },
   ], []);
@@ -510,8 +563,9 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
         getRowId={(criterion) => criterion.id}
         selectedRowId={selectedCriterionId}
         className="-mt-px"
-        tableWrapperClassName="!overflow-visible"
-        tableClassName="min-w-[1360px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"
+        detachedStickyHeader
+        tableWrapperClassName="overflow-x-auto"
+        tableClassName="min-w-[1500px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"
         renderRow={(row, { selected, visibleColumnIds }) => {
           const criterion = row.original;
           return (
@@ -524,6 +578,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               draft={draftValues?.get(criterion.id)}
               state={record.state}
               editable={editable}
+              editDisabledReason={editDisabledReason}
               nowMs={nowMs}
               selected={selected}
               visibleColumnIds={visibleColumnIds}

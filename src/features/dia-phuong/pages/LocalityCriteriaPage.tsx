@@ -494,6 +494,15 @@ export default function LocalityCriteriaPage() {
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;
   const editable = isTrustedTimeReady && submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineExpired;
+  const editDisabledReason = !isTrustedTimeReady
+    ? 'Đang đồng bộ thời gian chuẩn.'
+    : !submissionAllowsEditing
+      ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
+      : parentDeadlineExpired
+        ? 'Nhóm tiêu chí đã quá hạn nộp.'
+        : record.state !== 'DRAFT'
+          ? 'Hồ sơ hiện không cho phép chỉnh sửa.'
+          : undefined;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const decisionFiles = groupDetailQuery.data?.files ?? [];
   const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineExpired;
@@ -741,6 +750,7 @@ export default function LocalityCriteriaPage() {
         evidence={evidence}
         localityId={localityId}
         editable={editable}
+        editDisabledReason={editDisabledReason}
         nowMs={currentTimeMs}
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}

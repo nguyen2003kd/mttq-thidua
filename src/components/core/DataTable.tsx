@@ -110,6 +110,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   selectedRowId?: string;
   /** Class áp dụng cho thẻ table bên trong, ví dụ min-width / table-fixed. */
   tableClassName?: string;
+  /** Tách header khỏi vùng cuộn ngang để header vẫn sticky theo trang. */
+  detachedStickyHeader?: boolean;
   /** Class cho vùng cuộn ngang chỉ của bảng, không làm toolbar hay footer bị tràn. */
   tableWrapperClassName?: string;
   /** Class cho container được tạo bên trong component Table. */
@@ -196,6 +198,7 @@ export function DataTable<TData, TValue = unknown>({
   getRowId,
   selectedRowId,
   tableClassName,
+  detachedStickyHeader = false,
   tableWrapperClassName,
   tableContainerClassName,
   footer,
@@ -228,6 +231,7 @@ export function DataTable<TData, TValue = unknown>({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderInnerRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
   const hasToolbar = Boolean(searchable || filters || toolbar || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
@@ -432,6 +436,73 @@ export function DataTable<TData, TValue = unknown>({
       </div>
     );
   };
+
+  const renderDetachedColGroup = () => (
+    <colgroup>
+      {table.getVisibleLeafColumns().map((column) => (
+        <col key={column.id} style={{ width: `${column.getSize()}px` }} />
+      ))}
+    </colgroup>
+  );
+
+  const renderTableHeader = (sticky: boolean) => (
+    <TableHeader>
+      {table.getHeaderGroups().map((headerGroup) => {
+        const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
+        return (
+          <TableRow
+            key={headerGroup.id}
+            style={sticky ? { '--toolbar-height': `${toolbarHeight}px` } as CSSProperties : undefined}
+            className={cn(
+              sticky && 'sticky top-[var(--toolbar-height)] z-20',
+              'border-border/40 bg-primary shadow-[0_2px_0_rgba(0,100,143,0.22)] hover:bg-transparent',
+            )}
+          >
+            {visibleHeaders.map((header, idx) => {
+              const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
+              const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const headerContent = flexRender(header.column.columnDef.header, header.getContext());
+              const headerText = extractCellText(headerContent).trim();
+
+              return (
+                <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', meta?.className)}>
+                  {header.isPlaceholder ? null : (
+                    <div
+                      className={cn(
+                        'flex items-center gap-1.5',
+                        header.column.getCanSort() && 'cursor-pointer select-none hover:text-primary-foreground/75',
+                        alignClass === 'text-right' && 'justify-end',
+                        alignClass === 'text-center' && 'justify-center',
+                      )}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {headerText ? (
+                        <Tooltip>
+                          <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                          <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
+                        </Tooltip>
+                      ) : headerContent}
+                      {header.column.getCanSort() && (
+                        <span className="text-primary-foreground/50">
+                          {header.column.getIsSorted() === 'asc' ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          ) : header.column.getIsSorted() === 'desc' ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronsUpDown className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </TableHead>
+              );
+            })}
+          </TableRow>
+        );
+      })}
+    </TableHeader>
+  );
 
   const renderList = () => {
     return (
@@ -675,57 +746,30 @@ export function DataTable<TData, TValue = unknown>({
       {/* Table */}
       {variant === 'list' ? renderList() : (
         <div>
-          <div className={cn('overflow-visible', tableWrapperClassName)}>
+          {detachedStickyHeader && (
+            <div
+              className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary"
+              style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
+            >
+              <div ref={tableHeaderInnerRef} className="will-change-transform">
+                <Table className={tableClassName} containerClassName="!overflow-visible">
+                  {renderDetachedColGroup()}
+                  {renderTableHeader(false)}
+                </Table>
+              </div>
+            </div>
+          )}
+          <div
+            className={cn('overflow-visible', tableWrapperClassName)}
+            onScroll={detachedStickyHeader ? (event) => {
+              if (tableHeaderInnerRef.current) {
+                tableHeaderInnerRef.current.style.transform = `translateX(-${event.currentTarget.scrollLeft}px)`;
+              }
+            } : undefined}
+          >
           <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => {
-                const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
-                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(0,100,143,0.22)] hover:bg-transparent">
-                  {visibleHeaders.map((header, idx) => {
-                    const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
-                    const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
-
-                    return (
-                      <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', meta?.className)}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={cn(
-                              'flex items-center gap-1.5',
-                              header.column.getCanSort() && 'cursor-pointer select-none hover:text-primary-foreground/75',
-                              alignClass === 'text-right' && 'justify-end',
-                              alignClass === 'text-center' && 'justify-center',
-                            )}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {(() => {
-                              const headerContent = flexRender(header.column.columnDef.header, header.getContext());
-                              const headerText = extractCellText(headerContent).trim();
-                              return headerText ? (
-                                <Tooltip>
-                                  <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
-                                  <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
-                                </Tooltip>
-                              ) : headerContent;
-                            })()}
-                            {header.column.getCanSort() && (
-                              <span className="text-primary-foreground/50">
-                                {header.column.getIsSorted() === 'asc' ? (
-                                  <ChevronUp className="h-3.5 w-3.5" />
-                                ) : header.column.getIsSorted() === 'desc' ? (
-                                  <ChevronDown className="h-3.5 w-3.5" />
-                                ) : (
-                                  <ChevronsUpDown className="h-3.5 w-3.5" />
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              })}
-            </TableHeader>
+            {detachedStickyHeader && renderDetachedColGroup()}
+            {!detachedStickyHeader && renderTableHeader(true)}
 
             <TableBody>
               {loading ? (
