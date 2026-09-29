@@ -144,7 +144,7 @@ export interface FileItem {
 
 export const localityApi = {
   // Criteria groups — reuse từ criteriaGroupsApi
-  listCriteriaGroups: (params?: { search?: string; status?: string; page?: number; pageSize?: number }) =>
+  listCriteriaGroups: (params?: { search?: string; status?: string; periodId?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<CriteriaGroupApi>>({ url: '/api/v1/criteria-groups', method: 'GET', params }),
   getCriteriaGroup: (id: string) =>
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
