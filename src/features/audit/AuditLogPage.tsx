@@ -170,6 +170,16 @@ function parseJsonRecord(value: string | null) {
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** GUID trần không đọc được với người xem — trả null để caller fallback nhãn thân thiện.
+ *  Hỗ trợ cả dạng "guid: Tên" (BE display kèm định danh): giữ phần tên, bỏ phần ID. */
+function readableRef(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const withName = new RegExp(`^${GUID_RE.source}\\s*[:\\-]\\s*(.+)$`, 'i').exec(trimmed);
+  const rest = (withName ? withName[1] : trimmed).trim();
+  return GUID_RE.test(rest) ? null : rest;
+}
+
 /** Danh từ cho mảng ID theo tên key — render "N kết quả tiêu chí" thay vì liệt kê GUID. */
 const idListNouns: Record<string, string> = {
   submissionresultids: 'kết quả tiêu chí',
@@ -204,10 +214,15 @@ function formatStructuredValue(value: unknown, keyHint?: string): string | null 
     const entries = Object.entries(parsed as Record<string, unknown>);
     if (entries.length === 0) return 'Không có';
     return entries
-      .map(([key, v]) => `${fieldLabels[key] ?? key}: ${formatStructuredValue(v, key) ?? formatAuditValue(key, v)}`)
+      .map(([key, v]) => `${getFieldLabel(key) ?? key}: ${formatStructuredValue(v, key) ?? formatAuditValue(key, v)}`)
       .join(' · ');
   }
   return null;
+}
+
+/** Lookup nhãn tiếng Việt không phân biệt hoa-thường — BE trả key lẫn PascalCase lẫn camelCase. Trả null nếu không có nhãn. */
+function getFieldLabel(key: string): string | null {
+  return fieldLabels[key] ?? fieldLabels[key.charAt(0).toUpperCase() + key.slice(1)] ?? null;
 }
 
 function formatAuditValue(field: string, value: unknown) {
@@ -251,9 +266,9 @@ function getMeaningfulDiff(item: AuditLogItem) {
       const change = value as { before?: unknown; after?: unknown };
       return {
         field,
-        label: fieldLabels[field] ?? field,
-        before: normDisplay(formatAuditValue(field, change?.before)) ?? 'Chưa có',
-        after: normDisplay(formatAuditValue(field, change?.after)) ?? 'Chưa có',
+        label: getFieldLabel(field) ?? field,
+        before: normDisplay(readableRef(formatAuditValue(field, change?.before))) ?? 'Chưa có',
+        after: normDisplay(readableRef(formatAuditValue(field, change?.after))) ?? 'Chưa có',
       };
     });
 }
@@ -265,9 +280,9 @@ function getDisplayChanges(item: AuditLogItem) {
         .filter((change) => !noiseAuditFields.has(change.field))
         .map((change) => ({
           field: change.field,
-          label: fieldLabels[change.field] ?? change.label ?? change.field,
-          before: normDisplay(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before)) ?? 'Chưa có',
-          after: normDisplay(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after)) ?? 'Chưa có',
+          label: getFieldLabel(change.field) ?? change.label ?? change.field,
+          before: normDisplay(readableRef(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before))) ?? 'Chưa có',
+          after: normDisplay(readableRef(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after))) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
@@ -471,7 +486,7 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
   );
 }
 
-/** Modal chi tiết một bản ghi audit — dùng AppDialog (header đỏ), body gồm meta + diff/file. Giữ item cũ khi đóng để animation mượt. */
+/** Modal chi tiết một bản ghi audit — dùng AppDialog, body gồm meta + diff/file. Giữ item cũ khi đóng để animation mượt. */
 function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; onOpenChange: (open: boolean) => void }) {
   const lastItem = useRef<AuditLogItem | null>(null);
   if (item) lastItem.current = item;
@@ -519,7 +534,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
 function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: AuditLogItem) => void }) {
   const after = parseJsonRecord(item.afterData) ?? parseJsonRecord(item.beforeData) ?? {};
   const changeMap = new Map((item.changes ?? []).map((change) => [change.field, change]));
-  const display = (field: string) => normDisplay(changeMap.get(field)?.afterDisplay ?? null);
+  const display = (field: string) => readableRef(normDisplay(changeMap.get(field)?.afterDisplay ?? null));
   const isFile = item.entityName === 'FileEntity';
   const { time, date } = formatTimeParts(item.createdAt);
   const cfg = getActionDisplay(item);
@@ -539,30 +554,30 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
 
   return (
     <TableRow className="cursor-pointer transition-colors hover:bg-muted/40" onClick={() => onOpen(item)}>
-      <TableCell className="border-r border-border/60 py-3">
-        <div className="leading-tight">
-          <div className="text-sm font-semibold tabular-nums text-foreground">{time}</div>
-          <div className="text-xs tabular-nums text-foreground/60">{date}</div>
+      <TableCell className="border-r border-border/60 py-3.5">
+        <div className="leading-snug">
+          <div className="text-[15px] font-semibold tabular-nums text-foreground">{time}</div>
+          <div className="text-[13px] tabular-nums text-foreground/70">{date}</div>
         </div>
       </TableCell>
-      <TableCell className="border-r border-border/60 py-3 whitespace-normal">
+      <TableCell className="border-r border-border/60 py-3.5 whitespace-normal">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{title}</p>
-          <p className="truncate text-xs text-foreground/60">{subtitle} · {getActorLabel(item.actor)}</p>
+          <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
+          <p className="truncate text-[13px] text-foreground/70">{subtitle} · {getActorLabel(item.actor)}</p>
         </div>
       </TableCell>
-      <TableCell className="border-r border-border/60 py-3">
-        <span className={`whitespace-nowrap text-xs font-semibold ${cfg.text}`}>
+      <TableCell className="border-r border-border/60 py-3.5 text-center">
+        <span className={`whitespace-nowrap text-sm font-semibold ${cfg.text}`}>
           {cfg.label || item.action}
         </span>
       </TableCell>
-      <TableCell className="border-r border-border/60 py-3">
-        <span className="whitespace-nowrap text-xs text-foreground/70">
+      <TableCell className="border-r border-border/60 py-3.5 text-center">
+        <span className="whitespace-nowrap text-sm text-foreground">
           {moduleLabels[item.module] ?? item.module}
         </span>
       </TableCell>
-      <TableCell className="py-3 text-right">
-        <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+      <TableCell className="py-3.5 text-right">
+        <ChevronRight className="ml-auto size-[18px] text-muted-foreground" />
       </TableCell>
     </TableRow>
   );
@@ -679,11 +694,11 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
-                <TableHead className="w-[120px] border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Thời gian</TableHead>
-                <TableHead className="border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Thao tác</TableHead>
-                <TableHead className="w-[110px] border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Hành động</TableHead>
-                <TableHead className="w-[140px] border-r border-white/15 text-xs font-bold uppercase tracking-wide text-primary-foreground">Phân hệ</TableHead>
-                <TableHead className="w-[64px] text-right text-xs font-bold uppercase tracking-wide text-primary-foreground">Chi tiết</TableHead>
+                <TableHead className="w-[120px] border-r border-white/15 text-[13px] font-semibold text-primary-foreground">Thời gian</TableHead>
+                <TableHead className="border-r border-white/15 text-[13px] font-semibold text-primary-foreground">Thao tác</TableHead>
+                <TableHead className="w-[130px] border-r border-white/15 text-center text-[13px] font-semibold text-primary-foreground">Hành động</TableHead>
+                <TableHead className="w-[150px] border-r border-white/15 text-center text-[13px] font-semibold text-primary-foreground">Phân hệ</TableHead>
+                <TableHead className="w-[64px] text-right text-[13px] font-semibold text-primary-foreground">Chi tiết</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

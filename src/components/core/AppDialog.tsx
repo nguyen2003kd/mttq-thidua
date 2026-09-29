@@ -26,7 +26,7 @@ export interface AppDialogProps {
 }
 
 /**
- * Modal dùng chung toàn app: header đỏ (bg-destructive) chữ trắng + nút X,
+ * Modal dùng chung toàn app: header trắng (tiêu đề H2 + nút X, Archetype 3),
  * body trắng scroll, footer có nút Đóng (primary) bên trái — đồng bộ với DetailDialog.
  */
 export function AppDialog({
@@ -43,7 +43,7 @@ export function AppDialog({
 }: AppDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogOverlay className="bg-[#009ee3]/45" />
+      <DialogOverlay className="bg-black/50" />
       <DialogContent
         showCloseButton={false}
         className={cn(
@@ -52,17 +52,17 @@ export function AppDialog({
           size,
         )}
       >
-        {/* Header - nền đỏ */}
-        <div className="flex shrink-0 items-center justify-between gap-3 bg-destructive px-6 py-4">
+        {/* Header - nền trắng, tiêu đề H2 + nút X (Archetype 3) */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-white px-6 py-4">
           <div className="flex min-w-0 flex-col gap-0.5">
-            <h2 className="truncate text-base font-semibold text-white">{title}</h2>
-            {subtitle && <p className="truncate text-sm text-white/80">{subtitle}</p>}
+            <h2 className="truncate text-lg font-semibold text-foreground">{title}</h2>
+            {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
           </div>
           <DialogClose
             render={
               <button
                 type="button"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/20"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               />
             }
           >
