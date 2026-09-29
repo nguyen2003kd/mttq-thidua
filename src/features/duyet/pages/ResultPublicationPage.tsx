@@ -140,7 +140,7 @@ export default function ResultPublicationPage() {
               <History className="mr-1.5 size-4" />Lịch sử công bố
             </Button>
             <Button
-              className="bg-accent text-foreground hover:bg-accent/90"
+             
               disabled={!periodId}
               onClick={() => setPreviewOpen(true)}
             >
@@ -241,7 +241,7 @@ export default function ResultPublicationPage() {
           <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-[8px] border-t border-border px-6 py-4">
             <Button variant="outline" onClick={closePreview} disabled={publishMutation.isPending}>Hủy</Button>
             <Button
-              className="bg-accent text-foreground hover:bg-accent/90"
+             
               disabled={!periodId || !previewQuery.data?.canPublish || publishMutation.isPending}
               onClick={submitPublication}
             >

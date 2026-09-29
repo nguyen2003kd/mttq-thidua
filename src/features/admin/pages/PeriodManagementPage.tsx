@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   periodsApi,
   getPeriodApiError,
@@ -39,6 +40,7 @@ const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Dr
 export default function PeriodManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search.trim(), 300);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -46,16 +48,11 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const periodsQuery = useQuery({
-    queryKey: ['admin-periods'],
-    queryFn: () => periodsApi.listAll(),
+    queryKey: ['admin-periods', { search: debouncedSearch }],
+    queryFn: () => periodsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
   });
 
-  const periods = useMemo(() => {
-    const items = periodsQuery.data ?? [];
-    const term = search.trim().toLowerCase();
-    if (!term) return items;
-    return items.filter((p) => p.name.toLowerCase().includes(term));
-  }, [periodsQuery.data, search]);
+  const periods = periodsQuery.data?.items ?? [];
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['admin-periods'] });
@@ -216,7 +213,9 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
             className="h-9 w-64"
           />
         }
-        emptyState={{ title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ đầu tiên để gắn nhóm tiêu chí.' }}
+        emptyState={search.trim()
+          ? { title: 'Không tìm thấy kỳ thi đua', description: 'Thử từ khóa khác.' }
+          : { title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ đầu tiên để gắn nhóm tiêu chí.' }}
         toolbar={
           <Button size="sm" className="h-9!" onClick={() => { setForm(emptyForm); setCreateOpen(true); }} action="create">
             <Plus className="h-4 w-4 ml-2" /> Thêm kỳ

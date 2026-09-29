@@ -67,8 +67,8 @@ export default function CriteriaListPage() {
   const [periodFilter, setPeriodFilter] = useState<string>('');
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
-    queryKey: ['criteria-groups', { search, statusFilter, sortBy, sortOrder }],
-    queryFn: () => criteriaGroupsApi.list({ search: search || undefined, status: statusFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
+    queryKey: ['criteria-groups', { search, statusFilter, periodId: periodFilter, sortBy, sortOrder }],
+    queryFn: () => criteriaGroupsApi.list({ search: search || undefined, status: statusFilter || undefined, periodId: periodFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
   });
   const criteriaTables = useMemo(() => (groupPage?.items ?? []).map(toCriteriaTable), [groupPage]);
 
@@ -98,10 +98,9 @@ export default function CriteriaListPage() {
         !yearFilter ||
         new Date(t.openDate).getFullYear().toString() === yearFilter ||
         new Date(t.closeDate).getFullYear().toString() === yearFilter;
-      const periodMatch = !periodFilter || t.periodId === periodFilter;
-      return yearMatch && periodMatch;
+      return yearMatch;
     });
-  }, [criteriaTables, yearFilter, periodFilter]);
+  }, [criteriaTables, yearFilter]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -361,7 +360,6 @@ export default function CriteriaListPage() {
         getRowId={(row) => row.id}
         selectedRowId={selectedTable?.id}
         searchable
-        searchKey="name"
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
@@ -436,8 +434,8 @@ export default function CriteriaListPage() {
             : undefined
         }
         emptyState={{
-          title: 'Chưa có bảng tiêu chí',
-          description: 'Tạo bảng tiêu chí đầu tiên để bắt đầu.',
+          title: search ? 'Không tìm thấy bảng tiêu chí' : 'Chưa có bảng tiêu chí',
+          description: search ? 'Thử từ khóa khác.' : 'Tạo bảng tiêu chí đầu tiên để bắt đầu.',
         }}
         toolbar={
           <div className="flex flex-wrap items-center gap-2">

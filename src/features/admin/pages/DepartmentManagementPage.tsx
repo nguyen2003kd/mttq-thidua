@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   departmentsApi,
   getDepartmentApiError,
@@ -52,6 +53,7 @@ function userDisplayName(u: ManagedUser) {
 export default function DepartmentManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search.trim(), 300);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -63,8 +65,8 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
   const [assignUserId, setAssignUserId] = useState('');
 
   const departmentsQuery = useQuery({
-    queryKey: ['admin-departments', { search }],
-    queryFn: () => departmentsApi.list({ search: search.trim() || undefined, page: 1, pageSize: 100 }),
+    queryKey: ['admin-departments', { search: debouncedSearch }],
+    queryFn: () => departmentsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100 }),
   });
   const departments = departmentsQuery.data?.items ?? [];
 
@@ -213,7 +215,9 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
             className="h-9 w-64"
           />
         }
-        emptyState={{ title: 'Chưa có ban', description: 'Tạo ban đầu tiên để bắt đầu phân công.' }}
+        emptyState={search.trim()
+          ? { title: 'Không tìm thấy ban', description: 'Thử từ khóa khác.' }
+          : { title: 'Chưa có ban', description: 'Tạo ban đầu tiên để bắt đầu phân công.' }}
         toolbar={
           <Button size="sm" className="h-9!" onClick={() => { setFName(''); setFDescription(''); setCreateOpen(true); }} action="create">
             <Plus className="h-4 w-4 ml-2" /> Thêm ban

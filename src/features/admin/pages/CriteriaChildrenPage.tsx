@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useDebounce } from '@/hooks/useDebounce';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { formatDate } from '@/lib/utils';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -71,7 +70,6 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parent
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
   const [search, setSearch] = useState(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
-  const debouncedSearch = useDebounce(search, 300);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
   const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
@@ -80,8 +78,8 @@ export default function CriteriaChildrenPage() {
   const { data: group, isLoading, error } = useQuery({ queryKey: ['criteria-group', id], queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
   const { data: criteriaPage, isLoading: isLoadingCriteria } = useQuery({
-    queryKey: ['criteria', id, { search: debouncedSearch, type: 'Standard', sortBy, sortOrder }],
-    queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: debouncedSearch || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
+    queryKey: ['criteria', id, { search, type: 'Standard', sortBy, sortOrder }],
+    queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: search || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
     enabled: Boolean(id),
   });
   const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard').map(toItem) ?? [], [group]);
@@ -231,7 +229,6 @@ export default function CriteriaChildrenPage() {
         getRowId={(item) => item.id}
         selectedRowId={selected?.id}
         searchable
-        searchKey="name"
         onSearchChange={setSearch}
         searchPlaceholder="Tìm nội dung hoặc ghi chú tiêu chí..."
         pageSize={10}
@@ -266,7 +263,9 @@ export default function CriteriaChildrenPage() {
             </Button>
           </div>
         )}
-        emptyState={{ title: 'Chưa có tiêu chí con', description: 'Thêm tiêu chí con đầu tiên cho nhóm tiêu chí này.' }}
+        emptyState={search
+          ? { title: 'Không tìm thấy tiêu chí con', description: 'Thử từ khóa khác.' }
+          : { title: 'Chưa có tiêu chí con', description: 'Thêm tiêu chí con đầu tiên cho nhóm tiêu chí này.' }}
       />
     </div>
     <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} parentDeadline={group.deadline} onSave={saveItem} saving={saving} />

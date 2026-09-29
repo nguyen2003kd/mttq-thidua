@@ -57,10 +57,11 @@ export default function ScoreByCriteriaPage() {
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<LocalityScoreRow | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<CriteriaGroupApi | null>(null);
+  const [groupSearch, setGroupSearch] = useState('');
 
   const groupsQuery = useQuery({
-    queryKey: ['score-criteria-groups'],
-    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    queryKey: ['score-criteria-groups', groupSearch],
+    queryFn: () => specialistApi.listCriteriaGroups({ search: groupSearch || undefined, page: 1, pageSize: 100 }),
     enabled: !groupId,
   });
   const groupQuery = useQuery({
@@ -96,26 +97,29 @@ export default function ScoreByCriteriaPage() {
     { id: 'stage', accessorFn: (row) => row.submission.currentStage, header: 'Trạng thái', cell: ({ row }) => { const badge = STAGE_BADGE[row.original.submission.currentStage]; return <Badge variant={badge.variant}>{badge.label}</Badge>; }, meta: { align: 'center', list: { width: 'minmax(190px,1fr)' } } },
   ], []);
 
-  if (groupId ? groupQuery.isLoading : groupsQuery.isLoading) return <PageLoading label="Đang tải dữ liệu…" />;
+  if (groupId ? groupQuery.isLoading : groupsQuery.isLoading && !groupSearch) return <PageLoading label="Đang tải dữ liệu…" />;
 
   if (!groupId) {
     const groups = (groupsQuery.data?.items ?? []).filter((group) => group.status === 'Applied' || group.status === 'Published');
     return (
       <div className="space-y-6">
         <PageHeader title="Chấm điểm theo nhóm tiêu chí" description="Chọn một nhóm tiêu chí để xem danh sách địa phương đã nộp hồ sơ." />
+        {groupsQuery.isError && <p role="alert" className="text-sm text-destructive">Không tìm được nhóm tiêu chí. Vui lòng thử từ khóa khác.</p>}
         <DataTable
           data={groups}
           columns={groupColumns}
+          loading={groupsQuery.isLoading}
           pageSize={10}
           variant="list"
           searchable
+          onSearchChange={setGroupSearch}
           searchPlaceholder="Tìm tên nhóm tiêu chí..."
           getRowId={(group) => group.id}
           selectedRowId={selectedGroup?.id}
           onRowClick={setSelectedGroup}
           onRowDoubleClick={(group) => navigate(`/thi-dua/cham-diem/theo-tieu-chi/${group.id}`)}
           toolbar={<Button variant="info" disabled={!selectedGroup} disabledReason="Chọn một nhóm tiêu chí để xem địa phương." onClick={() => selectedGroup && navigate(`/thi-dua/cham-diem/theo-tieu-chi/${selectedGroup.id}`)}><Eye className="mr-1.5 size-4" />Xem địa phương</Button>}
-          emptyState={{ title: 'Chưa có nhóm tiêu chí', description: 'Chưa có nhóm tiêu chí nào được áp dụng.', icon: <Search className="size-8" /> }}
+          emptyState={{ title: groupSearch ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí', description: groupSearch ? 'Thử từ khóa khác.' : 'Chưa có nhóm tiêu chí nào được áp dụng.', icon: <Search className="size-8" /> }}
           stickyTitle="Nhóm tiêu chí"
           stickyDescription="Chọn nhóm để xem địa phương"
         />

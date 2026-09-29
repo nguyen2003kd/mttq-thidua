@@ -231,8 +231,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-primary bg-primary px-4 text-primary-foreground">
         <div className="flex min-w-0 items-center gap-3">
           {/* Brand */}
-          <div className="flex shrink-0 items-center gap-2 pl-1 pr-2">
-            <Trophy className="h-6 w-6 text-accent" />
+          <div className="flex shrink-0 items-center pl-1 pr-2">
             <span className="hidden lg:block font-semibold text-sm tracking-tight whitespace-nowrap">Mặt Trận Tổ Quốc</span>
           </div>
           <span className="hidden h-6 w-px bg-white/25 xl:block" aria-hidden="true" />

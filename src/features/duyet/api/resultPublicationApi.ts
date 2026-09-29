@@ -16,7 +16,7 @@ const request = async <T>(config: AxiosRequestConfig) => {
 export interface ResultPublicationLocality {
   wardCode: string;
   wardName: string;
-  status: 'NotSubmitted' | 'RequiresRevision' | 'CouncilApproved' | 'CommitteeFinalized' | 'InProgress';
+  status: 'NotSubmitted' | 'RequiresRevision' | 'ReviewerApproved' | 'CouncilApproved' | 'CommitteeFinalized' | 'InProgress';
   submissionId: string | null;
   currentPoint: number;
   maxPoint: number;
@@ -57,6 +57,13 @@ export interface ResultPublicationOverview {
   criteriaGroups: ResultPublicationCriteriaGroup[];
 }
 
+export interface UnpublishedLocalityGroup {
+  wardCode: string;
+  wardName: string;
+  criteriaGroupId: string;
+  criteriaGroupName: string;
+}
+
 export interface ResultPublicationPreview {
   periodId: string;
   periodName: string;
@@ -67,6 +74,7 @@ export interface ResultPublicationPreview {
   localitiesRequiresRevision: number;
   message: string;
   publishedAt: string | null;
+  unpublishedLocalityGroups: UnpublishedLocalityGroup[];
 }
 
 export interface ResultPublicationResult {
