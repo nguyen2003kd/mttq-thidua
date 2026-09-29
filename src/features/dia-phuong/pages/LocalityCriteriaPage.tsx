@@ -76,6 +76,18 @@ function parseSubmissionResultIds(changedData?: string | null) {
   }
 }
 
+function parseRevisionCriteriaIds(changedData?: string | null) {
+  if (!changedData) return [] as string[];
+  try {
+    const parsed = JSON.parse(changedData) as { criteriaIds?: unknown };
+    return Array.isArray(parsed.criteriaIds)
+      ? parsed.criteriaIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function extractRevisionReason(reason?: string | null) {
   if (!reason) return null;
   const lines = reason.split(/\r?\n/);
@@ -340,6 +352,8 @@ export default function LocalityCriteriaPage() {
 
   const specialistRevisionCriteriaIds = useMemo(() => {
     if (!latestSpecialistRevision) return null;
+    const requestedCriteriaIds = parseRevisionCriteriaIds(latestSpecialistRevision.changedData);
+    if (requestedCriteriaIds.length > 0) return new Set(requestedCriteriaIds);
     const resultIds = parseSubmissionResultIds(latestSpecialistRevision.changedData);
     if (resultIds.length === 0) return null;
     const resultIdSet = new Set(resultIds);
