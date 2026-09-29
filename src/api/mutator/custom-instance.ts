@@ -11,7 +11,7 @@ type ProgressRequestConfig = AxiosRequestConfig & { __actionProgressId?: string 
 function getMutationProgressLabel(config: AxiosRequestConfig) {
   const method = config.method?.toLowerCase();
   const url = String(config.url ?? '');
-  if (url.includes('/files/') || config.data instanceof FormData) return 'Đang tải tệp lên…';
+  if (url.includes('/files/') || config.data instanceof FormData) return 'Đang tải dữ liệu…';
   if (url.includes('/finalize')) return 'Đang gửi hồ sơ…';
   if (url.includes('/submit-points')) return 'Đang lưu điểm tự đánh giá…';
   if (url.includes('/approve')) return 'Đang gửi yêu cầu xét duyệt…';

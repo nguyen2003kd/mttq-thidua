@@ -257,7 +257,7 @@ export default function BanLeaderReviewDetailPage() {
       setSavedDraftIds((current) => new Set([...current, ...dirtyItems.map((item) => item.submissionResultId)]));
       await queryClient.invalidateQueries({ queryKey: ['leader-submission-detail', submission.id] });
       await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
-      toast.success('Đã lưu tất cả điểm Lãnh đạo.');
+      toast.success('Đã Lưu nháp điểm Lãnh đạo.');
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể lưu điểm Lãnh đạo.');
@@ -331,7 +331,7 @@ export default function BanLeaderReviewDetailPage() {
         <TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
         <Button variant="outline" disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
         {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
-        <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu tất cả'}</Button>
+        <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu nháp'}</Button>
         <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>
         <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>
       </div>

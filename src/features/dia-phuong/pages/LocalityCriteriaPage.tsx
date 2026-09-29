@@ -1,9 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FilterSelect, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/authStore';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { CriteriaTable } from '@/types/domain';
 import type { ColumnDef } from '@tanstack/react-table';
+import type { CriteriaGroupSortBy, SortOrder } from '@/features/admin/api/criteriaGroupsApi';
 import {
   localityApi,
   mapCriteriaGroupToTable,
@@ -24,8 +25,27 @@ import {
 } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 
 interface SelectedRow { entry: ScoreEntry; criterion?: CriteriaItem }
+
+const SUBMISSION_STATUS_FILTER_OPTIONS = [
+  { value: 'NOT_SUBMITTED', label: 'Chưa nộp' },
+  { value: 'SUBMITTED', label: 'Đã nộp' },
+  { value: 'REVISION', label: 'Yêu cầu chỉnh sửa' },
+] as const;
+
+type SubmissionStatusFilter = (typeof SUBMISSION_STATUS_FILTER_OPTIONS)[number]['value'] | '';
+
+const GROUP_SORT_OPTIONS = [
+  { value: 'createdAt-desc', label: 'Mới nhất' },
+  { value: 'name-asc', label: 'Tên A–Z' },
+  { value: 'name-desc', label: 'Tên Z–A' },
+  { value: 'deadline-asc', label: 'Hạn nộp gần nhất' },
+  { value: 'maxPoint-desc', label: 'Điểm cao nhất' },
+] as const;
+
+const DEFAULT_GROUP_SORT = 'createdAt-desc';
 
 function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }: { open: boolean; onOpenChange: (open: boolean) => void; item: SelectedRow | null; evidence: Evidence[]; onPreview: (file: Evidence) => void }) {
   if (!item) return null;
@@ -89,12 +109,67 @@ function extractRevisionReason(reason?: string | null) {
 export default function LocalityCriteriaPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const localityId = user?.localityId;
   const { nowMs: trustedNowMs, isReady: isTrustedTimeReady } = useTrustedTime();
 
   const [selectedListTable, setSelectedListTable] = useState<LocalityCriteriaListRow | null>(null);
+  const [groupSearch, setGroupSearch] = useState(() => searchParams.get('search') ?? '');
+  const [statusFilter, setStatusFilter] = useState<SubmissionStatusFilter>(() => (
+    SUBMISSION_STATUS_FILTER_OPTIONS.find((option) => option.value === searchParams.get('status'))?.value ?? ''
+  ));
+  const [sortFilter, setSortFilter] = useState<string>(() => (
+    GROUP_SORT_OPTIONS.find((option) => option.value === searchParams.get('sort'))?.value ?? DEFAULT_GROUP_SORT
+  ));
+  const [yearFilter, setYearFilter] = useState(() => searchParams.get('year') ?? '');
+  const [periodFilter, setPeriodFilter] = useState(() => searchParams.get('periodId') ?? '');
+  const [sortBy, sortOrder] = sortFilter.split('-') as [CriteriaGroupSortBy, SortOrder];
+  const updateSearchParam = useCallback((key: string, value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+  const updateGroupSearch = useCallback((value: string) => {
+    setGroupSearch(value);
+    updateSearchParam('search', value);
+  }, [updateSearchParam]);
+  const updatePeriodFilter = useCallback((value: string) => {
+    setPeriodFilter(value);
+    setSelectedListTable(null);
+    updateSearchParam('periodId', value);
+  }, [updateSearchParam]);
+  const updateStatusFilter = useCallback((value: string) => {
+    setStatusFilter(value as SubmissionStatusFilter);
+    setSelectedListTable(null);
+    updateSearchParam('status', value);
+  }, [updateSearchParam]);
+  const updateSortFilter = useCallback((value: string) => {
+    setSortFilter(value);
+    setSelectedListTable(null);
+    updateSearchParam('sort', value === DEFAULT_GROUP_SORT ? '' : value);
+  }, [updateSearchParam]);
+  const updateYearFilter = useCallback((value: string) => {
+    setYearFilter(value);
+    setSelectedListTable(null);
+    updateSearchParam('year', value);
+  }, [updateSearchParam]);
+  const clearFilters = useCallback(() => {
+    setStatusFilter('');
+    setSortFilter(DEFAULT_GROUP_SORT);
+    setYearFilter('');
+    setPeriodFilter('');
+    setSelectedListTable(null);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      ['status', 'sort', 'year', 'periodId'].forEach((key) => next.delete(key));
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [selected, setSelected] = useState<SelectedRow | null>(null);
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -105,13 +180,39 @@ export default function LocalityCriteriaPage() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [draftResults, setDraftResults] = useState<Map<string, EvidenceFormValue>>(new Map());
+  const [criteriaCompletion, setCriteriaCompletion] = useState<{ groupId: string | null; completeIds: ReadonlySet<string> }>({ groupId: null, completeIds: new Set() });
   const draftResultsRef = useRef<Map<string, EvidenceFormValue>>(draftResults);
   const scoreTableRef = useRef<LocalityScoreTableHandle>(null);
+  const reportCriterionCompletion = useCallback((criteriaId: string, complete: boolean) => {
+    if (!id) return;
+    setCriteriaCompletion((current) => {
+      const currentIds = current.groupId === id ? current.completeIds : new Set<string>();
+      if (current.groupId === id && currentIds.has(criteriaId) === complete) return current;
+      const completeIds = new Set(currentIds);
+      if (complete) completeIds.add(criteriaId);
+      else completeIds.delete(criteriaId);
+      return { groupId: id, completeIds };
+    });
+  }, [id]);
 
   // Danh sách nhóm tiêu chí được giao (backend trả về tất cả, lọc theo submission của locality)
+  const periodsQuery = useQuery({
+    queryKey: ['periods'],
+    queryFn: () => periodsApi.listAll(),
+    staleTime: 60_000,
+  });
+  const periods = periodsQuery.data ?? [];
+
   const groupsQuery = useQuery({
-    queryKey: ['locality-criteria-groups', localityId],
-    queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    queryKey: ['locality-criteria-groups', localityId, groupSearch, periodFilter, sortBy, sortOrder],
+    queryFn: () => localityApi.listCriteriaGroups({
+      search: groupSearch || undefined,
+      periodId: periodFilter || undefined,
+      sortBy,
+      sortOrder,
+      page: 1,
+      pageSize: 100,
+    }),
     enabled: Boolean(localityId),
   });
 
@@ -168,6 +269,27 @@ export default function LocalityCriteriaPage() {
     }),
     [assignedTables, bonusScoreByGroupId, submissionByGroup],
   );
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    for (const row of localityListRows) {
+      for (const date of [row.openDate, row.closeDate]) {
+        if (!date) continue;
+        const timestamp = new Date(date).getTime();
+        if (Number.isFinite(timestamp)) years.add(new Date(timestamp).getFullYear().toString());
+      }
+    }
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [localityListRows]);
+
+  const filteredLocalityListRows = useMemo(() => localityListRows.filter((row) => {
+    const matchesYear = !yearFilter || [row.openDate, row.closeDate].some((date) => (
+      Boolean(date) && new Date(date).getFullYear().toString() === yearFilter
+    ));
+    const selectedStatusLabel = SUBMISSION_STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label;
+    const matchesStatus = !statusFilter || getSubmissionStageLabel(row.submissionStage) === selectedStatusLabel;
+    return matchesYear && matchesStatus;
+  }), [localityListRows, statusFilter, yearFilter]);
 
   const localityListColumns = useMemo<ColumnDef<LocalityCriteriaListRow>[]>(
     () => [
@@ -443,28 +565,79 @@ export default function LocalityCriteriaPage() {
 
   // ── List view ──────────────────────────────────────────────────────────────
   if (!id) {
-    if (groupsQuery.isLoading || mySubmissionsQuery.isLoading) {
+    if ((groupsQuery.isLoading && !groupSearch) || mySubmissionsQuery.isLoading) {
       return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" /><PageLoading label="Đang tải danh sách tiêu chí…" /></div>;
     }
-    if (groupsQuery.isError || mySubmissionsQuery.isError) {
+    if ((groupsQuery.isError && !groupSearch) || mySubmissionsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(groupsQuery.error ?? mySubmissionsQuery.error)} />;
     }
     return (
       <div className="space-y-5">
         <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" />
+        {groupsQuery.isError && <p role="alert" className="text-sm text-destructive">Không tìm được nhóm tiêu chí. Vui lòng thử từ khóa khác.</p>}
         <DataTable
-          data={localityListRows}
+          data={filteredLocalityListRows}
           columns={localityListColumns}
           variant="list"
+          loading={groupsQuery.isFetching}
           getRowId={(row) => row.id}
           selectedRowId={selectedListTable?.id}
           searchable
-          searchKey="name"
+          initialSearchValue={groupSearch}
           searchPlaceholder="Tìm theo tên nhóm tiêu chí..."
+          onSearchChange={updateGroupSearch}
+          filters={(
+            <>
+              <FilterSelect
+                label="Trạng thái"
+                value={statusFilter}
+                onChange={updateStatusFilter}
+                options={SUBMISSION_STATUS_FILTER_OPTIONS.map((option) => ({ ...option }))}
+              />
+              <FilterSelect
+                label="Sắp xếp"
+                value={sortFilter}
+                onChange={updateSortFilter}
+                allLabel="Mặc định"
+                options={GROUP_SORT_OPTIONS.map((option) => ({ ...option }))}
+              />
+              <FilterSelect
+                label="Năm"
+                value={yearFilter}
+                onChange={updateYearFilter}
+                options={availableYears.map((year) => ({ value: year, label: year }))}
+              />
+              <FilterSelect
+                label="Kỳ"
+                value={periodFilter}
+                onChange={updatePeriodFilter}
+                options={periods.map((period) => ({ value: period.id, label: period.name }))}
+              />
+            </>
+          )}
+          activeFilters={[
+            ...(statusFilter ? [{
+              label: 'Trạng thái',
+              value: SUBMISSION_STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label ?? statusFilter,
+              onClear: () => updateStatusFilter(''),
+            }] : []),
+            ...(yearFilter ? [{ label: 'Năm', value: yearFilter, onClear: () => updateYearFilter('') }] : []),
+            ...(periodFilter ? [{
+              label: 'Kỳ',
+              value: periods.find((period) => period.id === periodFilter)?.name ?? periodFilter,
+              onClear: () => updatePeriodFilter(''),
+            }] : []),
+            ...(sortFilter !== DEFAULT_GROUP_SORT ? [{
+              label: 'Sắp xếp',
+              value: GROUP_SORT_OPTIONS.find((option) => option.value === sortFilter)?.label ?? sortFilter,
+              onClear: () => updateSortFilter(DEFAULT_GROUP_SORT),
+            }] : []),
+          ]}
+          onClearFilters={statusFilter || yearFilter || periodFilter || sortFilter !== DEFAULT_GROUP_SORT ? clearFilters : undefined}
           pageSize={10}
           onRowClick={setSelectedListTable}
           onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}`)}
-          emptyState={{ title: 'Chưa có nhóm tiêu chí được giao.' }}
+          emptyState={{ title: groupSearch || statusFilter || yearFilter || periodFilter ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí được giao.' }}
           toolbar={
             <Button variant="info" disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
               <Eye className="size-4" />Xem
@@ -506,6 +679,22 @@ export default function LocalityCriteriaPage() {
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const decisionFiles = groupDetailQuery.data?.files ?? [];
   const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineExpired;
+  const allCriteriaComplete = detailTable.criteria.length > 0
+    && criteriaCompletion.groupId === id
+    && detailTable.criteria.every((criterion) => criteriaCompletion.completeIds.has(criterion.id));
+  const submitDisabledReason = savingAll
+    ? 'Đang lưu dữ liệu.'
+    : !isTrustedTimeReady
+      ? 'Đang đồng bộ thời gian chuẩn.'
+      : submissionLockedReason ?? (parentDeadlineExpired
+        ? 'Nhóm tiêu chí đã quá hạn nộp.'
+        : !submissionAllowsEditing
+          ? 'Hồ sơ đã được gửi xử lý, không thể gửi lại.'
+          : !allCriteriaComplete
+            ? detailTable.criteria.length === 0
+              ? 'Nhóm tiêu chí chưa có tiêu chí con để gửi.'
+              : 'Hoàn thiện điểm đề xuất, nội dung diễn giải và ít nhất một file minh chứng ở tất cả tiêu chí con trước khi gửi.'
+            : undefined);
 
   const ensureParentDeadlineActive = () => {
     if (!isTrustedTimeReady) {
@@ -759,6 +948,7 @@ export default function LocalityCriteriaPage() {
         specialistRevisionFiles={specialistRevisionFiles}
         onPreviewRevisionFile={(file) => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })}
         editableCriteriaIds={revisionEditableCriteriaIds}
+        onCompletionChange={reportCriterionCompletion}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {
@@ -772,8 +962,8 @@ export default function LocalityCriteriaPage() {
             <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
             <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
-              <Button disabled={savingAll || !canSubmit} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện chưa sẵn sàng để gửi.')} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
+              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
+              <Button disabled={savingAll || !canSubmit || !allCriteriaComplete} disabledReason={submitDisabledReason} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
             </div>
           </div>
         )}

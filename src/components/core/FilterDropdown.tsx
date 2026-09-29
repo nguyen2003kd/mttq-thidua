@@ -13,6 +13,8 @@ export interface FilterDropdownProps {
   label?: string;
   /** Gọi khi bấm Xóa lọc — ẩn nút nếu không truyền */
   onClear?: () => void;
+  /** Giữ bảng lọc mở bên dưới nút để không bị thanh điều hướng cố định che phần đầu. */
+  openBelow?: boolean;
   className?: string;
 }
 
@@ -41,7 +43,7 @@ function flattenFilterChildren(nodes: ReactNode): ReactNode[] {
  * Giá trị chọn trong dropdown là bản nháp — chỉ áp dụng khi bấm "Xác nhận" (dropdown tự đóng).
  * "Xóa lọc" đặt lại toàn bộ filter. Đóng khi bấm ra ngoài hoặc nhấn Escape (bỏ thay đổi chưa xác nhận).
  */
-export function FilterDropdown({ children, activeCount = 0, activeFilters, label = 'Bộ lọc', onClear, className }: FilterDropdownProps) {
+export function FilterDropdown({ children, activeCount = 0, activeFilters, label = 'Bộ lọc', onClear, openBelow = false, className }: FilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const [panelMaxHeight, setPanelMaxHeight] = useState<number | null>(null);
   const [placement, setPlacement] = useState<'above' | 'below'>('below');
@@ -78,7 +80,7 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
       const rect = trigger.getBoundingClientRect();
       const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 12);
       const spaceAbove = Math.max(0, rect.top - 12);
-      const nextPlacement = spaceBelow < 320 && spaceAbove > spaceBelow ? 'above' : 'below';
+      const nextPlacement = !openBelow && spaceBelow < 320 && spaceAbove > spaceBelow ? 'above' : 'below';
       setPlacement(nextPlacement);
       setPanelMaxHeight(Math.floor(nextPlacement === 'above' ? spaceAbove : spaceBelow));
     };
@@ -89,7 +91,7 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open]);
+  }, [open, openBelow]);
 
   const toggle = () => {
     if (!open) {

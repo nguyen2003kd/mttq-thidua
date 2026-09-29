@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TableColumnVisibility, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -41,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -83,12 +85,57 @@ interface SpecialistCriteriaGroup {
   code: string;
   groupName: string;
   description: string;
+  periodId: string | null;
+  periodName: string | null;
+  deadline: string | null;
+  createdAt: string;
+  maxPoint: number;
   totalProposedScore: number;
   totalProposedBonusScore: number;
   status: 'CHUA_NOP' | 'CHO_CHAM' | 'CHO_DUYET' | 'DA_CHAM' | 'YEU_CAU_SUA';
   hasModificationRequest: boolean;
   modificationNote?: string;
   items: SpecialistCriteriaItem[];
+}
+
+function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: SubmissionApi | undefined, scoringRole: ScoringRole): SpecialistCriteriaGroup {
+  const items: SpecialistCriteriaItem[] = (group.criteria ?? [])
+    .filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === submission?.id)
+    .map((criterion, index) => {
+      const result = submission?.results.find((item) => item.criteriaId === criterion.id);
+      return {
+        id: criterion.id,
+        code: `TC_${String(index + 1).padStart(2, '0')}`,
+        title: criterion.content,
+        evidenceFiles: [],
+        proposedScore: result?.point ?? 0,
+        proposedBonusScore: result?.bonusPoint ?? 0,
+        maxProposedScore: criterion.maxPoint,
+        maxProposedBonusScore: criterion.maxBonusPoint,
+        explanation: result?.explanation ?? '',
+        officialScore: result?.officialPoint ?? null,
+        officialBonusScore: result?.officialBonusPoint ?? null,
+        scoreReason: result?.officialReason ?? '',
+        isAddedBySpecialist: criterion.type === 'Supplementary',
+      };
+    });
+
+  return {
+    id: group.id,
+    code: group.name,
+    groupName: group.name,
+    description: group.content ?? '',
+    periodId: group.periodId,
+    periodName: group.periodName,
+    deadline: group.deadline,
+    createdAt: group.createdAt,
+    maxPoint: group.maxPoint,
+    totalProposedScore: submission?.results.reduce((sum, result) => sum + result.point, 0) ?? 0,
+    totalProposedBonusScore: submission?.results.reduce((sum, result) => sum + result.bonusPoint, 0) ?? 0,
+    status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
+    hasModificationRequest: submission?.currentStage === 'RequiresRevision' || submission?.currentStage === 'ScorerRevisionRequested' || submission?.currentStage === 'ReviewerRevisionRequested',
+    items,
+  };
 }
 
 interface LocalityRow {
@@ -134,6 +181,67 @@ const GROUP_STATUS_FILTER_OPTIONS: Array<{ value: Exclude<GroupStatusFilter, ''>
   { value: 'DA_CHAM', label: 'Đã chấm' },
   { value: 'YEU_CAU_SUA', label: 'Yêu cầu chỉnh sửa' },
 ];
+
+const GROUP_SORT_OPTIONS = [
+  { value: 'createdAt-desc', label: 'Mới nhất' },
+  { value: 'name-asc', label: 'Tên A–Z' },
+  { value: 'name-desc', label: 'Tên Z–A' },
+  { value: 'deadline-asc', label: 'Hạn nộp gần nhất' },
+  { value: 'maxPoint-desc', label: 'Điểm cao nhất' },
+] as const;
+
+const DEFAULT_GROUP_SORT = 'createdAt-desc';
+
+const SPECIALIST_GROUP_COLUMNS = [
+  { id: 'group', label: 'Nhóm tiêu chí' },
+  { id: 'content', label: 'Nội dung' },
+  { id: 'proposed-score', label: 'Điểm đề xuất' },
+  { id: 'bonus-score', label: 'Điểm thưởng' },
+  { id: 'status', label: 'Trạng thái hồ sơ' },
+];
+
+/** Danh sách cột dạng nháp để FilterDropdown chỉ áp dụng sau khi bấm Xác nhận. */
+function ColumnVisibilityDraftControl({
+  value,
+  onChange,
+  columns,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  columns: typeof SPECIALIST_GROUP_COLUMNS;
+}) {
+  const visibleIds = new Set(value ? value.split(',') : []);
+  return (
+    <div className="border-t border-border pt-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">Cột hiển thị</p>
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {visibleIds.size}/{columns.length} cột
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {columns.map(({ id, label }) => {
+          const checked = visibleIds.has(id);
+          return (
+            <label key={id} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-[13px] text-foreground transition-colors hover:bg-muted">
+              <Checkbox
+                checked={checked}
+                disabled={checked && visibleIds.size === 1}
+                onCheckedChange={(nextChecked) => {
+                  const next = new Set(visibleIds);
+                  if (nextChecked) next.add(id);
+                  else next.delete(id);
+                  onChange(Array.from(next).join(','));
+                }}
+              />
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function getGroupStatusFilterLabel(status: GroupStatusFilter) {
   return GROUP_STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ?? '';
@@ -1290,6 +1398,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const [submissionStageFilter, setSubmissionStageFilter] = useState<SubmissionStageFilter>('');
   const [groupSearch, setGroupSearch] = useState('');
   const [groupStatusFilter, setGroupStatusFilter] = useState<GroupStatusFilter>('');
+  const [groupSortFilter, setGroupSortFilter] = useState<string>(DEFAULT_GROUP_SORT);
+  const [groupYearFilter, setGroupYearFilter] = useState('');
+  const [groupPeriodFilter, setGroupPeriodFilter] = useState('');
+  const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(window.localStorage.getItem('table-columns:specialist-criteria-groups') ?? '{}') as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
@@ -1303,11 +1422,29 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string; url?: string | null } | null>(null);
+  const tableHeaderInnerRef = useRef<HTMLDivElement>(null);
   const openEvidencePreview = (file: EvidenceFile) =>
     setPreviewFile({ id: file.fileId, originalName: file.fileName });
   const openRevisionFilePreview = (file: SubmissionResultFile) =>
     setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url });
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
+  const debouncedGroupSearch = useDebounce(groupSearch.trim(), 300);
+  const visibleGroupColumnIds = SPECIALIST_GROUP_COLUMNS
+    .filter((column) => groupColumnVisibility[column.id] !== false)
+    .map((column) => column.id);
+  const visibleGroupColumnValue = visibleGroupColumnIds.join(',');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('table-columns:specialist-criteria-groups', JSON.stringify(groupColumnVisibility));
+  }, [groupColumnVisibility]);
+
+  const hiddenGroupColumnRules = useMemo(() => SPECIALIST_GROUP_COLUMNS
+    .map((column, index) => groupColumnVisibility[column.id] === false
+      ? `[data-column-visibility-table="specialist-criteria-groups"] colgroup > :nth-child(${index + 1}) { display: none; width: 0 !important; }\n[data-column-visibility-table="specialist-criteria-groups"] tr > :nth-child(${index + 1}) { display: none; }`
+      : '')
+    .filter(Boolean)
+    .join('\n'), [groupColumnVisibility]);
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
   const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
@@ -1337,6 +1474,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const groupsQuery = useQuery({
     queryKey: ['specialist-criteria-groups'],
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+  });
+  const searchedGroupsQuery = useQuery({
+    queryKey: ['specialist-criteria-groups-search', debouncedGroupSearch],
+    queryFn: () => specialistApi.listCriteriaGroups({ search: debouncedGroupSearch, page: 1, pageSize: 100 }),
+    enabled: Boolean(diaPhuongId && !nhomTieuChiId && debouncedGroupSearch),
   });
 
   // Danh sách địa phương = nhóm submissions theo locality (wardCode)
@@ -1397,43 +1539,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
 
   // Nhóm tiêu chí của địa phương đang chọn (chỉ hiện group Applied hoặc đã có submission)
   const localityGroups: SpecialistCriteriaGroup[] = useMemo(() => {
-    const groups = groupsQuery.data?.items ?? [];
-    return groups
-      .filter((g) => g.status === 'Applied' || g.status === 'Published' || submissionByGroup.has(g.id))
-      .map((g) => {
-        const submission = submissionByGroup.get(g.id);
-        const items: SpecialistCriteriaItem[] = (g.criteria ?? [])
-          .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === submission?.id)
-          .map((c, idx) => {
-          const result = submission?.results.find((r) => r.criteriaId === c.id);
-          return {
-            id: c.id,
-            code: `TC_${String(idx + 1).padStart(2, '0')}`,
-            title: c.content,
-            evidenceFiles: [],
-            proposedScore: result?.point ?? 0,
-            proposedBonusScore: result?.bonusPoint ?? 0,
-            maxProposedScore: c.maxPoint,
-            maxProposedBonusScore: c.maxBonusPoint,
-            explanation: result?.explanation ?? '',
-            officialScore: result?.officialPoint ?? null,
-            officialBonusScore: result?.officialBonusPoint ?? null,
-            scoreReason: result?.officialReason ?? '',
-            isAddedBySpecialist: c.type === 'Supplementary',
-          };
-          });
-        return {
-          id: g.id,
-          code: g.name,
-          groupName: g.name,
-          description: g.content ?? '',
-          totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
-          totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
-          status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
-          hasModificationRequest: submission?.currentStage === 'RequiresRevision' || submission?.currentStage === 'ScorerRevisionRequested' || submission?.currentStage === 'ReviewerRevisionRequested',
-          items,
-        };
-      });
+    return (groupsQuery.data?.items ?? [])
+      .filter((group) => group.status === 'Applied' || group.status === 'Published' || submissionByGroup.has(group.id))
+      .map((group) => toSpecialistCriteriaGroup(group, submissionByGroup.get(group.id), scoringRole));
   }, [groupsQuery.data, scoringRole, submissionByGroup]);
 
   const district: LocalityRow | undefined = useMemo(
@@ -1510,6 +1618,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       code: group.name,
       groupName: group.name,
       description: group.content ?? '',
+      periodId: group.periodId,
+      periodName: group.periodName,
+      deadline: group.deadline,
+      createdAt: group.createdAt,
+      maxPoint: group.maxPoint,
       totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
       totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
       status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
@@ -1560,13 +1673,52 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     setScoreOverrides((prev) => new Map(prev).set(criterionId, { ...prev.get(criterionId), ...values }));
   };
 
+  const groupYearOptions = useMemo(() => {
+    const years = new Set<string>();
+    for (const group of localityGroups) {
+      for (const date of [group.createdAt, group.deadline]) {
+        if (!date) continue;
+        const timestamp = Date.parse(date);
+        if (Number.isFinite(timestamp)) years.add(String(new Date(timestamp).getFullYear()));
+      }
+    }
+    return Array.from(years).sort((a, b) => Number(b) - Number(a)).map((year) => ({ value: year, label: year }));
+  }, [localityGroups]);
+
+  const groupPeriodOptions = useMemo(() => {
+    const periods = new Map<string, string>();
+    for (const group of localityGroups) {
+      if (group.periodId) periods.set(group.periodId, group.periodName?.trim() || 'Kỳ thi đua chưa đặt tên');
+    }
+    return Array.from(periods, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [localityGroups]);
+
   const filteredGroups = useMemo(() => {
-    const keyword = groupSearch.trim().toLocaleLowerCase('vi');
-    return localityGroups.filter((group) =>
-      (!keyword || `${group.code} ${group.groupName} ${group.description}`.toLocaleLowerCase('vi').includes(keyword))
-      && (!groupStatusFilter || group.status === groupStatusFilter),
-    );
-  }, [localityGroups, groupSearch, groupStatusFilter]);
+    const groups = debouncedGroupSearch
+      ? (searchedGroupsQuery.data?.items ?? [])
+        .filter((group) => group.status === 'Applied' || group.status === 'Published' || submissionByGroup.has(group.id))
+        .map((group) => toSpecialistCriteriaGroup(group, submissionByGroup.get(group.id), scoringRole))
+      : localityGroups;
+    const filtered = groups.filter((group) => {
+      const matchesStatus = !groupStatusFilter || group.status === groupStatusFilter;
+      const matchesPeriod = !groupPeriodFilter || group.periodId === groupPeriodFilter;
+      const matchesYear = !groupYearFilter || [group.createdAt, group.deadline].some((date) => (
+        Boolean(date) && String(new Date(date!).getFullYear()) === groupYearFilter
+      ));
+      return matchesStatus && matchesPeriod && matchesYear;
+    });
+    const [sortBy, sortOrder] = groupSortFilter.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
+    return filtered.sort((a, b) => {
+      if (sortBy === 'name') return a.groupName.localeCompare(b.groupName, 'vi') * (sortOrder === 'asc' ? 1 : -1);
+      if (sortBy === 'maxPoint') return (b.maxPoint - a.maxPoint) * (sortOrder === 'asc' ? -1 : 1);
+      const aTime = Date.parse(sortBy === 'deadline' ? a.deadline ?? '' : a.createdAt);
+      const bTime = Date.parse(sortBy === 'deadline' ? b.deadline ?? '' : b.createdAt);
+      const safeATime = Number.isFinite(aTime) ? aTime : (sortBy === 'deadline' ? Number.POSITIVE_INFINITY : 0);
+      const safeBTime = Number.isFinite(bTime) ? bTime : (sortBy === 'deadline' ? Number.POSITIVE_INFINITY : 0);
+      return (safeATime - safeBTime) * (sortOrder === 'asc' ? 1 : -1);
+    });
+  }, [debouncedGroupSearch, groupPeriodFilter, groupSortFilter, groupStatusFilter, groupYearFilter, localityGroups, scoringRole, searchedGroupsQuery.data, submissionByGroup]);
 
   const filteredLocalityRows = useMemo(() => {
     const keyword = debouncedLocalitySearch.trim().toLocaleLowerCase('vi');
@@ -1606,10 +1758,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   ))}
                 </TabsList>
               </Tabs>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="size-1.5 rounded-full bg-primary" />
-                Lọc trạng thái được áp dụng từ máy chủ
-              </div>
             </div>
           </div>
           <div className="flex flex-col gap-3 border-b border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -1753,6 +1901,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     const totalCount = localityGroups.length;
     const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
+    const activeGroupFilters = [
+      ...(groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : []),
+      ...(groupSortFilter !== DEFAULT_GROUP_SORT ? [{ label: 'Sắp xếp', value: GROUP_SORT_OPTIONS.find((option) => option.value === groupSortFilter)?.label ?? 'Tùy chọn', onClear: () => setGroupSortFilter(DEFAULT_GROUP_SORT) }] : []),
+      ...(groupYearFilter ? [{ label: 'Năm', value: groupYearFilter, onClear: () => setGroupYearFilter('') }] : []),
+      ...(groupPeriodFilter ? [{ label: 'Kỳ', value: groupPeriodOptions.find((option) => option.value === groupPeriodFilter)?.label ?? 'Kỳ thi đua', onClear: () => setGroupPeriodFilter('') }] : []),
+    ];
 
     return (
       <div className="space-y-5">
@@ -1792,7 +1946,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           </div>
         </section>
 
-        <div className="overflow-clip rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+        <div className="overflow-visible rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
           <TableSectionHeader title="Nhóm tiêu chí thi đua" countLabel={`${filteredGroups.length} nhóm tiêu chí`} />
           <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-4 shadow-[0_6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur sm:top-[-24px] sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="relative w-full max-w-xl sm:flex-1">
@@ -1802,30 +1956,55 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 value={groupSearch}
                 onChange={(event) => setGroupSearch(event.target.value)}
                 className="pl-9"
-                placeholder="Tìm kiếm tên hoặc mã nhóm tiêu chí"
+                placeholder="Tìm kiếm nhóm tiêu chí"
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <TableColumnVisibility
-                storageKey="specialist-criteria-groups"
-                columns={[
-                  { id: 'group', label: 'Nhóm tiêu chí' },
-                  { id: 'content', label: 'Nội dung' },
-                  { id: 'proposed-score', label: 'Điểm đề xuất' },
-                  { id: 'bonus-score', label: 'Điểm thưởng' },
-                  { id: 'status', label: 'Trạng thái' },
-                ]}
-              />
               <FilterDropdown
-                activeCount={groupStatusFilter ? 1 : 0}
-                activeFilters={groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : undefined}
-                onClear={() => setGroupStatusFilter('')}
+                activeCount={activeGroupFilters.length}
+                activeFilters={activeGroupFilters}
+                openBelow
+                onClear={() => {
+                  setGroupStatusFilter('');
+                  setGroupSortFilter(DEFAULT_GROUP_SORT);
+                  setGroupYearFilter('');
+                  setGroupPeriodFilter('');
+                  setGroupColumnVisibility({});
+                  setSelectedGroupId(null);
+                }}
               >
                 <FilterSelect
                   label="Trạng thái"
                   value={groupStatusFilter}
                   onChange={(value) => setGroupStatusFilter(value as GroupStatusFilter)}
                   options={GROUP_STATUS_FILTER_OPTIONS}
+                />
+                <FilterSelect
+                  label="Sắp xếp"
+                  value={groupSortFilter}
+                  onChange={setGroupSortFilter}
+                  options={[...GROUP_SORT_OPTIONS]}
+                />
+                <FilterSelect
+                  label="Năm"
+                  value={groupYearFilter}
+                  onChange={setGroupYearFilter}
+                  options={groupYearOptions}
+                />
+                <FilterSelect
+                  label="Kỳ"
+                  value={groupPeriodFilter}
+                  onChange={setGroupPeriodFilter}
+                  options={groupPeriodOptions}
+                />
+                <ColumnVisibilityDraftControl
+                  value={visibleGroupColumnValue}
+                  onChange={(value) => {
+                    const visibleIds = new Set(value ? value.split(',') : []);
+                    const nextVisibility = Object.fromEntries(SPECIALIST_GROUP_COLUMNS.map(({ id }) => [id, visibleIds.has(id)]));
+                    setGroupColumnVisibility(SPECIALIST_GROUP_COLUMNS.every(({ id }) => visibleIds.has(id)) ? {} : nextVisibility);
+                  }}
+                  columns={SPECIALIST_GROUP_COLUMNS}
                 />
               </FilterDropdown>
               <Button
@@ -1845,7 +2024,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             </div>
           </div>
 
+          <div className="overflow-clip rounded-b-lg">
           <div className="hidden xl:block [&>[data-slot=table-container]]:contents">
+            <style>{hiddenGroupColumnRules}</style>
             <Table data-column-visibility-table="specialist-criteria-groups" className="w-full min-w-[1180px] table-fixed">
               <colgroup>
                 <col className="w-[25%]" />
@@ -1879,7 +2060,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <TableCell className="px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
                   </TableRow>
                 ))}
-                {filteredGroups.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">Không có nhóm tiêu chí phù hợp.</TableCell></TableRow>}
+                {filteredGroups.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">{searchedGroupsQuery.isError ? 'Không tìm được nhóm tiêu chí. Vui lòng thử lại.' : searchedGroupsQuery.isFetching ? 'Đang tìm kiếm nhóm tiêu chí…' : 'Không có nhóm tiêu chí phù hợp.'}</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
@@ -1906,7 +2087,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 </Button>
               </article>
             ))}
-            {filteredGroups.length === 0 && <p className="px-4 py-12 text-center text-sm text-muted-foreground">Không có nhóm tiêu chí phù hợp.</p>}
+            {filteredGroups.length === 0 && <p className="px-4 py-12 text-center text-sm text-muted-foreground">{searchedGroupsQuery.isError ? 'Không tìm được nhóm tiêu chí. Vui lòng thử lại.' : searchedGroupsQuery.isFetching ? 'Đang tìm kiếm nhóm tiêu chí…' : 'Không có nhóm tiêu chí phù hợp.'}</p>}
+          </div>
           </div>
         </div>
       </div>
@@ -1932,6 +2114,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   );
   const scoredItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist);
   const scoredCount = scoredItems.filter((item) => item.officialScore !== null && item.officialBonusScore !== null).length;
+  const hasMissingApprovalScore = scoredItems.some((item) => item.officialScore === null || item.officialBonusScore === null);
+  const approvalDisabledReason = specialistApproveLocked
+    ? specialistLockReason
+    : displayGroup.items.length === 0
+      ? 'Nhóm tiêu chí chưa có tiêu chí con để duyệt.'
+      : hasMissingApprovalScore
+        ? 'Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.'
+        : undefined;
   const maximumScore = scoredItems.reduce((sum, item) => sum + item.maxProposedScore, 0);
   const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
   const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
@@ -1972,8 +2162,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.error('Nhóm tiêu chí chưa có tiêu chí con để gửi duyệt.');
       return;
     }
-    const missingScore = displayGroup.items.some((item) => !item.isAddedBySpecialist && (item.officialScore === null || item.officialBonusScore === null));
-    if (missingScore) {
+    if (hasMissingApprovalScore) {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
     }
@@ -2103,6 +2292,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.error('Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
       return;
     }
+    if (displayGroup.items.length === 0) {
+      toast.error('Nhóm tiêu chí chưa có tiêu chí con để duyệt.');
+      return;
+    }
+    if (hasMissingApprovalScore) {
+      toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.');
+      return;
+    }
     try {
       if (specialistPermissions.canEdit) {
         const items = buildScoreItems();
@@ -2192,7 +2389,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           }
         />
 
-        <div className="sticky top-[-16px] z-20 flex flex-col gap-3 border-b border-border bg-card/95 px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] backdrop-blur sm:top-[-24px] lg:flex-row lg:items-center lg:justify-between sm:px-5">
+        <div className="sticky top-[-16px] z-30 isolate sm:top-[-24px]">
+        <div className="flex flex-col gap-3 border-b border-border bg-card px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <TableColumnVisibility
               storageKey="specialist-review-criteria"
@@ -2232,12 +2430,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             {specialistPermissions.canEdit && (
               <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked} disabledReason={specialistApproveLocked ? specialistLockReason : undefined}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || displayGroup.items.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
           </div>
         </div>
-
-        <div className="hidden overflow-x-auto xl:block">
-          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1600px] table-fixed">
+        <div className="hidden overflow-hidden bg-primary xl:block">
+          <div ref={tableHeaderInnerRef} className="will-change-transform">
+            <Table data-column-visibility-table="specialist-review-criteria" containerClassName="!overflow-visible" className="w-full min-w-[1600px] table-fixed">
             <colgroup>
               <col className="w-[18%]" />
               <col className="w-[15%]" />
@@ -2248,14 +2446,36 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo ban</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
+                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
+                <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo ban</TableHead>
               </TableRow>
             </TableHeader>
+            </Table>
+          </div>
+        </div>
+        </div>
+
+        <div
+          className="hidden overflow-x-auto xl:block"
+          onScroll={(event) => {
+            if (tableHeaderInnerRef.current) {
+              tableHeaderInnerRef.current.style.transform = `translateX(-${event.currentTarget.scrollLeft}px)`;
+            }
+          }}
+        >
+          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1600px] table-fixed">
+            <colgroup>
+              <col className="w-[18%]" />
+              <col className="w-[15%]" />
+              <col className="w-[15%]" />
+              <col className="w-[17%]" />
+              <col className="w-[16%]" />
+              <col className="w-[19%]" />
+            </colgroup>
             <TableBody>
               {displayGroup.items.map((item) => {
                 const result = resultByCriteriaId.get(item.id);

@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowDownToLine, FileText, MessageSquareText, Plus, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, FileText, MessageSquareText, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, DataTable, FormDialog, TruncatedText } from '@/components/core';
+import { Button, DataTable, FilePreviewDialog, FileUpload, FormDialog, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -42,10 +42,12 @@ interface LocalityScoreTableProps {
   onPreviewRevisionFile?: (file: SpecialistRevisionFile) => void;
   /** Khi có danh sách này, chỉ các tiêu chí được yêu cầu mới cho phép chỉnh sửa. */
   editableCriteriaIds?: ReadonlySet<string> | null;
+  onCompletionChange?: (criteriaId: string, complete: boolean) => void;
   uploading?: boolean;
   toolbar?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
   onDeleteEvidence?: (id: string) => void;
+  onPreviewEvidenceFile?: (file: Evidence) => void;
 }
 
 export interface SpecialistRevisionFile {
@@ -114,7 +116,7 @@ function ExplanationDialog({ open, onOpenChange, criterionName, value, onConfirm
         <Textarea value={content} onChange={(event) => { setContent(event.target.value); setError(''); }} rows={5} placeholder="Mô tả kết quả đạt được và căn cứ chấm điểm" autoFocus />
         {error && <p role="alert" className="text-xs font-medium text-destructive">{error}</p>}
       </div>
-      <p className="text-xs text-muted-foreground">Nội dung sẽ được lưu cùng điểm và file khi bạn bấm “Lưu tất cả” ở cuối trang.</p>
+      <p className="text-xs text-muted-foreground">Nội dung sẽ được lưu cùng điểm và file khi bạn bấm “Lưu nháp” ở cuối trang.</p>
     </FormDialog>
   );
 }
@@ -137,13 +139,16 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   specialistRevisionReasons,
   specialistRevisionFiles,
   onPreviewRevisionFile,
+  onPreviewEvidenceFile,
   editableCriteriaIds,
+  onCompletionChange,
 }, ref) {
   const [score, setScore] = useState('');
   const [bonusScore, setBonusScore] = useState('0');
   const [explanation, setExplanation] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const evidenceInputRef = useRef<HTMLInputElement>(null);
+  const [evidenceDialogOpen, setEvidenceDialogOpen] = useState(false);
+  const [dialogFiles, setDialogFiles] = useState<File[]>([]);
   const [explanationError, setExplanationError] = useState('');
   const [evidenceError, setEvidenceError] = useState('');
   const [scoreError, setScoreError] = useState('');
@@ -174,6 +179,13 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const revisionFiles = specialistRevisionFiles?.get(criterion.id) ?? [];
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
   const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
+  const standardFiles = files.filter((item) => item.kind !== 'BONUS');
+  const availableEvidenceSlots = Math.max(0, MAX_FILES_PER_CRITERION - standardFiles.length);
+  const evidenceFileError = dialogFiles.some((file) => file.size > MAX_FILE_SIZE)
+    ? 'Mỗi file minh chứng không được vượt quá 20MB.'
+    : dialogFiles.length > availableEvidenceSlots
+      ? `Tiêu chí chỉ được đính kèm tối đa ${MAX_FILES_PER_CRITERION} file.`
+      : '';
   const evidenceDisabledReason = uploading
     ? 'Đang lưu dữ liệu, vui lòng đợi.'
     : !editable
@@ -184,10 +196,9 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.'
           : entry?.locked
             ? 'Tiêu chí này đã bị khóa, không thể thêm file minh chứng.'
-            : selectedFiles.length >= MAX_FILES_PER_CRITERION
+            : standardFiles.length + selectedFiles.length >= MAX_FILES_PER_CRITERION
               ? `Đã chọn tối đa ${MAX_FILES_PER_CRITERION} file minh chứng cho tiêu chí này.`
               : undefined;
-  const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const rowEntry: ScoreEntry = entry ?? {
     id: `empty-${criterion.id}`,
     criteriaId: criterion.id,
@@ -201,16 +212,29 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const isSupplementary = criterion.type === 'Supplementary';
   const isColumnVisible = (columnId: string) => !visibleColumnIds || visibleColumnIds.includes(columnId);
-  const addEvidenceFiles = (incoming: FileList | null) => {
-    if (!incoming?.length || locked || uploading) return;
-    const filesToAdd = Array.from(incoming);
-    setEvidenceError(filesToAdd.some((file) => file.size > MAX_FILE_SIZE) ? 'Mỗi file minh chứng không được vượt quá 20MB.' : '');
-    setSelectedFiles((current) => {
-      const acceptedFiles = filesToAdd
-        .filter((file) => file.size <= MAX_FILE_SIZE)
-        .filter((file) => !current.some((existing) => existing.name === file.name && existing.size === file.size));
-      return [...current, ...acceptedFiles].slice(0, MAX_FILES_PER_CRITERION);
-    });
+  const rowComplete = locked || (
+    (isSupplementary || (!validateScore(score, criterion.maxScore, 'Điểm đề xuất', true)
+      && !validateScore(bonusScore, maxBonus, 'Điểm thưởng')))
+    && Boolean(explanation.trim())
+    && standardFiles.length + selectedFiles.length > 0
+    && standardFiles.length + selectedFiles.length <= MAX_FILES_PER_CRITERION
+    && !selectedFiles.some((file) => file.size > MAX_FILE_SIZE)
+  );
+
+  useEffect(() => {
+    onCompletionChange?.(criterion.id, rowComplete);
+  }, [criterion.id, onCompletionChange, rowComplete]);
+
+  const openEvidenceDialog = () => {
+    setDialogFiles(selectedFiles);
+    setEvidenceDialogOpen(true);
+  };
+  const confirmEvidenceFiles = (event: FormEvent) => {
+    event.preventDefault();
+    if (evidenceFileError) return;
+    setSelectedFiles(dialogFiles);
+    setEvidenceError('');
+    setEvidenceDialogOpen(false);
   };
 
   /** Không giữ giá trị vượt điểm tối đa trong state, tránh lưu nháp/nộp nhầm. */
@@ -241,6 +265,14 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const validateRow = () => {
     if (locked) return true;
+    if (standardFiles.length + selectedFiles.length > MAX_FILES_PER_CRITERION) {
+      setEvidenceError(`Tiêu chí chỉ được đính kèm tối đa ${MAX_FILES_PER_CRITERION} file.`);
+      return false;
+    }
+    if (selectedFiles.some((file) => file.size > MAX_FILE_SIZE)) {
+      setEvidenceError('File không được vượt quá 20MB.');
+      return false;
+    }
     if (isSupplementary) {
       setScoreError('');
       setBonusScoreError('');
@@ -251,7 +283,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         return false;
       }
       if (standardFiles.length === 0 && selectedFiles.length === 0) {
-        setEvidenceError('Vui lòng chọn file minh chứng.');
+        setEvidenceError('Vui lòng nộp ít nhất một file minh chứng.');
         return false;
       }
       return true;
@@ -270,14 +302,9 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       return false;
     }
     if (standardFiles.length === 0 && selectedFiles.length === 0) {
-      setEvidenceError('Vui lòng chọn file minh chứng.');
+      setEvidenceError('Vui lòng nộp ít nhất một file minh chứng.');
       return false;
     }
-    if (selectedFiles.some((f) => f.size > MAX_FILE_SIZE)) {
-      setEvidenceError('File không được vượt quá 20MB.');
-      return false;
-    }
-
     return true;
   };
 
@@ -300,7 +327,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   return (
     <TableRow onClick={() => onSelect?.(rowEntry, criterion)} className={`${locked ? 'bg-muted/40' : 'hover:bg-surface-muted'} ${selected ? 'bg-primary/[0.06] hover:bg-primary/[0.08]' : ''} cursor-pointer`}>
-      {isColumnVisible('name') && <TableCell className="align-top">
+      {isColumnVisible('name') && <TableCell className="align-middle">
         <Tooltip>
           <TooltipTrigger render={<p className="line-clamp-5 whitespace-normal break-words text-left font-medium leading-5" />}>
             {criterion.name}
@@ -348,33 +375,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
         {explanationError && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{explanationError}</p>}
         <ExplanationDialog open={explanationDialogOpen} onOpenChange={setExplanationDialogOpen} criterionName={criterion.name} value={explanation} onConfirm={(value) => { setExplanation(value); setExplanationError(''); }} />
       </TableCell>}
-      {isColumnVisible('evidence') && <TableCell className="align-top overflow-hidden">
+      {isColumnVisible('evidence') && <TableCell className="align-middle overflow-hidden">
         <div className="min-w-0 max-w-full space-y-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            className="rounded-md border-success/40 bg-success/10 text-success hover:bg-success/20 hover:text-success"
-            disabled={Boolean(evidenceDisabledReason)}
-            disabledReason={evidenceDisabledReason}
-            title="Chọn file minh chứng"
-            aria-label={`Chọn file minh chứng ${criterion.name}`}
-            onClick={(event) => { event.stopPropagation(); evidenceInputRef.current?.click(); }}
-          >
-            <Plus className="size-5" />
-          </Button>
-          <input
-            ref={evidenceInputRef}
-            type="file"
-            className="hidden"
-            multiple
-            disabled={Boolean(evidenceDisabledReason)}
-            aria-label={`Chọn file minh chứng ${criterion.name}`}
-            onChange={(event) => {
-              addEvidenceFiles(event.currentTarget.files);
-              event.currentTarget.value = '';
-            }}
-          />
           {evidenceError && <p role="alert" className="text-xs font-medium text-destructive">{evidenceError}</p>}
           {selectedFiles.length > 0 && (
             <ul className="min-w-0 space-y-1.5">
@@ -405,16 +407,24 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
               ))}
             </ul>
           )}
-          {/* <p className="whitespace-normal break-words text-xs text-muted-foreground">File sẽ được tải lên khi bạn bấm “Lưu tất cả”.</p> */}
+          {/* <p className="whitespace-normal break-words text-xs text-muted-foreground">File sẽ được tải lên khi bạn bấm “Lưu nháp”.</p> */}
           {standardFiles.length > 0 && (
             <ul className="min-w-0 space-y-1.5">
               {standardFiles.map((item) => (
                 <li key={item.id} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-border bg-card px-2 py-2">
-                  <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                  <span className="min-w-0 flex-1">
-                    <TruncatedText as="span" value={item.fileName} className="block text-xs font-medium" />
-                    <span className="block text-[11px] text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(item.uploadedAt)}</span>
-                  </span>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    title={`Xem file ${item.fileName}`}
+                    aria-label={`Xem file ${item.fileName}`}
+                    onClick={(event) => { event.stopPropagation(); onPreviewEvidenceFile?.(item); }}
+                  >
+                    <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <TruncatedText as="span" value={item.fileName} className="block text-xs font-medium hover:text-primary hover:underline" />
+                      <span className="block text-[11px] text-muted-foreground">{item.fileSize ? `${Math.ceil(item.fileSize / 1024)} KB` : 'Tệp minh chứng'} · {formatDate(item.uploadedAt)}</span>
+                    </span>
+                  </button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -444,6 +454,53 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
               ))}
             </ul>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center"
+            disabled={Boolean(evidenceDisabledReason)}
+            disabledReason={evidenceDisabledReason}
+            title="Nộp file minh chứng"
+            aria-label={`Nộp file minh chứng cho ${criterion.name}`}
+            onClick={(event) => { event.stopPropagation(); openEvidenceDialog(); }}
+          >
+            <Upload className="size-4" />
+            Nộp file
+          </Button>
+          <FormDialog
+            open={evidenceDialogOpen}
+            onOpenChange={(open) => {
+              setEvidenceDialogOpen(open);
+              if (open) setDialogFiles(selectedFiles);
+            }}
+            title="Điều kiện nộp file minh chứng"
+            description={criterion.name}
+            onSubmit={confirmEvidenceFiles}
+            submitLabel="Xác nhận file"
+            cancelLabel="Hủy"
+            submitDisabled={uploading || Boolean(evidenceFileError)}
+            size="max-w-2xl sm:max-w-2xl"
+          >
+            <div className="rounded-md border border-primary/20 bg-primary/[0.04] px-4 py-3 text-sm">
+              <p className="font-semibold text-foreground">Vui lòng kiểm tra các điều kiện sau:</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>Mỗi file tối đa 20MB.</li>
+                <li>Tối đa {MAX_FILES_PER_CRITERION} file cho một tiêu chí; đã nộp {standardFiles.length}, đang chọn {dialogFiles.length} file.</li>
+                <li>Cần có ít nhất một file minh chứng trước khi gửi hồ sơ.</li>
+              </ul>
+            </div>
+            <FileUpload
+              value={dialogFiles}
+              onChange={setDialogFiles}
+              multiple
+              maxSizeMb={20}
+              maxFiles={availableEvidenceSlots}
+              disabled={uploading || availableEvidenceSlots === 0}
+              uploading={uploading}
+              error={evidenceFileError || undefined}
+            />
+            <p className="text-xs text-muted-foreground">File mới sẽ được tải lên khi bạn bấm “Lưu nháp”. Sau đó, bấm “Gửi yêu cầu” để nộp hồ sơ.</p>
+          </FormDialog>
         </div>
       </TableCell>}
       {isColumnVisible('specialistRevision') && <TableCell className="align-middle">
@@ -490,12 +547,14 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   specialistRevisionFiles,
   onPreviewRevisionFile,
   editableCriteriaIds,
+  onCompletionChange,
   uploading,
   toolbar,
   onSelect,
   onDeleteEvidence,
 }, ref) {
   const rowRefs = useRef<Record<string, EditableRowHandle | null>>({});
+  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
       accessorKey: 'name',
@@ -598,13 +657,16 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               specialistRevisionFiles={specialistRevisionFiles}
               onPreviewRevisionFile={onPreviewRevisionFile}
               editableCriteriaIds={editableCriteriaIds}
+              onCompletionChange={onCompletionChange}
               uploading={uploading}
               onSelect={onSelect}
               onDeleteEvidence={onDeleteEvidence}
+              onPreviewEvidenceFile={(file) => setPreviewFile({ id: file.id, originalName: file.fileName })}
             />
           );
         }}
       />
+      <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
     </div>
   );
 });

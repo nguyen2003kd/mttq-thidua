@@ -81,8 +81,10 @@ export interface DataTableProps<TData, TValue = unknown> {
   loading?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Giá trị ban đầu của ô tìm kiếm, dùng khi khôi phục bộ lọc từ URL. */
+  initialSearchValue?: string;
   searchKey?: string;
-  /** Nhận giá trị tìm kiếm đã debounce để gọi API phía server khi cần. */
+  /** Nhận giá trị tìm kiếm đã debounce để gọi API phía server; tắt lọc tìm kiếm trên FE. */
   onSearchChange?: (value: string) => void;
   filters?: ReactNode;
   /** Chip hiển thị các bộ lọc đang bật, kèm nút bỏ từng cái */
@@ -180,6 +182,7 @@ export function DataTable<TData, TValue = unknown>({
   loading = false,
   searchable = false,
   searchPlaceholder = 'Tìm kiếm...',
+  initialSearchValue = '',
   searchKey,
   onSearchChange,
   filters,
@@ -226,7 +229,7 @@ export function DataTable<TData, TValue = unknown>({
     }
   });
   const [globalFilter, setGlobalFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState(initialSearchValue);
   const debouncedSearchInput = useDebounce(searchInput, 300);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -309,6 +312,7 @@ export function DataTable<TData, TValue = unknown>({
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
+    manualFiltering: Boolean(onSearchChange),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -335,14 +339,17 @@ export function DataTable<TData, TValue = unknown>({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
   }, [rowSelection]);
 
-  // Chỉ lọc bảng hoặc gọi API sau khi người dùng ngừng gõ.
+  // Tìm kiếm qua API và lọc trên FE là hai chế độ loại trừ nhau.
   useEffect(() => {
+    if (onSearchChange) {
+      onSearchChange(debouncedSearchInput.trim());
+      return;
+    }
     if (searchKey) {
       table.getColumn(searchKey)?.setFilterValue(debouncedSearchInput || undefined);
     } else {
       setGlobalFilter(debouncedSearchInput);
     }
-    onSearchChange?.(debouncedSearchInput.trim());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
   }, [debouncedSearchInput, searchKey, onSearchChange]);
 
@@ -666,6 +673,94 @@ export function DataTable<TData, TValue = unknown>({
     );
   };
 
+  const groupedStickyHeader = detachedStickyHeader && variant === 'table';
+
+  const renderToolbar = (sticky: boolean) => hasToolbar ? (
+    <div
+      ref={toolbarRef}
+      className={cn(
+        sticky && 'sticky top-0 z-30',
+        groupedStickyHeader ? 'bg-background' : 'bg-background/95 backdrop-blur-sm',
+        'flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius)_-_1px)] border-b border-border px-4 py-3',
+      )}
+    >
+      {searchable && (
+        <div className="relative w-full max-w-[300px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              aria-label="Xóa tìm kiếm"
+              className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+      {filters && (
+        <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
+          {filters}
+          {showColumnVisibility && (
+            <ColumnVisibilityDraftControl
+              value={visibleToggleableColumns.map((column) => column.id).join(',')}
+              onChange={applyColumnVisibility}
+              items={columnVisibilityItems.map(({ column, label }) => ({ id: column.id, label }))}
+            />
+          )}
+        </FilterDropdown>
+      )}
+      <div className="ml-auto flex items-center gap-2">
+        {!filters && showColumnVisibility && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
+              <SlidersHorizontal className="size-4" /> Cột hiển thị
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Chọn cột hiển thị</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {columnVisibilityItems.map(({ column, label }) => {
+                  const visible = column.getIsVisible();
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={visible}
+                      disabled={visible && visibleToggleableColumns.length === 1}
+                      onCheckedChange={(checked) => column.toggleVisibility(Boolean(checked))}
+                    >
+                      {label}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {toolbar}
+      </div>
+    </div>
+  ) : null;
+
+  const renderDetachedHeader = () => (
+    <div className="overflow-hidden bg-primary">
+      <div ref={tableHeaderInnerRef} className="will-change-transform">
+        <Table className={tableClassName} containerClassName="!overflow-visible">
+          {renderDetachedColGroup()}
+          {renderTableHeader(false)}
+        </Table>
+      </div>
+    </div>
+  );
+
   return (
     <TooltipProvider delay={300}>
       <div className={cn('relative flex flex-col', className)}>
@@ -674,91 +769,17 @@ export function DataTable<TData, TValue = unknown>({
 
       {/* Unified container: toolbar + chips + table */}
       <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
-      {/* Toolbar */}
-      {hasToolbar && (
-        <div ref={toolbarRef} className="sticky top-0 z-30 flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius)_-_1px)] border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
-          {searchable && (
-            <div className="relative w-full max-w-[300px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => setSearchInput('')}
-                  aria-label="Xóa tìm kiếm"
-                  className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          )}
-          {filters && (
-            <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
-              {filters}
-              {showColumnVisibility && (
-                <ColumnVisibilityDraftControl
-                  value={visibleToggleableColumns.map((column) => column.id).join(',')}
-                  onChange={applyColumnVisibility}
-                  items={columnVisibilityItems.map(({ column, label }) => ({ id: column.id, label }))}
-                />
-              )}
-            </FilterDropdown>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            {!filters && showColumnVisibility && (
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
-                  <SlidersHorizontal className="size-4" /> Cột hiển thị
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>Chọn cột hiển thị</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {columnVisibilityItems.map(({ column, label }) => {
-                      const visible = column.getIsVisible();
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={column.id}
-                          checked={visible}
-                          disabled={visible && visibleToggleableColumns.length === 1}
-                          onCheckedChange={(checked) => column.toggleVisibility(Boolean(checked))}
-                        >
-                          {label}
-                        </DropdownMenuCheckboxItem>
-                      );
-                    })}
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {toolbar}
-          </div>
+      {/* Với bảng tách header, giữ thanh công cụ và tiêu đề cột trong cùng một khối sticky để không lộ hàng dữ liệu ở khe giữa. */}
+      {groupedStickyHeader ? (
+        <div className="sticky top-[-16px] z-30 isolate sm:top-[-24px]">
+          {renderToolbar(false)}
+          {renderDetachedHeader()}
         </div>
-      )}
+      ) : renderToolbar(true)}
 
       {/* Table */}
       {variant === 'list' ? renderList() : (
         <div>
-          {detachedStickyHeader && (
-            <div
-              className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary"
-              style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
-            >
-              <div ref={tableHeaderInnerRef} className="will-change-transform">
-                <Table className={tableClassName} containerClassName="!overflow-visible">
-                  {renderDetachedColGroup()}
-                  {renderTableHeader(false)}
-                </Table>
-              </div>
-            </div>
-          )}
           <div
             className={cn('overflow-visible', tableWrapperClassName)}
             onScroll={detachedStickyHeader ? (event) => {
