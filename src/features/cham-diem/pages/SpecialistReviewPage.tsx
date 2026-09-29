@@ -41,6 +41,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
 import {
   localityApi,
@@ -361,60 +362,9 @@ function formatReviewStatus(status: string | null) {
   return REVIEW_STATUS_LABELS[status] ?? status;
 }
 
-// Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
-function resolveHistoryAction(action: string | null, reason: string | null): string {
-  const key = action ?? '';
-  const isLegacySupplementary = key === 'RequestRevision'
-    && (reason?.startsWith('Added supplementary criteria:') || reason?.startsWith('Thêm tiêu chí bổ sung:'));
-  if (isLegacySupplementary) return 'AddSupplementaryCriteria';
-  return key;
-}
-
-function translateLegacyReason(reason: string | null): string | null {
-  if (reason?.startsWith('Added supplementary criteria:')) {
-    return `Thêm tiêu chí bổ sung: ${reason.slice('Added supplementary criteria:'.length).trim()}`;
-  }
-  return reason;
-}
-
-type RevisionRequestStage = 'ScorerSubmitted' | 'ReviewerApproved' | 'SpecialistApproved' | 'LeaderApproved' | 'CouncilApproved' | 'ReviewerRevisionRequested';
-
-interface RevisionNote {
-  reason: string;
-  createdAt: string;
-  /** null = request không chỉ định submissionResultIds → áp dụng cho toàn bộ tiêu chí. */
-  resultIds: string[] | null;
-  /** Tệp đính kèm của yêu cầu chỉnh sửa (gắn vào ApprovalHistory). */
-  files: SubmissionResultFile[];
-}
-
-function parseRevisionResultIds(changedData: string | null): string[] | null {
-  if (!changedData) return null;
-  try {
-    const parsed = JSON.parse(changedData) as { submissionResultIds?: unknown };
-    return Array.isArray(parsed.submissionResultIds)
-      ? parsed.submissionResultIds.filter((id): id is string => typeof id === 'string')
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 /** Lấy yêu cầu chỉnh sửa mới nhất theo cấp xử lý của hồ sơ. */
 function getLatestRevisionNote(histories: ApprovalHistoryItem[], stageLevel: RevisionRequestStage): RevisionNote | null {
-  const history = histories
-    .filter((item) => item.stageLevel === stageLevel && resolveHistoryAction(item.action, item.reason) === 'RequestRevision')
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-    .find((item) => Boolean(translateLegacyReason(item.reason)?.trim()));
-  if (!history) return null;
-  return { reason: translateLegacyReason(history.reason)!, createdAt: history.createdAt, resultIds: parseRevisionResultIds(history.changedData), files: history.files ?? [] };
-}
-
-/** Chỉ trả note khi submissionResult thuộc danh sách được yêu cầu chỉnh sửa. */
-function revisionNoteForResult(note: RevisionNote | null, result: SubmissionResultItem | undefined): RevisionNote | null {
-  if (!note) return null;
-  if (note.resultIds === null) return note;
-  return result && note.resultIds.includes(result.id) ? note : null;
+  return getRevisionNotes(histories, [stageLevel])[0] ?? null;
 }
 
 /** Ghi chú yêu cầu chỉnh sửa kèm tệp đính kèm (nếu có). */
@@ -437,6 +387,15 @@ function RevisionNoteView({ note, reasonClassName = 'text-sm leading-5 text-mute
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function RevisionNotesView({ notes, reasonClassName = 'text-sm leading-5 text-muted-foreground', onPreview }: { notes: RevisionNote[]; reasonClassName?: string; onPreview: (file: SubmissionResultFile) => void }) {
+  if (notes.length === 0) return <RevisionNoteView note={null} reasonClassName={reasonClassName} onPreview={onPreview} />;
+  return (
+    <div className="space-y-3">
+      {notes.map((note, index) => <RevisionNoteView key={`${note.createdAt}-${index}`} note={note} reasonClassName={reasonClassName} onPreview={onPreview} />)}
     </div>
   );
 }
@@ -1561,14 +1520,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
 
   const selectedRevisionNotes = useMemo(() => {
     const histories = selectedRevisionHistoriesQuery.data?.items ?? [];
-    const reviewerNotes = [
-      getLatestRevisionNote(histories, 'ScorerSubmitted'),
-      getLatestRevisionNote(histories, 'ReviewerRevisionRequested'),
-    ].filter((note): note is RevisionNote => Boolean(note));
     return {
+      all: getRevisionNotes(histories),
       specialist: getLatestRevisionNote(histories, 'ReviewerApproved'),
-      reviewer: reviewerNotes.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null,
-      leader: getLatestRevisionNote(histories, 'SpecialistApproved'),
+      reviewer: getRevisionNotes(histories, ['ScorerSubmitted', 'ReviewerRevisionRequested']),
+      leader: getRevisionNotes(histories, ['SpecialistApproved']),
       council: getLatestRevisionNote(histories, 'LeaderApproved'),
       committee: getLatestRevisionNote(histories, 'CouncilApproved'),
     };
@@ -1577,8 +1533,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const applicableRevisionNotes = useMemo(() => {
     if (!selectedCriterionId) return [];
     const result = selectedSubmissionDetailQuery.data?.results.find((item) => item.criteriaId === selectedCriterionId);
-    return [selectedRevisionNotes.leader, selectedRevisionNotes.council, selectedRevisionNotes.committee]
-      .filter((note): note is RevisionNote => Boolean(note && revisionNoteForResult(note, result)))
+    return [...selectedRevisionNotes.leader, selectedRevisionNotes.council, selectedRevisionNotes.committee]
+      .filter((note): note is RevisionNote => Boolean(note && revisionNoteForResult(note, result?.id)))
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   }, [selectedCriterionId, selectedSubmissionDetailQuery.data?.results, selectedRevisionNotes]);
   const selectedRevisionNote = applicableRevisionNotes[0] ?? null;
@@ -2225,16 +2181,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         </div>
       )}
 
-      {scoringRole === 'SCORER' && selectedSubmissionStage === 'ScorerRevisionRequested' && selectedRevisionNotes.reviewer && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
-          <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">Yêu cầu chỉnh sửa từ Người review</p>
-            <div className="mt-1"><RevisionNoteView note={selectedRevisionNotes.reviewer} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></div>
-          </div>
-        </div>
-      )}
-
       <div className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card">
         <TableSectionHeader
           title="Chi tiết tiêu chí con"
@@ -2313,7 +2259,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             <TableBody>
               {displayGroup.items.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
-                const leaderNote = revisionNoteForResult(selectedRevisionNotes.leader, result);
+                const leaderNotes = leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id);
                 const historyExpanded = expandedCriterionHistoryId === item.id;
                 return (
                   <Fragment key={item.id}>
@@ -2395,7 +2341,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNoteView note={leaderNote} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNotesView notes={leaderNotes} onPreview={openRevisionFilePreview} /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -2420,7 +2366,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         <div className="divide-y divide-border xl:hidden">
           {displayGroup.items.map((item) => {
             const result = resultByCriteriaId.get(item.id);
-            const leaderNote = revisionNoteForResult(selectedRevisionNotes.leader, result);
+            const leaderNotes = leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id);
             const historyExpanded = expandedCriterionHistoryId === item.id;
             return (
             <article key={item.id} className="p-4 sm:p-5">
@@ -2443,9 +2389,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
-                  {leaderNote && (
+                  {leaderNotes.length > 0 && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo ban</dt><dd className="mt-1"><RevisionNoteView note={leaderNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo ban</dt><dd className="mt-1"><RevisionNotesView notes={leaderNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
                     </dl>
                   )}
                 </div>
