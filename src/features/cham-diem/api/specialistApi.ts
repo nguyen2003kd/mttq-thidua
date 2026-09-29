@@ -64,7 +64,7 @@ const FORWARD_LABELS: Record<ScoringRole, string> = {
 const LOCK_REASONS: Record<ScoringRole, string> = {
   SCORER: 'Hồ sơ đã được gửi lên Lãnh đạo ban hoặc đang chờ cấp trên xử lý. Chuyên viên cấp 2 chỉ có thể xem thông tin.',
   REVIEWER: 'Hồ sơ không ở bước thẩm định của bạn. Lãnh đạo ban chỉ có thể xem thông tin.',
-  SPECIALIST: 'Hồ sơ chưa đến bước xử lý của Chuyên viên trưởng hoặc đã được chuyển lên cấp tiếp theo. Chuyên viên trưởng chỉ có thể xem thông tin.',
+  SPECIALIST: 'Hồ sơ chưa đến bước xử lý của Chuyên viên trưởng hoặc đã được duyệt. Chuyên viên trưởng chỉ có thể xem thông tin.',
 };
 
 /**

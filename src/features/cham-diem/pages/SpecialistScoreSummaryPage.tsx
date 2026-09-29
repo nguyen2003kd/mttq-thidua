@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Download,
   Eye,
   Search,
   Trophy,
@@ -38,6 +39,8 @@ import { clustersApi } from "@/features/admin/api/clustersApi";
 import { periodsApi } from "@/features/admin/api/periodsApi";
 import { useAuthStore } from "@/store/authStore";
 import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
+import { exportScoreSummaryToExcel, toDistribution } from "../utils/scoreSummaryExport";
+import { toast } from "sonner";
 
 interface ScoreTotals {
   proposedScore: number;
@@ -561,6 +564,45 @@ export default function SpecialistScoreSummaryPage() {
       );
   }, [clusters, rows]);
 
+  const exportRows = useMemo(
+    () =>
+      groupedRows.flatMap((group) =>
+        group.rows.map((row) => ({
+          cluster: group.cluster,
+          localityName: row.localityName,
+          proposedScore: row.submissions.length > 0 ? row.proposedScore : null,
+          proposedBonus: row.submissions.length > 0 ? row.proposedBonus : null,
+          provinceScore: row.hasProvinceScore ? row.provinceScore : null,
+          provinceBonus: row.hasProvinceScore ? row.provinceBonus : null,
+          proposedTotal: row.submissions.length > 0 ? row.proposedTotal : null,
+          provinceTotal: row.provinceTotal,
+        })),
+      ),
+    [groupedRows],
+  );
+
+  const handleExport = () => {
+    if (exportRows.length === 0) {
+      toast.info("Chưa có dữ liệu tổng hợp để xuất file.");
+      return;
+    }
+    const periodName = periods.find((period) => period.id === periodFilter)?.name ?? null;
+    exportScoreSummaryToExcel(
+      exportRows,
+      `tong-hop-cham-diem${periodName ? `-${periodName}` : ""}.xlsx`,
+      {
+        periodName,
+        totalUnits: rows.length,
+        proposed: toDistribution(proposedDistribution),
+        province: toDistribution(provinceDistribution),
+        rankings: rows
+          .filter((row) => row.provinceTotal !== null)
+          .map((row, index) => ({ rank: index + 1, localityName: row.localityName, total: row.provinceTotal! })),
+      },
+    );
+    toast.success("Đã xuất file Excel bảng tổng hợp chấm điểm.");
+  };
+
   if (submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
     return <PageLoading label="Đang tổng hợp và xếp hạng điểm…" />;
   if (submissionsQuery.isError || clustersQuery.isError || periodsQuery.isError) {
@@ -594,6 +636,16 @@ export default function SpecialistScoreSummaryPage() {
           />
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{rows.length} đơn vị</Badge>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={exportRows.length === 0}
+            >
+              <Download className="size-4" />
+              Xuất Excel
+            </Button>
             {canPublish && (
               <Button
                 type="button"

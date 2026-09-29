@@ -240,12 +240,13 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
                 </div>
 
                 <div className="space-y-2">
-                  <Label>File đính kèm <span className="font-normal text-muted-foreground">(không bắt buộc)</span></Label>
+                  <Label>Tệp đính kèm <span className="font-normal text-muted-foreground">(không bắt buộc, tối đa 1 tệp, mỗi tệp tối đa 20MB)</span></Label>
                   <FileUpload
                     value={publicationFile}
                     onChange={setPublicationFile}
                     multiple={false}
                     maxFiles={1}
+                    maxSizeMb={20}
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                     disabled={publishMutation.isPending}
                     error={publicationError?.includes('file') ? publicationError : null}
