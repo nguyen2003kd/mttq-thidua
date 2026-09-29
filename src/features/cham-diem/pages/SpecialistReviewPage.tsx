@@ -1031,98 +1031,51 @@ function TableSectionHeader({ title, countLabel, actions }: { title: string; cou
   );
 }
 
-function EvidenceButton({ files, onClick }: { files: EvidenceFile[]; onClick: () => void }) {
+function EvidenceInlineList({ files, onPreview }: { files: EvidenceFile[]; onPreview: (file: EvidenceFile) => void }) {
   if (files.length === 0) {
     return <p className="text-xs text-muted-foreground">Chưa có minh chứng</p>;
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={onClick}>
-      <FileText className="size-4" />
-      Xem file
-      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
-        {files.length}
-      </span>
-    </Button>
-  );
-}
-
-function EvidenceFilesDialog({
-  item,
-  onOpenChange,
-}: {
-  item: SpecialistCriteriaItem | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const files = item?.evidenceFiles ?? [];
-  const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
-
-  return (
-    <>
-    <Dialog open={Boolean(item)} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="shrink-0 border-b border-border bg-muted/25 px-6 py-5 pr-12">
-          <DialogTitle>Minh chứng đã nộp</DialogTitle>
-          <DialogDescription className="line-clamp-2">
-            {item ? `${item.code} · ${item.title}` : ''}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-foreground">Danh sách file</p>
-            <Badge variant="secondary">{files.length} file</Badge>
-          </div>
-          {files.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-              Tiêu chí này chưa có file minh chứng.
-            </div>
-          ) : (
-            <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-              {files.map((file) => (
-                <div key={file.id} className="flex min-w-0 items-center gap-3 px-4 py-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    <FileText className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <TruncatedText as="p" value={file.fileName} className="text-sm font-medium text-foreground" />
-                    <p className="mt-0.5 text-xs text-muted-foreground">{file.fileSize} · Nộp ngày {file.uploadedAt}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    title={`Xem ${file.fileName}`}
-                    aria-label={`Xem ${file.fileName}`}
-                    onClick={() => setPreviewFile({ id: file.fileId, originalName: file.fileName })}
-                  >
-                    <Eye className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    title={`Tải xuống ${file.fileName}`}
-                    aria-label={`Tải xuống ${file.fileName}`}
-                    onClick={() => {
-                      void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
-                    }}
-                  >
-                    <Download className="size-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-lg px-6 py-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
-    </>
+    <div className="min-w-0">
+      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{files.length} file minh chứng</p>
+      <ul className="space-y-1.5">
+        {files.map((file) => (
+          <li key={file.id} className="flex min-w-0 items-start rounded-md border border-border bg-background transition-colors hover:bg-muted/40">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-start gap-2 rounded-l-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              title={file.fileName}
+              aria-label={`Xem ${file.fileName}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreview(file);
+              }}
+            >
+              <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="line-clamp-2 break-all text-xs font-medium leading-4 text-foreground">{file.fileName}</span>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">{file.fileSize}</span>
+              </span>
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="m-1 shrink-0"
+              title={`Tải xuống ${file.fileName}`}
+              aria-label={`Tải xuống ${file.fileName}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
+              }}
+            >
+              <Download className="size-4" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -1194,7 +1147,7 @@ function CriterionDetailDialog({
   item,
   open,
   onOpenChange,
-  onViewEvidence,
+  onPreviewEvidence,
   onEdit,
   editDisabled = false,
   editDisabledReason,
@@ -1202,7 +1155,7 @@ function CriterionDetailDialog({
   item: SpecialistCriteriaItem | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onViewEvidence: (item: SpecialistCriteriaItem) => void;
+  onPreviewEvidence: (file: EvidenceFile) => void;
   onEdit: (item: SpecialistCriteriaItem) => void;
   editDisabled?: boolean;
   editDisabledReason?: string;
@@ -1237,14 +1190,9 @@ function CriterionDetailDialog({
               <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{item.scoreReason}</p>
             </div>
           )}
-          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{item.evidenceFiles.length} file đính kèm</p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => onViewEvidence(item)}>
-              <FileText className="size-4" />Xem file
-            </Button>
+          <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p>
+            <EvidenceInlineList files={item.evidenceFiles} onPreview={onPreviewEvidence} />
           </div>
         </div>
         <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4">
@@ -1395,8 +1343,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [expandedCriterionHistoryId, setExpandedCriterionHistoryId] = useState<string | null>(null);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
-  const [viewingEvidenceItem, setViewingEvidenceItem] = useState<SpecialistCriteriaItem | null>(null);
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string; url?: string | null } | null>(null);
+  const openEvidencePreview = (file: EvidenceFile) =>
+    setPreviewFile({ id: file.fileId, originalName: file.fileName });
   const openRevisionFilePreview = (file: SubmissionResultFile) =>
     setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url });
   const debouncedLocalitySearch = useDebounce(localitySearch, 300);
@@ -2307,9 +2256,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'proposed', label: 'Địa phương đề xuất' },
                 { id: 'explanation', label: 'Nội dung diễn giải' },
                 { id: 'score', label: 'Chuyên viên chấm' },
-                { id: 'leader-revision-note', label: 'Nội dung chỉnh sửa Lãnh đạo' },
-                { id: 'council-revision-note', label: 'Nội dung chỉnh sửa Hội đồng' },
-                { id: 'committee-revision-note', label: 'Nội dung chỉnh sửa Ủy ban' },
+                { id: 'leader-revision-note', label: 'Nội dung chỉnh sửa Lãnh đạo ban' },
               ]}
             />
             <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
@@ -2344,16 +2291,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         </div>
 
         <div className="hidden overflow-x-auto xl:block">
-          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1940px] table-fixed">
+          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1600px] table-fixed">
             <colgroup>
-              <col className="w-[14%]" />
-              <col className="w-[8%]" />
-              <col className="w-[11%]" />
-              <col className="w-[13%]" />
-              <col className="w-[12%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
-              <col className="w-[14%]" />
+              <col className="w-[18%]" />
+              <col className="w-[15%]" />
+              <col className="w-[15%]" />
+              <col className="w-[17%]" />
+              <col className="w-[16%]" />
+              <col className="w-[19%]" />
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
@@ -2362,17 +2307,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Hội đồng</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Ủy ban</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo ban</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayGroup.items.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
                 const leaderNote = revisionNoteForResult(selectedRevisionNotes.leader, result);
-                const councilNote = revisionNoteForResult(selectedRevisionNotes.council, result);
-                const committeeNote = revisionNoteForResult(selectedRevisionNotes.committee, result);
                 const historyExpanded = expandedCriterionHistoryId === item.id;
                 return (
                   <Fragment key={item.id}>
@@ -2426,13 +2367,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     )}
                   </TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">
-                    <EvidenceButton
-                      files={item.evidenceFiles}
-                      onClick={() => {
-                        setSelectedCriterionId(item.id);
-                        setViewingEvidenceItem(item);
-                      }}
-                    />
+                    <EvidenceInlineList files={item.evidenceFiles} onPreview={openEvidencePreview} />
                   </TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><ProposedScoreSummary item={item} /></TableCell>
                   <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</TableCell>
@@ -2460,13 +2395,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><RevisionNoteView note={leaderNote} onPreview={openRevisionFilePreview} /></TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-5 text-center align-top"><RevisionNoteView note={councilNote} onPreview={openRevisionFilePreview} /></TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNoteView note={committeeNote} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNoteView note={leaderNote} onPreview={openRevisionFilePreview} /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={8} className="px-4 py-3">
+                    <TableCell colSpan={6} className="px-4 py-3">
                       <CriterionHistoryPanel
                         resultId={result?.id}
                         currentPoint={item.proposedScore}
@@ -2479,7 +2412,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   </Fragment>
                 );
               })}
-              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={8} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
+              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -2488,8 +2421,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           {displayGroup.items.map((item) => {
             const result = resultByCriteriaId.get(item.id);
             const leaderNote = revisionNoteForResult(selectedRevisionNotes.leader, result);
-            const councilNote = revisionNoteForResult(selectedRevisionNotes.council, result);
-            const committeeNote = revisionNoteForResult(selectedRevisionNotes.committee, result);
             const historyExpanded = expandedCriterionHistoryId === item.id;
             return (
             <article key={item.id} className="p-4 sm:p-5">
@@ -2505,24 +2436,16 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <div>
                     <h4 className="text-xs font-semibold text-foreground">Minh chứng</h4>
                     <div className="mt-2">
-                      <EvidenceButton
-                        files={item.evidenceFiles}
-                        onClick={() => {
-                          setSelectedCriterionId(item.id);
-                          setViewingEvidenceItem(item);
-                        }}
-                      />
+                      <EvidenceInlineList files={item.evidenceFiles} onPreview={openEvidencePreview} />
                     </div>
                   </div>
                   <div>
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
-                  {(leaderNote || councilNote || committeeNote) && (
+                  {leaderNote && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      {leaderNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo</dt><dd className="mt-1"><RevisionNoteView note={leaderNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>}
-                      {councilNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Hội đồng</dt><dd className="mt-1"><RevisionNoteView note={councilNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>}
-                      {committeeNote && <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Ủy ban</dt><dd className="mt-1"><RevisionNoteView note={committeeNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>}
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo ban</dt><dd className="mt-1"><RevisionNoteView note={leaderNote} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
                     </dl>
                   )}
                 </div>
@@ -2649,9 +2572,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         item={selectedCriterion}
         open={criterionDetailOpen}
         onOpenChange={setCriterionDetailOpen}
-        onViewEvidence={(item) => {
+        onPreviewEvidence={(file) => {
           setCriterionDetailOpen(false);
-          setViewingEvidenceItem(item);
+          openEvidencePreview(file);
         }}
         onEdit={(item) => {
           if (specialistActionsLocked) {
@@ -2762,12 +2685,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
         onConfirm={confirmForward}
-      />
-      <EvidenceFilesDialog
-        item={viewingEvidenceItem}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setViewingEvidenceItem(null);
-        }}
       />
     </div>
   );
