@@ -169,6 +169,31 @@ function parseJsonRecord(value: string | null) {
 }
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const submissionStageOrder = ['Draft', 'LocalSubmitted', 'ScorerSubmitted', 'ReviewerApproved', 'SpecialistApproved', 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized', 'RequiresRevision', 'ScorerRevisionRequested', 'ReviewerRevisionRequested'] as const;
+const submissionStageLabels: Record<string, string> = {
+  Draft: 'Nháp',
+  LocalSubmitted: 'Đã nộp địa phương',
+  ScorerSubmitted: 'Chờ Lãnh đạo ban',
+  ReviewerApproved: 'Chờ Chuyên viên trưởng',
+  SpecialistApproved: 'Chuyên viên đã duyệt',
+  LeaderApproved: 'Lãnh đạo đã duyệt',
+  CouncilApproved: 'Hội đồng đã duyệt',
+  CommitteeFinalized: 'Ủy ban đã phê duyệt',
+  RequiresRevision: 'Yêu cầu chỉnh sửa',
+  ScorerRevisionRequested: 'Yêu cầu chỉnh sửa',
+  ReviewerRevisionRequested: 'Yêu cầu chỉnh sửa',
+};
+const submissionStageLabelsByValue = submissionStageOrder.map((stage) => submissionStageLabels[stage]);
+
+function normalizeStageDisplay(field: string, value: string | null) {
+  const name = field.split('.').at(-1)?.toLowerCase();
+  if (!value || (name !== 'currentstage' && name !== 'submissionstage')) return value;
+  return submissionStageLabels[value] ?? (/^[A-Z][A-Za-z]+$/.test(value) ? 'Giai đoạn hồ sơ' : value);
+}
+
+function getReadableReference(values: Array<string | null>, fallback: string) {
+  return values.find((value) => value?.trim() && !GUID_RE.test(value.trim()))?.trim() ?? fallback;
+}
 
 /** GUID trần không đọc được với người xem — trả null để caller fallback nhãn thân thiện.
  *  Hỗ trợ cả dạng "guid: Tên" (BE display kèm định danh): giữ phần tên, bỏ phần ID. */
@@ -232,8 +257,12 @@ function formatAuditValue(field: string, value: unknown) {
     return ({ 0: 'Nháp', 1: 'Đã áp dụng' } as Record<number, string>)[value] ?? String(value);
   }
 
-  if (field === 'CurrentStage' && typeof value === 'number') {
-    return ({ 0: 'Nháp', 1: 'Đã nộp' } as Record<number, string>)[value] ?? String(value);
+  if ((field === 'CurrentStage' || field === 'SubmissionStage') && typeof value === 'number') {
+    return submissionStageLabelsByValue[value] ?? 'Giai đoạn hồ sơ';
+  }
+
+  if ((field === 'CurrentStage' || field === 'SubmissionStage') && typeof value === 'string') {
+    return normalizeStageDisplay(field, value) ?? 'Giai đoạn hồ sơ';
   }
 
   if (field === 'FileSize' && typeof value === 'number') {
@@ -281,8 +310,8 @@ function getDisplayChanges(item: AuditLogItem) {
         .map((change) => ({
           field: change.field,
           label: getFieldLabel(change.field) ?? change.label ?? change.field,
-          before: normDisplay(readableRef(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before))) ?? 'Chưa có',
-          after: normDisplay(readableRef(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after))) ?? 'Chưa có',
+          before: normDisplay(readableRef(normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before)))) ?? 'Chưa có',
+          after: normDisplay(readableRef(normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after)))) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
@@ -541,9 +570,9 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
 
   let subtitle = getEntityLabel(item.entityName);
   if (item.entityName === 'SubmissionResult') {
-    subtitle = display('criteriaId') ?? display('CriteriaId') ?? display('Criteria') ?? subtitle;
+    subtitle = getReadableReference([display('criteriaId'), display('CriteriaId'), display('Criteria')], subtitle);
   } else if (item.entityName === 'Submission') {
-    subtitle = display('criteriaGroupId') ?? display('CriteriaGroupId') ?? subtitle;
+    subtitle = getReadableReference([display('criteriaGroupId'), display('CriteriaGroupId')], subtitle);
   } else if (isFile) {
     const newFile = item.files?.[0];
     subtitle = newFile?.displayName ?? newFile?.originalName

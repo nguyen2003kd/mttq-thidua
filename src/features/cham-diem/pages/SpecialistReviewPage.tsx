@@ -155,20 +155,21 @@ const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | Submi
   SCORER: [
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ chấm' },
-    { value: 'ScorerRevisionRequested', label: 'Yêu cầu người chấm chỉnh sửa' },
+    { value: 'ScorerRevisionRequested', label: 'Yêu cầu chỉnh sửa' },
     { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
     { value: 'ScorerSubmitted', label: 'Đã gửi review' },
   ],
   REVIEWER: [
     { value: '', label: 'Tất cả' },
-    { value: 'ScorerSubmitted', label: 'Chờ review' },
-    { value: 'ReviewerRevisionRequested', label: 'Chờ review lại' },
-    { value: 'ReviewerApproved', label: 'Đã chuyển chuyên viên' },
+    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
+    { value: 'ReviewerRevisionRequested', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'ReviewerApproved', label: 'Đã chuyển Chuyên viên trưởng' },
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ chuyên viên' },
-    { value: 'ReviewerApproved', label: 'Chờ chuyên viên' },
+    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
+    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
+    { value: 'ReviewerApproved', label: 'Chờ duyệt' },
     { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
     { value: 'SpecialistApproved', label: 'Đã chuyển lãnh đạo' },
   ],
@@ -1078,7 +1079,13 @@ function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }
   return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Đang chờ duyệt</Badge>;
 }
 
-function GroupStatusBadge({ status }: { status: SpecialistCriteriaGroup['status'] }) {
+function GroupStatusBadge({ status, role, stage }: { status: SpecialistCriteriaGroup['status']; role: ScoringRole; stage?: SubmissionStage | null }) {
+  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ Chuyên viên cấp 2</Badge>;
+  if (role === 'REVIEWER' && stage === 'ScorerSubmitted') return <Badge variant="warning">Chờ Lãnh đạo ban</Badge>;
+  if (role === 'REVIEWER' && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
+  if (role === 'SPECIALIST' && stage === 'ScorerSubmitted') return <Badge variant="warning">Chờ Lãnh đạo ban</Badge>;
+  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return <Badge variant="warning">Chờ duyệt</Badge>;
+  if (role === 'SPECIALIST' && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
   if (status === 'DA_CHAM') return <Badge variant="success"><CheckCircle2 className="size-3" />Đã chấm</Badge>;
   if (status === 'CHO_DUYET') return <Badge variant="warning">Chờ duyệt</Badge>;
   if (status === 'CHO_CHAM') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ chấm</Badge>;
@@ -1470,7 +1477,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       : (allSubmissionsQuery.data?.items ?? []),
     [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
   );
-
   const groupsQuery = useQuery({
     queryKey: ['specialist-criteria-groups'],
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
@@ -1483,13 +1489,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
 
   // Danh sách địa phương = nhóm submissions theo locality (wardCode)
   const totalAppliedGroups = useMemo(
-    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied' || g.status === 'Published').length,
+    () => (groupsQuery.data?.items ?? []).filter((group) => group.status === 'Applied' || group.status === 'Published').length,
     [groupsQuery.data],
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
-    // Ở drill-down phải dùng đúng response của nhóm; các row Draft vẫn được giữ để
-    // nhận diện địa phương theo URL, nhưng được tính là chưa nộp ở phía dưới.
+    // Tổng hợp tiến độ theo địa phương; stage đang chờ xử lý được lọc theo role hiện tại.
     const items = visibleSubmissionItems;
     const byLocality = new Map<string, SubmissionApi[]>();
     for (const s of items) {
@@ -1522,8 +1527,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     });
   }, [scoringRole, totalAppliedGroups, visibleSubmissionItems]);
 
-  // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp và
-  // submission Draft — địa phương soạn nhưng chưa nộp thì không hiện thông tin)
+  // Submissions của địa phương đang chọn (bỏ qua row tổng hợp chưa nộp và submission Draft).
   const localitySubmissions = useMemo(
     () => visibleSubmissionItems
       .filter(isRealSubmission)
@@ -1636,19 +1640,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     return {
       all: getRevisionNotes(histories),
       specialist: getLatestRevisionNote(histories, 'ReviewerApproved'),
-      reviewer: getRevisionNotes(histories, ['ScorerSubmitted', 'ReviewerRevisionRequested']),
-      leader: getRevisionNotes(histories, ['SpecialistApproved']),
-      council: getLatestRevisionNote(histories, 'LeaderApproved'),
-      committee: getLatestRevisionNote(histories, 'CouncilApproved'),
+      reviewer: getRevisionNotes(histories, ['ScorerSubmitted', 'ReviewerRevisionRequested'])[0] ?? null,
     };
   }, [selectedRevisionHistoriesQuery.data]);
 
   const applicableRevisionNotes = useMemo(() => {
     if (!selectedCriterionId) return [];
     const result = selectedSubmissionDetailQuery.data?.results.find((item) => item.criteriaId === selectedCriterionId);
-    return [...selectedRevisionNotes.leader, selectedRevisionNotes.council, selectedRevisionNotes.committee]
-      .filter((note): note is RevisionNote => Boolean(note && revisionNoteForResult(note, result?.id)))
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    return leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
   }, [selectedCriterionId, selectedSubmissionDetailQuery.data?.results, selectedRevisionNotes]);
   const selectedRevisionNote = applicableRevisionNotes[0] ?? null;
   const inheritedRevisionFile = applicableRevisionNotes.find((note) => note.files.length > 0)?.files[0] ?? null;
@@ -2057,7 +2056,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
-                    <TableCell className="px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} /></TableCell>
+                    <TableCell className="px-4 py-4 text-center align-top"><GroupStatusBadge status={group.status} role={scoringRole} stage={submissionByGroup.get(group.id)?.currentStage} /></TableCell>
                   </TableRow>
                 ))}
                 {filteredGroups.length === 0 && <TableRow><TableCell colSpan={5} className="h-28 text-center text-muted-foreground">{searchedGroupsQuery.isError ? 'Không tìm được nhóm tiêu chí. Vui lòng thử lại.' : searchedGroupsQuery.isFetching ? 'Đang tìm kiếm nhóm tiêu chí…' : 'Không có nhóm tiêu chí phù hợp.'}</TableCell></TableRow>}
@@ -2073,7 +2072,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <p className="text-xs font-medium text-primary">{group.code}</p>
                     <h3 className="mt-1 font-semibold leading-5 text-foreground">{group.groupName}</h3>
                   </div>
-                  <GroupStatusBadge status={group.status} />
+                  <GroupStatusBadge status={group.status} role={scoringRole} stage={submissionByGroup.get(group.id)?.currentStage} />
                 </div>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p>
                 <dl className="mt-4 grid grid-cols-3 overflow-hidden rounded-md border border-border bg-border">
@@ -2095,6 +2094,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     );
   }
 
+  if (selectedGroupDetailQuery.isLoading || selectedSubmissionDetailQuery.isLoading) {
+    return <PageLoading label="Đang tải chi tiết chấm điểm…" />;
+  }
+
   if (!selectedGroup) {
     return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Mã nhóm tiêu chí không tồn tại trong dữ liệu." />;
   }
@@ -2103,15 +2106,39 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const specialistForwarding = (selectedForwardingHistoriesQuery.data?.items ?? []).find((history) => history.stageLevel === 'LocalSubmitted');
   const specialistForwardingFiles = specialistForwarding?.files?.length ? specialistForwarding.files : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
   const specialistPermissions = getSpecialistSubmissionPermissions(selectedSubmissionStage, scoringRole);
-  const specialistActionsLocked = !specialistPermissions.canEdit;
-  const specialistApproveLocked = !specialistPermissions.canApprove;
+  const isScorerRevisionStage = scoringRole === 'SCORER' && selectedSubmissionStage === 'ScorerRevisionRequested';
+  const scorerRevisionScopeLoading = isScorerRevisionStage && !selectedRevisionHistoriesQuery.isSuccess;
+  const specialistActionsLocked = !specialistPermissions.canEdit || scorerRevisionScopeLoading;
+  const specialistApproveLocked = !specialistPermissions.canApprove || scorerRevisionScopeLoading;
   const specialistRevisionLocked = !specialistPermissions.canRequestRevision;
-  const specialistLockReason = specialistPermissions.disabledReason;
+  const specialistLockReason = scorerRevisionScopeLoading
+    ? 'Đang tải danh sách tiêu chí cần chỉnh sửa.'
+    : specialistPermissions.disabledReason;
   const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : scoringRole === 'SPECIALIST' ? 'người review' : 'địa phương';
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
   );
+  const scorerRevisionNote = isScorerRevisionStage ? selectedRevisionNotes.reviewer : null;
+  const isScoringCriterionEditable = (item: SpecialistCriteriaItem) => {
+    if (!isScorerRevisionStage) return true;
+    if (!selectedRevisionHistoriesQuery.isSuccess || !scorerRevisionNote) return false;
+    if (scorerRevisionNote.criteriaIds !== null) return scorerRevisionNote.criteriaIds.includes(item.id);
+    if (scorerRevisionNote.resultIds === null) return true;
+    const resultId = resultByCriteriaId.get(item.id)?.id;
+    return Boolean(resultId && scorerRevisionNote.resultIds.includes(resultId));
+  };
+  const selectedCriterion = selectedCriterionId
+    ? displayGroup.items.find((item) => item.id === selectedCriterionId)
+    : undefined;
+  const selectedCriterionRevisionLocked = Boolean(selectedCriterion && !isScoringCriterionEditable(selectedCriterion));
+  const selectedCriterionLockReason = specialistActionsLocked
+    ? specialistLockReason
+    : selectedCriterionRevisionLocked
+      ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của reviewer.'
+      : selectedCriterion?.isAddedBySpecialist
+        ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.'
+        : 'Chọn một tiêu chí để sửa điểm.';
   const scoredItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist);
   const scoredCount = scoredItems.filter((item) => item.officialScore !== null && item.officialBonusScore !== null).length;
   const hasMissingApprovalScore = scoredItems.some((item) => item.officialScore === null || item.officialBonusScore === null);
@@ -2126,9 +2153,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
   const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
   const specialistBonusScore = scoredItems.reduce((sum, item) => sum + (item.officialBonusScore ?? 0), 0);
-  const selectedCriterion = selectedCriterionId
-    ? displayGroup.items.find((item) => item.id === selectedCriterionId)
-    : undefined;
   const revisionCriteria = displayGroup.items.filter((item) => !item.isAddedBySpecialist && resultByCriteriaId.has(item.id));
   const scoreRevisionCriterionLabel = scoreRevisionResult?.criteriaContent
     ?? displayGroup.items.find((item) => item.id === scoreRevisionResult?.criteriaId)?.title
@@ -2139,9 +2163,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.info(specialistLockReason);
       return;
     }
+    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && isScoringCriterionEditable(item));
+    if (editableItems.length === 0) {
+      toast.info('Không có tiêu chí được yêu cầu chỉnh sửa để sao chép điểm.');
+      return;
+    }
     const newOverrides = new Map(scoreOverrides);
-    for (const item of displayGroup.items) {
-      if (item.isAddedBySpecialist) continue;
+    for (const item of editableItems) {
       newOverrides.set(item.id, {
         ...newOverrides.get(item.id),
         officialScore: item.proposedScore,
@@ -2150,7 +2178,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       });
     }
     setScoreOverrides(newOverrides);
-    toast.success('Đã sao chép toàn bộ điểm đề xuất sang điểm Chuyên viên chấm.');
+    toast.success(isScorerRevisionStage
+      ? `Đã sao chép điểm đề xuất cho ${editableItems.length} tiêu chí được yêu cầu chỉnh sửa.`
+      : 'Đã sao chép toàn bộ điểm đề xuất sang điểm Chuyên viên chấm.');
   };
 
   const openForwardDialog = () => {
@@ -2162,7 +2192,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.error('Nhóm tiêu chí chưa có tiêu chí con để gửi duyệt.');
       return;
     }
-    if (hasMissingApprovalScore) {
+    const missingScore = displayGroup.items.some((item) => !item.isAddedBySpecialist && (item.officialScore === null || item.officialBonusScore === null));
+    if (missingScore) {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
     }
@@ -2193,7 +2224,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const buildScoreItems = () => {
     const results = selectedSubmissionDetailQuery.data?.results ?? [];
     return displayGroup.items
-      .filter((item) => item.officialScore !== null && item.officialBonusScore !== null)
+      .filter((item) => !item.isAddedBySpecialist && isScoringCriterionEditable(item) && item.officialScore !== null && item.officialBonusScore !== null)
       .map((item) => {
         const result = results.find((r) => r.criteriaId === item.id);
         if (!result) return null;
@@ -2214,9 +2245,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
 
     const results = selectedSubmissionDetailQuery.data?.results ?? [];
     const uploadedCriteriaIds: string[] = [];
+    const skippedCriteriaIds: string[] = [];
     const failedFiles: string[] = [];
 
     for (const [criteriaId, file] of pendingScoreAttachments) {
+      const criterion = displayGroup.items.find((item) => item.id === criteriaId);
+      if (isScorerRevisionStage && (!criterion || !isScoringCriterionEditable(criterion))) {
+        skippedCriteriaIds.push(criteriaId);
+        continue;
+      }
       const result = results.find((item) => item.criteriaId === criteriaId);
       if (!result) {
         failedFiles.push(file.name);
@@ -2236,10 +2273,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       }
     }
 
-    if (uploadedCriteriaIds.length > 0) {
+    const clearedCriteriaIds = [...uploadedCriteriaIds, ...skippedCriteriaIds];
+    if (clearedCriteriaIds.length > 0) {
       setPendingScoreAttachments((current) => {
         const next = new Map(current);
-        uploadedCriteriaIds.forEach((criteriaId) => next.delete(criteriaId));
+        clearedCriteriaIds.forEach((criteriaId) => next.delete(criteriaId));
         return next;
       });
     }
@@ -2342,7 +2380,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           </div>
           <div className="bg-card px-4 py-3.5">
             <p className="text-xs font-medium text-muted-foreground">Trạng thái</p>
-            <div className="mt-1"><GroupStatusBadge status={displayGroup.status} /></div>
+            <div className="mt-1"><GroupStatusBadge status={displayGroup.status} role={scoringRole} stage={selectedSubmissionStage} /></div>
           </div>
           <div className="bg-card px-4 py-3.5">
             <p className="text-xs font-medium text-muted-foreground">Đã chấm</p>
@@ -2400,7 +2438,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'proposed', label: 'Địa phương đề xuất' },
                 { id: 'explanation', label: 'Nội dung diễn giải' },
                 { id: 'score', label: 'Chuyên viên chấm' },
-                { id: 'leader-revision-note', label: 'Nội dung chỉnh sửa Lãnh đạo ban' },
+                { id: 'revision-note', label: isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa' },
               ]}
             />
             <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
@@ -2410,8 +2448,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               <>
                 <Button
                   variant="outline"
-                  disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || specialistActionsLocked}
-                  disabledReason={specialistActionsLocked ? specialistLockReason : selectedCriterion?.isAddedBySpecialist ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.' : 'Chọn một tiêu chí để sửa điểm.'}
+                  disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || specialistActionsLocked || selectedCriterionRevisionLocked}
+                  disabledReason={selectedCriterionLockReason}
                   onClick={() => setScoreEditOpen(true)}
                 >
                   <Edit3 className="size-4" />Sửa điểm
@@ -2422,7 +2460,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             )}
             {selectedCriterion && (
               <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
-                <AlertCircle className="size-4 text-warning" />Yêu cầu {revisionTargetLabel} chỉnh sửa
+                <AlertCircle className="size-4 text-warning" />Yêu cầu chỉnh sửa
               </Button>
             )}
           </div>
@@ -2446,12 +2484,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
-                <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
-                <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung chỉnh sửa Lãnh đạo ban</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">{isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa'}</TableHead>
               </TableRow>
             </TableHeader>
             </Table>
@@ -2479,7 +2517,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             <TableBody>
               {displayGroup.items.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
-                const leaderNotes = leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id);
+                const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
+                const revisionNotes = isScorerRevisionStage
+                  ? (reviewerNote ? [reviewerNote] : [])
+                  : leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
                 const historyExpanded = expandedCriterionHistoryId === item.id;
                 return (
                   <Fragment key={item.id}>
@@ -2499,6 +2540,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     />
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+                    {reviewerNote && <Badge variant="warning" className="mt-3">Yêu cầu chỉnh sửa</Badge>}
                     {result && (
                       <div className="mt-3 flex flex-wrap items-center gap-1">
                         <Button
@@ -2561,7 +2603,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNotesView notes={leaderNotes} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNotesView notes={revisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -2586,7 +2628,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         <div className="divide-y divide-border xl:hidden">
           {displayGroup.items.map((item) => {
             const result = resultByCriteriaId.get(item.id);
-            const leaderNotes = leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id);
+            const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
+            const revisionNotes = isScorerRevisionStage
+              ? (reviewerNote ? [reviewerNote] : [])
+              : leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
             const historyExpanded = expandedCriterionHistoryId === item.id;
             return (
             <article key={item.id} className="p-4 sm:p-5">
@@ -2596,6 +2641,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <h3 className="mt-1 font-semibold leading-5 text-foreground">{item.title}</h3>
                 </div>
                 {item.isAddedBySpecialist && <Badge className="bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+                {reviewerNote && <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>}
               </div>
               <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
                 <div className="space-y-5">
@@ -2609,9 +2655,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
-                  {leaderNotes.length > 0 && (
+                  {revisionNotes.length > 0 && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Nội dung chỉnh sửa Lãnh đạo ban</dt><dd className="mt-1"><RevisionNotesView notes={leaderNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">{isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa'}</dt><dd className="mt-1"><RevisionNotesView notes={revisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
                     </dl>
                   )}
                 </div>
@@ -2747,12 +2793,16 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             toast.info(specialistLockReason);
             return;
           }
+          if (!isScoringCriterionEditable(item)) {
+            toast.info('Chỉ được sửa các tiêu chí có trong yêu cầu chỉnh sửa của reviewer.');
+            return;
+          }
           setCriterionDetailOpen(false);
           setSelectedCriterionId(item.id);
           setScoreEditOpen(true);
         }}
-        editDisabled={specialistActionsLocked}
-        editDisabledReason={specialistLockReason}
+        editDisabled={specialistActionsLocked || selectedCriterionRevisionLocked}
+        editDisabledReason={selectedCriterionLockReason}
       />
       <ScoreEditDialog
         item={selectedCriterion}
@@ -2763,6 +2813,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           if (!selectedCriterion) return;
           if (specialistActionsLocked) {
             toast.info(specialistLockReason);
+            return;
+          }
+          if (!isScoringCriterionEditable(selectedCriterion)) {
+            toast.info('Chỉ được sửa các tiêu chí có trong yêu cầu chỉnh sửa của reviewer.');
             return;
           }
           if (attachmentChanged) {
@@ -2815,6 +2869,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           const selectedResultIds = criteriaIds
             .map((criteriaId) => resultByCriteriaId.get(criteriaId)?.id)
             .filter((id): id is string => Boolean(id));
+          if (selectedResultIds.length !== criteriaIds.length) {
+            toast.error('Không tìm thấy kết quả của một hoặc nhiều tiêu chí đã chọn. Vui lòng tải lại hồ sơ.');
+            return false;
+          }
           if (selectedResultIds.length === 0) {
             toast.error('Vui lòng chọn ít nhất một tiêu chí có kết quả để yêu cầu chỉnh sửa.');
             return false;
@@ -2829,6 +2887,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             await specialistApi.requestRevision({
               submissionId: submission.id,
               reason,
+              criteriaIds,
               submissionResultIds: selectedResultIds,
               file: attachment,
             });

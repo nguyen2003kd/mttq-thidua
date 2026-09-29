@@ -8,6 +8,7 @@ export interface RevisionNote {
   createdAt: string;
   /** null = request không chỉ định submissionResultIds → áp dụng cho toàn bộ tiêu chí. */
   resultIds: string[] | null;
+  criteriaIds: string[] | null;
   /** Tệp đính kèm của yêu cầu chỉnh sửa (gắn vào ApprovalHistory). */
   files: SubmissionResultFile[];
 }
@@ -40,6 +41,18 @@ export function parseRevisionResultIds(changedData: string | null): string[] | n
   }
 }
 
+export function parseRevisionCriteriaIds(changedData: string | null): string[] | null {
+  if (!changedData) return null;
+  try {
+    const parsed = JSON.parse(changedData) as { criteriaIds?: unknown };
+    return Array.isArray(parsed.criteriaIds)
+      ? parsed.criteriaIds.filter((id): id is string => typeof id === 'string')
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getRevisionNotes(histories: ApprovalHistoryItem[], stageLevels?: readonly RevisionRequestStage[]): RevisionNote[] {
   const allowedStageLevels = stageLevels ? new Set<string>(stageLevels) : null;
   return histories.flatMap((item) => {
@@ -47,13 +60,26 @@ export function getRevisionNotes(histories: ApprovalHistoryItem[], stageLevels?:
     if ((allowedStageLevels && !allowedStageLevels.has(item.stageLevel))
       || resolveHistoryAction(item.action, item.reason) !== 'RequestRevision'
       || !reason?.trim()) return [];
-    return [{ reason, createdAt: item.createdAt, resultIds: parseRevisionResultIds(item.changedData), files: item.files ?? [] }];
+    return [{
+      reason,
+      createdAt: item.createdAt,
+      resultIds: parseRevisionResultIds(item.changedData),
+      criteriaIds: parseRevisionCriteriaIds(item.changedData),
+      files: item.files ?? [],
+    }];
   }).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }
 
-/** Chỉ trả note khi submissionResult thuộc danh sách được yêu cầu chỉnh sửa. */
-export function revisionNoteForResult(note: RevisionNote | null, resultId: string | undefined): RevisionNote | null {
+/** Chỉ trả note khi kết quả tiêu chí thuộc phạm vi được yêu cầu chỉnh sửa. */
+export function revisionNoteForResult(
+  note: RevisionNote | null,
+  result: string | { id: string; criteriaId: string } | undefined,
+): RevisionNote | null {
   if (!note) return null;
+  const resultId = typeof result === 'string' ? result : result?.id;
+  if (note.criteriaIds !== null) {
+    return typeof result === 'object' && result && note.criteriaIds.includes(result.criteriaId) ? note : null;
+  }
   if (note.resultIds === null) return note;
   return resultId && note.resultIds.includes(resultId) ? note : null;
 }
@@ -61,8 +87,9 @@ export function revisionNoteForResult(note: RevisionNote | null, resultId: strin
 export function leaderRevisionNotesForResult(
   notes: RevisionNote[],
   resultId: string | undefined,
+  criteriaId?: string,
 ): RevisionNote[] {
   return notes
-    .filter((note) => revisionNoteForResult(note, resultId) !== null)
+    .filter((note) => revisionNoteForResult(note, criteriaId ? { id: resultId ?? '', criteriaId } : resultId) !== null)
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }

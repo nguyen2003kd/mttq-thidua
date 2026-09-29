@@ -81,6 +81,14 @@ interface EditableRowProps extends Omit<LocalityScoreTableProps, 'criteria' | 'r
   visibleColumnIds?: string[];
 }
 
+function ScorePlaceholder({ label }: { label: string }) {
+  return (
+    <div aria-label={`${label}: không áp dụng`} className="mx-auto flex h-11 w-[108px] shrink-0 items-center justify-center rounded-lg border border-input bg-muted/30 text-base font-semibold tabular-nums text-muted-foreground">
+      —
+    </div>
+  );
+}
+
 interface ExplanationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -347,7 +355,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       </TableCell>}
       {isColumnVisible('proposedScore') && <TableCell className="align-middle">
         {criterion.type === 'Supplementary' ? (
-          <p className="text-sm text-muted-foreground">—</p>
+          <ScorePlaceholder label="Điểm đề xuất" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
             <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || scoreFieldsLocked || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
@@ -358,7 +366,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       </TableCell>}
       {isColumnVisible('bonusScore') && <TableCell className="align-middle">
         {criterion.type === 'Supplementary' ? (
-          <p className="text-sm text-muted-foreground">—</p>
+          <ScorePlaceholder label="Điểm thưởng" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
             <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || scoreFieldsLocked || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />

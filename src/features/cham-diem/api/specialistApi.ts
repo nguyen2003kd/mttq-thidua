@@ -52,7 +52,7 @@ export type ScoringRole = 'SCORER' | 'REVIEWER' | 'SPECIALIST';
 const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
   SCORER: ['LocalSubmitted', 'ScorerRevisionRequested'],
   REVIEWER: ['ScorerSubmitted', 'ReviewerRevisionRequested'],
-  SPECIALIST: ['LocalSubmitted', 'ScorerSubmitted', 'ReviewerApproved'],
+  SPECIALIST: ['ReviewerApproved'],
 };
 
 const FORWARD_LABELS: Record<ScoringRole, string> = {
@@ -64,7 +64,7 @@ const FORWARD_LABELS: Record<ScoringRole, string> = {
 const LOCK_REASONS: Record<ScoringRole, string> = {
   SCORER: 'Hồ sơ đã được gửi lên Lãnh đạo ban hoặc đang chờ cấp trên xử lý. Chuyên viên cấp 2 chỉ có thể xem thông tin.',
   REVIEWER: 'Hồ sơ không ở bước thẩm định của bạn. Lãnh đạo ban chỉ có thể xem thông tin.',
-  SPECIALIST: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên trưởng chỉ có thể xem thông tin.',
+  SPECIALIST: 'Hồ sơ chưa đến bước xử lý của Chuyên viên trưởng hoặc đã được chuyển lên cấp tiếp theo. Chuyên viên trưởng chỉ có thể xem thông tin.',
 };
 
 /**
@@ -245,10 +245,11 @@ export const specialistApi = {
     }),
 
   // RequestRevision — yêu cầu chỉnh sửa kèm tệp đính kèm (gắn vào ApprovalHistory của lần yêu cầu)
-  requestRevision: (payload: { submissionId: string; reason: string; submissionResultIds?: string[]; file?: File | null }) => {
+  requestRevision: (payload: { submissionId: string; reason: string; criteriaIds?: string[]; submissionResultIds?: string[]; file?: File | null }) => {
     const form = new FormData();
     form.append('submissionId', payload.submissionId);
     form.append('reason', payload.reason);
+    (payload.criteriaIds ?? []).forEach((id) => form.append('criteriaIds', id));
     (payload.submissionResultIds ?? []).forEach((id) => form.append('submissionResultIds', id));
     if (payload.file) form.append('files', payload.file);
     return request<ApprovalHistoryApi>({
