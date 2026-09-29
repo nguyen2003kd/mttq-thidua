@@ -259,7 +259,7 @@ export default function StandingCommitteePage() {
                 <Send className="mr-1.5 h-4 w-4" />Yêu cầu Chuyên viên bổ sung
               </Button>
               <Button
-                className="bg-accent text-foreground hover:bg-accent/90"
+               
                 disabled={!canProcessSelectedRow}
                 disabledReason={disabledReason}
                 action="publish"

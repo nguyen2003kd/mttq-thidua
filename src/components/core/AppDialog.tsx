@@ -27,7 +27,7 @@ export interface AppDialogProps {
 
 /**
  * Modal dùng chung toàn app: header trắng (tiêu đề H2 + nút X, Archetype 3),
- * body trắng scroll, footer có nút Đóng (primary) bên trái — đồng bộ với DetailDialog.
+ * body trắng scroll, footer căn phải với nút Đóng (primary) cuối cùng bên phải — đồng bộ với DetailDialog.
  */
 export function AppDialog({
   open,
@@ -75,9 +75,10 @@ export function AppDialog({
           {children}
         </div>
 
-        {/* Footer - nút Đóng bên trái, actions bên phải */}
+        {/* Footer - tất cả nút căn phải: actions trước, Đóng cuối cùng bên phải */}
         {!hideFooter && (
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/40 bg-muted/30 px-6 py-3">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/40 bg-muted/30 px-6 py-3">
+            {footerActions && <div className="flex items-center gap-2">{footerActions}</div>}
             <DialogClose
               render={
                 <button
@@ -88,7 +89,6 @@ export function AppDialog({
             >
               {closeLabel}
             </DialogClose>
-            {footerActions && <div className="flex items-center gap-2">{footerActions}</div>}
           </div>
         )}
       </DialogContent>

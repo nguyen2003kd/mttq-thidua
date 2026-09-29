@@ -598,7 +598,7 @@ export default function SpecialistScoreSummaryPage() {
               <Button
                 type="button"
                 size="sm"
-                className="bg-accent text-foreground hover:bg-accent/90"
+               
                 onClick={() => setPublishOpen(true)}
               >
                 <Trophy className="size-4" />
