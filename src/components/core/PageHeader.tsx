@@ -31,7 +31,7 @@ export function PageHeader({ title, description, breadcrumbs, summary, actions, 
       <div className={cn('flex items-start justify-between gap-4', summary && 'flex-col xl:flex-row xl:items-center')}>
         <div className={cn('space-y-1', summary && 'flex w-full min-w-0 flex-col gap-4 space-y-0 sm:flex-row sm:items-center xl:w-auto')}>
           <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
             {description && <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>}
           </div>
           {summary && <div className="shrink-0">{summary}</div>}

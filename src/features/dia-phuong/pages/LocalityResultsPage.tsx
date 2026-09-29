@@ -8,13 +8,14 @@ import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoad
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AuditTimeline } from '@/components/core';
 import { localityApi, getLocalityApiError, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { cn, formatDate } from '@/lib/utils';
@@ -229,7 +230,11 @@ export default function LocalityResultsPage() {
   const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
   const defaultPeriodId = selectablePeriods.find((period) => period.status === 'Active')?.id ?? selectablePeriods[0]?.id ?? '';
   const requestedPeriodId = searchParams.get('periodId') ?? '';
-  const periodId = selectablePeriods.some((period) => period.id === requestedPeriodId) ? requestedPeriodId : defaultPeriodId;
+  const storedPeriodId = usePeriodStore((s) => s.selectedPeriodId);
+  const setSelectedPeriod = usePeriodStore((s) => s.setSelectedPeriod);
+  const periodId = selectablePeriods.some((period) => period.id === requestedPeriodId)
+    ? requestedPeriodId
+    : selectablePeriods.some((period) => period.id === storedPeriodId) ? storedPeriodId! : defaultPeriodId;
 
   useEffect(() => {
     if (!periodsQuery.isLoading && periodId && searchParams.get('periodId') !== periodId) {
@@ -272,12 +277,13 @@ export default function LocalityResultsPage() {
     [groupsQuery.data, periodId],
   );
   const periodSelector = (
-    <div className="w-full max-w-xs space-y-1.5">
-      <Label htmlFor="locality-result-period">Kỳ thi đua</Label>
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-sm font-medium text-muted-foreground">Kỳ thi đua</span>
       <Select
         value={periodId}
         onValueChange={(value) => {
           if (!value) return;
+          setSelectedPeriod(value);
           setSearchParams((params) => {
             const next = new URLSearchParams(params);
             next.set('periodId', value);
@@ -287,7 +293,7 @@ export default function LocalityResultsPage() {
         itemToStringLabel={(id) => selectablePeriods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
         disabled={selectablePeriods.length === 0}
       >
-        <SelectTrigger id="locality-result-period"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
+        <SelectTrigger aria-label="Kỳ thi đua" className="w-56"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
         <SelectContent>
           {selectablePeriods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
         </SelectContent>
@@ -381,7 +387,7 @@ export default function LocalityResultsPage() {
     const totalOfficialBonus = rows.reduce((sum, row) => sum + (row.officialBonus ?? 0), 0);
 
     return <div className="space-y-5">
-      {periodSelector}
+      <PageHeader title="Kết quả thi đua" description="Kết quả của địa phương theo từng kỳ thi đua đã được công bố." actions={periodSelector} />
       {publication?.isPublished && (
         <section className="overflow-hidden rounded-xl border border-primary/20 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
@@ -494,9 +500,8 @@ export default function LocalityResultsPage() {
   const detailPublishedAt = detailSubmission?.updatedAt ?? publicationQuery.data.publishedAt;
 
   return <div className="space-y-5">
-    {periodSelector}
     <nav aria-label="Điều hướng" className="flex min-w-0 items-center gap-2 text-sm"><Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} className="shrink-0 text-primary hover:underline">Kết quả tiêu chí thi đua</Link><span className="text-muted-foreground">/</span><span className="truncate text-muted-foreground">{group.name ?? detailSubmission?.criteriaGroupName ?? 'Chi tiết nhóm'}</span></nav>
-    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<div className="flex items-center gap-2">{periodSelector}<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
 
     <Card>
       <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">

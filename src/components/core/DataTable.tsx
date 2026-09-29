@@ -114,6 +114,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   tableClassName?: string;
   /** Tách header khỏi vùng cuộn ngang để header vẫn sticky theo trang. */
   detachedStickyHeader?: boolean;
+  /** Bỏ bo góc trên của khung bảng — dùng khi có khối header riêng nằm ngay phía trên (vd LocalityScoreTable). */
+  flatTop?: boolean;
   /** Class cho vùng cuộn ngang chỉ của bảng, không làm toolbar hay footer bị tràn. */
   tableWrapperClassName?: string;
   /** Class cho container được tạo bên trong component Table. */
@@ -202,6 +204,7 @@ export function DataTable<TData, TValue = unknown>({
   selectedRowId,
   tableClassName,
   detachedStickyHeader = false,
+  flatTop = false,
   tableWrapperClassName,
   tableContainerClassName,
   footer,
@@ -681,7 +684,8 @@ export function DataTable<TData, TValue = unknown>({
       className={cn(
         sticky && 'sticky top-0 z-30',
         groupedStickyHeader ? 'bg-background' : 'bg-background/95 backdrop-blur-sm',
-        'flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius)_-_1px)] border-b border-border px-4 py-3',
+        'flex flex-wrap items-center gap-2 border-b border-border px-4 py-3',
+        !flatTop && 'rounded-t-[calc(var(--radius)_-_1px)]',
       )}
     >
       {searchable && (
@@ -768,7 +772,7 @@ export function DataTable<TData, TValue = unknown>({
       <div ref={sentinelRef} className="absolute top-0 h-px w-full" aria-hidden="true" />
 
       {/* Unified container: toolbar + chips + table */}
-      <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
+      <div className={cn('overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]', flatTop && 'rounded-t-none')}>
       {/* Với bảng tách header, giữ thanh công cụ và tiêu đề cột trong cùng một khối sticky để không lộ hàng dữ liệu ở khe giữa. */}
       {groupedStickyHeader ? (
         <div className="sticky top-[-16px] z-30 isolate sm:top-[-24px]">

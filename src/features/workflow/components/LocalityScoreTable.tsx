@@ -644,6 +644,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
         getRowId={(criterion) => criterion.id}
         selectedRowId={selectedCriterionId}
         className="-mt-px"
+        flatTop
         detachedStickyHeader
         tableWrapperClassName="overflow-x-auto"
         tableClassName="min-w-[1500px] table-fixed [&_tbody_td]:border-r [&_tbody_td]:border-primary/15 [&_tbody_td:last-child]:border-r-0"

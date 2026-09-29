@@ -11,9 +11,12 @@ import {
 } from 'lucide-react';
 import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading } from '@/components/core';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { downloadFile, getFilePreviewUrl } from '@/features/files/api/filesApi';
@@ -638,26 +641,33 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   const [to, setTo] = useState('');
   const [selected, setSelected] = useState<AuditLogItem | null>(null);
   const search = useDebounce(searchInput, 350);
+  const [periodFilter, setPeriodFilter] = useState(() => usePeriodStore.getState().selectedPeriodId ?? '');
+  const periodsQuery = useQuery({ queryKey: ['publication-periods'], queryFn: periodsApi.listAll });
+  const periods = periodsQuery.data ?? [];
+  const selectedPeriod = periods.find((period) => period.id === periodFilter);
 
   const query = useMemo<AuditLogQuery>(() => ({
     page,
     pageSize: PAGE_SIZE,
     sortBy: 'createdAt',
     sortOrder: 'desc',
+    // Kỳ thi đua chỉ có startYear/endYear — lọc log theo khoảng năm tương ứng.
+    ...(selectedPeriod ? { from: new Date(`${selectedPeriod.startYear}-01-01T00:00:00`).toISOString() } : {}),
+    ...(selectedPeriod ? { to: new Date(`${selectedPeriod.endYear}-12-31T23:59:59.999`).toISOString() } : {}),
     ...(from ? { from: new Date(`${from}T00:00:00`).toISOString() } : {}),
     ...(to ? { to: new Date(`${to}T23:59:59.999`).toISOString() } : {}),
     ...(module ? { module } : {}),
     ...(action ? { action } : {}),
     ...(entityName ? { entityName } : {}),
     ...(search ? { search } : {}),
-  }), [page, from, to, module, action, entityName, search]);
+  }), [page, from, to, module, action, entityName, search, selectedPeriod]);
 
   const logsQuery = useQuery({ queryKey: ['audit-logs', query], queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;
 
   const resetPage = () => setPage(1);
   const clearFilters = () => {
-    setModule(''); setAction(''); setEntityName(''); setSearchInput(''); setFrom(''); setTo(''); resetPage();
+    setModule(''); setAction(''); setEntityName(''); setSearchInput(''); setFrom(''); setTo(''); setPeriodFilter(''); usePeriodStore.getState().setSelectedPeriod(null); resetPage();
   };
 
   const handleDateRangeChange = (value: string) => {
@@ -667,10 +677,17 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     resetPage();
   };
 
+  const handlePeriodChange = (value: string) => {
+    setPeriodFilter(value);
+    usePeriodStore.getState().setSelectedPeriod(value || null);
+    resetPage();
+  };
+
   const activeFilters = [
     ...(module ? [{ label: 'Phân hệ', value: moduleLabels[module] ?? module, onClear: () => { setModule(''); resetPage(); } }] : []),
     ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : action, onClear: () => { setAction(''); resetPage(); } }] : []),
     ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
+    ...(selectedPeriod ? [{ label: 'Kỳ thi đua', value: selectedPeriod.name, onClear: () => handlePeriodChange('') }] : []),
     ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setFrom(''); setTo(''); resetPage(); } }] : []),
   ];
 
@@ -679,9 +696,25 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   if (!result) return <EmptyState title="Chưa có dữ liệu lịch sử" />;
   const visibleItems = result.items;
 
+  const periodSelector = (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-sm font-medium text-muted-foreground">Kỳ thi đua</span>
+      <Select
+        value={periodFilter}
+        onValueChange={(value) => { if (value) handlePeriodChange(value); }}
+        itemToStringLabel={(value) => periods.find((period) => period.id === value)?.name ?? 'Kỳ thi đua'}
+      >
+        <SelectTrigger aria-label="Kỳ thi đua" className="w-56"><SelectValue placeholder="Tất cả kỳ thi đua" /></SelectTrigger>
+        <SelectContent>
+          {periods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description={description} actions={actions} />
+      <PageHeader title={title} description={description} actions={<div className="flex flex-wrap items-center gap-2">{actions}{periodSelector}</div>} />
 
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3">

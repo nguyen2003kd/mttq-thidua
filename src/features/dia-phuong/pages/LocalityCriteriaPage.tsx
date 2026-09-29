@@ -5,12 +5,14 @@ import { ArrowDownToLine, ArrowLeft, Check, Eye, FileText, History, Save, Send, 
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FilterSelect, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
 import type { SpecialistRevisionFile } from '@/features/workflow/components/LocalityScoreTable';
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { CriteriaTable } from '@/types/domain';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -141,7 +143,7 @@ export default function LocalityCriteriaPage() {
     GROUP_SORT_OPTIONS.find((option) => option.value === searchParams.get('sort'))?.value ?? DEFAULT_GROUP_SORT
   ));
   const [yearFilter, setYearFilter] = useState(() => searchParams.get('year') ?? '');
-  const [periodFilter, setPeriodFilter] = useState(() => searchParams.get('periodId') ?? '');
+  const [periodFilter, setPeriodFilter] = useState(() => searchParams.get('periodId') ?? usePeriodStore.getState().selectedPeriodId ?? '');
   const [sortBy, sortOrder] = sortFilter.split('-') as [CriteriaGroupSortBy, SortOrder];
   const updateSearchParam = useCallback((key: string, value: string) => {
     setSearchParams((current) => {
@@ -157,6 +159,7 @@ export default function LocalityCriteriaPage() {
   }, [updateSearchParam]);
   const updatePeriodFilter = useCallback((value: string) => {
     setPeriodFilter(value);
+    usePeriodStore.getState().setSelectedPeriod(value || null);
     setSelectedListTable(null);
     updateSearchParam('periodId', value);
   }, [updateSearchParam]);
@@ -586,17 +589,33 @@ export default function LocalityCriteriaPage() {
 
   if (!localityId) return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương." />;
 
+  const periodSelector = (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-sm font-medium text-muted-foreground">Kỳ thi đua</span>
+      <Select
+        value={periodFilter}
+        onValueChange={(value) => { if (value) updatePeriodFilter(value); }}
+        itemToStringLabel={(value) => periods.find((period) => period.id === value)?.name ?? 'Kỳ thi đua'}
+      >
+        <SelectTrigger aria-label="Kỳ thi đua" className="w-56"><SelectValue placeholder="Tất cả kỳ thi đua" /></SelectTrigger>
+        <SelectContent>
+          {periods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   // ── List view ──────────────────────────────────────────────────────────────
   if (!id) {
     if ((groupsQuery.isLoading && !groupSearch) || mySubmissionsQuery.isLoading) {
-      return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" /><PageLoading label="Đang tải danh sách tiêu chí…" /></div>;
+      return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} /><PageLoading label="Đang tải danh sách tiêu chí…" /></div>;
     }
     if ((groupsQuery.isError && !groupSearch) || mySubmissionsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(groupsQuery.error ?? mySubmissionsQuery.error)} />;
     }
     return (
       <div className="space-y-5">
-        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" />
+        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} />
         {groupsQuery.isError && <p role="alert" className="text-sm text-destructive">Không tìm được nhóm tiêu chí. Vui lòng thử từ khóa khác.</p>}
         <DataTable
           data={filteredLocalityListRows}
@@ -629,12 +648,6 @@ export default function LocalityCriteriaPage() {
                 value={yearFilter}
                 onChange={updateYearFilter}
                 options={availableYears.map((year) => ({ value: year, label: year }))}
-              />
-              <FilterSelect
-                label="Kỳ"
-                value={periodFilter}
-                onChange={updatePeriodFilter}
-                options={periods.map((period) => ({ value: period.id, label: period.name }))}
               />
             </>
           )}
