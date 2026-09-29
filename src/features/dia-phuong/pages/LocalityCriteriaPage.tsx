@@ -750,6 +750,7 @@ export default function LocalityCriteriaPage() {
         evidence={evidence}
         localityId={localityId}
         editable={editable}
+        scoreFieldsLocked={isRevisionStage}
         editDisabledReason={editDisabledReason}
         nowMs={currentTimeMs}
         draftValues={draftResults}

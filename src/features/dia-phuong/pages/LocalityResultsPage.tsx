@@ -21,7 +21,7 @@ import { cn, formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
 
-const FINAL_STAGE = 'CouncilApproved' as const;
+const PUBLISHED_SUBMISSION_STAGES = new Set(['ReviewerApproved', 'CouncilApproved', 'CommitteeFinalized']);
 
 const ACTION_MAP: Record<string, ActionType> = {
   approve: 'APPROVE',
@@ -81,7 +81,7 @@ function classificationBadgeClass(score: number) {
 }
 
 function publicationStatusLabel(status: string) {
-  if (status === 'CommitteeFinalized' || status === 'CouncilApproved') return 'Đã công bố';
+  if (PUBLISHED_SUBMISSION_STAGES.has(status)) return 'Đã công bố';
   if (status === 'RequiresRevision') return 'Yêu cầu chỉnh sửa';
   if (status === 'InProgress') return 'Đang xử lý';
   return 'Chưa nộp';
@@ -89,7 +89,7 @@ function publicationStatusLabel(status: string) {
 
 function publicationStatusBadge(status: string) {
   const label = publicationStatusLabel(status);
-  if (status === 'CommitteeFinalized' || status === 'CouncilApproved')
+  if (PUBLISHED_SUBMISSION_STAGES.has(status))
     return <Badge className="border-primary bg-primary text-primary-foreground">{label}</Badge>;
   if (status === 'RequiresRevision')
     return <Badge className="border-destructive/25 bg-destructive/10 text-destructive">{label}</Badge>;
@@ -207,7 +207,7 @@ function AttachmentButton({ label, files, onPreview }: {
   </>;
 }
 
-/** Kết quả thi đua của địa phương — chỉ hiển thị hồ sơ đã được Ủy ban công bố (CommitteeFinalized). */
+/** Kết quả thi đua của địa phương — chỉ hiển thị hồ sơ trong kỳ đã được công bố. */
 export default function LocalityResultsPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -483,7 +483,7 @@ export default function LocalityResultsPage() {
   const group = detailGroupQuery.data ?? (id ? groupById.get(id) : undefined);
   const detailPubGroup = group ? publicationQuery.data?.criteriaGroups.find((item) => item.criteriaGroupId === group.id) : undefined;
   if (detailQuery.isError && !group) return <EmptyState variant="error" title="Không tải được chi tiết kết quả" description={getLocalityApiError(detailQuery.error)} />;
-  if (!publicationQuery.data?.isPublished || !group || !detailPubGroup || (detailSubmission && (detailSubmission.currentStage !== FINAL_STAGE || detailPubGroup.submissionId !== detailSubmission.id))) {
+  if (!publicationQuery.data?.isPublished || !group || !detailPubGroup || (detailSubmission && (!PUBLISHED_SUBMISSION_STAGES.has(detailSubmission.currentStage) || detailPubGroup.submissionId !== detailSubmission.id))) {
     return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được công bố trong kỳ thi đua đã chọn." action={<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
   }
   const criteria = (group.criteria ?? []).filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === detailSubmission?.id);

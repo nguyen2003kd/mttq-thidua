@@ -15,6 +15,35 @@ interface ResultPublicationDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface UnsubmittedCriteriaGroup {
+  wardCode: string;
+  wardName: string;
+  criteriaGroupName: string;
+}
+
+interface UnsubmittedLocality {
+  wardCode: string;
+  wardName: string;
+  criteriaGroupNames: string[];
+}
+
+function groupUnsubmittedByLocality(groups: UnsubmittedCriteriaGroup[]): UnsubmittedLocality[] {
+  const byWardCode = new Map<string, UnsubmittedLocality>();
+  for (const group of groups) {
+    const locality = byWardCode.get(group.wardCode) ?? {
+      wardCode: group.wardCode,
+      wardName: group.wardName,
+      criteriaGroupNames: [],
+    };
+    locality.criteriaGroupNames.push(group.criteriaGroupName);
+    byWardCode.set(group.wardCode, locality);
+  }
+
+  return Array.from(byWardCode.values())
+    .map((locality) => ({ ...locality, criteriaGroupNames: locality.criteriaGroupNames.sort((a, b) => a.localeCompare(b, 'vi')) }))
+    .sort((a, b) => a.wardName.localeCompare(b.wardName, 'vi'));
+}
+
 export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicationDialogProps) {
   const queryClient = useQueryClient();
   const [periodId, setPeriodId] = useState('');
@@ -42,6 +71,28 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
     queryFn: () => resultPublicationApi.getPreview(periodId),
     enabled: open && Boolean(periodId),
   });
+  const criteriaGroupsQuery = useQuery({
+    queryKey: ['result-publication-criteria-groups', periodId],
+    queryFn: () => resultPublicationApi.getCriteriaGroups(periodId),
+    enabled: open && Boolean(periodId),
+  });
+  const unsubmittedGroups = criteriaGroupsQuery.data?.flatMap((group) =>
+    group.localities
+      .filter((locality) => locality.status === 'NotSubmitted')
+      .map((locality) => ({
+        criteriaGroupName: group.name,
+        wardCode: locality.wardCode,
+        wardName: locality.wardName,
+      })),
+  ) ?? [];
+  const unsubmittedByLocality = groupUnsubmittedByLocality(unsubmittedGroups);
+  const unpublishedByLocality = groupUnsubmittedByLocality(
+    previewQuery.data?.unpublishedLocalityGroups.map((item) => ({
+      wardCode: item.wardCode,
+      wardName: item.wardName,
+      criteriaGroupName: item.criteriaGroupName,
+    })) ?? [],
+  );
 
   const close = () => {
     onOpenChange(false);
@@ -55,6 +106,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['result-publication-overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['result-publication-criteria-groups'] }),
         queryClient.invalidateQueries({ queryKey: ['result-publication-preview'] }),
         queryClient.invalidateQueries({ queryKey: ['committee-submissions'] }),
         queryClient.invalidateQueries({ queryKey: ['local-result-publication'] }),
@@ -130,6 +182,46 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                   <p>{previewQuery.data.message}</p>
                 </div>
+
+                {criteriaGroupsQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Đang kiểm tra địa phương chưa nộp…</p>
+                ) : criteriaGroupsQuery.isError ? (
+                  <p className="text-sm text-destructive">Không tải được danh sách địa phương và nhóm tiêu chí chưa nộp.</p>
+                ) : unsubmittedByLocality.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">Địa phương chưa nộp ({unsubmittedByLocality.length} địa phương, {unsubmittedGroups.length} nhóm tiêu chí)</p>
+                    <ul className="max-h-56 divide-y divide-border overflow-y-auto rounded-md border border-border">
+                      {unsubmittedByLocality.map((locality) => (
+                        <li key={locality.wardCode} className="px-3 py-2 text-sm">
+                          <p className="font-semibold">{locality.wardName || 'Địa phương chưa xác định tên'}</p>
+                          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                            {locality.criteriaGroupNames.map((groupName, index) => (
+                              <li key={`${locality.wardCode}-${index}`}>{groupName}</li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {unpublishedByLocality.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">Nhóm tiêu chí chưa đủ điều kiện công bố ({unpublishedByLocality.length} địa phương, {previewQuery.data.unpublishedLocalityGroups.length} nhóm tiêu chí)</p>
+                    <ul className="max-h-56 divide-y divide-border overflow-y-auto rounded-md border border-border">
+                      {unpublishedByLocality.map((locality) => (
+                        <li key={locality.wardCode} className="px-3 py-2 text-sm">
+                          <p className="font-semibold">{locality.wardName || 'Địa phương chưa xác định tên'}</p>
+                          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                            {locality.criteriaGroupNames.map((groupName, index) => (
+                              <li key={`${locality.wardCode}-${index}`}>{groupName}</li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="publication-note">Nội dung nhận xét chung <span className="text-destructive">★</span></Label>

@@ -10,7 +10,7 @@ import {
   Search,
   Trophy,
 } from "lucide-react";
-import { Button, EmptyState, PageLoading } from "@/components/core";
+import { Button, EmptyState, FilterSelect, PageLoading } from "@/components/core";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -35,6 +35,7 @@ import {
   type SubmissionApi,
 } from "@/features/cham-diem/api/specialistApi";
 import { clustersApi } from "@/features/admin/api/clustersApi";
+import { periodsApi } from "@/features/admin/api/periodsApi";
 import { useAuthStore } from "@/store/authStore";
 import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
 
@@ -130,9 +131,10 @@ function formatScore(value: number | null) {
   );
 }
 
-async function listEverySubmission() {
+async function listEverySubmission(periodId?: string) {
   const firstPage = await specialistApi.listAllSubmissions({
     includeUnsubmitted: true,
+    periodId,
     page: 1,
     pageSize: 100,
     sortBy: "createdAt",
@@ -145,6 +147,7 @@ async function listEverySubmission() {
     Array.from({ length: pageCount - 1 }, (_, index) =>
       specialistApi.listAllSubmissions({
         includeUnsubmitted: true,
+        periodId,
         page: index + 2,
         pageSize: 100,
         sortBy: "createdAt",
@@ -411,11 +414,17 @@ function ResultSummary({
 export default function SpecialistScoreSummaryPage() {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [periodFilter, setPeriodFilter] = useState('');
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const canPublish = useAuthStore((state) => state.user?.role === 'SPECIALIST');
+  const periodsQuery = useQuery({
+    queryKey: ["specialist-score-summary-periods"],
+    queryFn: periodsApi.listAll,
+  });
+  const periods = periodsQuery.data ?? [];
   const submissionsQuery = useQuery({
-    queryKey: ["specialist-score-summary-submissions"],
-    queryFn: listEverySubmission,
+    queryKey: ["specialist-score-summary-submissions", periodFilter],
+    queryFn: () => listEverySubmission(periodFilter || undefined),
   });
   const clustersQuery = useQuery({
     queryKey: ["specialist-score-summary-clusters"],
@@ -552,14 +561,14 @@ export default function SpecialistScoreSummaryPage() {
       );
   }, [clusters, rows]);
 
-  if (submissionsQuery.isLoading || clustersQuery.isLoading)
+  if (submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
     return <PageLoading label="Đang tổng hợp và xếp hạng điểm…" />;
-  if (submissionsQuery.isError || clustersQuery.isError) {
-    const error = submissionsQuery.error ?? clustersQuery.error;
+  if (submissionsQuery.isError || clustersQuery.isError || periodsQuery.isError) {
+    const error = submissionsQuery.error ?? clustersQuery.error ?? periodsQuery.error;
     return (
       <EmptyState
         variant="error"
-        title={clustersQuery.isError ? "Không tải được danh sách cụm" : "Không tải được bảng tổng hợp"}
+        title={periodsQuery.isError ? "Không tải được danh sách kỳ thi đua" : clustersQuery.isError ? "Không tải được danh sách cụm" : "Không tải được bảng tổng hợp"}
         description={
           error instanceof Error
             ? error.message
@@ -576,7 +585,13 @@ export default function SpecialistScoreSummaryPage() {
         aria-label="Tổng quan kết quả và bảng xếp hạng"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-5">
-          <div></div>
+          <FilterSelect
+            label="Kỳ thi đua"
+            value={periodFilter}
+            onChange={setPeriodFilter}
+            allLabel="Tất cả kỳ"
+            options={periods.map((period) => ({ value: period.id, label: period.name }))}
+          />
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{rows.length} đơn vị</Badge>
             {canPublish && (
@@ -743,7 +758,7 @@ export default function SpecialistScoreSummaryPage() {
         className="min-w-[1480px] overflow-clip rounded-lg border border-border bg-card"
         aria-label="Bảng tổng hợp chấm điểm toàn tỉnh"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border px-5 py-4">
           <Badge variant="secondary">{rows.length} đơn vị</Badge>
         </div>
         {groupedRows.length === 0 ? (
