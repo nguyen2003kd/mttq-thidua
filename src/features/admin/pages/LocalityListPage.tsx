@@ -205,7 +205,7 @@ export default function LocalityListPage() {
         toolbar={
           <div className="flex items-center gap-2">
             {selectedLocality && (
-              <Button variant="warning" size="sm" className="!h-9" onClick={() => setViewOpen(true)}>
+              <Button variant="outline" size="sm" className="!h-9" onClick={() => setViewOpen(true)}>
                 <Eye className="h-3.5 w-3.5" /> Xem
               </Button>
             )}

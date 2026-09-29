@@ -694,11 +694,11 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
-                <TableHead className="w-[120px] border-r border-white/15 text-[13px] font-semibold text-primary-foreground">Thời gian</TableHead>
-                <TableHead className="border-r border-white/15 text-[13px] font-semibold text-primary-foreground">Thao tác</TableHead>
-                <TableHead className="w-[130px] border-r border-white/15 text-center text-[13px] font-semibold text-primary-foreground">Hành động</TableHead>
-                <TableHead className="w-[150px] border-r border-white/15 text-center text-[13px] font-semibold text-primary-foreground">Phân hệ</TableHead>
-                <TableHead className="w-[64px] text-right text-[13px] font-semibold text-primary-foreground">Chi tiết</TableHead>
+                <TableHead className="w-[120px] border-r border-white/15 text-sm font-semibold text-primary-foreground">Thời gian</TableHead>
+                <TableHead className="border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
+                <TableHead className="w-[130px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
+                <TableHead className="w-[150px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>
+                <TableHead className="w-[64px] text-right text-sm font-semibold text-primary-foreground">Chi tiết</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

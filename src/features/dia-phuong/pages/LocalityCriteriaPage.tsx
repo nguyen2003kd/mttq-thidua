@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, Check, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FilterSelect, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -66,22 +66,27 @@ interface LocalityCriteriaListRow extends CriteriaTable {
   submissionStage: SubmissionStage | null;
 }
 
-function getSubmissionStageLabel(stage: SubmissionStage | null) {
+/** Nhãn + màu badge trạng thái hồ sơ (1 nguồn duy nhất để label và màu không lệch nhau):
+ *  xám = chưa nộp/nháp · xanh dương = đã nộp, đang chờ · cam = cần chỉnh sửa · xanh lá = đã qua các cấp duyệt. */
+type SubmissionStageBadge = { label: string; variant: 'outline' | 'info' | 'warning' | 'success' };
+function getSubmissionStageBadge(stage: SubmissionStage | null): SubmissionStageBadge {
   switch (stage) {
-    case 'LocalSubmitted': return 'Đã nộp';
-    case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
-    // Địa phương chỉ cần biết hồ sơ đã rời bước nộp hay đang cần xử lý lại;
-    // không hiển thị chi tiết các cấp duyệt nội bộ.
+    case null:
+    case 'Draft':
+      return { label: 'Chưa nộp', variant: 'outline' };
+    case 'LocalSubmitted':
     case 'ScorerRevisionRequested':
     case 'ReviewerRevisionRequested':
-    case 'ScorerSubmitted':
-    case 'ReviewerApproved':
-    case 'SpecialistApproved':
-    case 'LeaderApproved':
-    case 'CouncilApproved':
-    case 'CommitteeFinalized': return 'Đã nộp';
-    default: return 'Chưa nộp';
+      return { label: 'Đã nộp', variant: 'info' };
+    case 'RequiresRevision':
+      return { label: 'Yêu cầu chỉnh sửa', variant: 'warning' };
+    default:
+      return { label: 'Đã nộp', variant: 'success' };
   }
+}
+
+function getSubmissionStageLabel(stage: SubmissionStage | null) {
+  return getSubmissionStageBadge(stage).label;
 }
 
 function parseSubmissionResultIds(changedData?: string | null) {
@@ -310,11 +315,15 @@ export default function LocalityCriteriaPage() {
         id: 'submissionStage',
         accessorFn: (row) => getSubmissionStageLabel(row.submissionStage),
         header: 'Trạng thái hồ sơ',
-        cell: ({ row }) => (
-          <Badge variant={row.original.submissionStage === 'RequiresRevision' ? 'warning' : row.original.submissionStage ? 'secondary' : 'outline'}>
-            {getSubmissionStageLabel(row.original.submissionStage)}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const badge = getSubmissionStageBadge(row.original.submissionStage);
+          return (
+            <Badge variant={badge.variant}>
+              {badge.variant !== 'outline' && badge.variant !== 'warning' && <Check className="size-3" />}
+              {badge.label}
+            </Badge>
+          );
+        },
         meta: { list: { label: 'Trạng thái hồ sơ', width: 'minmax(170px, 1fr)' } },
       },
       {
@@ -639,7 +648,7 @@ export default function LocalityCriteriaPage() {
           onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}`)}
           emptyState={{ title: groupSearch || statusFilter || yearFilter || periodFilter ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí được giao.' }}
           toolbar={
-            <Button variant="info" disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
+            <Button disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
               <Eye className="size-4" />Xem
             </Button>
           }
@@ -958,8 +967,8 @@ export default function LocalityCriteriaPage() {
         }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
-            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
+            <Button disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
+            <Button disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
             <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>

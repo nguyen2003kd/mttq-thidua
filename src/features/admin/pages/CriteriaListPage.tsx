@@ -440,7 +440,7 @@ export default function CriteriaListPage() {
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
               <>
-                <Button variant="info" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
                 <Button variant="warning" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>

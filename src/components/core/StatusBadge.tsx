@@ -27,10 +27,10 @@ const scoreStateVariant: Record<ScoreState, BadgeVariant> = {
 
 const scoreStateClassName: Record<ScoreState, string> = {
   DRAFT: 'border-border bg-muted text-muted-foreground',
-  CHO_CHUYEN_VIEN: 'border-warning/40 bg-warning/15 text-warning-foreground',
-  CHO_DUYET_BAN: 'border-warning/40 bg-warning/15 text-warning-foreground',
-  CHO_DUYET_HOI_DONG: 'border-warning/40 bg-warning/15 text-warning-foreground',
-  CHO_DUYET_BTT: 'border-warning/40 bg-warning/15 text-warning-foreground',
+  CHO_CHUYEN_VIEN: 'border-warning/50 bg-warning/30 text-warning-foreground',
+  CHO_DUYET_BAN: 'border-warning/50 bg-warning/30 text-warning-foreground',
+  CHO_DUYET_HOI_DONG: 'border-warning/50 bg-warning/30 text-warning-foreground',
+  CHO_DUYET_BTT: 'border-warning/50 bg-warning/30 text-warning-foreground',
   DA_CONG_BO: 'border-foreground bg-foreground text-background',
 };
 

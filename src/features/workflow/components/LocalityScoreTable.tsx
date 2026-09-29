@@ -381,11 +381,11 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           {selectedFiles.length > 0 && (
             <ul className="min-w-0 space-y-1.5">
               {selectedFiles.map((file, index) => (
-                <li key={`${file.name}-${file.size}-${index}`} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-border bg-muted/30 px-2 py-1.5">
+                <li key={`${file.name}-${file.size}-${index}`} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-primary/25 bg-primary/5 px-2 py-1.5">
                   <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
                   <span className="min-w-0 flex-1">
                     <TruncatedText as="span" value={file.name} className="block text-xs font-medium" />
-                    <span className="block text-[11px] text-muted-foreground">{Math.ceil(file.size / 1024)} KB · Chờ lưu</span>
+                    <span className="block text-[11px] font-medium text-primary">{Math.ceil(file.size / 1024)} KB · Chờ lưu</span>
                   </span>
                   <Button
                     type="button"
@@ -454,19 +454,22 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
               ))}
             </ul>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-center"
-            disabled={Boolean(evidenceDisabledReason)}
-            disabledReason={evidenceDisabledReason}
-            title="Nộp file minh chứng"
-            aria-label={`Nộp file minh chứng cho ${criterion.name}`}
-            onClick={(event) => { event.stopPropagation(); openEvidenceDialog(); }}
-          >
-            <Upload className="size-4" />
-            Nộp file
-          </Button>
+          {/* Hồ sơ đã khóa (đã nộp/đang duyệt/quá hạn) → ẩn nút thay vì hiện disabled. */}
+          {(!locked || uploading) && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-center border-dashed border-primary bg-primary/5 font-semibold text-primary hover:bg-primary/10"
+              disabled={Boolean(evidenceDisabledReason)}
+              disabledReason={evidenceDisabledReason}
+              title="Nộp file minh chứng"
+              aria-label={`Nộp file minh chứng cho ${criterion.name}`}
+              onClick={(event) => { event.stopPropagation(); openEvidenceDialog(); }}
+            >
+              <Upload className="size-4" />
+              Nộp file
+            </Button>
+          )}
           <FormDialog
             open={evidenceDialogOpen}
             onOpenChange={(open) => {

@@ -244,7 +244,7 @@ export default function CriteriaChildrenPage() {
         onClearFilters={sort !== 'createdAt-desc' ? () => setSort('createdAt-desc') : undefined}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="info" disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
+            <Button disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
             <Button variant="warning" disabled={!selected} disabledReason="Chọn một tiêu chí con để chỉnh sửa." onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí con để xóa." className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
             <Button

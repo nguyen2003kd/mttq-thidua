@@ -524,7 +524,7 @@ export function DataTable<TData, TValue = unknown>({
         >
           <div
             ref={listHeaderInnerRef}
-            className="grid gap-0 text-xs font-semibold text-primary-foreground will-change-transform"
+            className="grid gap-0 text-sm font-semibold text-primary-foreground will-change-transform"
             style={{
               gridTemplateColumns: listGridTemplate,
               minWidth: listMinWidth ? `${listMinWidth}px` : undefined,
@@ -648,11 +648,11 @@ export function DataTable<TData, TValue = unknown>({
                     >
                       {text ? (
                         <Tooltip>
-                          <TooltipTrigger render={<span className={cn('truncate text-sm', list?.valueClassName)} />}>{value}</TooltipTrigger>
+                          <TooltipTrigger render={<span className={cn('truncate text-[15px]', list?.valueClassName)} />}>{value}</TooltipTrigger>
                           <TooltipContent className="max-w-80 whitespace-normal">{text}</TooltipContent>
                         </Tooltip>
                       ) : (
-                        <span className={cn('truncate text-sm', list?.valueClassName)}>{value}</span>
+                        <span className={cn('truncate text-[15px]', list?.valueClassName)}>{value}</span>
                       )}
                       {idx < arr.length - 1 && (
                         <span className="absolute right-0 top-0 h-full border-r border-primary/15" />

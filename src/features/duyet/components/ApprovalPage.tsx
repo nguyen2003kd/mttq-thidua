@@ -361,7 +361,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const canProcessSelectedRow = Boolean(selectedRow && selectedRow.record.state === config.targetState);
   const selectionToolbar = isLeaderView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button variant="info" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
       <Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
@@ -376,7 +376,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     </div>
   ) : isCouncilView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button variant="info" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
       <Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
@@ -387,7 +387,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           <MessageSquare className="mr-1.5 h-4 w-4" />Nhận xét
         </Button>
       )}
-      <Button variant="outline" disabled={!canProcessSelectedRow} disabledReason={!selectedRow ? 'Chọn một hồ sơ để yêu cầu chỉnh sửa.' : 'Hồ sơ này không còn ở bước chờ Hội đồng.'} className="border-warning/70 text-destructive hover:bg-warning/10" action="reject" state={config.targetState} onClick={() => selectedRow && setRejectRow(selectedRow)}>
+      <Button variant="outline" disabled={!canProcessSelectedRow} disabledReason={!selectedRow ? 'Chọn một hồ sơ để yêu cầu chỉnh sửa.' : 'Hồ sơ này không còn ở bước chờ Hội đồng.'} className="border-warning/70 text-warning hover:bg-warning/10" action="reject" state={config.targetState} onClick={() => selectedRow && setRejectRow(selectedRow)}>
         <X className="mr-1.5 h-4 w-4" />Yêu cầu chỉnh sửa
       </Button>
       <Button disabled={!canProcessSelectedRow || !canApprove} disabledReason={!selectedRow ? 'Chọn một hồ sơ để duyệt.' : !canApprove ? 'Tài khoản hiện tại không có quyền duyệt hồ sơ.' : 'Hồ sơ này không còn ở bước chờ Hội đồng.'} action={config.approveAction} state={config.targetState} onClick={() => selectedRow && (config.useConfirmDialog ? setConfirmRow(selectedRow) : handleApprove(selectedRow))}>
