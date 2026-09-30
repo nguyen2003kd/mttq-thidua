@@ -34,7 +34,7 @@ function getLocalityCode(localityId: string) {
 }
 
 function getRowTotals(submission: SubmissionApi) {
-  return submission.results.reduce((totals, result) => ({
+  return submission.results.filter((result) => result.criteriaStatus !== 'Deleted').reduce((totals, result) => ({
     proposedScore: totals.proposedScore + result.point,
     proposedBonus: totals.proposedBonus + result.bonusPoint,
     specialistScore: totals.specialistScore + (result.officialPoint ?? result.point),

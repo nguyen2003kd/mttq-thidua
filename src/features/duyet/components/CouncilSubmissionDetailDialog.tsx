@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { FilePreviewDialog, TableColumnVisibility } from '@/components/core';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -24,9 +25,10 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
   if (!submission) return null;
 
   const criteriaById = new Map((group?.criteria ?? []).map((criterion) => [criterion.id, criterion]));
-  const proposedTotal = submission.results.reduce((total, result) => total + result.point + result.bonusPoint, 0);
-  const actualTotal = submission.results.reduce((total, result) => total + (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint), 0);
-  const actualBonusTotal = submission.results.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0);
+  const activeResults = submission.results.filter((result) => result.criteriaStatus !== 'Deleted');
+  const proposedTotal = activeResults.reduce((total, result) => total + result.point + result.bonusPoint, 0);
+  const actualTotal = activeResults.reduce((total, result) => total + (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint), 0);
+  const actualBonusTotal = activeResults.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? 'Địa phương';
 
   return (
@@ -79,7 +81,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                   const criterion = criteriaById.get(result.criteriaId);
                   return (
                     <TableRow key={result.id}>
-                      <TableCell className="max-w-[210px] whitespace-normal font-medium">{criterion?.content ?? result.criteriaContent ?? result.criteriaId}</TableCell>
+                      <TableCell className="max-w-[210px] whitespace-normal font-medium">{criterion?.content ?? result.criteriaContent ?? 'Tiêu chí con'}{result.criteriaStatus === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</TableCell>
                       <TableCell className="max-w-[230px] whitespace-normal text-muted-foreground">{result.explanation || '—'}</TableCell>
                       <TableCell className="text-right tabular-nums">{displayNumber(result.point + result.bonusPoint)}</TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">{displayNumber((result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint))}</TableCell>

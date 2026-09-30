@@ -7,7 +7,7 @@ import { Button, EmptyState, PageHeader, PageLoading } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { getLocalityApiError, localityApi, type CriteriaApi, type CriteriaGroupApi, type SubmissionApi, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
+import { getLocalityApiError, localityApi, mergeSubmissionCriteria, type CriteriaApi, type CriteriaGroupApi, type SubmissionApi, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 
 interface ResultGroupRow {
   group: CriteriaGroupApi;
@@ -31,11 +31,12 @@ function ScoreValue({ value, strong = false }: { value: number | null | undefine
 }
 
 function getGroupTotals(submission: SubmissionApi) {
-  const proposedScore = submission.results.reduce((total, result) => total + result.point, 0);
-  const proposedBonus = submission.results.reduce((total, result) => total + result.bonusPoint, 0);
-  const hasProvinceScore = submission.results.some((result) => result.officialPoint !== null || result.officialBonusPoint !== null);
-  const provinceScore = hasProvinceScore ? submission.results.reduce((total, result) => total + (result.officialPoint ?? 0), 0) : null;
-  const provinceBonus = hasProvinceScore ? submission.results.reduce((total, result) => total + (result.officialBonusPoint ?? 0), 0) : null;
+  const activeResults = submission.results.filter((result) => result.criteriaStatus !== 'Deleted');
+  const proposedScore = activeResults.reduce((total, result) => total + result.point, 0);
+  const proposedBonus = activeResults.reduce((total, result) => total + result.bonusPoint, 0);
+  const hasProvinceScore = activeResults.some((result) => result.officialPoint !== null || result.officialBonusPoint !== null);
+  const provinceScore = hasProvinceScore ? activeResults.reduce((total, result) => total + (result.officialPoint ?? 0), 0) : null;
+  const provinceBonus = hasProvinceScore ? activeResults.reduce((total, result) => total + (result.officialBonusPoint ?? 0), 0) : null;
   return { proposedScore, proposedBonus, provinceScore, provinceBonus, proposedTotal: proposedScore + proposedBonus, provinceTotal: provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus };
 }
 
@@ -49,7 +50,7 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
   const provinceTotal = provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus;
 
   return <TableRow className="bg-muted/[0.18] hover:bg-muted/40">
-    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p></div></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><div><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</div></div></TableCell>
     <TableCell className="whitespace-normal border-r border-primary/10 px-4 py-3 align-top text-sm leading-5 text-muted-foreground">{result?.explanation || criterion.note || '—'}</TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-right align-top"><ScoreValue value={criterion.maxPoint} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-right align-top"><ScoreValue value={proposedScore} /></TableCell>
@@ -83,7 +84,11 @@ export default function KetQuaPage() {
     return submissionDetailsQueries.map((query) => query.data).filter((submission): submission is SubmissionApi => Boolean(submission)).map((submission) => {
       const group = groupsById.get(submission.criteriaGroupId);
       if (!group) return null;
-      return { group, submission, ...getGroupTotals(submission), resultsByCriteriaId: new Map(submission.results.map((result) => [result.criteriaId, result])) };
+      const displayGroup = {
+        ...group,
+        criteria: mergeSubmissionCriteria(group.criteria, submission.results, submission.id),
+      };
+      return { group: displayGroup, submission, ...getGroupTotals(submission), resultsByCriteriaId: new Map(submission.results.map((result) => [result.criteriaId, result])) };
     }).filter((row): row is ResultGroupRow => row !== null).sort((left, right) => left.group.name.localeCompare(right.group.name, 'vi'));
   }, [groupsQuery.data?.items, submissionDetailsQueries]);
 

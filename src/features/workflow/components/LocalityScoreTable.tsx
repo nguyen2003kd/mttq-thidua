@@ -186,7 +186,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
   const revisionFiles = specialistRevisionFiles?.get(criterion.id) ?? [];
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
-  const locked = Boolean(entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
+  const criterionDisabled = criterion.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';
+  const locked = Boolean(criterionDisabled || entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const availableEvidenceSlots = Math.max(0, MAX_FILES_PER_CRITERION - standardFiles.length);
   const evidenceFileError = dialogFiles.some((file) => file.size > MAX_FILE_SIZE)
@@ -196,8 +197,10 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       : '';
   const evidenceDisabledReason = uploading
     ? 'Đang lưu dữ liệu, vui lòng đợi.'
-    : !editable
-      ? editDisabledReason ?? 'Hồ sơ hiện không cho phép chỉnh sửa.'
+    : criterionDisabled
+      ? 'Tiêu chí đã bị vô hiệu, không thể chỉnh sửa hoặc nộp thêm.'
+      : !editable
+        ? editDisabledReason ?? 'Hồ sơ hiện không cho phép chỉnh sửa.'
       : criterionDeadlineExpired
         ? 'Tiêu chí đã quá hạn nộp, không thể thêm file minh chứng.'
         : revisionLocked
@@ -211,6 +214,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     id: `empty-${criterion.id}`,
     criteriaId: criterion.id,
     criteriaName: criterion.name,
+    criteriaStatus: criterion.status,
     value: 0,
     state,
     scoredBy: '',
@@ -343,6 +347,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TooltipContent className="max-w-sm whitespace-normal break-words">{criterion.name}</TooltipContent>
         </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+        {criterionDisabled && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
         {(revisionReason || revisionFiles.length > 0) && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>}
       {isColumnVisible('deadline') && <TableCell className="align-middle text-center text-sm text-muted-foreground">

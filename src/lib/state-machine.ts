@@ -55,9 +55,10 @@ export function isRecordComplete(
   table: Pick<CriteriaTable, 'criteria'>,
   record: Pick<ScoreRecord, 'entries'>,
 ): boolean {
-  if (table.criteria.length === 0) return false;
-  const scored = new Set(record.entries.map((e) => e.criteriaId));
-  return table.criteria.every((c) => scored.has(c.id));
+  const activeCriteria = table.criteria.filter((criterion) => criterion.status !== 'Deleted');
+  if (activeCriteria.length === 0) return false;
+  const scored = new Set(record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').map((entry) => entry.criteriaId));
+  return activeCriteria.every((criterion) => scored.has(criterion.id));
 }
 
 export interface TransitionActor {
