@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useScoreStore } from '@/store/scoreStore';
@@ -20,7 +20,7 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info, Trash2, Download, FileUp } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -29,6 +29,8 @@ import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
+import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile } from '@/features/admin/criteriaExcel';
+import type { CriteriaPayload } from '@/features/admin/api/criteriaGroupsApi';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
 const getCurrentLocalDateTime = () => {
@@ -110,6 +112,8 @@ export default function CriteriaListPage() {
   const [departmentId, setDepartmentId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
+  const [importedCriteria, setImportedCriteria] = useState<CriteriaPayload[] | null>(null);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
   const [applyFiles, setApplyFiles] = useState<File[]>([]);
@@ -243,6 +247,7 @@ export default function CriteriaListPage() {
     setDepartmentId('');
     setPeriodId('');
     setEditingTable(null);
+    setImportedCriteria(null);
   };
 
   const openCreateDialog = () => {
@@ -251,6 +256,7 @@ export default function CriteriaListPage() {
   };
 
   const openEditDialog = (table: CriteriaTable) => {
+    setImportedCriteria(null);
     setEditingTable(table);
     setName(table.name);
     setCloseDate(toDateTimeInput(table.closeDate));
@@ -259,6 +265,26 @@ export default function CriteriaListPage() {
     setDepartmentId(table.departmentId ?? '');
     setPeriodId(table.periodId ?? '');
     setOpen(true);
+  };
+
+  const handleExcelFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+
+    try {
+      const parsed = await parseCriteriaExcelFile(file);
+      resetEditor();
+      setName(parsed.name);
+      setTotalScore(String(parsed.maxPoint));
+      setContent(parsed.content);
+      setCloseDate(parsed.deadline ?? '');
+      setImportedCriteria(parsed.criteria);
+      setOpen(true);
+      toast.success(`Đã đọc ${parsed.criteria.length} tiêu chí con. Vui lòng chọn kỳ thi đua và ban xử lý.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể đọc tệp Excel. Vui lòng kiểm tra lại tệp.');
+    }
   };
 
   const openApplyDialog = async (table: CriteriaTable) => {
@@ -294,9 +320,20 @@ export default function CriteriaListPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsedTotalScore = Number(totalScore);
-    if (!name.trim() || !content.trim() || !Number.isFinite(parsedTotalScore) || parsedTotalScore <= 0) {
-      toast.error('Vui lòng nhập Nhóm tiêu chí, Tổng điểm lớn hơn 0 và Nội dung tiêu chí.');
+    const isExcelImport = !editingTable && importedCriteria !== null;
+    if (!name.trim() || (!isExcelImport && !content.trim()) || !Number.isFinite(parsedTotalScore) || parsedTotalScore <= 0) {
+      toast.error(isExcelImport
+        ? 'Vui lòng nhập tên nhóm tiêu chí và tổng điểm lớn hơn 0.'
+        : 'Vui lòng nhập Nhóm tiêu chí, Tổng điểm lớn hơn 0 và Nội dung tiêu chí.');
       return;
+    }
+
+    if (isExcelImport && importedCriteria) {
+      const childPointTotal = importedCriteria.reduce((sum, item) => sum + item.maxPoint, 0);
+      if (Math.round(parsedTotalScore * 100) !== Math.round(childPointTotal * 100)) {
+        toast.error(`Tổng điểm nhóm (${parsedTotalScore}) phải bằng tổng điểm các tiêu chí con (${childPointTotal}).`);
+        return;
+      }
     }
 
     if (!editingTable && !periodId) {
@@ -316,8 +353,10 @@ export default function CriteriaListPage() {
     }
 
     setSaving(true);
+    let createdGroupId: string | null = null;
+    let importedChildrenCreated = false;
     try {
-      const payload = { name: name.trim(), content: content.trim(), maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId, periodId: periodId || undefined };
+      const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId, periodId: periodId || undefined };
       if (editingTable) {
         const latestGroup = await criteriaGroupsApi.get(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
@@ -330,15 +369,35 @@ export default function CriteriaListPage() {
         await criteriaGroupsApi.update(editingTable.id, payload);
         toast.success('Đã cập nhật nhóm tiêu chí');
       } else {
-        await criteriaGroupsApi.create(payload);
-        toast.success('Đã tạo nhóm tiêu chí mới. Hãy thêm tiêu chí con trước khi áp dụng.');
+        const createdGroup = await criteriaGroupsApi.create(payload);
+        if (importedCriteria) {
+          createdGroupId = createdGroup.id;
+          await criteriaGroupsApi.createBulk(createdGroup.id, importedCriteria);
+          importedChildrenCreated = true;
+          toast.success(`Đã nhập nhóm tiêu chí và ${importedCriteria.length} tiêu chí con từ Excel.`);
+        } else {
+          toast.success('Đã tạo nhóm tiêu chí mới. Hãy thêm tiêu chí con trước khi áp dụng.');
+        }
       }
       await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
       setSelectedTable(null);
       setOpen(false);
       resetEditor();
     } catch (error) {
-      toast.error(getCriteriaApiError(error));
+      let cleanupFailed = false;
+      if (createdGroupId && !importedChildrenCreated) {
+        try {
+          await criteriaGroupsApi.delete(createdGroupId);
+        } catch {
+          cleanupFailed = true;
+          setOpen(false);
+          resetEditor();
+          void queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+        }
+      }
+      toast.error(cleanupFailed
+        ? `${getCriteriaApiError(error)} Nhóm nháp đã được tạo nhưng chưa nhập được tiêu chí con; vui lòng mở nhóm để hoàn tất.`
+        : getCriteriaApiError(error));
     } finally { setSaving(false); }
   };
 
@@ -451,6 +510,14 @@ export default function CriteriaListPage() {
         }}
         toolbar={
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={excelFileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              aria-label="Chọn tệp Excel nhóm tiêu chí"
+              onChange={handleExcelFileChange}
+            />
               <>
                 <Button disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
@@ -496,6 +563,12 @@ export default function CriteriaListPage() {
                   <Trash2 className="mr-1.5 h-4 w-4" /> Xóa
                 </Button>
               </>
+            <Button variant="outline" onClick={downloadCriteriaExcelTemplate}>
+              <Download className="mr-1.5 h-4 w-4" /> Tải mẫu Excel
+            </Button>
+            <Button variant="outline" onClick={() => excelFileInputRef.current?.click()}>
+              <FileUp className="mr-1.5 h-4 w-4" /> Nhập từ Excel
+            </Button>
             <Button variant="outline" onClick={() => { setDeadlineValue(toDateTimeInput(deadline)); setDeadlineOpen(true); }}>Đặt thời gian gợi ý công bố kết quả</Button>
             <Button onClick={openCreateDialog} action="create">
               <Plus className="mr-1.5 h-4 w-4" /> {LABELS.CREATE}
@@ -510,16 +583,22 @@ export default function CriteriaListPage() {
           setOpen(isOpen);
           if (!isOpen) resetEditor();
         }}
-        title={editingTable ? 'Cập nhật bảng tiêu chí' : 'Tạo bảng tiêu chí mới'}
-        description={editingTable ? 'Cập nhật thông tin nhóm tiêu chí.' : 'Khai báo thông tin nhóm tiêu chí trước khi áp dụng.'}
+        title={editingTable ? 'Cập nhật bảng tiêu chí' : importedCriteria ? 'Nhập nhóm tiêu chí từ Excel' : 'Tạo bảng tiêu chí mới'}
+        description={editingTable ? 'Cập nhật thông tin nhóm tiêu chí.' : importedCriteria ? 'Kiểm tra thông tin đã đọc, sau đó chọn kỳ thi đua và ban xử lý.' : 'Khai báo thông tin nhóm tiêu chí trước khi áp dụng.'}
         onSubmit={handleSave}
         submitDisabled={saving}
-        submitLabel={editingTable ? 'Lưu thay đổi' : LABELS.CREATE}
+        submitLabel={editingTable ? 'Lưu thay đổi' : importedCriteria ? 'Nhập nhóm tiêu chí' : LABELS.CREATE}
         cancelLabel={LABELS.CANCEL}
         submitAction={editingTable ? 'edit' : 'create'}
         size="w-[calc(100vw-2rem)] sm:max-w-[900px] rounded-[20px]"
       >
         <div className="space-y-6">
+          {importedCriteria && (
+            <div className="rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2.5 text-sm">
+              <p className="font-medium">Đã đọc {importedCriteria.length} tiêu chí con · Tổng điểm chuẩn: {totalScore} · Tổng điểm thưởng: {importedCriteria.reduce((sum, item) => sum + item.maxBonusPoint, 0)}</p>
+              <p className="mt-1 text-muted-foreground">Kỳ thi đua và ban xử lý không có trong tệp; vui lòng chọn bên dưới.</p>
+            </div>
+          )}
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_200px]">
             <div className="space-y-1.5">
               <Label htmlFor="criteria-name" className="text-[13.5px] font-semibold">Nhóm tiêu chí <span className="text-destructive">*</span></Label>
@@ -533,6 +612,7 @@ export default function CriteriaListPage() {
                   type="text"
                   inputMode="decimal"
                   value={totalScore}
+                  readOnly={!!importedCriteria}
                   onChange={(e) => setTotalScore(e.target.value.replace(/[^0-9.]/g, ''))}
                   placeholder="VD: 100"
                   className="h-11 border-0 bg-transparent pr-14 text-right tabular-nums focus-visible:ring-0"
@@ -542,8 +622,17 @@ export default function CriteriaListPage() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="criteria-content" className="text-[13.5px] font-semibold">Nội dung <span className="text-destructive">*</span></Label>
-            <Textarea id="criteria-content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="Mô tả nội dung, phạm vi và yêu cầu của nhóm tiêu chí" rows={3} className="min-h-[96px] resize-y bg-muted" />
+            <Label htmlFor="criteria-content" className="text-[13.5px] font-semibold">
+              {importedCriteria ? 'Ghi chú nhóm' : <>Nội dung <span className="text-destructive">*</span></>}
+            </Label>
+            <Textarea
+              id="criteria-content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder={importedCriteria ? 'Nhập ghi chú của nhóm tiêu chí (không bắt buộc)' : 'Mô tả nội dung, phạm vi và yêu cầu của nhóm tiêu chí'}
+              rows={3}
+              className="min-h-[96px] resize-y bg-muted"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span></Label>
