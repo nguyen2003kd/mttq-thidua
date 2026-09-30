@@ -33,7 +33,7 @@ export interface AuditLogItem {
   action: string;
   /** Khóa hành động nghiệp vụ (submit/approve/rescore/publish/...) — null nếu chỉ là CRUD thường. */
   actionKind: string | null;
-  /** Cấp thực hiện (Chuyên viên/Lãnh đạo/Hội đồng/Ủy ban) — chỉ có cho thao tác phê duyệt/công bố. */
+  /** Vai trò thực hiện — dùng để phân biệt các cấp trong lịch sử. */
   actionLevel: string | null;
   entityName: string | null;
   entityId: string | null;

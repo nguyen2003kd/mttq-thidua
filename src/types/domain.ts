@@ -17,7 +17,7 @@ export interface CriteriaItem {
   note?: string;
   order: number;
   type?: 'Standard' | 'Supplementary';
-  status?: 'Draft' | 'Applied';
+  status?: 'Draft' | 'Applied' | 'Deleted';
   /** Tiêu chí đã áp dụng bị sửa sẽ bị khóa ở báo cáo địa phương. */
   updatedAt?: string;
 }

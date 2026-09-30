@@ -3,7 +3,7 @@ import { mainInstance } from '@/api/mutator/custom-instance';
 
 export type CriteriaGroupStatusApi = 'Draft' | 'Applied' | 'Closed' | 'Published';
 
-export type CriteriaStatusApi = 'Draft' | 'Applied';
+export type CriteriaStatusApi = 'Draft' | 'Applied' | 'Deleted';
 
 export interface CriteriaApi {
   id: string;
@@ -131,7 +131,9 @@ export const criteriaGroupsApi = {
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'POST', data: { criteriaGroupId, items } }),
   updateCriteria: (id: string, payload: Omit<CriteriaPayload, 'type'> & { changeReason?: string }) =>
     request<CriteriaApi>({ url: `/api/v1/criteria/${id}`, method: 'PUT', data: payload }),
-  bulkUpdateStatus: (criteriaIds: string[], status: CriteriaStatusApi) =>
+  deleteCriteria: (id: string) =>
+    request<CriteriaGroupApi>({ url: `/api/v1/criteria/${id}`, method: 'DELETE' }),
+  bulkUpdateStatus: (criteriaIds: string[], status: Exclude<CriteriaStatusApi, 'Deleted'>) =>
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'PUT', data: { criteriaIds, status } }),
 };
 
