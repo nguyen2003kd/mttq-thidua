@@ -81,8 +81,6 @@ export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null
     canApprove: isActionable,
     /** Được yêu cầu chỉnh sửa ở bước liền trước trong luồng. */
     canRequestRevision: isActionable,
-    /** Được thêm tiêu chí bổ sung — reviewer không chấm điểm nhưng vẫn được bổ sung. */
-    canAddSupplementary: isActionable,
     isForwarded: !isActionable,
     disabledReason: LOCK_REASONS[role],
     forwardLabel: FORWARD_LABELS[role],
