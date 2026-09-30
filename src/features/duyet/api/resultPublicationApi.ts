@@ -116,6 +116,15 @@ export const resultPublicationApi = {
   getCriteriaGroups: (periodId: string) => request<ResultPublicationCriteriaGroup[]>({ url: '/api/v1/result-publications/criteria-groups', method: 'GET', params: { periodId } }),
   getCriteriaGroup: (id: string, periodId: string) => request<ResultPublicationCriteriaGroup>({ url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET', params: { periodId } }),
   getPreview: (periodId: string) => request<ResultPublicationPreview>({ url: '/api/v1/result-publications/preview', method: 'GET', params: { periodId } }),
+  getScoreSummaryExcel: async (periodId?: string) => {
+    const response = await mainInstance<Blob>({
+      url: '/api/v1/result-publications/score-summary-excel',
+      method: 'GET',
+      params: periodId ? { periodId } : undefined,
+      responseType: 'blob',
+    });
+    return response instanceof Blob ? response : new Blob([JSON.stringify(response)], { type: 'application/octet-stream' });
+  },
   publish: (periodId: string, note?: string, file?: File | null) => {
     const form = new FormData();
     form.append('periodId', periodId);

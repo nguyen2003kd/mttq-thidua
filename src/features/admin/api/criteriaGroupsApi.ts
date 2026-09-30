@@ -76,7 +76,7 @@ interface ApiEnvelope<T> {
 
 export interface CriteriaGroupPayload {
   name: string;
-  content?: string;
+  content?: string | null;
   maxPoint: number;
   deadline?: string | null;
   departmentId?: string | null;

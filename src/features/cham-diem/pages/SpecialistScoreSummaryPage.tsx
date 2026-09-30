@@ -34,12 +34,13 @@ import {
   isRealSubmission,
   specialistApi,
   type SubmissionApi,
+  type SubmissionStage,
 } from "@/features/cham-diem/api/specialistApi";
 import { clustersApi } from "@/features/admin/api/clustersApi";
 import { periodsApi } from "@/features/admin/api/periodsApi";
 import { useAuthStore } from "@/store/authStore";
 import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
-import { exportScoreSummaryToExcel, toDistribution } from "../utils/scoreSummaryExport";
+import { resultPublicationApi } from "@/features/duyet/api/resultPublicationApi";
 import { toast } from "sonner";
 
 interface ScoreTotals {
@@ -133,6 +134,9 @@ function formatScore(value: number | null) {
     value,
   );
 }
+
+/** Chỉ hồ sơ đã qua bước Chuyên viên trưởng duyệt mới được tính vào bảng tổng hợp. */
+const SUMMARY_STAGES: readonly SubmissionStage[] = ["SpecialistApproved", "ReviewerApproved"];
 
 async function listEverySubmission(periodId?: string) {
   const firstPage = await specialistApi.listAllSubmissions({
@@ -419,6 +423,7 @@ export default function SpecialistScoreSummaryPage() {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [periodFilter, setPeriodFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const canPublish = useAuthStore((state) => state.user?.role === 'SPECIALIST');
   const periodsQuery = useQuery({
@@ -480,7 +485,7 @@ export default function SpecialistScoreSummaryPage() {
         const clusterMatch = clusterByWardCode.get(localityId);
         const submissions = entries
           .filter(isRealSubmission)
-          .filter((submission) => submission.currentStage !== "Draft");
+          .filter((submission) => SUMMARY_STAGES.includes(submission.currentStage));
         const localityName =
           entries[0]?.localityFullName?.trim() ||
           clusterMatch?.wardName?.trim() ||
@@ -565,43 +570,25 @@ export default function SpecialistScoreSummaryPage() {
       );
   }, [clusters, rows]);
 
-  const exportRows = useMemo(
-    () =>
-      groupedRows.flatMap((group) =>
-        group.rows.map((row) => ({
-          cluster: group.cluster,
-          localityName: row.localityName,
-          proposedScore: row.submissions.length > 0 ? row.proposedScore : null,
-          proposedBonus: row.submissions.length > 0 ? row.proposedBonus : null,
-          provinceScore: row.hasProvinceScore ? row.provinceScore : null,
-          provinceBonus: row.hasProvinceScore ? row.provinceBonus : null,
-          proposedTotal: row.submissions.length > 0 ? row.proposedTotal : null,
-          provinceTotal: row.provinceTotal,
-        })),
-      ),
-    [groupedRows],
-  );
-
-  const handleExport = () => {
-    if (exportRows.length === 0) {
-      toast.info("Chưa có dữ liệu tổng hợp để xuất file.");
-      return;
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await resultPublicationApi.getScoreSummaryExcel(periodFilter || undefined);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const periodName = periods.find((period) => period.id === periodFilter)?.name;
+      anchor.href = objectUrl;
+      anchor.download = `tong-hop-cham-diem${periodName ? `-${periodName}` : ""}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      toast.success("Đã xuất file Excel bảng tổng hợp chấm điểm.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể xuất file Excel. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
     }
-    const periodName = periods.find((period) => period.id === periodFilter)?.name ?? null;
-    exportScoreSummaryToExcel(
-      exportRows,
-      `tong-hop-cham-diem${periodName ? `-${periodName}` : ""}.xlsx`,
-      {
-        periodName,
-        totalUnits: rows.length,
-        proposed: toDistribution(proposedDistribution),
-        province: toDistribution(provinceDistribution),
-        rankings: rows
-          .filter((row) => row.provinceTotal !== null)
-          .map((row, index) => ({ rank: index + 1, localityName: row.localityName, total: row.provinceTotal! })),
-      },
-    );
-    toast.success("Đã xuất file Excel bảng tổng hợp chấm điểm.");
   };
 
   if (submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
@@ -641,11 +628,12 @@ export default function SpecialistScoreSummaryPage() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleExport}
-              disabled={exportRows.length === 0}
+              onClick={() => void handleExport()}
+              disabled={exporting}
+              disabledReason="Đang xuất file Excel…"
             >
               <Download className="size-4" />
-              Xuất Excel
+              {exporting ? "Đang xuất…" : "Xuất Excel"}
             </Button>
             {canPublish && (
               <Button
