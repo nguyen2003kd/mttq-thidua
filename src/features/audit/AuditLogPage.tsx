@@ -129,7 +129,7 @@ const businessActionConfig: Record<string, { label: string; verb?: string; text:
   add_criteria: { label: 'Bổ sung tiêu chí', verb: 'bổ sung tiêu chí', text: 'text-info', accent: 'border-l-info' },
   publish: { label: 'Công bố', verb: 'công bố', text: 'text-primary', accent: 'border-l-primary' },
   update_score: { label: 'Cập nhật điểm', text: 'text-info', accent: 'border-l-info' },
-  stage_transition: { label: 'Chuyển giai đoạn', text: 'text-info', accent: 'border-l-info' },
+  stage_transition: { label: 'Chuyển giai đoạn', verb: 'chuyển giai đoạn', text: 'text-info', accent: 'border-l-info' },
   request_revision: { label: 'Yêu cầu sửa', verb: 'yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
   delete_file: { label: 'Xóa tệp', text: 'text-destructive', accent: 'border-l-destructive' },
 };
@@ -178,7 +178,7 @@ const submissionStageLabels: Record<string, string> = {
   LocalSubmitted: 'Đã nộp địa phương',
   ScorerSubmitted: 'Chờ Lãnh đạo ban',
   ReviewerApproved: 'Chờ Chuyên viên trưởng',
-  SpecialistApproved: 'Chuyên viên đã duyệt',
+  SpecialistApproved: 'Chuyên viên trưởng đã duyệt',
   LeaderApproved: 'Lãnh đạo đã duyệt',
   CouncilApproved: 'Hội đồng đã duyệt',
   CommitteeFinalized: 'Ủy ban đã phê duyệt',
@@ -322,7 +322,8 @@ function getDisplayChanges(item: AuditLogItem) {
   return rows.sort((a, b) => (fieldPriority[a.field] ?? 100) - (fieldPriority[b.field] ?? 100));
 }
 
-function getActorLabel(actor: string) {
+function getActorLabel(actor: string, actionLevel: string | null) {
+  if (actionLevel) return actionLevel;
   return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(actor) ? 'Người dùng hệ thống' : actor || 'Hệ thống tự động';
 }
 
@@ -533,7 +534,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
       open={item !== null}
       onOpenChange={onOpenChange}
       title={title}
-      subtitle={getActorLabel(current.actor)}
+      subtitle={getActorLabel(current.actor, current.actionLevel)}
       size="max-w-4xl sm:max-w-4xl"
       height="h-[80vh] max-h-[80vh]"
     >
@@ -595,7 +596,7 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
       <TableCell className="border-r border-border/60 py-3.5 whitespace-normal">
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
-          <p className="truncate text-[13px] text-foreground/70">{subtitle} · {getActorLabel(item.actor)}</p>
+          <p className="truncate text-[13px] text-foreground/70">{subtitle} · {getActorLabel(item.actor, item.actionLevel)}</p>
         </div>
       </TableCell>
       <TableCell className="border-r border-border/60 py-3.5 text-center">

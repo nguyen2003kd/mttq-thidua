@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle, ArrowLeft, Eye, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { formatDate } from '@/lib/utils';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/features/admin/api/criteriaGroupsApi';
+import { useAuthStore } from '@/store/authStore';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 import type { CriteriaItem } from '@/types/domain';
 
@@ -82,9 +83,26 @@ export default function CriteriaChildrenPage() {
     queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: search || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
     enabled: Boolean(id),
   });
-  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard').map(toItem) ?? [], [group]);
+  const canDeleteCriteria = useAuthStore((state) => state.user?.role === 'SPECIALIST');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: (criteriaId: string) => criteriaGroupsApi.deleteCriteria(criteriaId),
+    onSuccess: async (updatedGroup) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
+        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
+        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
+      ]);
+      setDeleteOpen(false);
+      setSelected(null);
+      toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm còn ${updatedGroup.maxPoint} điểm.`);
+    },
+    onError: (apiError) => toast.error(getCriteriaApiError(apiError)),
+  });
+  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard' && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
   const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
   const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
+  const remainingPointTotal = selected ? groupCriteria.filter((item) => item.id !== selected.id).reduce((total, item) => total + item.maxScore, 0) : 0;
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
@@ -113,9 +131,11 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'status',
       header: 'Trạng thái',
-      cell: ({ row }) => row.original.status === 'Applied'
-        ? <Badge variant="success">Đã áp dụng</Badge>
-        : <Badge variant="secondary">Nháp</Badge>,
+      cell: ({ row }) => row.original.status === 'Deleted'
+        ? <Badge variant="secondary">Vô hiệu</Badge>
+        : row.original.status === 'Applied'
+          ? <Badge variant="success">Đã áp dụng</Badge>
+          : <Badge variant="secondary">Nháp</Badge>,
       meta: { align: 'center', list: { width: 'minmax(120px,0.75fr)' } },
     },
     {
@@ -245,8 +265,16 @@ export default function CriteriaChildrenPage() {
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" disabled={!selected} disabledReason="Chọn một tiêu chí con để chỉnh sửa." onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
-            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí con để xóa." className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
+            <Button variant="warning" disabled={!selected || selected.status === 'Deleted'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
+            <Button
+              variant="outline"
+              disabled={!selected || selected.status === 'Deleted' || !canDeleteCriteria || (group.status !== 'Draft' && group.status !== 'Applied') || groupCriteria.length <= 1 || deleteMutation.isPending}
+              disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên trưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
+              className="border-danger text-danger hover:bg-danger/5"
+              onClick={() => { if (selected && selected.status !== 'Deleted' && canDeleteCriteria) setDeleteOpen(true); }}
+            >
+              <Trash2 className="size-4" />Xóa
+            </Button>
             <Button
               onClick={openCreateEditor}
             ><Plus className="size-4" />Thêm mới</Button>
@@ -269,6 +297,16 @@ export default function CriteriaChildrenPage() {
       />
     </div>
     <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} parentDeadline={group.deadline} onSave={saveItem} saving={saving} />
+    <ConfirmDialog
+      open={deleteOpen}
+      onOpenChange={setDeleteOpen}
+      title="Xóa tiêu chí con"
+      description={selected ? `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tổng điểm tối đa của nhóm sẽ giảm từ ${group.maxPoint} xuống ${remainingPointTotal} điểm.` : 'Chọn tiêu chí cần xóa.'}
+      confirmLabel={deleteMutation.isPending ? 'Đang xóa…' : 'Xóa tiêu chí'}
+      cancelLabel="Hủy"
+      variant="destructive"
+      onConfirm={() => { if (selected && canDeleteCriteria) deleteMutation.mutate(selected.id); }}
+    />
     <FormDialog
       open={applyOpen}
       onOpenChange={(open) => { setApplyOpen(open); if (!open) { setApplyFiles([]); setApplyError(''); } }}

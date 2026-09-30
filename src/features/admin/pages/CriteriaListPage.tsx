@@ -47,7 +47,7 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   departmentName: group.departmentName ?? undefined,
   periodId: group.periodId ?? undefined,
   periodName: group.periodName ?? undefined,
-  criteria: group.criteria.map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
+  criteria: group.criteria.filter((criterion) => criterion.status !== 'Deleted').map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
   assignedLocalityCount: group.status === 'Applied' || group.status === 'Published' ? 1 : 0,
   openDate: group.createdAt,
   closeDate: group.deadline ?? '',
