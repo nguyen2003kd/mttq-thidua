@@ -3,10 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { DataTable, EmptyState, PageHeader, PageLoading, TruncatedText } from '@/components/core';
-// import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái
+import { DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Button } from '@/components/core';
-// import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái
+import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
@@ -82,8 +81,7 @@ export default function CouncilCriteriaGroupsPage() {
     { accessorFn: (row) => row.leaderScore, header: 'Điểm lãnh đạo ban chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.leaderScore}</span>, meta: { align: 'right', list: { width: 'minmax(160px,.85fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.75fr)' } } },
     { accessorFn: (row) => row.leaderBonus, header: 'Điểm thưởng lãnh đạo ban', cell: ({ row }) => <span className="tabular-nums">{row.original.leaderBonus}</span>, meta: { align: 'right', list: { width: 'minmax(170px,.9fr)' } } },
-    // Tạm ẩn cột Trạng thái — Hội đồng chỉ xem hồ sơ; khôi phục cùng import ScoreStateBadge + Badge.
-    // { id: 'state', accessorFn: (row) => row.submission.currentStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
+    { id: 'state', accessorFn: (row) => row.submission.currentStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
   ], []);
 
   if (!localityId) return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không hợp lệ." />;
