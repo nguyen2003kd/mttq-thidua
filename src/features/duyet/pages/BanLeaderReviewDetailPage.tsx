@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download, Edit3, Eye, FileText, MessageSquareWarning, Save } from 'lucide-react';
+// import { Send } from 'lucide-react'; // tạm ẩn cùng nút "Duyệt & trình Hội đồng" của Lãnh đạo ban
 import { toast } from 'sonner';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
@@ -8,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ForwardingDocumentsDialog, OfficialScoreRevisionDialog, ReviewScoreModal, RevisionRequestDialog } from '@/features/workflow/components';
+// import { ForwardSubmissionDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 import { isRealSubmission, specialistApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, filesApi } from '@/features/files/api/filesApi';
 import { mergeSubmissionCriteria } from '@/features/dia-phuong/api/localityApi';
@@ -84,6 +86,7 @@ export default function BanLeaderReviewDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [revisionOpen, setRevisionOpen] = useState(false);
+  // const [forwardOpen, setForwardOpen] = useState(false); // tạm ẩn nút duyệt của Lãnh đạo ban
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   const [scoreEditOpen, setScoreEditOpen] = useState(false);
@@ -294,6 +297,30 @@ export default function BanLeaderReviewDetailPage() {
     }
   };
 
+  /* Tạm ẩn hành động duyệt của Lãnh đạo ban — hiện chỉ xem hồ sơ.
+   * Khôi phục: mở comment này, nút bấm + ForwardSubmissionDialog ở JSX,
+   * state `forwardOpen` và import Send/ForwardSubmissionDialog.
+  const forwardToCouncil = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
+    try {
+      if (Object.keys(drafts).length > 0 && !await saveAllScores(false)) {
+        throw new Error('Chưa thể lưu điểm đã điều chỉnh trước khi chuyển hồ sơ.');
+      }
+      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      const updatedSubmission = await specialistApi.getSubmission(submission.id);
+      if (updatedSubmission.currentStage !== 'LeaderApproved') throw new Error(`Trạng thái sau khi duyệt không hợp lệ: ${updatedSubmission.currentStage}.`);
+      await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group'] });
+      await queryClient.invalidateQueries({ queryKey: ['leader-approval-histories', submission.id] });
+      toast.success('Đã duyệt và trình hồ sơ lên Hội đồng.');
+      setForwardOpen(false);
+      navigate(backToList);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể duyệt hồ sơ.');
+      throw error;
+    }
+  };
+  */
+
   return <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-5 pb-6">
     <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb"><Link to={backToList} className="hover:text-primary">Danh sách địa phương</Link><span>/</span><Link to={backToGroups} className="hover:text-primary">{localityName}</Link><span>/</span><span className="font-medium text-foreground">{groupQuery.data.name}</span></nav>
     <PageHeader title="Chi tiết chấm điểm kết quả tiêu chí" description={`${localityName} · ${groupQuery.data.name}`} actions={<Button variant="outline" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button>} />
@@ -316,6 +343,8 @@ export default function BanLeaderReviewDetailPage() {
         {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess || selectedResultDisabled} disabledReason={selectedResultDisabled ? 'Tiêu chí đã vô hiệu nên không thể cập nhật điểm.' : undefined} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
         <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu nháp'}</Button>
         <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>
+        {/* Tạm ẩn nút duyệt của Lãnh đạo ban — chỉ xem hồ sơ.
+        <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button> */}
       </div>
       <div className="overflow-x-auto"><Table data-column-visibility-table="leader-review-detail" className="min-w-[1440px] table-fixed"><colgroup><col className="w-[23%]" /><col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[19%]" /><col className="w-[23%]" /></colgroup><TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm địa phương đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm chuyên viên chấm</TableHead><TableHead className="bg-primary px-4 py-3 text-primary-foreground">Nội dung diễn giải</TableHead></TableRow></TableHeader><TableBody>
         {resultItems.map(({ criterion, result }) => {
@@ -394,6 +423,8 @@ export default function BanLeaderReviewDetailPage() {
       defaultSelectedCriteriaIds={defaultSelectedCriteriaIds}
       onSubmit={requestRevision}
     />
+    {/* Tạm ẩn cùng nút duyệt của Lãnh đạo ban.
+    <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={groupQuery.data.name} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} /> */}
     <ListDialog
       open={Boolean(evidenceDialog)}
       onOpenChange={(open) => { if (!open) setEvidenceDialog(null); }}
