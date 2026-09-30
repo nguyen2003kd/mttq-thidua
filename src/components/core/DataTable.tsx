@@ -87,6 +87,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   /** Nhận giá trị tìm kiếm đã debounce để gọi API phía server; tắt lọc tìm kiếm trên FE. */
   onSearchChange?: (value: string) => void;
   filters?: ReactNode;
+  /** Bộ lọc hiển thị ngay cạnh nút Bộ lọc, áp dụng trực tiếp khi chọn. */
+  inlineFilters?: ReactNode;
   /** Chip hiển thị các bộ lọc đang bật, kèm nút bỏ từng cái */
   activeFilters?: { label: string; value: string; onClear: () => void }[];
   /** Hiện link "Xóa tất cả" cạnh hàng chip */
@@ -188,6 +190,7 @@ export function DataTable<TData, TValue = unknown>({
   searchKey,
   onSearchChange,
   filters,
+  inlineFilters,
   activeFilters,
   onClearFilters,
   pageSize = 10,
@@ -239,7 +242,7 @@ export function DataTable<TData, TValue = unknown>({
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
   const tableHeaderInnerRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
-  const hasToolbar = Boolean(searchable || filters || toolbar || enableColumnVisibility);
+  const hasToolbar = Boolean(searchable || filters || inlineFilters || toolbar || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
 
@@ -689,7 +692,7 @@ export function DataTable<TData, TValue = unknown>({
       )}
     >
       {searchable && (
-        <div className="relative w-full max-w-[300px] flex-1">
+        <div className={cn('relative w-full max-w-[300px] flex-1', inlineFilters && 'sm:min-w-[220px]')}>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
@@ -710,6 +713,7 @@ export function DataTable<TData, TValue = unknown>({
           )}
         </div>
       )}
+      {inlineFilters}
       {filters && (
         <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
           {filters}
@@ -722,7 +726,7 @@ export function DataTable<TData, TValue = unknown>({
           )}
         </FilterDropdown>
       )}
-      <div className="ml-auto flex items-center gap-2">
+      <div className={cn('ml-auto flex items-center gap-2', inlineFilters && 'flex-wrap justify-end')}>
         {!filters && showColumnVisibility && (
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
