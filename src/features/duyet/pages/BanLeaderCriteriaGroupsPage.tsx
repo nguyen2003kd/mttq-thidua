@@ -7,8 +7,9 @@ import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
+// import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái
 import { Button } from '@/components/core';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 // import { ForwardSubmissionDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 
@@ -86,7 +87,8 @@ export default function BanLeaderCriteriaGroupsPage() {
     { accessorFn: (row) => row.specialistScore, header: 'Điểm chuyên viên chấm', cell: ({ row }) => <span className="font-medium tabular-nums">{row.original.specialistScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', list: { width: 'minmax(140px,.75fr)' } } },
     { accessorFn: (row) => row.specialistBonus, header: 'Điểm thưởng chuyên viên', cell: ({ row }) => <span className="tabular-nums">{row.original.specialistBonus}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
-    { id: 'status', accessorFn: (row) => row.submission.currentStage === LEADER_STAGE ? 'Chuyên viên trưởng đã duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === LEADER_STAGE ? <Badge variant="secondary">Chuyên viên trưởng đã duyệt</Badge> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
+    // Tạm ẩn cột Trạng thái — Lãnh đạo ban chỉ xem hồ sơ; khôi phục cùng import ScoreStateBadge + Badge.
+    // { id: 'status', accessorFn: (row) => row.submission.currentStage === LEADER_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === LEADER_STAGE ? <ScoreStateBadge state="CHO_DUYET_BAN" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(150px,.8fr)' } } },
   ], []);
 
   if (!localityId) return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không hợp lệ." />;

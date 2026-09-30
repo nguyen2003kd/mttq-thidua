@@ -4,9 +4,10 @@ import { Eye, Search } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
+// import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái duyệt
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái duyệt
 import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
@@ -145,7 +146,8 @@ export default function BanLeaderApprovalPage() {
     { id: 'specialistTotal', accessorFn: (row) => row.specialistScore + row.specialistBonus, header: 'Tổng điểm chuyên viên', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.specialistScore + row.original.specialistBonus}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(170px,.9fr)' } } },
     { id: 'proposedTotal', accessorFn: (row) => row.proposedScore + row.proposedBonus, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.proposedScore + row.original.proposedBonus}</span>, meta: { align: 'right', headerClassName: 'w-full whitespace-normal text-center leading-4', list: { width: 'minmax(140px,.8fr)' } } },
     { id: 'updatedAt', accessorFn: formatUpdated, header: 'Cập nhật lần cuối', cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatUpdated(row.original)}</span>, meta: { list: { width: 'minmax(180px,1fr)' } } },
-    { id: 'state', accessorFn: (row) => row.submissions.length === 0 ? 'Chưa nộp' : row.latestStage === LEADER_STAGE ? 'Chuyên viên trưởng đã duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.submissions.length === 0 ? <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge> : row.original.latestStage === LEADER_STAGE ? <Badge variant="secondary">Chuyên viên trưởng đã duyệt</Badge> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(155px,.85fr)' } } },
+    // Tạm ẩn cột Trạng thái duyệt — Lãnh đạo ban chỉ xem hồ sơ; khôi phục cùng import ScoreStateBadge + Badge.
+    // { id: 'state', accessorFn: (row) => row.submissions.length === 0 ? 'Chưa nộp' : row.latestStage === LEADER_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.submissions.length === 0 ? <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge> : row.original.latestStage === LEADER_STAGE ? <ScoreStateBadge state="CHO_DUYET_BAN" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(155px,.85fr)' } } },
     ], [totalAppliedGroups]);
 
   const openGroups = () => selectedRow && navigate(`/thi-dua/duyet/lanh-dao-ban/${banId}/${selectedRow.locality.id}`);
