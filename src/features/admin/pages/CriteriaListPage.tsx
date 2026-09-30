@@ -143,8 +143,12 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'name',
         header: LABELS.CRITERIA_TABLE_NAME,
+        cell: ({ row }) => (
+          <TruncatedText value={row.original.name} className="w-full max-w-full font-medium" />
+        ),
         meta: {
           className: 'font-medium',
+          disableTooltip: true,
           list: { width: 'minmax(220px, 1.5fr)' },
         },
       },
@@ -152,24 +156,28 @@ export default function CriteriaListPage() {
         id: 'departmentName',
         accessorFn: (row) => row.departmentName ?? '',
         header: 'Ban xử lý',
-        cell: ({ row }) => row.original.departmentName ?? '—',
-        meta: { list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
+        cell: ({ row }) => (
+          <TruncatedText value={row.original.departmentName} className="w-full max-w-full" />
+        ),
+        meta: { disableTooltip: true, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
       {
         id: 'periodName',
         accessorFn: (row) => row.periodName ?? '',
         header: 'Kỳ',
-        cell: ({ row }) => row.original.periodName ?? '—',
-        meta: { list: { label: 'Kỳ', width: '110px' } },
+        cell: ({ row }) => (
+          <TruncatedText value={row.original.periodName} className="w-full max-w-full" />
+        ),
+        meta: { disableTooltip: true, list: { label: 'Kỳ', width: '110px' } },
       },
       {
         id: 'content',
         accessorFn: (row) => row.content ?? row.criteria.map((criteria) => criteria.name).join(' '),
         header: 'Nội dung tiêu chí',
         cell: ({ row }) => (
-          <TruncatedText value={row.original.content} className="max-w-[280px] text-sm text-muted-foreground" />
+          <TruncatedText value={row.original.content} className="w-full max-w-[280px] text-sm text-muted-foreground" />
         ),
-        meta: { list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
+        meta: { disableTooltip: true, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
       {
         accessorKey: 'closeDate',
@@ -190,9 +198,9 @@ export default function CriteriaListPage() {
         accessorKey: 'note',
         header: 'Ghi chú',
         cell: ({ row }) => (
-          <TruncatedText value={row.original.note} className="max-w-[180px] text-sm text-muted-foreground" />
+          <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
         ),
-        meta: { list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
+        meta: { disableTooltip: true, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
       {
         accessorKey: 'status',
@@ -212,8 +220,14 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'updatedAt',
         header: 'Cập nhật lần cuối',
-        cell: ({ row }) => row.original.updatedAt ? formatDateTime(row.original.updatedAt) : 'Chưa cập nhật',
+        cell: ({ row }) => (
+          <TruncatedText
+            value={row.original.updatedAt ? formatDateTime(row.original.updatedAt) : 'Chưa cập nhật'}
+            className="w-full max-w-full text-muted-foreground tabular-nums"
+          />
+        ),
         meta: {
+          disableTooltip: true,
           list: { label: 'Cập nhật lần cuối', width: 'minmax(168px, 1fr)', valueClassName: 'text-muted-foreground tabular-nums' },
         },
       },
@@ -365,6 +379,14 @@ export default function CriteriaListPage() {
         pageSize={10}
         onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
+        inlineFilters={
+          <FilterSelect
+            label="Kỳ"
+            value={periodFilter}
+            onChange={(value) => { setPeriodFilter(value); setSelectedTable(null); setApplyValidationError(null); }}
+            options={periods.map((p) => ({ value: p.id, label: p.name }))}
+          />
+        }
         filters={
           <>
             <FilterSelect
@@ -397,12 +419,6 @@ export default function CriteriaListPage() {
               onChange={setYearFilter}
               options={availableYears.map((year) => ({ value: year, label: year }))}
             />
-            <FilterSelect
-              label="Kỳ"
-              value={periodFilter}
-              onChange={setPeriodFilter}
-              options={periods.map((p) => ({ value: p.id, label: p.name }))}
-            />
           </>
         }
         activeFilters={[
@@ -416,19 +432,15 @@ export default function CriteriaListPage() {
           ...(yearFilter
             ? [{ label: 'Năm', value: yearFilter, onClear: () => setYearFilter('') }]
             : []),
-          ...(periodFilter
-            ? [{ label: 'Kỳ', value: periods.find((p) => p.id === periodFilter)?.name ?? periodFilter, onClear: () => setPeriodFilter('') }]
-            : []),
           ...(sort !== 'createdAt-desc'
             ? [{ label: 'Sắp xếp', value: sort === 'name-asc' ? 'Tên A–Z' : sort === 'name-desc' ? 'Tên Z–A' : sort === 'deadline-asc' ? 'Hạn nộp gần nhất' : 'Điểm cao nhất', onClear: () => setSort('createdAt-desc') }]
             : []),
         ]}
         onClearFilters={
-          statusFilter || yearFilter || periodFilter || sort !== 'createdAt-desc'
+          statusFilter || yearFilter || sort !== 'createdAt-desc'
             ? () => {
                 setStatusFilter('');
                 setYearFilter('');
-                setPeriodFilter('');
                 setSort('createdAt-desc');
               }
             : undefined

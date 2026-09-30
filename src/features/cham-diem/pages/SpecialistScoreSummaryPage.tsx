@@ -260,12 +260,12 @@ function LocalityCriteriaDialog({
                     <TableHeader>
                       <TableRow className="bg-primary hover:bg-primary">
                         <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Xã chấm</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Thưởng xã</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tỉnh chấm</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Thưởng tỉnh</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng xã</TableHead>
-                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng tỉnh</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Địa phương đề xuất</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">điểm thưởng địa phương</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của tỉnh </TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của tỉnh</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng điểm địa phương</TableHead>
+                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm tỉnh</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -322,11 +322,11 @@ function LocalityCriteriaDialog({
                           </span>
                         </span>
                         <span className="text-sm">
-                          <span className="block text-xs text-muted-foreground">Tổng xã</span>
+                          <span className="block text-xs text-muted-foreground">Tổng điểm địa phương</span>
                           <span className="font-semibold tabular-nums text-foreground">{formatScore(totals.proposedScore + totals.proposedBonus)}</span>
                         </span>
                         <span className="text-sm">
-                          <span className="block text-xs text-muted-foreground">Tổng tỉnh</span>
+                          <span className="block text-xs text-muted-foreground">Tổng điểm tỉnh</span>
                           <span className="font-semibold tabular-nums text-foreground">
                             {formatScore(totals.hasProvinceScore ? totals.provinceScore + totals.provinceBonus : null)}
                           </span>
@@ -843,10 +843,10 @@ export default function SpecialistScoreSummaryPage() {
                   Tên xã, phường
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Xã (phường) chấm
+                  Địa phương chấm
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Điểm thưởng xã
+                  Điểm điểm thưởng địa phương
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Tỉnh chấm
@@ -855,7 +855,7 @@ export default function SpecialistScoreSummaryPage() {
                   Điểm thưởng của tỉnh
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Xã (phường) chấm
+                  Địa phương chấm
                   <br />
                   (điểm tự chấm + điểm thưởng)
                 </TableHead>

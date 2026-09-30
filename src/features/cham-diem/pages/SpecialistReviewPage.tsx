@@ -1904,7 +1904,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       ...(groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : []),
       ...(groupSortFilter !== DEFAULT_GROUP_SORT ? [{ label: 'Sắp xếp', value: GROUP_SORT_OPTIONS.find((option) => option.value === groupSortFilter)?.label ?? 'Tùy chọn', onClear: () => setGroupSortFilter(DEFAULT_GROUP_SORT) }] : []),
       ...(groupYearFilter ? [{ label: 'Năm', value: groupYearFilter, onClear: () => setGroupYearFilter('') }] : []),
-      ...(groupPeriodFilter ? [{ label: 'Kỳ', value: groupPeriodOptions.find((option) => option.value === groupPeriodFilter)?.label ?? 'Kỳ thi đua', onClear: () => setGroupPeriodFilter('') }] : []),
     ];
 
     return (
@@ -1959,6 +1958,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <FilterSelect
+                label="Kỳ"
+                value={groupPeriodFilter}
+                onChange={(value) => {
+                  setGroupPeriodFilter(value);
+                  setSelectedGroupId(null);
+                }}
+                options={groupPeriodOptions}
+              />
               <FilterDropdown
                 activeCount={activeGroupFilters.length}
                 activeFilters={activeGroupFilters}
@@ -1967,7 +1975,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   setGroupStatusFilter('');
                   setGroupSortFilter(DEFAULT_GROUP_SORT);
                   setGroupYearFilter('');
-                  setGroupPeriodFilter('');
                   setGroupColumnVisibility({});
                   setSelectedGroupId(null);
                 }}
@@ -1989,12 +1996,6 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   value={groupYearFilter}
                   onChange={setGroupYearFilter}
                   options={groupYearOptions}
-                />
-                <FilterSelect
-                  label="Kỳ"
-                  value={groupPeriodFilter}
-                  onChange={setGroupPeriodFilter}
-                  options={groupPeriodOptions}
                 />
                 <ColumnVisibilityDraftControl
                   value={visibleGroupColumnValue}

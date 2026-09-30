@@ -41,11 +41,11 @@ const valueStyle = {
 const HEADERS = [
   'Cụm thi đua',
   'Tên xã, phường',
-  'Xã (phường) chấm',
-  'Điểm thưởng xã',
+  'Địa phương chấm',
+  'Điểm điểm thưởng địa phương',
   'Tỉnh chấm',
   'Điểm thưởng của tỉnh',
-  'Xã (phường) chấm (điểm tự chấm + điểm thưởng)',
+  'Địa phương chấm (điểm tự chấm + điểm thưởng)',
   'Tỉnh chấm (điểm chấm + điểm thưởng)',
 ];
 
