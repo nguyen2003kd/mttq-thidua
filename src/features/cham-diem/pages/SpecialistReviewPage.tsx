@@ -2919,6 +2919,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         onOpenChange={setForwardOpen}
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
+        targetLabel={basePath === '/chuyen-vien/duyet' ? 'Chuyên viên trưởng' : undefined}
+        explanationLabel={basePath === '/chuyen-vien/duyet' ? 'Diễn giải hồ sơ từ Lãnh đạo ban' : undefined}
         onConfirm={confirmForward}
       />
     </div>
