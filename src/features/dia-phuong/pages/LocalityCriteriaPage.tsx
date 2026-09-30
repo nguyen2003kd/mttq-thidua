@@ -21,6 +21,7 @@ import {
   localityApi,
   mapCriteriaGroupToTable,
   mapSubmissionToRecord,
+  mergeSubmissionCriteria,
   getLocalityApiError,
   type SubmissionApi,
   type SubmissionStage,
@@ -59,7 +60,7 @@ function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }
     ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${criterion?.bonusScore ?? 0}`],
   ];
 
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p></section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p>{criterion?.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
 }
 
 interface LocalityCriteriaListRow extends CriteriaTable {
@@ -397,7 +398,11 @@ export default function LocalityCriteriaPage() {
   const detailCriteria = useMemo(() => {
     const group = groupDetailQuery.data;
     if (!group) return [];
-    return group.criteria.map((c, idx): CriteriaItem => ({
+    return mergeSubmissionCriteria(
+      group.criteria,
+      submissionDetailQuery.data?.results,
+      submissionDetailQuery.data?.id,
+    ).map((c, idx): CriteriaItem => ({
       id: c.id,
       type: c.type as 'Standard' | 'Supplementary',
       name: c.content,
@@ -406,9 +411,10 @@ export default function LocalityCriteriaPage() {
       deadline: c.deadline ?? undefined,
       note: c.note ?? undefined,
       order: idx + 1,
+      status: c.status,
       updatedAt: c.updatedAt ?? undefined,
     }));
-  }, [groupDetailQuery.data]);
+  }, [groupDetailQuery.data, submissionDetailQuery.data]);
 
   const record: ScoreRecord = useMemo(() => {
     if (submissionDetailQuery.data) return mapSubmissionToRecord(submissionDetailQuery.data);
@@ -793,14 +799,15 @@ export default function LocalityCriteriaPage() {
         // Gộp giá trị đang nhập vào draft local rồi tạo submission 1 lần
         const merged = new Map(draftResultsRef.current);
         collected.forEach((v, k) => merged.set(k, v));
-        const items = detailTable.criteria.map((c) => {
+        const items = detailTable.criteria.flatMap((c) => {
+          if (c.status === 'Deleted') return [];
           const draft = merged.get(c.id);
-          return {
+          return [{
             criteriaId: c.id,
             point: draft?.proposedScore ?? 0,
             bonusPoint: draft?.proposedBonusScore ?? 0,
             explanation: draft?.explanation ?? '',
-          };
+          }];
         });
         const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
         // Sau khi BE tạo SubmissionResult mới có thể gắn file đúng entityId.
@@ -847,8 +854,9 @@ export default function LocalityCriteriaPage() {
   const requireSelection = (callback: () => void) => { if (!selected) { toast.info('Vui lòng chọn một dòng tiêu chí trước.'); return; } callback(); };
   const selectedCriterionDeadlineMs = selected?.criterion?.deadline ? Date.parse(selected.criterion.deadline) : Number.NaN;
   const selectedCriterionDeadlineExpired = isTrustedTimeReady && Number.isFinite(selectedCriterionDeadlineMs) && selectedCriterionDeadlineMs <= currentTimeMs;
-  const currentSelfScore = record.entries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
-  const currentBonusScore = record.entries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
+  const activeScoreEntries = record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted');
+  const currentSelfScore = activeScoreEntries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
+  const currentBonusScore = activeScoreEntries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
   const handleSaveAll = async () => {
     if (!scoreTableRef.current || !user) return;
     if (!ensureSubmissionIsEditable()) return;
@@ -863,14 +871,15 @@ export default function LocalityCriteriaPage() {
         setDraftResults(merged);
         // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
         if (merged.size > 0) {
-          const items = detailTable.criteria.map((c) => {
+          const items = detailTable.criteria.flatMap((c) => {
+            if (c.status === 'Deleted') return [];
             const draft = merged.get(c.id);
-            return {
+            return [{
               criteriaId: c.id,
               point: draft?.proposedScore ?? 0,
               bonusPoint: draft?.proposedBonusScore ?? 0,
               explanation: draft?.explanation ?? '',
-            };
+            }];
           });
           const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id!, isDraft: true, items });
           await Promise.all(detailTable.criteria.map((c) => {

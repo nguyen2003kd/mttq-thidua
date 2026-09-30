@@ -301,7 +301,7 @@ export default function CriteriaChildrenPage() {
       open={deleteOpen}
       onOpenChange={setDeleteOpen}
       title="Xóa tiêu chí con"
-      description={selected ? `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tổng điểm tối đa của nhóm sẽ giảm từ ${group.maxPoint} xuống ${remainingPointTotal} điểm.` : 'Chọn tiêu chí cần xóa.'}
+      description={selected ? `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tiêu chí sẽ chuyển sang trạng thái Vô hiệu, dữ liệu điểm và lịch sử vẫn được giữ lại. Tổng điểm tối đa của nhóm sẽ giảm từ ${group.maxPoint} xuống ${remainingPointTotal} điểm.` : 'Chọn tiêu chí cần xóa.'}
       confirmLabel={deleteMutation.isPending ? 'Đang xóa…' : 'Xóa tiêu chí'}
       cancelLabel="Hủy"
       variant="destructive"

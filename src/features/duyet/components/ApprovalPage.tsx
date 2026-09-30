@@ -166,16 +166,16 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   };
 
   const getStageTotal = (record: ScoreRecord, stage: ScoringStage) =>
-    record.entries.reduce((total, entry) => {
+    record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').reduce((total, entry) => {
       const score = entry.stageScores?.[stage];
       return total + (score?.score ?? 0) + (score?.bonusScore ?? 0);
     }, 0);
 
   const getProposedTotal = (record: ScoreRecord) =>
-    record.entries.reduce((total, entry) => total + (entry.proposedScore ?? 0), 0);
+    record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').reduce((total, entry) => total + (entry.proposedScore ?? 0), 0);
 
   const getProposedBonusTotal = (record: ScoreRecord) =>
-    record.entries.reduce((total, entry) => total + (entry.proposedBonusScore ?? 0), 0);
+    record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').reduce((total, entry) => total + (entry.proposedBonusScore ?? 0), 0);
 
   const getProposedOverallTotal = (record: ScoreRecord) =>
     getProposedTotal(record) + getProposedBonusTotal(record);
@@ -186,7 +186,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
       : record.totalScore;
 
   const getStageBonusTotal = (record: ScoreRecord, stage: ScoringStage) =>
-    record.entries.reduce((total, entry) => total + (entry.stageScores?.[stage]?.bonusScore ?? 0), 0);
+    record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').reduce((total, entry) => total + (entry.stageScores?.[stage]?.bonusScore ?? 0), 0);
 
   const columns = useMemo<ColumnDef<ApprovalRow>[]>(
     () => [

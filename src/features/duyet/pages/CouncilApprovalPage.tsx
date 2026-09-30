@@ -68,7 +68,7 @@ function formatUpdated(row: LocalityReviewRow) {
 }
 
 function getResultTotals(submissions: SubmissionApi[]) {
-  return submissions.reduce((totals, submission) => submission.results.reduce((resultTotals, result) => ({
+  return submissions.reduce((totals, submission) => submission.results.filter((result) => result.criteriaStatus !== 'Deleted').reduce((resultTotals, result) => ({
     maximumScore: resultTotals.maximumScore + result.snapshotMaxPoint + result.snapshotMaxBonusPoint,
     proposedTotal: resultTotals.proposedTotal + result.point + result.bonusPoint,
   }), totals), { maximumScore: 0, proposedTotal: 0 });
@@ -168,7 +168,7 @@ export default function CouncilApprovalPage() {
     (submission) => specialistApi.updateScores({
       submissionId: submission.id,
       reason: comment,
-      scoreItems: submission.results.map((result) => ({
+      scoreItems: submission.results.filter((result) => result.criteriaStatus !== 'Deleted').map((result) => ({
         submissionResultId: result.id,
         point: result.officialPoint ?? result.point,
         bonusPoint: result.officialBonusPoint ?? result.bonusPoint,

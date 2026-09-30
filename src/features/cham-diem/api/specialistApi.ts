@@ -1,6 +1,6 @@
 import { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
-import { type CriteriaGroupApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
+import { type CriteriaGroupApi, type CriteriaStatusApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
 
 // ── Response envelope ────────────────────────────────────────────────────────
 
@@ -102,6 +102,7 @@ export interface SubmissionResultItem {
   submissionId: string;
   criteriaId: string;
   criteriaContent: string | null;
+  criteriaStatus?: CriteriaStatusApi | null;
   snapshotMaxPoint: number;
   snapshotMaxBonusPoint: number;
   point: number;

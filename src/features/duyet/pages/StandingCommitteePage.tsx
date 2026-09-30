@@ -37,7 +37,7 @@ function getOfficialEntryScore(entry: ScoreEntry) {
 }
 
 function getScoreTotals(record: ScoreRecord) {
-  return record.entries.reduce(
+  return record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').reduce(
     (totals, entry) => {
       const official = getOfficialEntryScore(entry);
       return {

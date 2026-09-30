@@ -68,11 +68,13 @@ export function CriterionGrid({
               const files = evidence.filter(
                 (item) => item.localityId === localityId && item.criteriaId === criteriaId,
               );
-              const locked = Boolean(entry?.locked || lockedCriteriaIds.includes(criteriaId));
+              const criterionDisabled = criterion?.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';
+              const locked = Boolean(criterionDisabled || entry?.locked || lockedCriteriaIds.includes(criteriaId));
               const placeholderEntry: ScoreEntry = entry ?? {
                 id: `empty-${criteriaId}`,
                 criteriaId,
                 criteriaName: criterion?.name ?? '',
+                criteriaStatus: criterion?.status,
                 value: 0,
                 state: record.state,
                 scoredBy: '',
@@ -88,7 +90,7 @@ export function CriterionGrid({
                         <p className="font-medium leading-5">{criterion?.name ?? entry?.criteriaName}</p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {entry?.isSupplementary && <Badge variant="secondary">Tiêu chí bổ sung</Badge>}
-                          {locked && <Badge variant="outline">Đã khóa</Badge>}
+                          {criterionDisabled ? <Badge variant="secondary">Vô hiệu</Badge> : locked && <Badge variant="outline">Đã khóa</Badge>}
                         </div>
                       </div>
                     </div>

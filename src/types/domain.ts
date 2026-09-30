@@ -66,6 +66,7 @@ export interface ScoreEntry {
   id: string;
   criteriaId: string;
   criteriaName: string;
+  criteriaStatus?: 'Draft' | 'Applied' | 'Deleted';
   value: number;
   state: ScoreState;
   scoredBy: string;

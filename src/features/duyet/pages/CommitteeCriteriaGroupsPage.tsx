@@ -37,7 +37,7 @@ async function listEveryCommitteeSubmission() {
 function getLocalityCode(localityId: string) { return localityId.startsWith('loc-') ? localityId.slice(4) : localityId; }
 
 function getTotals(submission: SubmissionApi) {
-  return submission.results.reduce((totals, result) => ({
+  return submission.results.filter((result) => result.criteriaStatus !== 'Deleted').reduce((totals, result) => ({
     proposedScore: totals.proposedScore + result.point,
     proposedBonus: totals.proposedBonus + result.bonusPoint,
     officialScore: totals.officialScore + (result.officialPoint ?? result.point),

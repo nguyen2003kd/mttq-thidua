@@ -68,7 +68,7 @@ function getSubmissionLocalityCode(submission: SubmissionApi) {
 }
 
 function getResultTotals(submissions: SubmissionApi[]) {
-  return submissions.reduce((totals, submission) => submission.results.reduce((resultTotals, result) => ({
+  return submissions.reduce((totals, submission) => submission.results.filter((result) => result.criteriaStatus !== 'Deleted').reduce((resultTotals, result) => ({
     proposedScore: resultTotals.proposedScore + result.point,
     proposedBonus: resultTotals.proposedBonus + result.bonusPoint,
     councilScore: resultTotals.councilScore + (result.officialPoint ?? result.point),

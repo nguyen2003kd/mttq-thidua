@@ -4,11 +4,13 @@ import { ArrowLeft, Download, Edit3, Eye, FileText, History, MessageSquareWarnin
 import { toast } from 'sonner';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, OfficialScoreRevisionDialog, ReviewScoreModal, RevisionRequestDialog } from '@/features/workflow/components';
 import { isRealSubmission, specialistApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, filesApi } from '@/features/files/api/filesApi';
+import { mergeSubmissionCriteria } from '@/features/dia-phuong/api/localityApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
 const LEADER_VISIBLE_STAGES = [LEADER_STAGE, 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'] as const;
@@ -129,8 +131,7 @@ export default function BanLeaderReviewDetailPage() {
 
   const submission = submissionDetailQuery.data ?? submissionsQuery.data;
   const resultsByCriteria = useMemo(() => new Map((submission?.results ?? []).map((result) => [result.criteriaId, result])), [submission]);
-  const criteria = useMemo(() => (groupQuery.data?.criteria ?? [])
-    .filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === submission?.id), [groupQuery.data, submission?.id]);
+  const criteria = useMemo(() => mergeSubmissionCriteria(groupQuery.data?.criteria, submission?.results, submission?.id), [groupQuery.data, submission]);
   const backToGroups = `/thi-dua/duyet/lanh-dao-ban/${banId}/${localityId}`;
   const backToList = `/thi-dua/duyet/lanh-dao-ban/${banId}`;
   const isLoading = groupQuery.isLoading || submissionsQuery.isLoading || submissionDetailQuery.isLoading;
@@ -142,11 +143,13 @@ export default function BanLeaderReviewDetailPage() {
   if (!groupQuery.data || !submission) return <EmptyState title="Không tìm thấy hồ sơ" description="Submission không tồn tại hoặc không còn ở trạng thái SpecialistApproved." />;
 
   const resultItems = criteria.map((criterion) => ({ criterion, result: resultsByCriteria.get(criterion.id) }));
-  const proposedScore = sumResults(submission.results, (result) => result.point);
-  const specialistScore = sumResults(submission.results, (result) => result.officialPoint ?? result.point);
-  const specialistBonus = sumResults(submission.results, (result) => result.officialBonusPoint ?? result.bonusPoint);
-  const maximumScore = criteria.reduce((total, criterion) => total + criterion.maxPoint, 0);
-  const maximumBonus = criteria.reduce((total, criterion) => total + criterion.maxBonusPoint, 0);
+  const activeResultItems = resultItems.filter(({ criterion, result }) => criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted');
+  const activeResults = activeResultItems.flatMap(({ result }) => result ? [result] : []);
+  const proposedScore = sumResults(activeResults, (result) => result.point);
+  const specialistScore = sumResults(activeResults, (result) => result.officialPoint ?? result.point);
+  const specialistBonus = sumResults(activeResults, (result) => result.officialBonusPoint ?? result.bonusPoint);
+  const maximumScore = activeResultItems.reduce((total, { criterion }) => total + criterion.maxPoint, 0);
+  const maximumBonus = activeResultItems.reduce((total, { criterion }) => total + criterion.maxBonusPoint, 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? localityCode;
   const specialistForwarding = (approvalHistoriesQuery.data?.items ?? [])
     .find((history) => history.stageLevel === 'LocalSubmitted');
@@ -155,8 +158,9 @@ export default function BanLeaderReviewDetailPage() {
     : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
   const canProcess = submission.currentStage === LEADER_STAGE;
   const selectedResultItem = resultItems.find(({ criterion }) => criterion.id === selectedCriteriaId);
+  const selectedResultDisabled = selectedResultItem?.criterion.status === 'Deleted' || selectedResultItem?.result?.criteriaStatus === 'Deleted';
   const revisionCriteria = resultItems
-    .filter(({ criterion, result }) => criterion.type !== 'Supplementary' && Boolean(result))
+    .filter(({ criterion, result }) => criterion.type !== 'Supplementary' && criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted' && Boolean(result))
     .map(({ criterion }) => ({ id: criterion.id, title: criterion.content }));
   const defaultSelectedCriteriaIds = selectedCriteriaId ? [selectedCriteriaId] : [];
 
@@ -166,7 +170,7 @@ export default function BanLeaderReviewDetailPage() {
 
   const validateLeaderDrafts = () => {
     for (const { criterion, result } of resultItems) {
-      if (criterion.type === 'Supplementary' || !result) continue;
+      if (criterion.type === 'Supplementary' || criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted' || !result) continue;
       const draft = drafts[result.id];
       if (!draft) continue;
       if (!Number.isFinite(draft.point) || draft.point < 0 || draft.point > criterion.maxPoint) {
@@ -223,8 +227,8 @@ export default function BanLeaderReviewDetailPage() {
 
   const saveAllScores = async (notifyWhenEmpty = true) => {
     if (!validateLeaderDrafts()) return false;
-    const dirtyItems = resultItems.flatMap(({ result }) => {
-      if (!result || !drafts[result.id] || savedDraftIds.has(result.id)) return [];
+    const dirtyItems = resultItems.flatMap(({ criterion, result }) => {
+      if (criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted' || !result || !drafts[result.id] || savedDraftIds.has(result.id)) return [];
       const draft = drafts[result.id];
       return [{ submissionResultId: result.id, point: draft.point, bonusPoint: draft.bonusPoint, reason: draft.reason || null }];
     });
@@ -238,7 +242,7 @@ export default function BanLeaderReviewDetailPage() {
           setSavingAll(false);
         }
       }
-      const requiredItems = resultItems.filter(({ criterion }) => criterion.type !== 'Supplementary');
+      const requiredItems = resultItems.filter(({ criterion, result }) => criterion.type !== 'Supplementary' && criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted');
       const alreadySaved = requiredItems.length > 0 && requiredItems.every(({ result }) => result && savedDraftIds.has(result.id));
       if (alreadySaved) return true;
       if (notifyWhenEmpty) toast.info('Chưa có điểm Lãnh đạo mới để lưu.');
@@ -330,7 +334,7 @@ export default function BanLeaderReviewDetailPage() {
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border bg-card/95 px-4 py-3 sm:px-5">
         <TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
         <Button variant="outline" disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
-        {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
+        {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess || selectedResultDisabled} disabledReason={selectedResultDisabled ? 'Tiêu chí đã vô hiệu nên không thể cập nhật điểm.' : undefined} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
         <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu nháp'}</Button>
         <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>
         <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>
@@ -339,7 +343,7 @@ export default function BanLeaderReviewDetailPage() {
         {resultItems.map(({ criterion, result }) => {
           const revised = leaderScoreFor(result);
           return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#009ee3] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
-            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
             <TableCell className="border-r border-primary/15 px-4 py-5">
               {result?.files.length ? (
                 <Button type="button" variant="outline" size="sm" onClick={(event) => {
@@ -363,7 +367,7 @@ export default function BanLeaderReviewDetailPage() {
       open={criterionDetailOpen}
       onOpenChange={setCriterionDetailOpen}
       item={selectedResultItem ? { criterion: selectedResultItem.criterion, result: selectedResultItem.result, leader: leaderScoreFor(selectedResultItem.result) } : undefined}
-      editDisabled={!canProcess}
+      editDisabled={!canProcess || selectedResultDisabled}
       onEdit={() => { setCriterionDetailOpen(false); setScoreEditOpen(true); }}
       onPreview={setPreviewFile}
     />
@@ -386,7 +390,7 @@ export default function BanLeaderReviewDetailPage() {
       title="Sửa điểm Chuyên viên chấm"
       onSave={({ score, bonusScore, reason, attachment }) => {
         const result = selectedResultItem?.result;
-        if (!result) return false;
+        if (!result || selectedResultDisabled) return false;
         setDrafts((current) => ({ ...current, [result.id]: { point: score, bonusPoint: bonusScore, reason: reason ?? '' } }));
         setPendingAttachments((current) => {
           const next = { ...current };

@@ -47,6 +47,7 @@ import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, r
 import { useAuthStore } from '@/store/authStore';
 import {
   localityApi,
+  mergeSubmissionCriteria,
   type ApprovalHistoryItem,
   type SubmissionHistoryItem,
   type FileSnapshotItem,
@@ -78,6 +79,7 @@ interface SpecialistCriteriaItem {
   officialBonusScore: number | null;
   scoreReason: string;
   isAddedBySpecialist?: boolean;
+  isDisabled?: boolean;
 }
 
 interface SpecialistCriteriaGroup {
@@ -99,8 +101,7 @@ interface SpecialistCriteriaGroup {
 }
 
 function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: SubmissionApi | undefined, scoringRole: ScoringRole): SpecialistCriteriaGroup {
-  const items: SpecialistCriteriaItem[] = (group.criteria ?? [])
-    .filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === submission?.id)
+  const items: SpecialistCriteriaItem[] = mergeSubmissionCriteria(group.criteria, submission?.results, submission?.id)
     .map((criterion, index) => {
       const result = submission?.results.find((item) => item.criteriaId === criterion.id);
       return {
@@ -117,8 +118,10 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
         officialBonusScore: result?.officialBonusPoint ?? null,
         scoreReason: result?.officialReason ?? '',
         isAddedBySpecialist: criterion.type === 'Supplementary',
+        isDisabled: criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted',
       };
     });
+  const activeResults = submission?.results.filter((result) => result.criteriaStatus !== 'Deleted') ?? [];
 
   return {
     id: group.id,
@@ -130,8 +133,8 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
     deadline: group.deadline,
     createdAt: group.createdAt,
     maxPoint: group.maxPoint,
-    totalProposedScore: submission?.results.reduce((sum, result) => sum + result.point, 0) ?? 0,
-    totalProposedBonusScore: submission?.results.reduce((sum, result) => sum + result.bonusPoint, 0) ?? 0,
+    totalProposedScore: activeResults.reduce((sum, result) => sum + result.point, 0),
+    totalProposedBonusScore: activeResults.reduce((sum, result) => sum + result.bonusPoint, 0),
     status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
     hasModificationRequest: submission?.currentStage === 'RequiresRevision' || submission?.currentStage === 'ScorerRevisionRequested' || submission?.currentStage === 'ReviewerRevisionRequested',
     items,
@@ -1247,6 +1250,7 @@ function CriterionDetailDialog({
           <div>
             <p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p>
             <p className="mt-1.5 text-sm font-semibold leading-6 text-foreground">{item.title}</p>
+            {item.isDisabled && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
           </div>
           <div className="grid grid-cols-2 divide-x divide-border overflow-hidden rounded-lg border border-border sm:grid-cols-4">
             <SnapshotField label="Địa phương đề xuất" value={`${item.proposedScore} / ${item.maxProposedScore}`} />
@@ -1597,8 +1601,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     const group = selectedGroupDetailQuery.data;
     if (!group) return undefined;
     const submission = selectedSubmissionDetailQuery.data;
-    const items: SpecialistCriteriaItem[] = (group.criteria ?? [])
-      .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === submission?.id)
+    const items: SpecialistCriteriaItem[] = mergeSubmissionCriteria(group.criteria, submission?.results, submission?.id)
       .map((c, idx) => {
       const result = submission?.results.find((r) => r.criteriaId === c.id);
       return {
@@ -1615,8 +1618,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         officialBonusScore: result?.officialBonusPoint ?? null,
         scoreReason: result?.officialReason ?? '',
         isAddedBySpecialist: c.type === 'Supplementary',
+        isDisabled: c.status === 'Deleted' || result?.criteriaStatus === 'Deleted',
       };
       });
+    const activeResults = submission?.results.filter((result) => result.criteriaStatus !== 'Deleted') ?? [];
     return {
       id: group.id,
       code: group.name,
@@ -1627,8 +1632,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       deadline: group.deadline,
       createdAt: group.createdAt,
       maxPoint: group.maxPoint,
-      totalProposedScore: submission?.results.reduce((sum, r) => sum + r.point, 0) ?? 0,
-      totalProposedBonusScore: submission?.results.reduce((sum, r) => sum + r.bonusPoint, 0) ?? 0,
+      totalProposedScore: activeResults.reduce((sum, r) => sum + r.point, 0),
+      totalProposedBonusScore: activeResults.reduce((sum, r) => sum + r.bonusPoint, 0),
       status: submission ? (STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][submission.currentStage] ?? 'CHO_CHAM') : 'CHUA_NOP',
       hasModificationRequest: submission?.currentStage === 'RequiresRevision' || submission?.currentStage === 'ScorerRevisionRequested' || submission?.currentStage === 'ReviewerRevisionRequested',
       items,
@@ -2122,6 +2127,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   );
   const scorerRevisionNote = isScorerRevisionStage ? selectedRevisionNotes.reviewer : null;
   const isScoringCriterionEditable = (item: SpecialistCriteriaItem) => {
+    if (item.isDisabled) return false;
     if (!isScorerRevisionStage) return true;
     if (!selectedRevisionHistoriesQuery.isSuccess || !scorerRevisionNote) return false;
     if (scorerRevisionNote.criteriaIds !== null) return scorerRevisionNote.criteriaIds.includes(item.id);
@@ -2135,18 +2141,20 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const selectedCriterionRevisionLocked = Boolean(selectedCriterion && !isScoringCriterionEditable(selectedCriterion));
   const selectedCriterionLockReason = specialistActionsLocked
     ? specialistLockReason
-    : selectedCriterionRevisionLocked
-      ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của reviewer.'
-      : selectedCriterion?.isAddedBySpecialist
-        ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.'
-        : 'Chọn một tiêu chí để sửa điểm.';
-  const scoredItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist);
+    : selectedCriterion?.isDisabled
+      ? 'Tiêu chí đã bị vô hiệu, chỉ có thể xem dữ liệu đã nộp.'
+      : selectedCriterionRevisionLocked
+        ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của reviewer.'
+        : selectedCriterion?.isAddedBySpecialist
+          ? 'Tiêu chí bổ sung không có điểm để chỉnh sửa.'
+          : 'Chọn một tiêu chí để sửa điểm.';
+  const scoredItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled);
   const scoredCount = scoredItems.filter((item) => item.officialScore !== null && item.officialBonusScore !== null).length;
   const hasMissingApprovalScore = scoredItems.some((item) => item.officialScore === null || item.officialBonusScore === null);
   const approvalDisabledReason = specialistApproveLocked
     ? specialistLockReason
-    : displayGroup.items.length === 0
-      ? 'Nhóm tiêu chí chưa có tiêu chí con để duyệt.'
+    : scoredItems.length === 0
+      ? 'Nhóm tiêu chí không còn tiêu chí đang hiệu lực để duyệt.'
       : hasMissingApprovalScore
         ? 'Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.'
         : undefined;
@@ -2154,7 +2162,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
   const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
   const specialistBonusScore = scoredItems.reduce((sum, item) => sum + (item.officialBonusScore ?? 0), 0);
-  const revisionCriteria = displayGroup.items.filter((item) => !item.isAddedBySpecialist && resultByCriteriaId.has(item.id));
+  const revisionCriteria = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && resultByCriteriaId.has(item.id));
   const scoreRevisionCriterionLabel = scoreRevisionResult?.criteriaContent
     ?? displayGroup.items.find((item) => item.id === scoreRevisionResult?.criteriaId)?.title
     ?? 'Tiêu chí con';
@@ -2164,7 +2172,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.info(specialistLockReason);
       return;
     }
-    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && isScoringCriterionEditable(item));
+    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && isScoringCriterionEditable(item));
     if (editableItems.length === 0) {
       toast.info('Không có tiêu chí được yêu cầu chỉnh sửa để sao chép điểm.');
       return;
@@ -2189,11 +2197,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.info(specialistLockReason);
       return;
     }
-    if (displayGroup.items.length === 0) {
-      toast.error('Nhóm tiêu chí chưa có tiêu chí con để gửi duyệt.');
+    if (scoredItems.length === 0) {
+      toast.error('Nhóm tiêu chí không còn tiêu chí đang hiệu lực để gửi duyệt.');
       return;
     }
-    const missingScore = displayGroup.items.some((item) => !item.isAddedBySpecialist && (item.officialScore === null || item.officialBonusScore === null));
+    const missingScore = scoredItems.some((item) => item.officialScore === null || item.officialBonusScore === null);
     if (missingScore) {
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí.');
       return;
@@ -2225,7 +2233,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const buildScoreItems = () => {
     const results = selectedSubmissionDetailQuery.data?.results ?? [];
     return displayGroup.items
-      .filter((item) => !item.isAddedBySpecialist && isScoringCriterionEditable(item) && item.officialScore !== null && item.officialBonusScore !== null)
+      .filter((item) => !item.isAddedBySpecialist && !item.isDisabled && isScoringCriterionEditable(item) && item.officialScore !== null && item.officialBonusScore !== null)
       .map((item) => {
         const result = results.find((r) => r.criteriaId === item.id);
         if (!result) return null;
@@ -2331,8 +2339,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.error('Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
       return;
     }
-    if (displayGroup.items.length === 0) {
-      toast.error('Nhóm tiêu chí chưa có tiêu chí con để duyệt.');
+    if (scoredItems.length === 0) {
+      toast.error('Nhóm tiêu chí không còn tiêu chí đang hiệu lực để duyệt.');
       return;
     }
     if (hasMissingApprovalScore) {
@@ -2449,7 +2457,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               <>
                 <Button
                   variant="outline"
-                  disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || specialistActionsLocked || selectedCriterionRevisionLocked}
+                  disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || selectedCriterion.isDisabled || specialistActionsLocked || selectedCriterionRevisionLocked}
                   disabledReason={selectedCriterionLockReason}
                   onClick={() => setScoreEditOpen(true)}
                 >
@@ -2469,7 +2477,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             {specialistPermissions.canEdit && (
               <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || displayGroup.items.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
           </div>
         </div>
         <div className="hidden overflow-hidden bg-primary xl:block">
@@ -2541,6 +2549,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     />
                     <p className="mt-2 text-xs font-medium text-muted-foreground">{item.code}</p>
                     {item.isAddedBySpecialist && <Badge className="mt-3 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+                    {item.isDisabled && <Badge variant="secondary" className="mt-3">Vô hiệu</Badge>}
                     {reviewerNote && <Badge variant="warning" className="mt-3">Yêu cầu chỉnh sửa</Badge>}
                     {result && (
                       <div className="mt-3 flex flex-wrap items-center gap-1">
@@ -2802,7 +2811,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           setSelectedCriterionId(item.id);
           setScoreEditOpen(true);
         }}
-        editDisabled={specialistActionsLocked || selectedCriterionRevisionLocked}
+        editDisabled={specialistActionsLocked || selectedCriterionRevisionLocked || selectedCriterion?.isDisabled}
         editDisabledReason={selectedCriterionLockReason}
       />
       <ScoreEditDialog

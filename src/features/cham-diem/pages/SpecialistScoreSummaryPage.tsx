@@ -93,7 +93,7 @@ function normalizeLocalityCode(submission: SubmissionApi) {
 function getTotals(submissions: SubmissionApi[]): ScoreTotals {
   return submissions.reduce<ScoreTotals>(
     (totals, submission) =>
-      submission.results.reduce<ScoreTotals>(
+      submission.results.filter((result) => result.criteriaStatus !== 'Deleted').reduce<ScoreTotals>(
         (resultTotals, result) => ({
           proposedScore: resultTotals.proposedScore + result.point,
           proposedBonus: resultTotals.proposedBonus + result.bonusPoint,
@@ -276,6 +276,7 @@ function LocalityCriteriaDialog({
                             <p className="mt-1 text-xs text-muted-foreground">
                               Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}
                             </p>
+                            {result.criteriaStatus === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
                           </TableCell>
                           <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
                           <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
