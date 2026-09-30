@@ -327,7 +327,7 @@ export default function BanLeaderReviewDetailPage() {
 
     <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm"><div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]">
       <div className="bg-card px-4 py-3.5 sm:col-span-2 xl:col-span-1"><p className="text-xs font-medium text-muted-foreground">Địa phương</p><p className="mt-1 truncate text-sm font-semibold">{localityName}</p></div>
-      <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Trạng thái</p><p className="mt-1 font-semibold text-primary">Chuyên viên đã duyệt</p></div>
+      <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Trạng thái</p><p className="mt-1 font-semibold text-primary">Chuyên viên trưởng đã duyệt</p></div>
       <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Đã chấm</p><p className="mt-1 text-base font-semibold tabular-nums">{resultItems.filter(({ result }) => result).length}<span className="text-sm font-normal text-muted-foreground"> / {criteria.length} tiêu chí</span></p></div>
       <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Điểm đề xuất</p><p className="mt-1 text-base font-semibold tabular-nums">{proposedScore}<span className="text-sm font-normal text-success"> / {maximumScore}</span></p></div>
       <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Điểm chuyên viên</p><p className="mt-1 text-base font-semibold tabular-nums">{specialistScore}<span className="text-sm font-normal text-success"> / {maximumScore}</span></p></div>
