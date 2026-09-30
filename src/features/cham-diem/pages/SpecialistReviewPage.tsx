@@ -2117,6 +2117,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const specialistActionsLocked = !specialistPermissions.canEdit || scorerRevisionScopeLoading;
   const specialistApproveLocked = !specialistPermissions.canApprove || scorerRevisionScopeLoading;
   const specialistRevisionLocked = !specialistPermissions.canRequestRevision;
+  const supplementaryAddLocked = !specialistPermissions.canAddSupplementary || scorerRevisionScopeLoading;
   const specialistLockReason = scorerRevisionScopeLoading
     ? 'Đang tải danh sách tiêu chí cần chỉnh sửa.'
     : specialistPermissions.disabledReason;
@@ -2218,7 +2219,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   };
 
   const openSupplementaryDialog = () => {
-    if (specialistActionsLocked) {
+    if (supplementaryAddLocked) {
       toast.info(specialistLockReason);
       return;
     }
@@ -2464,9 +2465,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <Edit3 className="size-4" />Sửa điểm
                 </Button>
                 <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
-                <Button variant="outline" onClick={openSupplementaryDialog} disabled={specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
               </>
             )}
+            {/* Reviewer không chấm điểm (canEdit=false) nhưng vẫn được thêm tiêu chí bổ sung khi hồ sơ đang ở bước của mình. */}
+            <Button variant="outline" onClick={openSupplementaryDialog} disabled={supplementaryAddLocked} disabledReason={supplementaryAddLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             {selectedCriterion && (
               <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
                 <AlertCircle className="size-4 text-warning" />Yêu cầu chỉnh sửa
@@ -2753,7 +2755,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         open={supplementaryOpen}
         onOpenChange={setSupplementaryOpen}
         onSave={async ({ name, reason, file }) => {
-          if (specialistActionsLocked) {
+          if (supplementaryAddLocked) {
             toast.info(specialistLockReason);
             return false;
           }

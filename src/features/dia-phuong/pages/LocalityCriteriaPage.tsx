@@ -468,22 +468,34 @@ export default function LocalityCriteriaPage() {
   const isRevisionStage = currentSubmissionStage === 'RequiresRevision';
   const revisionHistoriesQuery = useQuery({
     queryKey: ['locality-revision-histories', submission?.id],
-    queryFn: () => localityApi.listApprovalHistories(submission!.id, { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
     enabled: Boolean(submission?.id),
   });
 
-  const latestRevisionReason = useMemo(() => {
-    const items = revisionHistoriesQuery.data?.items ?? [];
-    const revisionItem = items.find((item) => item.action?.toLowerCase() === 'requestrevision');
-    return extractRevisionReason(revisionItem?.reason);
-  }, [revisionHistoriesQuery.data]);
+  // Sự kiện mở lại hồ sơ gần nhất: yêu cầu chỉnh sửa hoặc thêm tiêu chí bổ sung.
+  const latestReopenHistory = useMemo(() => (
+    (revisionHistoriesQuery.data?.items ?? []).find((item) => {
+      const action = item.action?.toLowerCase();
+      return action === 'requestrevision' || action === 'addsupplementarycriteria';
+    }) ?? null
+  ), [revisionHistoriesQuery.data]);
 
-  const latestSpecialistRevision = useMemo(() => (
-    (revisionHistoriesQuery.data?.items ?? []).find((item) => (
+  // Khi lần mở lại gần nhất chỉ là thêm tiêu chí bổ sung thì không mở lại các tiêu chí
+  // đã được yêu cầu chỉnh sửa ở vòng trước.
+  const latestReopenIsSupplementaryAdd = latestReopenHistory?.action?.toLowerCase() === 'addsupplementarycriteria';
+
+  const latestRevisionReason = useMemo(
+    () => extractRevisionReason(latestReopenHistory?.reason),
+    [latestReopenHistory],
+  );
+
+  const latestSpecialistRevision = useMemo(() => {
+    if (latestReopenIsSupplementaryAdd) return null;
+    return (revisionHistoriesQuery.data?.items ?? []).find((item) => (
       item.action?.toLowerCase() === 'requestrevision'
       && (item.stageLevel === 'LocalSubmitted' || item.stageLevel === 'ScorerRevisionRequested')
-    )) ?? null
-  ), [revisionHistoriesQuery.data]);
+    )) ?? null;
+  }, [revisionHistoriesQuery.data, latestReopenIsSupplementaryAdd]);
 
   const specialistRevisionReason = useMemo(
     () => extractRevisionReason(latestSpecialistRevision?.reason),
@@ -515,17 +527,31 @@ export default function LocalityCriteriaPage() {
     );
   }, [groupDetailQuery.data, submissionDetailQuery.data, submission?.id]);
 
-  // Khi hồ sơ ở RequiresRevision: chỉ cho nhập tiêu chí bổ sung + tiêu chí được yêu cầu chỉnh sửa.
+  // Chỉ tiêu chí bổ sung vừa được thêm ở lần mở lại gần nhất mới được nhập —
+  // tiêu chí bổ sung đã nộp ở vòng trước vẫn khóa.
+  const latestSupplementaryCriteriaId = useMemo(() => {
+    if (!latestReopenIsSupplementaryAdd) return null;
+    const latestResult = (submissionDetailQuery.data?.results ?? [])
+      .filter((result) => supplementaryCriteriaIds.has(result.criteriaId))
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0];
+    return latestResult?.criteriaId ?? null;
+  }, [latestReopenIsSupplementaryAdd, submissionDetailQuery.data, supplementaryCriteriaIds]);
+
+  // Khi hồ sơ ở RequiresRevision: chỉ cho sửa tiêu chí được yêu cầu chỉnh sửa,
+  // hoặc riêng tiêu chí bổ sung vừa thêm nếu lần mở lại gần nhất là thêm tiêu chí bổ sung.
   const revisionEditableCriteriaIds = useMemo<ReadonlySet<string> | null>(() => {
     if (!isRevisionStage) return null;
     // Yêu cầu chỉnh sửa không chỉ định tiêu chí (dữ liệu cũ) → cho phép sửa toàn bộ.
     if (latestSpecialistRevision && !specialistRevisionCriteriaIds) return null;
     const editableIds = new Set(specialistRevisionCriteriaIds ?? []);
-    supplementaryCriteriaIds.forEach((id) => editableIds.add(id));
+    if (latestReopenIsSupplementaryAdd) {
+      if (latestSupplementaryCriteriaId) editableIds.add(latestSupplementaryCriteriaId);
+      else supplementaryCriteriaIds.forEach((id) => editableIds.add(id));
+    }
     // Không có yêu cầu nào xác định phạm vi → giữ hành vi cũ (sửa tất cả).
     if (editableIds.size === 0) return null;
     return editableIds;
-  }, [isRevisionStage, latestSpecialistRevision, specialistRevisionCriteriaIds, supplementaryCriteriaIds]);
+  }, [isRevisionStage, latestSpecialistRevision, specialistRevisionCriteriaIds, supplementaryCriteriaIds, latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId]);
 
   const specialistRevisionReasons = useMemo(() => {
     const map = new Map<string, string>();
@@ -558,11 +584,14 @@ export default function LocalityCriteriaPage() {
     const nameByCriteriaId = new Map(detailCriteria.map((criterion) => [criterion.id, criterion.name]));
     return (evidenceFilesQuery.data ?? [])
       .filter((file) => file.category?.toLowerCase() === 'supplementary')
+      // Chỉ hiện file của tiêu chí bổ sung vừa được thêm ở lần mở lại gần nhất.
+      .filter((file) => !latestReopenIsSupplementaryAdd || !latestSupplementaryCriteriaId
+        || criteriaIdByResultId.get(file.entityId ?? '') === latestSupplementaryCriteriaId)
       .map((file) => {
         const criteriaId = file.entityId ? criteriaIdByResultId.get(file.entityId) : undefined;
         return { file, criteriaName: criteriaId ? nameByCriteriaId.get(criteriaId) : undefined };
       });
-  }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria]);
+  }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria, latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId]);
 
   // Mutations
   const submitPointsMutation = useMutation({
@@ -958,7 +987,7 @@ export default function LocalityCriteriaPage() {
           )}
         </div>
       )}
-      {supplementaryFiles.length > 0 && (
+      {isRevisionStage && latestReopenIsSupplementaryAdd && supplementaryFiles.length > 0 && (
         <div className="max-w-2xl space-y-2 rounded-md border border-info/40 bg-info/10 px-4 py-3 text-sm">
           <p className="font-medium text-info">Chuyên viên đã thêm tiêu chí bổ sung. Vui lòng nhập minh chứng cho tiêu chí bổ sung.</p>
           <div className="space-y-1">
