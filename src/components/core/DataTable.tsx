@@ -713,7 +713,6 @@ export function DataTable<TData, TValue = unknown>({
           )}
         </div>
       )}
-      {inlineFilters}
       {filters && (
         <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
           {filters}
@@ -726,6 +725,7 @@ export function DataTable<TData, TValue = unknown>({
           )}
         </FilterDropdown>
       )}
+      {inlineFilters}
       <div className={cn('ml-auto flex items-center gap-2', inlineFilters && 'flex-wrap justify-end')}>
         {!filters && showColumnVisibility && (
           <DropdownMenu>

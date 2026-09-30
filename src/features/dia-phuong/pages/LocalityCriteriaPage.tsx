@@ -70,8 +70,8 @@ interface LocalityCriteriaListRow extends CriteriaTable {
 }
 
 /** Nhãn + màu badge trạng thái hồ sơ (1 nguồn duy nhất để label và màu không lệch nhau):
- *  xám = chưa nộp/nháp · xanh dương = đã nộp, đang chờ · cam = cần chỉnh sửa · xanh lá = đã qua các cấp duyệt. */
-type SubmissionStageBadge = { label: string; variant: 'outline' | 'info' | 'warning' | 'success' };
+ *  xám = chưa nộp/nháp · xanh dương = đã nộp · cam = cần chỉnh sửa. */
+type SubmissionStageBadge = { label: string; variant: 'outline' | 'success' | 'warning' };
 function getSubmissionStageBadge(stage: SubmissionStage | null): SubmissionStageBadge {
   switch (stage) {
     case null:
@@ -80,7 +80,7 @@ function getSubmissionStageBadge(stage: SubmissionStage | null): SubmissionStage
     case 'LocalSubmitted':
     case 'ScorerRevisionRequested':
     case 'ReviewerRevisionRequested':
-      return { label: 'Đã nộp', variant: 'info' };
+      return { label: 'Đã nộp', variant: 'success' };
     case 'RequiresRevision':
       return { label: 'Yêu cầu chỉnh sửa', variant: 'warning' };
     default:
@@ -613,21 +613,18 @@ export default function LocalityCriteriaPage() {
 
   // ── List view ──────────────────────────────────────────────────────────────
   if (!id) {
-    if ((groupsQuery.isLoading && !groupSearch) || mySubmissionsQuery.isLoading) {
-      return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} /><PageLoading label="Đang tải danh sách tiêu chí…" /></div>;
-    }
     if ((groupsQuery.isError && !groupSearch) || mySubmissionsQuery.isError) {
       return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(groupsQuery.error ?? mySubmissionsQuery.error)} />;
     }
     return (
       <div className="space-y-5">
-        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} />
+        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" />
         {groupsQuery.isError && <p role="alert" className="text-sm text-destructive">Không tìm được nhóm tiêu chí. Vui lòng thử từ khóa khác.</p>}
         <DataTable
           data={filteredLocalityListRows}
           columns={localityListColumns}
           variant="list"
-          loading={groupsQuery.isFetching}
+          loading={groupsQuery.isFetching || mySubmissionsQuery.isLoading}
           getRowId={(row) => row.id}
           selectedRowId={selectedListTable?.id}
           searchable
@@ -657,6 +654,7 @@ export default function LocalityCriteriaPage() {
               />
             </>
           )}
+          inlineFilters={periodSelector}
           activeFilters={[
             ...(statusFilter ? [{
               label: 'Trạng thái',
