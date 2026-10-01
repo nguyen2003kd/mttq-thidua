@@ -7,7 +7,7 @@ import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/a
 import { getGetApiV1FilesQueryKey, getGetApiV1FilesBatchQueryKey } from '@/api/endpoints/files';
 import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
 import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
-import { ArrowDownToLine, ArrowLeft, Check, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, Check, Eye, FileText, History, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FilterSelect, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -640,7 +640,25 @@ export default function LocalityCriteriaPage() {
   // ── List view ──────────────────────────────────────────────────────────────
   if (!id) {
     if ((groupsQuery.isError && !groupSearch) || mySubmissionsQuery.isError) {
-      return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(groupsQuery.error ?? mySubmissionsQuery.error)} />;
+      const loadError = groupsQuery.error ?? mySubmissionsQuery.error;
+      return (
+        <div className="space-y-5">
+          <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} />
+          <section className="rounded-lg border border-border bg-card">
+            <EmptyState
+              variant="error"
+              title="Không tải được dữ liệu"
+              description="Hệ thống tạm thời gặp sự cố khi tải danh sách tiêu chí. Bạn vui lòng thử lại sau ít phút; nếu lỗi tiếp diễn, hãy liên hệ quản trị viên để được hỗ trợ."
+              action={(
+                <Button variant="outline" onClick={() => { groupsQuery.refetch(); mySubmissionsQuery.refetch(); }}>
+                  <RotateCcw className="size-4" />Thử lại
+                </Button>
+              )}
+            />
+            <p className="pb-6 text-center text-xs text-muted-foreground/70">Chi tiết kỹ thuật: {getLocalityApiError(loadError)}</p>
+          </section>
+        </div>
+      );
     }
     return (
       <div className="space-y-5">
@@ -714,7 +732,26 @@ export default function LocalityCriteriaPage() {
 
   // ── Detail view ────────────────────────────────────────────────────────────
   if (groupDetailQuery.isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
-  if (groupDetailQuery.isError) return <EmptyState title="Không tải được nhóm tiêu chí" description={getLocalityApiError(groupDetailQuery.error)} />;
+  if (groupDetailQuery.isError) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Chi tiết nhóm tiêu chí" description="Không thể hiển thị nội dung nhóm tiêu chí này." />
+        <section className="rounded-lg border border-border bg-card">
+          <EmptyState
+            variant="error"
+            title="Không tải được nhóm tiêu chí"
+            description="Hệ thống tạm thời gặp sự cố khi tải chi tiết nhóm tiêu chí. Bạn vui lòng thử lại sau ít phút; nếu lỗi tiếp diễn, hãy liên hệ quản trị viên để được hỗ trợ."
+            action={(
+              <Button variant="outline" onClick={() => { groupDetailQuery.refetch(); }}>
+                <RotateCcw className="size-4" />Thử lại
+              </Button>
+            )}
+          />
+          <p className="pb-6 text-center text-xs text-muted-foreground/70">Chi tiết kỹ thuật: {getLocalityApiError(groupDetailQuery.error)}</p>
+        </section>
+      </div>
+    );
+  }
 
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
