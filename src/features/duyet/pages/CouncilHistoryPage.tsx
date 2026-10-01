@@ -10,7 +10,7 @@ export default function CouncilHistoryPage() {
       title="Lịch sử thao tác"
       description="Các thay đổi do tài khoản của bạn thực hiện trong hệ thống."
       actions={
-        <Button variant="outline" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}>
+        <Button variant="back" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}>
           <ArrowLeft className="mr-1.5 size-4" />Quay lại danh sách
         </Button>
       }

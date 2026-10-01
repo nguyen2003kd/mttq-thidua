@@ -102,7 +102,7 @@ export default function KetQuaPage() {
   if (submissionsQuery.isError || groupsQuery.isError || submissionDetailsQueries.some((query) => query.isError)) return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error ?? submissionDetailsQueries.find((query) => query.error)?.error)} />;
 
   return <div className="mx-auto w-full max-w-[1600px] space-y-6 pb-8">
-    <PageHeader title={`Kết quả thi đua`} description="Điểm chính thức đã công bố theo nhóm tiêu chí và tiêu chí con." actions={<Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title={`Kết quả thi đua`} description="Điểm chính thức đã công bố theo nhóm tiêu chí và tiêu chí con." actions={<Button variant="back" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     {resultGroups.length === 0 ? <EmptyState title="Kết quả chưa được công bố" description="Điểm chính thức sẽ hiển thị tại đây sau khi Ban Thường trực công bố kết quả." icon={<FileCheck className="size-8" />} /> : <>
       <section className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-[1.15fr_1fr_1fr]" aria-label="Tổng quan kết quả">
         <div className="bg-card px-5 py-4"><p className="text-xs font-medium text-muted-foreground">Điểm tỉnh chấm</p><p className="mt-1 text-2xl font-semibold tabular-nums text-primary">{hasProvinceScore ? formatScore(totalProvinceScore) : '—'}</p></div>

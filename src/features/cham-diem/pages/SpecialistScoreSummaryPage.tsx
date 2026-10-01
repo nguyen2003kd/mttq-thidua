@@ -229,7 +229,7 @@ function LocalityCriteriaDialog({
         <div key={selectedSubmissionId ?? "groups"} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {selectedSubmission ? (
             <div className="space-y-4">
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedSubmissionId(null)}>
+              <Button type="button" variant="back" onClick={() => setSelectedSubmissionId(null)}>
                 <ArrowLeft className="size-4" />
                 Tất cả nhóm tiêu chí
               </Button>

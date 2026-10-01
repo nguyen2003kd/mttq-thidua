@@ -708,14 +708,14 @@ export function DataTable<TData, TValue = unknown>({
           <Input
             type="text"
             value={searchInput}
-            onChange={(e) => { setSearchInput(e.target.value); setPersistedSearch(e.target.value); }}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder={searchPlaceholder}
             className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
           />
           {searchInput && (
             <button
               type="button"
-              onClick={() => { setSearchInput(''); setPersistedSearch(''); }}
+              onClick={() => setSearchInput('')}
               aria-label="Xóa tìm kiếm"
               className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
             >

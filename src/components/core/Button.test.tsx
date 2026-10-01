@@ -10,4 +10,11 @@ describe('Button', () => {
     rerender(<Button hideWhen={false}>Xem</Button>);
     expect(screen.getByRole('button', { name: 'Xem' })).toBeInTheDocument();
   });
+
+  it('uses the raised primary treatment for back actions', () => {
+    render(<Button variant="back">Quay lại</Button>);
+    const button = screen.getByRole('button', { name: 'Quay lại' });
+
+    expect(button).toHaveClass('bg-primary', 'text-primary-foreground', 'border-b-[4px]');
+  });
 });

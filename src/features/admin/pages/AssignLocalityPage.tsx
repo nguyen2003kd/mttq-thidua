@@ -92,7 +92,7 @@ export default function AssignLocalityPage() {
         title={`Gán địa phương — ${table.name}`}
         description="Chọn từng địa phương hoặc áp dụng đồng loạt cho toàn bộ địa phương. Tệp đính kèm là không bắt buộc."
         actions={
-          <Button variant="outline" onClick={() => navigate(-1)}>
+          <Button variant="back" onClick={() => navigate(-1)}>
             <ArrowLeft /> Quay lại
           </Button>
         }

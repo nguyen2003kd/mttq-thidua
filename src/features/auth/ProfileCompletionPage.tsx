@@ -1,4 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,7 +8,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { ShieldCheck, UserRound, Phone } from 'lucide-react';
-import { Button } from '@/components/core';
+import { Button, PageLoading } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/constants/routes';
@@ -42,15 +43,40 @@ export default function ProfileCompletionPage() {
   const fullName = useAuthStore((s) => s.full_name);
   const phone = useAuthStore((s) => s.phone);
   const setStore = useAuthStore((s) => s.setStore);
-
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { fullName: fullName ?? '', phone: phone ?? '' },
+  const profileQuery = useQuery({
+    queryKey: getGetApiV1AuthProfileQueryKey(),
+    queryFn: () => profileApi.get(),
+    enabled: Boolean(user) && requiresCompletion !== false,
   });
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { fullName: profileQuery.data?.fullName ?? fullName ?? '', phone: profileQuery.data?.phone ?? phone ?? '' },
+  });
+
+  useEffect(() => {
+    const profile = profileQuery.data;
+    const currentUser = useAuthStore.getState().user;
+    if (!profile || !currentUser) return;
+    const needsCompletion = profileNeedsCompletion(profile);
+    setStore({
+      first_name: profile.firstName,
+      last_name: profile.lastName,
+      full_name: profile.fullName,
+      phone: profile.phone,
+      ward_code: profile.wardCode,
+      requires_profile_completion: needsCompletion,
+      user: { ...currentUser, name: profileDisplayName(profile), banId: profile.departmentId ?? undefined },
+    });
+    reset({ fullName: profile.fullName ?? '', phone: profile.phone ?? '' });
+  }, [profileQuery.data, reset, setStore]);
 
   if (!user) return <Navigate to={ROUTES.LOGIN} replace />;
   // Đã đủ thông tin (hoặc session cũ chưa check — ProfileGate sẽ đẩy lại nếu thiếu).
   if (requiresCompletion === false) return <Navigate to={defaultRouteForRole(user.role)} replace />;
+  if (profileQuery.isFetching || (profileQuery.data && !profileNeedsCompletion(profileQuery.data))) {
+    return <PageLoading label="Đang kiểm tra thông tin hồ sơ…" />;
+  }
 
   const onSubmit = async (values: FormValues) => {
     try {

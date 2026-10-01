@@ -42,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
@@ -1754,6 +1755,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     });
   }, [debouncedGroupSearch, groupPeriodFilter, groupSortFilter, groupStatusFilter, groupYearFilter, localityGroups, scoringRole, searchedGroupsQuery.data, submissionByGroup]);
 
+  const periodScopedGroupProgress = useMemo(
+    () => getSpecialistGroupProgress(localityGroups, groupPeriodFilter),
+    [groupPeriodFilter, localityGroups],
+  );
+
   const filteredLocalityRows = useMemo(() => {
     const keyword = debouncedLocalitySearch.trim().toLocaleLowerCase('vi');
     return localityRows.filter((row) => {
@@ -1931,9 +1937,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   }
 
   if (!nhomTieuChiId) {
-    const completedGroups = localityGroups.filter((group) => group.status === 'DA_CHAM').length;
-    const revisionGroups = localityGroups.filter((group) => group.hasModificationRequest).length;
-    const totalCount = localityGroups.length;
+    const { completedGroups, revisionGroups, totalCount } = periodScopedGroupProgress;
     const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
     const activeGroupFilters = [
@@ -1954,18 +1958,27 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           description="Xem tiến độ và thực hiện chấm điểm từng nhóm tiêu chí"
           actions={
             <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
-              <FilterSelect
-                label="Kỳ thi đua"
-                labelPosition="outside"
-                value={groupPeriodFilter}
-                onChange={(value) => {
-                  setGroupPeriodFilter(value);
-                  setSelectedGroupId(null);
-                }}
-                allLabel="Tất cả kỳ thi đua"
-                options={groupPeriodOptions}
-              />
-              <Button variant="outline" render={<Link to={basePath} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>
+              <div className="flex h-11 items-center rounded-lg border border-primary/25 bg-primary/[0.04] px-3">
+                <FilterSelect
+                  label="Kỳ thi đua"
+                  labelPosition="outside"
+                  value={groupPeriodFilter}
+                  onChange={(value) => {
+                    setGroupPeriodFilter(value);
+                    setSelectedGroupId(null);
+                  }}
+                  allLabel="Tất cả kỳ thi đua"
+                  options={groupPeriodOptions}
+                  className="border-primary/30 bg-card hover:border-primary/55"
+                />
+              </div>
+              <Button
+                variant="back"
+                render={<Link to={basePath} />}
+                nativeButton={false}
+              >
+                <ArrowLeft className="size-4" />Quay về
+              </Button>
             </div>
           }
         />
@@ -2434,7 +2447,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       <PageHeader
         title="Chi tiết chấm điểm kết quả tiêu chí"
         description={`${district.localityName} · ${selectedGroup.groupName}`}
-        actions={<Button variant="outline" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
+        actions={<Button variant="back" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
       />
 
       <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm">

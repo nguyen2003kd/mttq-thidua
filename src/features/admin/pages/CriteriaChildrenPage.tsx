@@ -223,7 +223,7 @@ export default function CriteriaChildrenPage() {
   };
   return <div className="flex min-h-full flex-col gap-5">
     <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/chuyen-vien/tieu-chi" className="hover:text-primary">Quản lý tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{group.name}</span></div>
-    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${pointValidation.childTotal}/${group.maxPoint} điểm`} actions={<Button variant="outline" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${pointValidation.childTotal}/${group.maxPoint} điểm`} actions={<Button variant="back" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     <div className="flex-1 space-y-4">
       {applyValidationMessage && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-sm text-danger">
