@@ -167,10 +167,9 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const [fEmail, setFEmail] = useState('');
   const [fUsername, setFUsername] = useState('');
   const [fFullName, setFFullName] = useState('');
-  const [fFirstName, setFFirstName] = useState('');
-  const [fLastName, setFLastName] = useState('');
   const [fPhone, setFPhone] = useState('');
-  const [fRole, setFRole] = useState('Scorer');
+  const [fRole, setFRole] = useState('');
+  const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
   const [eFirstName, setEFirstName] = useState('');
@@ -197,14 +196,16 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
+    if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
+    if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
+    if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
       email: fEmail.trim(),
       username: fUsername.trim() || null,
       fullName: fFullName.trim() || null,
-      firstName: fFirstName.trim() || null,
-      lastName: fLastName.trim() || null,
       phone: fPhone.trim() || null,
       role: fRole,
+      departmentId: fDepartment,
     }, {
       onError: (err) => toast.error(extractErrorMessage(err)),
     });
@@ -347,7 +348,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         }}
         toolbar={
           canCreateAccounts ? (
-            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFRole('Scorer'); setCreateOpen(true); }} action="create">
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
               <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
             </Button>
           ) : undefined
@@ -375,37 +376,42 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="u-full-name">Họ tên người đại diện</Label>
+          <Label htmlFor="u-full-name">Họ tên người đại diện <span className="text-destructive">*</span></Label>
           <Input id="u-full-name" value={fFullName} onChange={(e) => setFFullName(e.target.value)} placeholder="VD: Nguyễn Văn A — tên hiển thị chính" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-last-name">Họ</Label>
-            <Input id="u-last-name" value={fLastName} onChange={(e) => setFLastName(e.target.value)} placeholder="Nguyễn" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-first-name">Tên</Label>
-            <Input id="u-first-name" value={fFirstName} onChange={(e) => setFFirstName(e.target.value)} placeholder="Văn" />
-          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="u-phone">Số điện thoại</Label>
           <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="u-role">Vai trò</Label>
-          <Select
-            value={fRole}
-            onValueChange={(v) => setFRole(v ?? 'Scorer')}
-            itemToStringLabel={(role) => roleLabels[role] ?? 'Vai trò khác'}
-          >
-            <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CREATE_ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="u-role">Vai trò <span className="text-destructive">*</span></Label>
+            <Select
+              value={fRole}
+              onValueChange={(v) => setFRole(v ?? '')}
+              itemToStringLabel={(role) => roleLabels[role] ?? 'Vai trò khác'}
+            >
+              <SelectTrigger id="u-role"><SelectValue placeholder="Chọn vai trò" /></SelectTrigger>
+              <SelectContent>
+                {CREATE_ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="u-department">Ban <span className="text-destructive">*</span></Label>
+            <Select
+              value={fDepartment}
+              onValueChange={(v) => setFDepartment(v ?? '')}
+              itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban'}
+            >
+              <SelectTrigger id="u-department"><SelectValue placeholder="Chọn ban" /></SelectTrigger>
+              <SelectContent>
+                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">Mật khẩu khởi tạo sẽ lấy từ biến môi trường DEFAULT_PASSWORD.</p>
+        <p className="text-xs text-muted-foreground">Mật khẩu khởi tạo sẽ là <b>MTTQ@2026</b>.</p>
       </FormDialog>
 
       {/* Sửa tài khoản */}
