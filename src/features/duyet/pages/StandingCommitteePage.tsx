@@ -248,7 +248,7 @@ export default function StandingCommitteePage() {
           toolbar={
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedRow && <span className="mr-1 max-w-[220px] truncate text-xs text-muted-foreground">Đã chọn: {selectedRow.locality.name}</span>}
-              <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
+              <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
                 <Eye className="mr-1.5 h-4 w-4" />Xem hồ sơ
               </Button>
               <Button

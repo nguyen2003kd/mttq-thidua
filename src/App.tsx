@@ -1,4 +1,5 @@
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
 import { queryClient } from '@/api/mutator/query-client';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -108,7 +109,7 @@ function ProfileGate() {
   const setStore = useAuthStore((s) => s.setStore);
 
   const profileQuery = useQuery({
-    queryKey: ['auth-profile-gate'],
+    queryKey: getGetApiV1AuthProfileQueryKey(),
     queryFn: () => profileApi.get(),
     enabled: isSignedIn && requiresCompletion === null,
     staleTime: Infinity,

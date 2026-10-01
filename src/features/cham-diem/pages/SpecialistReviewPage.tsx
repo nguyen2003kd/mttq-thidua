@@ -738,6 +738,7 @@ function OfficialScoreRevisionDialog({
       return { items: [...scoreUpdate.items, ...leaderScoring.items].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) };
     },
     enabled: open && Boolean(result?.id),
+    staleTime: 0,
   });
 
   if (!result) return null;
@@ -803,6 +804,7 @@ function RevisionHistorySection({
     queryKey: ['specialist-approval-histories', submissionId],
     queryFn: () => localityApi.listApprovalHistories(submissionId, { page: 1, pageSize: 100 }),
     enabled: Boolean(submissionId),
+    staleTime: 0,
   });
   const approvalHistories = approvalHistoriesQuery.data?.items ?? [];
   const resultHistoriesQueries = useQueries({
@@ -1492,11 +1494,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     queryKey: ['specialist-submissions', { stage: activeSubmissionStage, includeUnsubmitted }],
     queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
     enabled: !isDetailRoute,
+    staleTime: 0,
   });
   const detailGroupSubmissionsQuery = useQuery({
     queryKey: ['specialist-group-submissions', nhomTieuChiId],
     queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
     enabled: isDetailRoute,
+    staleTime: 0,
   });
   const visibleSubmissionItems = useMemo(
     () => isDetailRoute
@@ -1596,11 +1600,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     queryKey: ['specialist-submission-detail', selectedSubmission?.id],
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(selectedSubmission?.id),
+    staleTime: 0,
   });
   const selectedForwardingHistoriesQuery = useQuery({
     queryKey: ['specialist-forwarding-histories', selectedSubmission?.id],
     queryFn: () => specialistApi.listApprovalHistories(selectedSubmission!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(selectedSubmission?.id),
+    staleTime: 0,
   });
   const selectedRevisionHistoriesQuery = useQuery({
     queryKey: ['specialist-revision-histories', selectedSubmission?.id],
@@ -1612,6 +1618,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       sortOrder: 'desc',
     }),
     enabled: Boolean(selectedSubmission?.id),
+    staleTime: 0,
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
     queryKey: ['specialist-legacy-forwarding-files', selectedSubmission?.id],
@@ -1812,6 +1819,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               />
               <Button
                 variant="info"
+                hideWhen={!selectedLocality}
                 disabled={!selectedLocality}
                 disabledReason="Chọn một địa phương trong bảng để xem hồ sơ."
                 onClick={() => selectedLocality && navigate(`${basePath}/${selectedLocality.localityId}`)}
@@ -2041,6 +2049,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               </FilterDropdown>
               <Button
                 variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
+                hideWhen={!selectedGroupRow}
                 disabled={!selectedGroupRow}
                 disabledReason="Chọn một nhóm tiêu chí trong bảng để xem hoặc chấm điểm."
                 onClick={() => selectedGroupRow && navigate(`${basePath}/${district.localityId}/${selectedGroupRow.id}`)}
@@ -2341,9 +2350,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     setSavingDraft(true);
     try {
       await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
+      const hasPendingAttachments = pendingScoreAttachments.size > 0;
       await uploadPendingScoreAttachments();
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
+        queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
+        ...items.map((item) => queryClient.invalidateQueries({ queryKey: ['specialist-result-histories', item.submissionResultId] })),
+        ...(hasPendingAttachments ? [queryClient.invalidateQueries({ queryKey: ['specialist-score-update-files'] })] : []),
+      ]);
       setScoreOverrides(new Map());
       toast.success('Đã lưu nháp điểm chấm.');
     } catch (error) {
@@ -2376,16 +2393,27 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       return;
     }
     try {
+      const items = specialistPermissions.canEdit ? buildScoreItems() : [];
+      const hasPendingAttachments = specialistPermissions.canEdit && pendingScoreAttachments.size > 0;
       if (specialistPermissions.canEdit) {
-        const items = buildScoreItems();
         if (items.length > 0) {
           await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
         }
         await uploadPendingScoreAttachments();
       }
       await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
+        queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-forwarding-histories', submission.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-approval-histories', submission.id] }),
+        queryClient.invalidateQueries({ queryKey: ['specialist-legacy-forwarding-files', submission.id] }),
+        ...items.map((item) => queryClient.invalidateQueries({ queryKey: ['specialist-result-histories', item.submissionResultId] })),
+        ...(hasPendingAttachments ? [queryClient.invalidateQueries({ queryKey: ['specialist-score-update-files'] })] : []),
+      ]);
       setScoreOverrides(new Map());
       toast.success(`Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
     } catch (error) {
@@ -2478,13 +2506,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'revision-note', label: isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa' },
               ]}
             />
-            <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
+            <Button variant="outline" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
               <Eye className="size-4" />Xem chi tiết
             </Button>
             {specialistPermissions.canEdit && (
               <>
                 <Button
                   variant="outline"
+                  hideWhen={!selectedCriterion}
                   disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || selectedCriterion.isDisabled || specialistActionsLocked || selectedCriterionRevisionLocked}
                   disabledReason={selectedCriterionLockReason}
                   onClick={() => setScoreEditOpen(true)}
@@ -2586,7 +2615,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="-ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                          className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
                           aria-expanded={historyExpanded}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -2808,8 +2837,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             }
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-group-detail'] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-group-detail', selectedGroup.id] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
+              queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
             ]);
             toast.success('Đã thêm tiêu chí bổ sung. Hồ sơ đã chuyển về địa phương để bổ sung.');
             return true;
@@ -2932,7 +2964,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             });
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-revision-histories', submission.id] }),
+              queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
+              queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
             ]);
             toast.success(`Đã gửi yêu cầu chỉnh sửa đến ${revisionTargetLabel}.`);
             return true;

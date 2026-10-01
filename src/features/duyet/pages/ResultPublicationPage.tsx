@@ -56,11 +56,13 @@ export default function ResultPublicationPage() {
     queryKey: ['result-publication-overview', periodId],
     queryFn: () => resultPublicationApi.getOverview(periodId),
     enabled: Boolean(periodId),
+    staleTime: 0,
   });
   const previewQuery = useQuery({
     queryKey: ['result-publication-preview', periodId],
     queryFn: () => resultPublicationApi.getPreview(periodId),
     enabled: previewOpen && Boolean(periodId),
+    staleTime: 0,
   });
 
   const closePreview = () => {

@@ -101,14 +101,12 @@ export default function CriteriaListPage() {
   const departmentsQuery = useQuery({
     queryKey: ['admin-departments-all'],
     queryFn: () => departmentsApi.listAll(),
-    staleTime: 60_000,
   });
   const departments = departmentsQuery.data ?? [];
 
   const periodsQuery = useQuery({
     queryKey: ['admin-periods-all'],
     queryFn: () => periodsApi.listAll(),
-    staleTime: 60_000,
   });
   const periods = periodsQuery.data ?? [];
   const activePeriods = periods.filter((period) => period.status === 'Active');
@@ -152,8 +150,12 @@ export default function CriteriaListPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => criteriaGroupsApi.delete(id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+    onSuccess: async (_deleted, id) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
+        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
+        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
+      ]);
       setSelectedTable(null);
       setDeleteOpen(false);
       toast.success('Đã xóa nhóm tiêu chí nháp.');
@@ -399,7 +401,13 @@ export default function CriteriaListPage() {
           toast.success('Đã tạo nhóm tiêu chí mới. Hãy thêm tiêu chí con trước khi áp dụng.');
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
+        ...(editingTable ? [
+          queryClient.invalidateQueries({ queryKey: ['criteria-group', editingTable.id] }),
+          queryClient.invalidateQueries({ queryKey: ['criteria', editingTable.id] }),
+        ] : []),
+      ]);
       setSelectedTable(null);
       setOpen(false);
       resetEditor();
@@ -539,13 +547,13 @@ export default function CriteriaListPage() {
               onChange={handleExcelFileChange}
             />
               <>
-                <Button disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>
+                <Button variant="warning" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
-                <Button variant="outline" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="outline" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
                 <Button
@@ -567,6 +575,7 @@ export default function CriteriaListPage() {
                 </Button>
                 <Button
                   variant="outline"
+                  hideWhen={!selectedTable}
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT' || deleteMutation.isPending}
                   disabledReason={
                     !selectedTable
@@ -733,7 +742,10 @@ export default function CriteriaListPage() {
                 toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
               }
             }
-            await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
+              queryClient.invalidateQueries({ queryKey: ['criteria-group', applyTable.id] }),
+            ]);
             setSelectedTable(null);
             setApplyTable(null);
             toast.success('Đã áp dụng nhóm tiêu chí cho các địa phương.');

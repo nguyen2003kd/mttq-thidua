@@ -64,12 +64,13 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
   const config = REVIEWER_CONFIG[reviewer];
   const localityCode = localityId?.startsWith('loc-') ? localityId.slice(4) : localityId ?? '';
   const groupQuery = useQuery({ queryKey: ['approval-detail-group', groupId], queryFn: () => specialistApi.getCriteriaGroup(groupId!), enabled: Boolean(groupId) });
-  const submissionsQuery = useQuery({ queryKey: ['approval-detail-submissions', reviewer, groupId, localityCode, config.visibleStages], queryFn: async () => { const pages = await Promise.all(config.visibleStages.map((stage) => specialistApi.listSubmissionsByGroup(groupId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }))); return pages.flatMap((page) => page.items).filter(isRealSubmission).find((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode) ?? null; }, enabled: Boolean(groupId && localityCode) });
-  const detailQuery = useQuery({ queryKey: ['approval-detail-submission', submissionsQuery.data?.id], queryFn: async () => { const data = await specialistApi.getSubmission(submissionsQuery.data!.id); return isRealSubmission(data) ? data : null; }, enabled: Boolean(submissionsQuery.data?.id) });
+  const submissionsQuery = useQuery({ queryKey: ['approval-detail-submissions', reviewer, groupId, localityCode, config.visibleStages], queryFn: async () => { const pages = await Promise.all(config.visibleStages.map((stage) => specialistApi.listSubmissionsByGroup(groupId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }))); return pages.flatMap((page) => page.items).filter(isRealSubmission).find((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode) ?? null; }, enabled: Boolean(groupId && localityCode), staleTime: 0 });
+  const detailQuery = useQuery({ queryKey: ['approval-detail-submission', submissionsQuery.data?.id], queryFn: async () => { const data = await specialistApi.getSubmission(submissionsQuery.data!.id); return isRealSubmission(data) ? data : null; }, enabled: Boolean(submissionsQuery.data?.id), staleTime: 0 });
   const approvalHistoriesQuery = useQuery({
     queryKey: ['approval-detail-forwarding-histories', submissionsQuery.data?.id],
     queryFn: () => specialistApi.listApprovalHistories(submissionsQuery.data!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(submissionsQuery.data?.id),
+    staleTime: 0,
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
     queryKey: ['approval-detail-legacy-specialist-forwarding-files', submissionsQuery.data?.id],

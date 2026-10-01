@@ -48,10 +48,11 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
     enabled: editOpen || createOpen,
   });
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin-clusters'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin-cluster-available-wards'] });
-  };
+  const invalidateClusters = () => queryClient.invalidateQueries({ queryKey: ['admin-clusters'] });
+  const invalidateClusterWards = () => Promise.all([
+    invalidateClusters(),
+    queryClient.invalidateQueries({ queryKey: ['admin-cluster-available-wards'] }),
+  ]);
 
   const createMutation = useMutation({
     mutationFn: async (payload: { name: string; description?: string | null; wardCodes: string[] }) => {
@@ -62,7 +63,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       const failed = results.filter((r) => r.status === 'rejected').length;
       return { created, failed };
     },
-    onSuccess: ({ failed }) => {
+    onSuccess: async ({ failed }) => {
       if (failed > 0) {
         toast.warning(`Đã tạo cụm, nhưng ${failed} phường/xã không gán được.`);
       } else {
@@ -70,7 +71,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       }
       setCreateOpen(false);
       setFWardCodes([]);
-      invalidate();
+      await invalidateClusterWards();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -78,21 +79,21 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: { name: string; description?: string | null } }) =>
       clustersApi.update(id, payload),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       toast.success('Đã cập nhật cụm');
       setSelected(updated);
-      invalidate();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => clustersApi.remove(id),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Đã xóa cụm');
       setDeleteOpen(false);
       setSelected(null);
-      invalidate();
+      await invalidateClusterWards();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -100,11 +101,11 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const assignMutation = useMutation({
     mutationFn: ({ clusterId, wardCode }: { clusterId: string; wardCode: string }) =>
       clustersApi.assignWard(clusterId, wardCode),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       toast.success('Đã thêm phường/xã vào cụm');
       setSelected(updated);
       setAssignWardCode('');
-      invalidate();
+      await invalidateClusterWards();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -112,7 +113,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const removeWardMutation = useMutation({
     mutationFn: ({ clusterId, wardCode }: { clusterId: string; wardCode: string }) =>
       clustersApi.removeWard(clusterId, wardCode),
-    onSuccess: (_res, vars) => {
+    onSuccess: async (_res, vars) => {
       toast.success('Đã gỡ phường/xã khỏi cụm');
       if (selected) {
         setSelected({
@@ -121,7 +122,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
           wards: selected.wards.filter((w) => w.wardCode !== vars.wardCode),
         });
       }
-      invalidate();
+      await invalidateClusterWards();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
