@@ -44,6 +44,7 @@ const ACTION_LABELS_VI: Record<string, string> = {
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
+  ResubmitAfterRevision: 'Nộp lại sau chỉnh sửa',
 };
 
 // Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
@@ -116,6 +117,7 @@ function SubmissionHistoryEntry({ item }: { item: SubmissionHistoryItem }) {
             item.action === 'RequestRevision' && 'bg-destructive/10 text-destructive',
             item.action === 'UpdateScore' && 'bg-info/10 text-info',
             item.action === 'Approve' && 'bg-success/10 text-success',
+            item.action === 'ResubmitAfterRevision' && 'bg-info/10 text-info',
             !item.action && 'bg-muted text-muted-foreground',
           )}>
             {actionLabel}
