@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1SubmissionResultsResultIdHistoriesQueryKey, getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ChevronDown, ChevronRight, FileText, Paperclip } from 'lucide-react';
 import { AppDialog, AuditTimeline, FilePreviewDialog } from '@/components/core';
 import type { AuditEntry } from '@/types/domain';
@@ -177,7 +180,7 @@ function ResultHistorySection({ resultId, criteriaName, enabled }: { resultId: s
   const [expanded, setExpanded] = useState(false);
 
   const historiesQuery = useQuery({
-    queryKey: ['locality-result-histories', resultId],
+    queryKey: dataQueryKey(getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(resultId), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listResultHistories(resultId, { page: 1, pageSize: 100 }),
     enabled: enabled && expanded,
   });
@@ -230,7 +233,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
 
   const historiesQuery = useQuery({
-    queryKey: ['locality-approval-histories', submission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission?.id ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 100 }),
     enabled: open && hasSubmission,
   });
@@ -238,7 +241,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
   // File đính kèm của yêu cầu chỉnh sửa: file mới gắn vào ApprovalHistory (history.files),
   // file cũ (legacy) gắn vào Submission với category = revision-attachment.
   const revisionFilesQuery = useQuery({
-    queryKey: ['locality-revision-files-history', submission?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: submission?.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
     enabled: open && hasSubmission,
   });

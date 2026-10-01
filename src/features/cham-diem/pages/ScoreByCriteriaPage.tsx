@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -62,21 +65,20 @@ export default function ScoreByCriteriaPage() {
   const [groupSearch, setGroupSearch] = useState(initialSearch);
 
   const groupsQuery = useQuery({
-    queryKey: ['score-criteria-groups', groupSearch],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', search: groupSearch || undefined, page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ search: groupSearch || undefined, page: 1, pageSize: 100 }),
     enabled: !groupId,
   });
   const groupQuery = useQuery({
-    queryKey: ['score-criteria-group', groupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(groupId ?? '')),
     queryFn: () => specialistApi.getCriteriaGroup(groupId!),
     enabled: Boolean(groupId),
     retry: false,
   });
   const submissionsQuery = useQuery({
-    queryKey: ['score-group-submissions', groupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(groupId ?? ''), 'all'),
     queryFn: () => listEverySubmissionByGroup(groupId!),
     enabled: Boolean(groupId) && groupQuery.isSuccess,
-    staleTime: 0,
   });
 
   const groupColumns = useMemo<ColumnDef<CriteriaGroupApi>[]>(() => [

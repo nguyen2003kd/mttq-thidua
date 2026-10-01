@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } from '@/api/endpoints/departments';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
@@ -132,7 +136,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const debouncedSearch = useDebounce(search, 350);
 
   const usersQuery = useQuery({
-    queryKey: ['admin-users', { search: debouncedSearch, statusFilter, roleFilter }],
+    queryKey: dataQueryKey(getGetApiV1UsersQueryKey(), { search: debouncedSearch.trim(), status: statusFilter, role: roleFilter, page: 1, pageSize: 100 }),
     queryFn: async () => {
       const raw = await getApiV1Users({
         Search: debouncedSearch.trim() || undefined,
@@ -151,15 +155,20 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   );
 
   const departmentsQuery = useQuery({
-    queryKey: ['admin-departments-all'],
+    queryKey: dataQueryKey(getGetApiV1DepartmentsAllQueryKey()),
     queryFn: () => departmentsApi.listAll(),
   });
   const departments = departmentsQuery.data ?? [];
 
-  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); } });
-  const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
+  const invalidateAccounts = () => invalidateQueryResources(queryClient, [
+    getGetApiV1UsersQueryKey(),
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
+  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: async () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); await invalidateAccounts(); } });
+  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: async () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); await invalidateAccounts(); } });
+  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: async () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); await invalidateQueryResources(queryClient, [getGetApiV1UsersQueryKey(), getGetApiV1AuditLogsQueryKey()]); } });
+  const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: async () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); await invalidateAccounts(); } });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

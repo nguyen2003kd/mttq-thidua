@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -50,8 +53,8 @@ export default function CommitteeCriteriaGroupsPage() {
   const { localityId } = useParams<{ localityId?: string }>();
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<CommitteeCriteriaGroupRow | null>(null);
-  const submissionsQuery = useQuery({ queryKey: ['committee-submissions', { stage: COMMITTEE_STAGE }], queryFn: listEveryCommitteeSubmission, staleTime: 0 });
-  const groupsQuery = useQuery({ queryKey: ['committee-criteria-groups'], queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }) });
+  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'committee-groups', stages: COMMITTEE_VISIBLE_STAGES }), queryFn: listEveryCommitteeSubmission });
+  const groupsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }), queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }) });
   const localityCode = localityId ? getLocalityCode(localityId) : '';
   const submissions = useMemo(() => (submissionsQuery.data?.items ?? []).filter((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode), [localityCode, submissionsQuery.data]);
   const groups = useMemo(() => new Map((groupsQuery.data?.items ?? []).map((group) => [group.id, group])), [groupsQuery.data]);

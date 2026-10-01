@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 // import { useQueryClient } from '@tanstack/react-query'; // tạm ẩn cùng các thao tác duyệt của Hội đồng
 import { Eye, /* MessageSquare, */ Search } from 'lucide-react';
 // import { History } from 'lucide-react'; // tạm ẩn cùng nút Lịch sử duyệt
@@ -95,13 +98,12 @@ export default function CouncilApprovalPage() {
   const [actionPending] = useState(false); // setter tạm ẩn cùng các thao tác duyệt của Hội đồng
 
   const submissionsQuery = useQuery({
-    queryKey: ['council-submissions', { includeUnsubmitted: true }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: listEveryCouncilSubmission,
-    staleTime: 0,
   });
 
   const groupsQuery = useQuery({
-    queryKey: ['council-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
 

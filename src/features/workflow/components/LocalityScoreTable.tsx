@@ -100,9 +100,15 @@ interface ExplanationDialogProps {
 function ExplanationDialog({ open, onOpenChange, criterionName, value, onConfirm }: ExplanationDialogProps) {
   const [content, setContent] = useState('');
   const [error, setError] = useState('');
+  const initialized = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initialized.current = false;
+      return;
+    }
+    if (initialized.current) return;
+    initialized.current = true;
     setContent(value);
     setError('');
   }, [open, value]);
@@ -162,6 +168,10 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const [scoreError, setScoreError] = useState('');
   const [bonusScoreError, setBonusScoreError] = useState('');
   const [explanationDialogOpen, setExplanationDialogOpen] = useState(false);
+  const sourceValues = useRef<{
+    score: string; bonusScore: string; explanation: string; files: File[];
+    draft?: EvidenceFormValue; scoreFieldsLocked: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const proposedScore = scoreFieldsLocked
@@ -170,10 +180,22 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     const proposedBonusScore = scoreFieldsLocked
       ? entry?.proposedBonusScore
       : draft?.proposedBonusScore ?? entry?.proposedBonusScore;
-    setScore(proposedScore?.toString() ?? '');
-    setBonusScore(proposedBonusScore?.toString() ?? '0');
-    setExplanation(draft?.explanation ?? entry?.explanation ?? '');
-    setSelectedFiles(draft?.files ?? []);
+    const next = {
+      score: proposedScore?.toString() ?? '',
+      bonusScore: proposedBonusScore?.toString() ?? '0',
+      explanation: draft?.explanation ?? entry?.explanation ?? '',
+      files: draft?.files ?? [],
+      draft,
+      scoreFieldsLocked,
+    };
+    const previous = sourceValues.current;
+    const replace = !previous || previous.draft !== draft || previous.scoreFieldsLocked !== scoreFieldsLocked;
+    // Background REST/SSE updates may refresh untouched fields, never unsaved input.
+    setScore((current) => replace || current === previous?.score ? next.score : current);
+    setBonusScore((current) => replace || current === previous?.bonusScore ? next.bonusScore : current);
+    setExplanation((current) => replace || current === previous?.explanation ? next.explanation : current);
+    setSelectedFiles((current) => replace || current === previous?.files ? next.files : current);
+    sourceValues.current = next;
     setExplanationError('');
     setEvidenceError('');
     setScoreError('');

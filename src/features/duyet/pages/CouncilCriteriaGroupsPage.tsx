@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -48,12 +51,11 @@ export default function CouncilCriteriaGroupsPage() {
   const [selectedRow, setSelectedRow] = useState<CouncilCriteriaGroupRow | null>(null);
 
   const submissionsQuery = useQuery({
-    queryKey: ['council-submissions', { stage: COUNCIL_STAGE }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'council-groups', stages: COUNCIL_VISIBLE_STAGES }),
     queryFn: listEveryCouncilSubmission,
-    staleTime: 0,
   });
   const groupsQuery = useQuery({
-    queryKey: ['council-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
 

@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +24,7 @@ const PERIOD_STATUS_STYLES: Record<PeriodStatusApi, string> = {
 export default function CriteriaPeriodSelectionPage() {
   const navigate = useNavigate();
   const periodsQuery = useQuery({
-    queryKey: ['admin-periods-all'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const periods = periodsQuery.data ?? [];

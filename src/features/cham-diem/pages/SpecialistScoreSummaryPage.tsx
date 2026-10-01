@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { apiQueryKey, dataQueryKey } from '@/api/mutator/query-keys';
 import {
   Award,
   ArrowLeft,
@@ -74,12 +77,18 @@ function normalizeWardCode(code: string) {
   return code.trim().replace(/^loc-/i, "").toLowerCase();
 }
 
-async function listClustersWithWards() {
-  const clusters = await clustersApi.list();
+async function listClustersWithWards(queryClient: QueryClient) {
+  const clusters = await queryClient.fetchQuery({
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' })),
+    queryFn: () => clustersApi.list(),
+  });
   // Một số response danh sách chỉ có wardCount; lấy detail khi thiếu danh sách xã/phường.
   return Promise.all(clusters.map((cluster) =>
     (cluster.wards?.length ?? 0) < cluster.wardCount
-      ? clustersApi.get(cluster.id)
+      ? queryClient.fetchQuery({
+        queryKey: dataQueryKey(apiQueryKey({}, { url: `/api/v1/clusters/${cluster.id}` })),
+        queryFn: () => clustersApi.get(cluster.id),
+      })
       : cluster,
   ));
 }
@@ -201,10 +210,9 @@ function LocalityCriteriaDialog({
     ? selectedSubmission.criteriaGroupName?.trim() || "Nhóm tiêu chí " + (selectedGroupIndex + 1)
     : null;
   const detailQuery = useQuery({
-    queryKey: ["specialist-score-summary-submission-detail", selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(locality && selectedSubmission),
-    staleTime: 0,
   });
 
   const closeDialog = () => {
@@ -421,6 +429,7 @@ function ResultSummary({
 
 /** Bảng tổng hợp điểm toàn tỉnh của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
 export default function SpecialistScoreSummaryPage({ readOnly = false }: { readOnly?: boolean }) {
+  const queryClient = useQueryClient();
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const { filters: { periodFilter }, setters: { periodFilter: setPeriodFilter } } = useQueryFilters({ periodFilter: '' });
@@ -428,18 +437,17 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
   const periodsQuery = useQuery({
-    queryKey: ["specialist-score-summary-periods"],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const periods = periodsQuery.data ?? [];
   const submissionsQuery = useQuery({
-    queryKey: ["specialist-score-summary-submissions", periodFilter],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: periodFilter || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(periodFilter || undefined),
-    staleTime: 0,
   });
   const clustersQuery = useQuery({
-    queryKey: ["specialist-score-summary-clusters"],
-    queryFn: listClustersWithWards,
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' }), 'with-wards'),
+    queryFn: () => listClustersWithWards(queryClient),
   });
   const clusters = useMemo(
     () => [...(clustersQuery.data ?? [])].sort((left, right) =>

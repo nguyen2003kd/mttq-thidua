@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronRight, FileCheck, ListTree, MapPin, Trophy } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { Button, EmptyState, PageHeader, PageLoading } from '@/components/core';
@@ -65,15 +68,15 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
 export default function KetQuaPage() {
   const localityId = useAuthStore((state) => state.user?.localityId);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const submissionsQuery = useQuery({ queryKey: ['locality-result-submissions', localityId], queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), enabled: Boolean(localityId) });
-  const groupsQuery = useQuery({ queryKey: ['locality-result-criteria-groups'], queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }), enabled: Boolean(localityId) });
+  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), enabled: Boolean(localityId) });
+  const groupsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }), queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }), enabled: Boolean(localityId) });
   const publishedSubmissionIds = useMemo(
     () => (submissionsQuery.data?.items ?? []).filter((submission) => submission.currentStage === 'CommitteeFinalized').map((submission) => submission.id),
     [submissionsQuery.data?.items],
   );
   const submissionDetailsQueries = useQueries({
     queries: publishedSubmissionIds.map((submissionId) => ({
-      queryKey: ['locality-result-submission-detail', submissionId],
+      queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submissionId)),
       queryFn: () => localityApi.getSubmission(submissionId),
       enabled: Boolean(submissionId),
     })),

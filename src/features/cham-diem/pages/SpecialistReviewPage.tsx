@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey, getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1SubmissionResultsResultIdHistoriesQueryKey, getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
@@ -651,7 +656,7 @@ function CriterionHistoryPanel({
   currentExplanation: string | null;
 }) {
   const historiesQuery = useQuery({
-    queryKey: ['specialist-result-histories', resultId],
+    queryKey: dataQueryKey(getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(resultId ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listResultHistories(resultId!, { page: 1, pageSize: 100 }),
     enabled: Boolean(resultId),
   });
@@ -718,7 +723,7 @@ function OfficialScoreRevisionDialog({
   criterionLabel: string;
 }) {
   const scoreUpdateFilesQuery = useQuery({
-    queryKey: ['specialist-score-update-files', result?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), 'score-revisions', result?.id),
     queryFn: async () => {
       const [scoreUpdate, leaderScoring] = await Promise.all([
         filesApi.list({
@@ -739,7 +744,6 @@ function OfficialScoreRevisionDialog({
       return { items: [...scoreUpdate.items, ...leaderScoring.items].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)) };
     },
     enabled: open && Boolean(result?.id),
-    staleTime: 0,
   });
 
   if (!result) return null;
@@ -802,15 +806,14 @@ function RevisionHistorySection({
   const [expanded, setExpanded] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const approvalHistoriesQuery = useQuery({
-    queryKey: ['specialist-approval-histories', submissionId],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submissionId), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(submissionId, { page: 1, pageSize: 100 }),
     enabled: Boolean(submissionId),
-    staleTime: 0,
   });
   const approvalHistories = approvalHistoriesQuery.data?.items ?? [];
   const resultHistoriesQueries = useQueries({
     queries: results.map((result) => ({
-      queryKey: ['specialist-result-histories', result.id],
+      queryKey: dataQueryKey(getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(result.id), { page: 1, pageSize: 100 }),
       queryFn: () => localityApi.listResultHistories(result.id, { page: 1, pageSize: 100 }),
       enabled: expanded,
     })),
@@ -1308,9 +1311,15 @@ function ScoreEditDialog({
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentChanged, setAttachmentChanged] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const initializedItem = useRef<string | null>(null);
 
   useEffect(() => {
-    if (item && open) {
+    if (!open) {
+      initializedItem.current = null;
+      return;
+    }
+    if (item && initializedItem.current !== item.id) {
+      initializedItem.current = item.id;
       form.reset({
         score: item.officialScore ?? item.proposedScore,
         bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
@@ -1492,16 +1501,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   // vẫn xuất hiện. Trang chi tiết chỉ tải submissions thuộc nhóm đang xem.
   const includeUnsubmitted = !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
-    queryKey: ['specialist-submissions', { stage: activeSubmissionStage, includeUnsubmitted }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', stage: activeSubmissionStage || undefined, includeUnsubmitted: includeUnsubmitted || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
     enabled: !isDetailRoute,
-    staleTime: 0,
   });
   const detailGroupSubmissionsQuery = useQuery({
-    queryKey: ['specialist-group-submissions', nhomTieuChiId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(nhomTieuChiId ?? ''), 'all'),
     queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
     enabled: isDetailRoute,
-    staleTime: 0,
   });
   const visibleSubmissionItems = useMemo(
     () => isDetailRoute
@@ -1510,11 +1517,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
   );
   const groupsQuery = useQuery({
-    queryKey: ['specialist-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
   const searchedGroupsQuery = useQuery({
-    queryKey: ['specialist-criteria-groups-search', debouncedGroupSearch],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', search: debouncedGroupSearch, page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ search: debouncedGroupSearch, page: 1, pageSize: 100 }),
     enabled: Boolean(diaPhuongId && !nhomTieuChiId && debouncedGroupSearch),
   });
@@ -1592,25 +1599,23 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   );
 
   const selectedGroupDetailQuery = useQuery({
-    queryKey: ['specialist-group-detail', nhomTieuChiId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(nhomTieuChiId ?? '')),
     queryFn: () => specialistApi.getCriteriaGroup(nhomTieuChiId!),
     enabled: Boolean(nhomTieuChiId),
   });
 
   const selectedSubmissionDetailQuery = useQuery({
-    queryKey: ['specialist-submission-detail', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(selectedSubmission?.id),
-    staleTime: 0,
   });
   const selectedForwardingHistoriesQuery = useQuery({
-    queryKey: ['specialist-forwarding-histories', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(selectedSubmission?.id ?? ''), { action: 'Approve', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listApprovalHistories(selectedSubmission!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(selectedSubmission?.id),
-    staleTime: 0,
   });
   const selectedRevisionHistoriesQuery = useQuery({
-    queryKey: ['specialist-revision-histories', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(selectedSubmission?.id ?? ''), { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => localityApi.listApprovalHistories(selectedSubmission!.id, {
       action: 'RequestRevision',
       page: 1,
@@ -1619,12 +1624,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       sortOrder: 'desc',
     }),
     enabled: Boolean(selectedSubmission?.id),
-    staleTime: 0,
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
-    queryKey: ['specialist-legacy-forwarding-files', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: selectedSubmission?.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: selectedSubmission!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
-    enabled: Boolean(selectedSubmission?.id),
+    enabled: Boolean(selectedSubmission?.id) && selectedForwardingHistoriesQuery.isSuccess
+      && !selectedForwardingHistoriesQuery.data?.items.find((history) => history.stageLevel === 'LocalSubmitted')?.files?.length,
   });
 
   const selectedGroup: SpecialistCriteriaGroup | undefined = useMemo(() => {
@@ -2345,6 +2350,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     }
   };
 
+  const refreshSubmissionData = (criteriaChanged = false) => invalidateQueryResources(queryClient, [
+    getGetApiV1SubmissionsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/submission-results' }),
+    getGetApiV1FilesQueryKey(),
+    ...(criteriaChanged ? [getGetApiV1CriteriaGroupsQueryKey()] : []),
+  ]);
+
   const saveDraftScores = async () => {
     if (specialistActionsLocked) {
       toast.info(specialistLockReason);
@@ -2361,22 +2373,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       return;
     }
     setSavingDraft(true);
+    let serverChanged = false;
     try {
       await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
-      const hasPendingAttachments = pendingScoreAttachments.size > 0;
+      serverChanged = true;
       await uploadPendingScoreAttachments();
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
-        ...items.map((item) => queryClient.invalidateQueries({ queryKey: ['specialist-result-histories', item.submissionResultId] })),
-        ...(hasPendingAttachments ? [queryClient.invalidateQueries({ queryKey: ['specialist-score-update-files'] })] : []),
-      ]);
+      await refreshSubmissionData();
+      serverChanged = false;
       setScoreOverrides(new Map());
       toast.success('Đã lưu nháp điểm chấm.');
     } catch (error) {
+      if (serverChanged) await refreshSubmissionData();
       toast.error('Không lưu được bản nháp điểm chấm.', { description: getFilesApiError(error) });
     } finally {
       setSavingDraft(false);
@@ -2405,31 +2412,25 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.');
       return;
     }
+    let serverChanged = false;
     try {
       const items = specialistPermissions.canEdit ? buildScoreItems() : [];
-      const hasPendingAttachments = specialistPermissions.canEdit && pendingScoreAttachments.size > 0;
       if (specialistPermissions.canEdit) {
         if (items.length > 0) {
           await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
+          serverChanged = true;
         }
+        serverChanged ||= pendingScoreAttachments.size > 0;
         await uploadPendingScoreAttachments();
       }
       await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-forwarding-histories', submission.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-approval-histories', submission.id] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-legacy-forwarding-files', submission.id] }),
-        ...items.map((item) => queryClient.invalidateQueries({ queryKey: ['specialist-result-histories', item.submissionResultId] })),
-        ...(hasPendingAttachments ? [queryClient.invalidateQueries({ queryKey: ['specialist-score-update-files'] })] : []),
-      ]);
+      serverChanged = true;
+      await refreshSubmissionData();
+      serverChanged = false;
       setScoreOverrides(new Map());
       toast.success(`Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
     } catch (error) {
+      if (serverChanged) await refreshSubmissionData();
       toast.error(`Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
       throw error;
     }
@@ -2834,12 +2835,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             return false;
           }
 
+          let serverChanged = false;
           try {
             const response = await specialistApi.addSupplementaryCriteria({
               submissionId: submission.id,
               content: name.trim(),
               note: reason.trim(),
             });
+            serverChanged = true;
             if (file) {
               await filesApi.upload(file, {
                 displayName: file.name,
@@ -2848,17 +2851,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 category: 'supplementary',
               });
             }
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-group-detail', selectedGroup.id] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
-            ]);
+            await refreshSubmissionData(true);
+            serverChanged = false;
             toast.success('Đã thêm tiêu chí bổ sung. Hồ sơ đã chuyển về địa phương để bổ sung.');
             return true;
           } catch (error) {
+            if (serverChanged) await refreshSubmissionData(true);
             toast.error('Không thể thêm tiêu chí bổ sung.', { description: getFilesApiError(error) });
             return false;
           }
@@ -2975,14 +2973,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               submissionResultIds: selectedResultIds,
               file: attachment,
             });
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-group-submissions', selectedGroup.id] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail', submission.id] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-revision-histories', submission.id] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['score-group-submissions', selectedGroup.id] }),
-            ]);
+            await refreshSubmissionData();
             toast.success(`Đã gửi yêu cầu chỉnh sửa đến ${revisionTargetLabel}.`);
             return true;
           } catch (error) {

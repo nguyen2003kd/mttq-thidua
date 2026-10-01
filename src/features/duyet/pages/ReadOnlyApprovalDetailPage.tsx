@@ -4,6 +4,11 @@ import { ArrowLeft, Download, Eye, FileText, History } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 // import { useNavigate } from 'react-router-dom'; // tạm ẩn cùng nút duyệt của Hội đồng
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 // import { useQueryClient } from '@tanstack/react-query'; // tạm ẩn cùng nút duyệt của Hội đồng
 import { toast } from 'sonner';
 import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TableColumnVisibility, TruncatedText } from '@/components/core';
@@ -63,24 +68,27 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const config = REVIEWER_CONFIG[reviewer];
   const localityCode = localityId?.startsWith('loc-') ? localityId.slice(4) : localityId ?? '';
-  const groupQuery = useQuery({ queryKey: ['approval-detail-group', groupId], queryFn: () => specialistApi.getCriteriaGroup(groupId!), enabled: Boolean(groupId) });
-  const submissionsQuery = useQuery({ queryKey: ['approval-detail-submissions', reviewer, groupId, localityCode, config.visibleStages], queryFn: async () => { const pages = await Promise.all(config.visibleStages.map((stage) => specialistApi.listSubmissionsByGroup(groupId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }))); return pages.flatMap((page) => page.items).filter(isRealSubmission).find((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode) ?? null; }, enabled: Boolean(groupId && localityCode), staleTime: 0 });
-  const detailQuery = useQuery({ queryKey: ['approval-detail-submission', submissionsQuery.data?.id], queryFn: async () => { const data = await specialistApi.getSubmission(submissionsQuery.data!.id); return isRealSubmission(data) ? data : null; }, enabled: Boolean(submissionsQuery.data?.id), staleTime: 0 });
+  const groupQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(groupId ?? '')), queryFn: () => specialistApi.getCriteriaGroup(groupId!), enabled: Boolean(groupId) });
+  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(groupId ?? ''), { view: 'approval-submission', reviewer, localityCode, stages: config.visibleStages }), queryFn: async () => { const pages = await Promise.all(config.visibleStages.map((stage) => specialistApi.listSubmissionsByGroup(groupId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }))); return pages.flatMap((page) => page.items).filter(isRealSubmission).find((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode) ?? null; }, enabled: Boolean(groupId && localityCode) });
+  const detailQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submissionsQuery.data?.id ?? '')), queryFn: () => specialistApi.getSubmission(submissionsQuery.data!.id), select: (data) => isRealSubmission(data) ? data : null, enabled: Boolean(submissionsQuery.data?.id) });
   const approvalHistoriesQuery = useQuery({
-    queryKey: ['approval-detail-forwarding-histories', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submissionsQuery.data?.id ?? ''), { action: 'Approve', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listApprovalHistories(submissionsQuery.data!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(submissionsQuery.data?.id),
-    staleTime: 0,
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
-    queryKey: ['approval-detail-legacy-specialist-forwarding-files', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: submissionsQuery.data?.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submissionsQuery.data!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
-    enabled: Boolean(submissionsQuery.data?.id),
+    enabled: Boolean(submissionsQuery.data?.id)
+      && (approvalHistoriesQuery.isSuccess || approvalHistoriesQuery.isError)
+      && !approvalHistoriesQuery.data?.items.find((history) => history.stageLevel === 'LocalSubmitted')?.files?.length,
   });
   const legacyLeaderForwardingFilesQuery = useQuery({
-    queryKey: ['approval-detail-legacy-leader-forwarding-files', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: submissionsQuery.data?.id, category: 'LeaderForwarding', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submissionsQuery.data!.id, category: 'LeaderForwarding', page: 1, pageSize: 50 }),
-    enabled: Boolean(submissionsQuery.data?.id),
+    enabled: Boolean(submissionsQuery.data?.id)
+      && (approvalHistoriesQuery.isSuccess || approvalHistoriesQuery.isError)
+      && !approvalHistoriesQuery.data?.items.find((history) => history.stageLevel === 'SpecialistApproved')?.files?.length,
   });
   const submission = detailQuery.data ?? submissionsQuery.data;
   const criteria = useMemo(() => mergeSubmissionCriteria(groupQuery.data?.criteria, submission?.results, submission?.id), [groupQuery.data, submission]);

@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -125,10 +126,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1EmulationClassificationsQueryKey = (params?: GetApiV1EmulationClassificationsParams,) => {
-    return [
-    `/api/v1/emulation-classifications`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/emulation-classifications` });
+};
 
 
 export const getGetApiV1EmulationClassificationsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1EmulationClassifications>>, TError = unknown>(params?: GetApiV1EmulationClassificationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1EmulationClassifications>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -211,10 +210,8 @@ export const getApiV1EmulationClassificationsId = (
 
 
 export const getGetApiV1EmulationClassificationsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/emulation-classifications/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/emulation-classifications/${id}` });
+};
 
 
 export const getGetApiV1EmulationClassificationsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1EmulationClassificationsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1EmulationClassificationsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

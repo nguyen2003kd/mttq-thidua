@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AlertTriangle, Paperclip } from 'lucide-react';
 import { FileUpload, FormDialog } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ interface ReviewScoreModalProps {
   criterion?: CriteriaItem;
   /** Dùng cho các màn gọi API có kiểu kết quả khác ScoreEntry. */
   criterionName?: string;
+  criterionId?: string;
   maxScoreOverride?: number;
   maxBonusOverride?: number;
   isSupplementary?: boolean;
@@ -36,6 +37,7 @@ export function ReviewScoreModal({
   entry,
   criterion,
   criterionName,
+  criterionId,
   maxScoreOverride,
   maxBonusOverride,
   isSupplementary,
@@ -56,16 +58,23 @@ export function ReviewScoreModal({
   const [error, setError] = useState('');
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentError, setAttachmentError] = useState('');
+  const initializedCriterion = useRef<string | null>(null);
+  const editingId = criterionId ?? criterion?.id ?? entry?.id ?? criterionName ?? '';
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedCriterion.current = null;
+      return;
+    }
+    if (initializedCriterion.current === editingId) return;
+    initializedCriterion.current = editingId;
     setScore(String(initialScore ?? entry?.value ?? entry?.proposedScore ?? 0));
     setBonus(String(initialBonusScore ?? 0));
     setReason(initialReason ?? '');
     setAttachment(initialAttachment);
     setError('');
     setAttachmentError('');
-  }, [open, entry, initialScore, initialBonusScore, initialReason, initialAttachment]);
+  }, [open, editingId, entry, initialScore, initialBonusScore, initialReason, initialAttachment]);
 
   const maxScore = maxScoreOverride ?? criterion?.maxScore ?? entry?.supplementaryMaxScore ?? entry?.value ?? 0;
   const maxBonus = maxBonusOverride ?? criterion?.bonusScore ?? 0;

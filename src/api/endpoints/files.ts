@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -243,10 +244,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1FilesQueryKey = (params?: GetApiV1FilesParams,) => {
-    return [
-    `/api/v1/files`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/files` });
+};
 
 
 export const getGetApiV1FilesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Files>>, TError = unknown>(params?: GetApiV1FilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Files>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -330,10 +329,8 @@ export const getApiV1FilesBatch = (
 
 
 export const getGetApiV1FilesBatchQueryKey = (params?: GetApiV1FilesBatchParams,) => {
-    return [
-    `/api/v1/files/batch`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/files/batch` });
+};
 
 
 export const getGetApiV1FilesBatchQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -416,10 +413,8 @@ export const getApiV1FilesId = (
 
 
 export const getGetApiV1FilesIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/files/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/files/${id}` });
+};
 
 
 export const getGetApiV1FilesIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -561,10 +556,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1FilesIdDownloadQueryKey = (id: string,) => {
-    return [
-    `/api/v1/files/${id}/download`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/files/${id}/download` });
+};
 
 
 export const getGetApiV1FilesIdDownloadQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesIdDownload>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesIdDownload>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

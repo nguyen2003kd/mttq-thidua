@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -66,10 +67,8 @@ export const getApiV1Submissions = (
 
 
 export const getGetApiV1SubmissionsQueryKey = (params?: GetApiV1SubmissionsParams,) => {
-    return [
-    `/api/v1/submissions`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/submissions` });
+};
 
 
 export const getGetApiV1SubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Submissions>>, TError = unknown>(params?: GetApiV1SubmissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Submissions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -213,10 +212,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1SubmissionsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/submissions/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/submissions/${id}` });
+};
 
 
 export const getGetApiV1SubmissionsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -302,10 +299,8 @@ export const getApiV1CriteriaGroupsGroupIdSubmissions = (
 
 export const getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey = (groupId: string,
     params?: GetApiV1CriteriaGroupsGroupIdSubmissionsParams,) => {
-    return [
-    `/api/v1/criteria-groups/${groupId}/submissions`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/criteria-groups/${groupId}/submissions` });
+};
 
 
 export const getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroupsGroupIdSubmissions>>, TError = unknown>(groupId: string,
@@ -394,10 +389,8 @@ export const getApiV1MySubmissions = (
 
 
 export const getGetApiV1MySubmissionsQueryKey = (params?: GetApiV1MySubmissionsParams,) => {
-    return [
-    `/api/v1/my-submissions`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/my-submissions` });
+};
 
 
 export const getGetApiV1MySubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1MySubmissions>>, TError = unknown>(params?: GetApiV1MySubmissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1MySubmissions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

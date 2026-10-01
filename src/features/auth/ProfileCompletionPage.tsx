@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -44,12 +46,12 @@ export default function ProfileCompletionPage() {
   const phone = useAuthStore((s) => s.phone);
   const setStore = useAuthStore((s) => s.setStore);
   const profileQuery = useQuery({
-    queryKey: getGetApiV1AuthProfileQueryKey(),
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey()),
     queryFn: () => profileApi.get(),
     enabled: Boolean(user) && requiresCompletion !== false,
   });
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { fullName: profileQuery.data?.fullName ?? fullName ?? '', phone: profileQuery.data?.phone ?? phone ?? '' },
   });
@@ -68,26 +70,27 @@ export default function ProfileCompletionPage() {
       requires_profile_completion: needsCompletion,
       user: { ...currentUser, name: profileDisplayName(profile), banId: profile.departmentId ?? undefined },
     });
-    reset({ fullName: profile.fullName ?? '', phone: profile.phone ?? '' });
-  }, [profileQuery.data, reset, setStore]);
+    if (!isDirty) reset({ fullName: profile.fullName ?? '', phone: profile.phone ?? '' });
+  }, [profileQuery.data, reset, setStore, isDirty]);
 
   if (!user) return <Navigate to={ROUTES.LOGIN} replace />;
   // Đã đủ thông tin (hoặc session cũ chưa check — ProfileGate sẽ đẩy lại nếu thiếu).
   if (requiresCompletion === false) return <Navigate to={defaultRouteForRole(user.role)} replace />;
-  if (profileQuery.isFetching || (profileQuery.data && !profileNeedsCompletion(profileQuery.data))) {
+  if (profileQuery.isLoading || (profileQuery.data && !profileNeedsCompletion(profileQuery.data))) {
     return <PageLoading label="Đang kiểm tra thông tin hồ sơ…" />;
   }
 
   const onSubmit = async (values: FormValues) => {
     try {
       const profile = await profileApi.update({ fullName: values.fullName, phone: values.phone });
-      queryClient.setQueryData(getGetApiV1AuthProfileQueryKey(), profile);
+      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey()), profile);
       setStore({
         full_name: profile.fullName,
         phone: profile.phone,
         requires_profile_completion: profileNeedsCompletion(profile),
         user: { ...user, name: profileDisplayName(profile) },
       });
+      await queryClient.invalidateQueries({ queryKey: getGetApiV1UsersQueryKey() });
       toast.success('Đã lưu thông tin người đại diện');
       navigate(defaultRouteForRole(user.role), { replace: true });
     } catch (error) {

@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore, type SseNotification } from '@/store/notificationStore';
 import { notificationsApi } from '@/features/notifications/api/notificationsApi';
 import baseConfig from '@/configs/base';
+import { createSseQueryInvalidator, notificationQueryKeys, sseReconnectQueryKeys } from './sse-query-invalidation';
 
 /**
  * Parse SSE text frames from a ReadableStream.
@@ -40,6 +42,7 @@ function parseSseChunk(chunk: string, buffer: { current: string }, handlers: {
  * Auto-reconnects with backoff on disconnect.
  */
 export function useSseNotifications() {
+  const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
   const isSignedIn = useAuthStore((s) => s.isSignedIn);
   const addNotification = useNotificationStore((s) => s.addNotification);
@@ -53,17 +56,20 @@ export function useSseNotifications() {
 
     let cancelled = false;
     let attempt = 0;
-    const buffer = { current: '' };
+    let hasConnected = false;
+    const invalidator = createSseQueryInvalidator(queryClient);
+    const seen = new Set<string>();
 
     const connect = async () => {
       if (cancelled) return;
       attempt++;
       const controller = new AbortController();
       abortRef.current = controller;
+      // A partial frame belongs only to its connection, never to the next stream.
+      const buffer = { current: '' };
 
       try {
         const url = `${baseConfig.backendDomain}/api/v1/notifications/stream`;
-        console.log('[SSE] Connecting to', url);
         const res = await fetch(url, {
           method: 'GET',
           headers: {
@@ -73,19 +79,21 @@ export function useSseNotifications() {
           signal: controller.signal,
         });
 
-        console.log('[SSE] Response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
-
         if (!res.ok || !res.body) {
           throw new Error(`SSE connection failed: ${res.status}`);
         }
+        if (cancelled) return;
 
         setConnected(true);
         attempt = 0;
+        // Initial mount already fetches its queries; only reconcile after a dropped stream.
+        if (hasConnected) invalidator.enqueue(sseReconnectQueryKeys);
+        hasConnected = true;
 
         // Sync unread count from DB on connect
         notificationsApi
           .unreadCount()
-          .then((data) => setUnreadCount(data.count))
+          .then((data) => { if (!cancelled) setUnreadCount(data.count); })
           .catch(() => {
             // ignore — badge stays as-is
           });
@@ -97,18 +105,22 @@ export function useSseNotifications() {
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
-            console.log('[SSE] Stream ended');
             break;
           }
           const text = decoder.decode(value, { stream: true });
-          console.log('[SSE] Raw chunk:', JSON.stringify(text));
           parseSseChunk(text, buffer, {
             onEvent: (eventName, data) => {
+              if (cancelled) return;
               if (eventName === 'notification') {
                 try {
                   const payload = JSON.parse(data) as SseNotification;
+                  if (!payload.id || seen.has(payload.id)) return;
+                  seen.add(payload.id);
+                  if (seen.size > 500) seen.delete(seen.values().next().value!);
+                  const alreadyListed = useNotificationStore.getState().notifications.some((item) => item.id === payload.id);
                   addNotification(payload);
-                  toast.info(payload.title, { description: payload.body });
+                  invalidator.enqueue(notificationQueryKeys(payload.data));
+                  if (!alreadyListed) toast.info(payload.title, { description: payload.body });
                 } catch {
                   // ignore malformed JSON
                 }
@@ -124,7 +136,7 @@ export function useSseNotifications() {
         if (!cancelled) console.error('[SSE] Connection error:', e);
         // disconnected or cancelled
       } finally {
-        setConnected(false);
+        if (!cancelled) setConnected(false);
       }
 
       // Reconnect with backoff (max 30s)
@@ -140,7 +152,8 @@ export function useSseNotifications() {
       cancelled = true;
       abortRef.current?.abort();
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      invalidator.dispose();
       setConnected(false);
     };
-  }, [token, isSignedIn, addNotification, setConnected, setUnreadCount]);
+  }, [token, isSignedIn, addNotification, setConnected, setUnreadCount, queryClient]);
 }

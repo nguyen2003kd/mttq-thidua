@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle, ArrowLeft, Eye, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -79,23 +84,26 @@ export default function CriteriaChildrenPage() {
   const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
   const [applyValidationMessage, setApplyValidationMessage] = useState('');
   const { uploading, uploadProgress, uploadFiles } = useFileUpload();
-  const { data: group, isLoading, error } = useQuery({ queryKey: ['criteria-group', id], queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
+  const { data: group, isLoading, error } = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(id ?? '')), queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
   const { data: criteriaPage, isLoading: isLoadingCriteria } = useQuery({
-    queryKey: ['criteria', id, { search, type: 'Standard', sortBy, sortOrder }],
+    queryKey: dataQueryKey([...getGetApiV1CriteriaGroupsIdQueryKey(id ?? ''), 'criteria'], { search, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
     queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: search || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
     enabled: Boolean(id),
   });
   const canDeleteCriteria = useAuthStore((state) => state.user?.role === 'SPECIALIST');
+  const invalidateCriteria = () => invalidateQueryResources(queryClient, [
+    getGetApiV1CriteriaGroupsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/criteria' }),
+    getGetApiV1SubmissionsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/submission-results' }),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteMutation = useMutation({
     mutationFn: (criteriaId: string) => criteriaGroupsApi.deleteCriteria(criteriaId),
     onSuccess: async (updatedGroup) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
-      ]);
+      await invalidateCriteria();
       setDeleteOpen(false);
       setSelected(null);
       toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm còn ${updatedGroup.maxPoint} điểm.`);
@@ -170,18 +178,18 @@ export default function CriteriaChildrenPage() {
       const payload = { content: value.name, maxPoint: value.maxScore, maxBonusPoint: value.bonusScore ?? 0, deadline: value.deadline || null, note: value.note };
       if (current) await criteriaGroupsApi.updateCriteria(current.id, { ...payload, changeReason: 'Cập nhật tiêu chí từ giao diện quản lý.' });
       else await criteriaGroupsApi.createBulk(group.id, [{ type: 'Standard', ...payload }]);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
-      ]);
+      await invalidateCriteria();
       toast.success(current ? 'Đã cập nhật tiêu chí.' : 'Đã thêm tiêu chí.'); setEditor(null); setSelected(null); setApplyValidationMessage('');
     } catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
   };
   const apply = async () => {
     setSaving(true);
     try {
-      const latestGroup = await criteriaGroupsApi.get(group.id);
+      const latestGroup = await queryClient.fetchQuery({
+        queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(group.id)),
+        queryFn: () => criteriaGroupsApi.get(group.id),
+        staleTime: 0,
+      });
       const validation = validateCriteriaApplication(
         latestGroup.maxPoint,
         latestGroup.criteria.filter((item) => item.status === 'Applied').map((item) => item.maxPoint),
@@ -201,8 +209,12 @@ export default function CriteriaChildrenPage() {
           toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['criteria-group', id] });
-      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+      await invalidateQueryResources(queryClient, [
+        getGetApiV1CriteriaGroupsQueryKey(),
+        getGetApiV1SubmissionsQueryKey(),
+        getGetApiV1FilesQueryKey(),
+        getGetApiV1AuditLogsQueryKey(),
+      ]);
       toast.success('Đã áp dụng nhóm tiêu chí cho các đơn vị địa phương.');
       setApplyOpen(false);
       setApplyFiles([]);
