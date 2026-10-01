@@ -145,7 +145,10 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     },
   });
 
-  const users = usersQuery.data?.items ?? [];
+  // Trang quản lý tài khoản chỉ dành cho tài khoản chấm điểm: Chuyên viên cấp 2 và Lãnh đạo ban.
+  const users = (usersQuery.data?.items ?? []).filter((user) =>
+    (user.roles ?? []).some((role) => ['SCORER', 'REVIEWER'].includes(role.trim().toUpperCase())),
+  );
 
   const departmentsQuery = useQuery({
     queryKey: ['admin-departments-all'],
@@ -333,7 +336,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
               label="Vai trò"
               value={roleFilter}
               onChange={setRoleFilter}
-              options={[{ value: '', label: 'Tất cả' }, ...ROLE_OPTIONS]}
+              options={[{ value: '', label: 'Tất cả' }, ...CREATE_ROLE_OPTIONS]}
             />
           </div>
         }
@@ -344,7 +347,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         onClearFilters={() => { setStatusFilter(''); setRoleFilter(''); }}
         emptyState={{
           title: 'Chưa có tài khoản',
-          description: 'Thêm tài khoản đầu tiên để bắt đầu.',
+          description: 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
           canCreateAccounts ? (

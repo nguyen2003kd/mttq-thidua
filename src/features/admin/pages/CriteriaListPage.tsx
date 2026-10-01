@@ -566,7 +566,7 @@ export default function CriteriaListPage() {
                 <Button hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>
+                <Button variant="warning" hideWhen={!selectedTable} disabled={!selectedTable || selectedTable.status === 'PUBLISHED'} disabledReason={!selectedTable ? 'Chọn một nhóm tiêu chí để chỉnh sửa.' : selectedTable.status === 'PUBLISHED' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa.' : undefined} onClick={() => selectedTable && selectedTable.status !== 'PUBLISHED' && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
                 <Button variant="outline" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
