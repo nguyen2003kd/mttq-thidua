@@ -2,6 +2,7 @@ import { useMemo, useState, type ComponentType } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   PageHeader,
   DataTable,
@@ -83,13 +84,35 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const [editing, setEditing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [viewing, setViewing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
-  const [leaderStatus, setLeaderStatus] = useState<'ALL' | 'CHO_DUYET_BAN' | 'CHO_DUYET_HOI_DONG'>('CHO_DUYET_BAN');
-  const [leaderFromDate, setLeaderFromDate] = useState('');
-  const [leaderToDate, setLeaderToDate] = useState('');
-  const [councilLocalityId, setCouncilLocalityId] = useState('ALL');
-  const [councilStatus, setCouncilStatus] = useState<'ALL' | 'CHO_DUYET_HOI_DONG'>('ALL');
-  const [councilFromDate, setCouncilFromDate] = useState('');
-  const [councilToDate, setCouncilToDate] = useState('');
+  const {
+    filters: { leaderStatus, leaderFromDate, leaderToDate, councilLocalityId, councilStatus, councilFromDate, councilToDate },
+    setters: {
+      leaderStatus: setLeaderStatus,
+      leaderFromDate: setLeaderFromDate,
+      leaderToDate: setLeaderToDate,
+      councilLocalityId: setCouncilLocalityId,
+      councilStatus: setCouncilStatus,
+      councilFromDate: setCouncilFromDate,
+      councilToDate: setCouncilToDate,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{
+    leaderStatus: 'ALL' | 'CHO_DUYET_BAN' | 'CHO_DUYET_HOI_DONG';
+    leaderFromDate: string;
+    leaderToDate: string;
+    councilLocalityId: string;
+    councilStatus: 'ALL' | 'CHO_DUYET_HOI_DONG';
+    councilFromDate: string;
+    councilToDate: string;
+  }>({
+    leaderStatus: 'CHO_DUYET_BAN',
+    leaderFromDate: '',
+    leaderToDate: '',
+    councilLocalityId: 'ALL',
+    councilStatus: 'ALL',
+    councilFromDate: '',
+    councilToDate: '',
+  });
 
   const scoringStage: Exclude<ScoringStage, 'LOCAL' | 'SPECIALIST'> =
     config.targetState === 'CHO_DUYET_BAN'
@@ -353,9 +376,9 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   ].filter((item): item is { label: string; value: string; onClear: () => void } => Boolean(item)) : undefined;
 
   const clearApprovalFilters = isLeaderView
-    ? () => { setLeaderStatus('ALL'); setLeaderFromDate(''); setLeaderToDate(''); }
+    ? () => setQueryFilters({ leaderStatus: 'ALL', leaderFromDate: '', leaderToDate: '' })
     : isCouncilView
-      ? () => { setCouncilLocalityId('ALL'); setCouncilStatus('ALL'); setCouncilFromDate(''); setCouncilToDate(''); }
+      ? () => setQueryFilters({ councilLocalityId: 'ALL', councilStatus: 'ALL', councilFromDate: '', councilToDate: '' })
       : undefined;
 
   const canProcessSelectedRow = Boolean(selectedRow && selectedRow.record.state === config.targetState);

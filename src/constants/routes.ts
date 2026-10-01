@@ -34,7 +34,9 @@ export const ROUTES = {
   // Duyệt
   DUYET_BAN_LEADER: '/thi-dua/duyet/lanh-dao-ban/:banId',
   DUYET_COUNCIL: '/thi-dua/duyet/hoi-dong-tdkt',
+  COUNCIL_SCORE_SUMMARY: '/hoi-dong/tong-hop-cham-diem',
   DUYET_STANDING: '/thi-dua/duyet/ban-thuong-truc',
+  COMMITTEE_SCORE_SUMMARY: '/uy-ban/tong-hop-cham-diem',
   DUYET_STANDING_REVIEW: '/thi-dua/duyet/ban-thuong-truc/duyet',
 
   // Audit log

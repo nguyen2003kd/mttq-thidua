@@ -5,7 +5,6 @@ import { ArrowDownToLine, ArrowLeft, Check, Eye, FileText, History, Save, Send, 
 import { toast } from 'sonner';
 import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FilterSelect, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
 import type { SpecialistRevisionFile } from '@/features/workflow/components/LocalityScoreTable';
@@ -625,19 +624,14 @@ export default function LocalityCriteriaPage() {
   if (!localityId) return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương." />;
 
   const periodSelector = (
-    <div className="flex items-center gap-2">
-      <span className="shrink-0 text-sm font-medium text-muted-foreground">Kỳ thi đua</span>
-      <Select
-        value={periodFilter}
-        onValueChange={(value) => { if (value) updatePeriodFilter(value); }}
-        itemToStringLabel={(value) => periods.find((period) => period.id === value)?.name ?? 'Kỳ thi đua'}
-      >
-        <SelectTrigger aria-label="Kỳ thi đua" className="w-56"><SelectValue placeholder="Tất cả kỳ thi đua" /></SelectTrigger>
-        <SelectContent>
-          {periods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </div>
+    <FilterSelect
+      label="Kỳ thi đua"
+      labelPosition="outside"
+      value={periodFilter}
+      onChange={updatePeriodFilter}
+      allLabel="Tất cả kỳ thi đua"
+      options={periods.map((period) => ({ value: period.id, label: period.name }))}
+    />
   );
 
   // ── List view ──────────────────────────────────────────────────────────────
@@ -647,7 +641,7 @@ export default function LocalityCriteriaPage() {
     }
     return (
       <div className="space-y-5">
-        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" />
+        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} />
         {groupsQuery.isError && <p role="alert" className="text-sm text-destructive">Không tìm được nhóm tiêu chí. Vui lòng thử từ khóa khác.</p>}
         <DataTable
           data={filteredLocalityListRows}
@@ -657,7 +651,6 @@ export default function LocalityCriteriaPage() {
           getRowId={(row) => row.id}
           selectedRowId={selectedListTable?.id}
           searchable
-          initialSearchValue={groupSearch}
           searchPlaceholder="Tìm theo tên nhóm tiêu chí..."
           onSearchChange={updateGroupSearch}
           filters={(
@@ -683,7 +676,6 @@ export default function LocalityCriteriaPage() {
               />
             </>
           )}
-          inlineFilters={periodSelector}
           activeFilters={[
             ...(statusFilter ? [{
               label: 'Trạng thái',

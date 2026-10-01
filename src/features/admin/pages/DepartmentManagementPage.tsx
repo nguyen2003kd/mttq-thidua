@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   departmentsApi,
   getDepartmentApiError,
@@ -52,7 +53,7 @@ function userDisplayName(u: ManagedUser) {
 
 export default function DepartmentManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const { filters: { departmentSearch: search }, setters: { departmentSearch: setSearch } } = useQueryFilters({ departmentSearch: '' });
   const debouncedSearch = useDebounce(search.trim(), 300);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

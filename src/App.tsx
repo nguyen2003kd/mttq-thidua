@@ -379,6 +379,10 @@ export default function App() {
               }
             />
             <Route
+              path={ROUTES.COUNCIL_SCORE_SUMMARY}
+              element={<RequireAuth><RequireRole roles={['COUNCIL']}><AppLayout><SpecialistScoreSummaryPage readOnly /></AppLayout></RequireRole></RequireAuth>}
+            />
+            <Route
               path="/thi-dua/duyet/ban-thuong-truc"
               element={
                 <RequireAuth>
@@ -413,6 +417,10 @@ export default function App() {
                   </RequireRole>
                 </RequireAuth>
               }
+            />
+            <Route
+              path={ROUTES.COMMITTEE_SCORE_SUMMARY}
+              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><SpecialistScoreSummaryPage readOnly /></AppLayout></RequireRole></RequireAuth>}
             />
 
             {/* Audit log */}

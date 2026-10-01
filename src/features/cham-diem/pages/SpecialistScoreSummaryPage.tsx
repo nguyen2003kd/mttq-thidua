@@ -11,7 +11,8 @@ import {
   Search,
   Trophy,
 } from "lucide-react";
-import { Button, EmptyState, FilterSelect, PageLoading } from "@/components/core";
+import { Button, EmptyState, FilterSelect, PageHeader, PageLoading } from "@/components/core";
+import { useQueryFilters } from "@/hooks/useQueryFilters";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -419,13 +420,13 @@ function ResultSummary({
 }
 
 /** Bảng tổng hợp điểm toàn tỉnh của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
-export default function SpecialistScoreSummaryPage() {
+export default function SpecialistScoreSummaryPage({ readOnly = false }: { readOnly?: boolean }) {
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState('');
+  const { filters: { periodFilter }, setters: { periodFilter: setPeriodFilter } } = useQueryFilters({ periodFilter: '' });
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
-  const canPublish = useAuthStore((state) => state.user?.role === 'SPECIALIST');
+  const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
   const periodsQuery = useQuery({
     queryKey: ["specialist-score-summary-periods"],
     queryFn: periodsApi.listAll,
@@ -610,31 +611,39 @@ export default function SpecialistScoreSummaryPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-6 pb-8">
+      <PageHeader
+        title="Bảng tổng hợp điểm"
+        actions={
+          <FilterSelect
+            label="Kỳ thi đua"
+            labelPosition="outside"
+            value={periodFilter}
+            onChange={setPeriodFilter}
+            allLabel="Tất cả kỳ thi đua"
+            options={periods.map((period) => ({ value: period.id, label: period.name }))}
+          />
+        }
+      />
       <section
         className="overflow-hidden rounded-lg border border-border bg-card"
         aria-label="Tổng quan kết quả và bảng xếp hạng"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-5">
-          <FilterSelect
-            label="Kỳ thi đua"
-            value={periodFilter}
-            onChange={setPeriodFilter}
-            allLabel="Tất cả kỳ"
-            options={periods.map((period) => ({ value: period.id, label: period.name }))}
-          />
+        <div className="flex flex-wrap items-center justify-end gap-3 px-4 py-2 sm:px-5">
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{rows.length} đơn vị</Badge>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void handleExport()}
-              disabled={exporting}
-              disabledReason="Đang xuất file Excel…"
-            >
-              <Download className="size-4" />
-              {exporting ? "Đang xuất…" : "Xuất Excel"}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                disabledReason="Đang xuất file Excel…"
+              >
+                <Download className="size-4" />
+                {exporting ? "Đang xuất…" : "Xuất Excel"}
+              </Button>
+            )}
             {canPublish && (
               <Button
                 type="button"
@@ -646,21 +655,23 @@ export default function SpecialistScoreSummaryPage() {
                 Công bố kết quả
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-expanded={!overviewCollapsed}
-              aria-controls="specialist-score-summary-overview"
-              onClick={() => setOverviewCollapsed((collapsed) => !collapsed)}
-            >
-              {overviewCollapsed ? (
-                <ChevronDown className="size-4" />
-              ) : (
-                <ChevronUp className="size-4" />
-              )}
-              {overviewCollapsed ? "Mở rộng" : "Thu gọn"}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={!overviewCollapsed}
+                aria-controls="specialist-score-summary-overview"
+                onClick={() => setOverviewCollapsed((collapsed) => !collapsed)}
+              >
+                {overviewCollapsed ? (
+                  <ChevronDown className="size-4" />
+                ) : (
+                  <ChevronUp className="size-4" />
+                )}
+                {overviewCollapsed ? "Mở rộng" : "Thu gọn"}
+              </Button>
+            )}
           </div>
         </div>
         <div
@@ -927,7 +938,7 @@ export default function SpecialistScoreSummaryPage() {
         locality={selectedLocality}
         onClose={() => setSelectedLocalityId(null)}
       />
-      <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />
+      {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />}
     </div>
   );
 }

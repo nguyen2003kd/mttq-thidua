@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -57,7 +58,8 @@ export default function ScoreByCriteriaPage() {
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<LocalityScoreRow | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<CriteriaGroupApi | null>(null);
-  const [groupSearch, setGroupSearch] = useState('');
+  const { filters: { search: initialSearch } } = useQueryFilters({ search: '' });
+  const [groupSearch, setGroupSearch] = useState(initialSearch);
 
   const groupsQuery = useQuery({
     queryKey: ['score-criteria-groups', groupSearch],

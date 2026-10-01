@@ -56,6 +56,7 @@ import { downloadFile, filesApi, getFileBlob, getFilesApiError } from '@/feature
 import { Card, CardContent } from '@/components/ui/card';
 import { formatDateTime, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 
 interface EvidenceFile {
   id: string;
@@ -1405,13 +1406,35 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const queryClient = useQueryClient();
   const userRole = useAuthStore((s) => s.user?.role);
   const scoringRole: ScoringRole = userRole === 'SCORER' || userRole === 'REVIEWER' ? userRole : 'SPECIALIST';
-  const [localitySearch, setLocalitySearch] = useState('');
-  const [submissionStageFilter, setSubmissionStageFilter] = useState<SubmissionStageFilter>('');
-  const [groupSearch, setGroupSearch] = useState('');
-  const [groupStatusFilter, setGroupStatusFilter] = useState<GroupStatusFilter>('');
-  const [groupSortFilter, setGroupSortFilter] = useState<string>(DEFAULT_GROUP_SORT);
-  const [groupYearFilter, setGroupYearFilter] = useState('');
-  const [groupPeriodFilter, setGroupPeriodFilter] = useState('');
+  const {
+    filters: { localitySearch, submissionStageFilter, groupSearch, groupStatusFilter, groupSortFilter, groupYearFilter, groupPeriodFilter },
+    setters: {
+      localitySearch: setLocalitySearch,
+      submissionStageFilter: setSubmissionStageFilter,
+      groupSearch: setGroupSearch,
+      groupStatusFilter: setGroupStatusFilter,
+      groupSortFilter: setGroupSortFilter,
+      groupYearFilter: setGroupYearFilter,
+      groupPeriodFilter: setGroupPeriodFilter,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{
+    localitySearch: string;
+    submissionStageFilter: SubmissionStageFilter;
+    groupSearch: string;
+    groupStatusFilter: GroupStatusFilter;
+    groupSortFilter: string;
+    groupYearFilter: string;
+    groupPeriodFilter: string;
+  }>({
+    localitySearch: '',
+    submissionStageFilter: '',
+    groupSearch: '',
+    groupStatusFilter: '',
+    groupSortFilter: DEFAULT_GROUP_SORT,
+    groupYearFilter: '',
+    groupPeriodFilter: '',
+  });
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -1921,7 +1944,22 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         <PageHeader
           title={`Nhóm tiêu chí của ${district.localityName}`}
           description="Xem tiến độ và thực hiện chấm điểm từng nhóm tiêu chí"
-          actions={<Button variant="outline" render={<Link to={basePath} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>}
+          actions={
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
+              <FilterSelect
+                label="Kỳ thi đua"
+                labelPosition="outside"
+                value={groupPeriodFilter}
+                onChange={(value) => {
+                  setGroupPeriodFilter(value);
+                  setSelectedGroupId(null);
+                }}
+                allLabel="Tất cả kỳ thi đua"
+                options={groupPeriodOptions}
+              />
+              <Button variant="outline" render={<Link to={basePath} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>
+            </div>
+          }
         />
 
         <section className="grid gap-5 rounded-lg border border-border border-l-[3px] border-l-primary bg-card p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)] lg:items-center" aria-label="Tổng quan địa phương">
@@ -1963,23 +2001,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <FilterSelect
-                label="Kỳ"
-                value={groupPeriodFilter}
-                onChange={(value) => {
-                  setGroupPeriodFilter(value);
-                  setSelectedGroupId(null);
-                }}
-                options={groupPeriodOptions}
-              />
               <FilterDropdown
                 activeCount={activeGroupFilters.length}
                 activeFilters={activeGroupFilters}
                 openBelow
                 onClear={() => {
-                  setGroupStatusFilter('');
-                  setGroupSortFilter(DEFAULT_GROUP_SORT);
-                  setGroupYearFilter('');
+                  setQueryFilters({ groupStatusFilter: '', groupSortFilter: DEFAULT_GROUP_SORT, groupYearFilter: '' });
                   setGroupColumnVisibility({});
                   setSelectedGroupId(null);
                 }}

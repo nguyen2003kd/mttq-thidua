@@ -4,6 +4,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, DataTable, Button, FilterSelect, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -124,9 +125,10 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const currentRole = useAuthStore((s) => s.user?.role);
   const canManageAccounts = ['ADMIN', 'SYSTEM_ADMIN'].includes(currentRole ?? '');
   const canCreateAccounts = canManageAccounts || currentRole === 'SPECIALIST';
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const {
+    filters: { userSearch: search, userStatus: statusFilter, userRole: roleFilter },
+    setters: { userSearch: setSearch, userStatus: setStatusFilter, userRole: setRoleFilter },
+  } = useQueryFilters({ userSearch: '', userStatus: '', userRole: '' });
   const debouncedSearch = useDebounce(search, 350);
 
   const usersQuery = useQuery({
