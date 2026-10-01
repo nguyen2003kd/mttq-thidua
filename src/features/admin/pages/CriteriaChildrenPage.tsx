@@ -237,7 +237,7 @@ export default function CriteriaChildrenPage() {
           <Badge className="shrink-0 border border-danger/25 bg-background text-danger">{pointValidation.childTotal}/{group.maxPoint} điểm</Badge>
         </div>
       )}
-      {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : group.status === 'Published' ? 'công bố' : 'đóng'} — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử.</div>}
+      {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : group.status === 'Published' ? 'công bố — chỉ có thể xem tiêu chí, không thể chỉnh sửa' : 'đóng'}{group.status !== 'Published' ? ' — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử' : ''}.</div>}
       <section className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         <div className="bg-primary px-4 py-3 text-primary-foreground">
           <p className="text-sm font-semibold">Quyết định</p>
@@ -269,7 +269,7 @@ export default function CriteriaChildrenPage() {
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
+            <Button variant="warning" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted' || group.status === 'Published'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa tiêu chí con.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && group.status !== 'Published' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button
               variant="outline"
               hideWhen={!selected}
@@ -281,6 +281,8 @@ export default function CriteriaChildrenPage() {
               <Trash2 className="size-4" />Xóa
             </Button>
             <Button
+              disabled={group.status === 'Published'}
+              disabledReason={group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể thêm tiêu chí con mới.' : undefined}
               onClick={openCreateEditor}
             ><Plus className="size-4" />Thêm mới</Button>
             <Button
