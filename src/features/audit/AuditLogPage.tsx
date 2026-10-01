@@ -46,6 +46,10 @@ const entityLabels: Record<string, string> = {
   FileVariant: 'phiên bản tệp tin',
   PublicationBatch: 'đợt công bố',
   FinalDecision: 'quyết định cuối cùng',
+  Period: 'kỳ thi đua',
+  Cluster: 'cụm thi đua',
+  ClusterWard: 'thành viên cụm thi đua',
+  Department: 'ban',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -54,6 +58,8 @@ const moduleLabels: Record<string, string> = {
   Files: 'Tài liệu',
   ResultPublication: 'Công bố kết quả',
   System: 'Hệ thống',
+  Entities: 'Kỳ thi đua',
+  Periods: 'Kỳ thi đua',
 };
 
 function getActionLabel(action: string) {
@@ -94,6 +100,8 @@ const fieldLabels: Record<string, string> = {
   Reason: 'Lý do',
   Level: 'Cấp xử lý',
   ActionLevel: 'Cấp xử lý',
+  StartYear: 'Năm bắt đầu',
+  EndYear: 'Năm kết thúc',
   ActorName: 'Người thực hiện',
   ChangedData: 'Dữ liệu thay đổi',
   SubmissionResultIds: 'Kết quả tiêu chí',
@@ -147,6 +155,7 @@ function getActionDisplay(item: Pick<AuditLogItem, 'action' | 'actionKind' | 'ac
 /** Thứ tự ưu tiên hiển thị field trong bảng chi tiết: định danh → điểm → trạng thái → ghi chú → tệp. */
 const fieldPriority: Record<string, number> = {
   Name: 0, Content: 1, Description: 2,
+  StartYear: 2, EndYear: 3,
   CriteriaGroupId: 3, CriteriaId: 4,
   Point: 10, BonusPoint: 11, OfficialPoint: 12, OfficialBonusPoint: 13,
   MaxPoint: 14, MaxBonusPoint: 15, SnapshotMaxPoint: 14, SnapshotMaxBonusPoint: 15,
@@ -257,7 +266,7 @@ function formatAuditValue(field: string, value: unknown) {
   if (value === null || value === undefined || value === '') return 'Chưa có';
 
   if (field === 'Status' && typeof value === 'number') {
-    return ({ 0: 'Nháp', 1: 'Đã áp dụng' } as Record<number, string>)[value] ?? String(value);
+    return ({ 0: 'Nháp', 1: 'Đã áp dụng', 2: 'Đã kết thúc' } as Record<number, string>)[value] ?? String(value);
   }
 
   if ((field === 'CurrentStage' || field === 'SubmissionStage') && typeof value === 'number') {
