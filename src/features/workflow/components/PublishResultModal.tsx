@@ -177,7 +177,7 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
             </div>
 
             <DialogFooter className="mx-0 mb-0 rounded-b-[8px] px-6 py-4">
-              <Button type="button" variant="outline" disabled={submitting} onClick={() => setStep('details')}>Quay lại</Button>
+              <Button type="button" variant="back" disabled={submitting} onClick={() => setStep('details')}>Quay lại</Button>
               <Button type="submit" disabled={submitting} action="publish" state="CHO_DUYET_BTT">
                 <Trophy className="size-4" />Xác nhận công bố
               </Button>

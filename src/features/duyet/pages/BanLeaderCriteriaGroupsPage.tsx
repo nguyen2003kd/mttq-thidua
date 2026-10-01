@@ -125,7 +125,7 @@ export default function BanLeaderCriteriaGroupsPage() {
   */
 
   return <div className="space-y-6">
-    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả chấm điểm đã được chuyên viên chuyển lên lãnh đạo ban." actions={<Button variant="outline" render={<Link to={backToList} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
+    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả chấm điểm đã được chuyên viên chuyển lên lãnh đạo ban." actions={<Button variant="back" render={<Link to={backToList} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
     <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} toolbar={<div className="flex flex-wrap items-center gap-2"><Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={openDetail}><Eye className="mr-1.5 size-4" />Xem chi tiết chấm điểm</Button>{/* Tạm ẩn nút duyệt của Lãnh đạo ban.
 {selectedRow && <Button disabled={!canForwardSelected} disabledReason="Hồ sơ đã chuyển cấp nên không thể duyệt lại." onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>} */}</div>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương chưa có hồ sơ để hiển thị.', icon: <Search className="size-8" /> }} stickyTitle="Nhóm tiêu chí thi đua" stickyDescription={localityName} />
     {/* Tạm ẩn cùng nút duyệt của Lãnh đạo ban.

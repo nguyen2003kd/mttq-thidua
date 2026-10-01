@@ -20,7 +20,7 @@ export default function CriteriaDetailPage() {
       <EmptyState
         title="Không tìm thấy bảng tiêu chí"
         description="Bảng tiêu chí không tồn tại hoặc đã bị xóa."
-        action={<Button variant="outline" onClick={() => navigate(ROUTES.ADMIN_CRITERIA_LIST)}><ArrowLeft className="mr-1.5 h-4 w-4" /> Quay lại danh sách</Button>}
+        action={<Button variant="back" onClick={() => navigate(ROUTES.ADMIN_CRITERIA_LIST)}><ArrowLeft className="mr-1.5 h-4 w-4" /> Quay lại danh sách</Button>}
       />
     );
   }
@@ -33,7 +33,7 @@ export default function CriteriaDetailPage() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader title="Chi tiết bảng tiêu chí" description="Thông tin nhóm tiêu chí, tiến độ áp dụng và các tiêu chí con." />
-        <Button variant="outline" onClick={() => navigate(ROUTES.ADMIN_CRITERIA_LIST)}>
+        <Button variant="back" onClick={() => navigate(ROUTES.ADMIN_CRITERIA_LIST)}>
           <ArrowLeft className="mr-1.5 h-4 w-4" /> Quay lại
         </Button>
       </div>

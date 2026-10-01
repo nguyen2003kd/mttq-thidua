@@ -332,7 +332,7 @@ export default function BanLeaderReviewDetailPage() {
 
   return <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-5 pb-6">
     <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb"><Link to={backToList} className="hover:text-primary">Danh sách địa phương</Link><span>/</span><Link to={backToGroups} className="hover:text-primary">{localityName}</Link><span>/</span><span className="font-medium text-foreground">{groupQuery.data.name}</span></nav>
-    <PageHeader title="Chi tiết chấm điểm kết quả tiêu chí" description={`${localityName} · ${groupQuery.data.name}`} actions={<Button variant="outline" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button>} />
+    <PageHeader title="Chi tiết chấm điểm kết quả tiêu chí" description={`${localityName} · ${groupQuery.data.name}`} actions={<Button variant="back" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button>} />
 
     <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm"><div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
       <div className="bg-card px-4 py-3.5 sm:col-span-2 xl:col-span-1"><p className="text-xs font-medium text-muted-foreground">Địa phương</p><p className="mt-1 truncate text-sm font-semibold">{localityName}</p></div>

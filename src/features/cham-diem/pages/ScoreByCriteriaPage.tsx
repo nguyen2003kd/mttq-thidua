@@ -135,7 +135,7 @@ export default function ScoreByCriteriaPage() {
       title="Không tìm thấy nhóm tiêu chí"
       description="Nhóm tiêu chí này không tồn tại hoặc đã bị xóa."
       icon={<Search className="size-8" />}
-      action={<Button variant="outline" render={<Link to="/thi-dua/cham-diem" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Về danh sách địa phương</Button>}
+      action={<Button variant="back" render={<Link to="/thi-dua/cham-diem" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Về danh sách địa phương</Button>}
     />;
   }
 
@@ -144,7 +144,7 @@ export default function ScoreByCriteriaPage() {
       <PageHeader
         title={groupQuery.data?.name ?? 'Chấm điểm theo nhóm tiêu chí'}
         description="Chọn một địa phương để xem và chấm hồ sơ."
-        actions={<Button variant="outline" render={<Link to="/thi-dua/cham-diem/theo-tieu-chi" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>}
+        actions={<Button variant="back" render={<Link to="/thi-dua/cham-diem/theo-tieu-chi" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>}
       />
       <DataTable
         data={rows}

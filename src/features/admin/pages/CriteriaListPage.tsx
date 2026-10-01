@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useScoreStore } from '@/store/scoreStore';
@@ -29,15 +29,15 @@ import { departmentsApi } from '@/features/admin/api/departmentsApi';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
-import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
+import { useTrustedTime } from '@/hooks/useTrustedTime';
+import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile } from '@/features/admin/criteriaExcel';
 import type { CriteriaPayload } from '@/features/admin/api/criteriaGroupsApi';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
-const getCurrentLocalDateTime = () => {
-  const now = new Date();
-  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return localNow.toISOString().slice(0, 16);
+const toLocalDateTimeInput = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  return new Date(timestampMs - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Published' ? 'PUBLISHED' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
 const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
@@ -56,6 +56,15 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   closeDate: group.deadline ?? '',
   updatedAt: group.updatedAt ?? undefined,
 });
+
+function TrustedDeadlineInput({ value, onChange, trustedNowRef }: { value: string; onChange: (value: string) => void; trustedNowRef: { current: number | null } }) {
+  const { nowMs } = useTrustedTime();
+  useEffect(() => { trustedNowRef.current = nowMs; }, [nowMs, trustedNowRef]);
+  useEffect(() => () => { trustedNowRef.current = null; }, [trustedNowRef]);
+  const min = nowMs === null ? undefined : toLocalDateTimeInput(Math.floor(nowMs / 60_000) * 60_000 + 60_000);
+
+  return <Input id="close-date" type="datetime-local" min={min} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 bg-muted pl-9" />;
+}
 
 export default function CriteriaListPage() {
   const navigate = useNavigate();
@@ -129,6 +138,8 @@ export default function CriteriaListPage() {
   const [departmentId, setDepartmentId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
+  const trustedNowRef = useRef<number | null>(null);
+  const isAppliedEdit = editingTable?.status === 'ACTIVE';
   const [importedCriteria, setImportedCriteria] = useState<CriteriaPayload[] | null>(null);
   const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
@@ -368,9 +379,14 @@ export default function CriteriaListPage() {
       return;
     }
 
-    const originalCloseDate = editingTable ? toDateTimeInput(editingTable.closeDate) : '';
-    if (closeDate && closeDate !== originalCloseDate && new Date(closeDate).getTime() < Date.now()) {
-      toast.error('Hạn nộp không được ở thời gian quá khứ.');
+    const deadlineError = validateCriteriaDeadline({
+      deadline: closeDate,
+      originalDeadline: editingTable ? toDateTimeInput(editingTable.closeDate) : '',
+      isApplied: isAppliedEdit,
+      trustedNowMs: trustedNowRef.current,
+    });
+    if (deadlineError) {
+      toast.error(deadlineError);
       return;
     }
 
@@ -664,20 +680,21 @@ export default function CriteriaListPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span></Label>
+            <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp {isAppliedEdit ? <span className="text-destructive">*</span> : <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span>}</Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="close-date" type="datetime-local" min={getCurrentLocalDateTime()} value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
+              <TrustedDeadlineInput value={closeDate} onChange={setCloseDate} trustedNowRef={trustedNowRef} />
             </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Info className="size-3.5" />
-              Có thể để trống nếu chưa quy định hạn nộp.
+              {isAppliedEdit ? 'Hạn nộp phải sau thời gian chuẩn hiện tại.' : 'Có thể để trống nếu chưa quy định hạn nộp.'}
             </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="criteria-period" className="text-[13.5px] font-semibold">Kỳ thi đua <span className="text-destructive">*</span></Label>
             <Select
               value={periodId}
+              disabled={isAppliedEdit}
               onValueChange={(v) => setPeriodId(v ?? '')}
               itemToStringLabel={(id) => periods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
             >
@@ -691,6 +708,7 @@ export default function CriteriaListPage() {
             <Label htmlFor="criteria-department" className="text-[13.5px] font-semibold">Ban xử lý <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">Chuyên viên và lãnh đạo ban sẽ xử lý hồ sơ của nhóm này</span></Label>
             <Select
               value={departmentId}
+              disabled={isAppliedEdit}
               onValueChange={(v) => setDepartmentId(v ?? '')}
               itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban xử lý'}
             >

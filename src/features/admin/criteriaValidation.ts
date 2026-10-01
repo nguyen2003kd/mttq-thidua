@@ -32,3 +32,23 @@ export function validateCriteriaApplication(groupMaxPoint: number, childMaxPoint
     message: result.success ? null : result.error.issues[0]?.message ?? CRITERIA_TOTAL_MISMATCH_MESSAGE,
   };
 }
+
+export function validateCriteriaDeadline({
+  deadline,
+  originalDeadline,
+  isApplied,
+  trustedNowMs,
+}: {
+  deadline: string;
+  originalDeadline: string;
+  isApplied: boolean;
+  trustedNowMs: number | null;
+}) {
+  if (isApplied && !deadline) return 'Vui lòng chọn hạn nộp cho nhóm tiêu chí đã áp dụng.';
+  if (!deadline || (!isApplied && deadline === originalDeadline)) return null;
+  if (trustedNowMs === null) return 'Đang đồng bộ thời gian chuẩn, vui lòng thử lại sau giây lát.';
+  const deadlineMs = new Date(deadline).getTime();
+  return !Number.isFinite(deadlineMs) || deadlineMs <= trustedNowMs
+    ? 'Hạn nộp phải sau thời gian chuẩn hiện tại.'
+    : null;
+}

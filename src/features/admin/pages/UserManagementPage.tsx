@@ -268,11 +268,11 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       id: 'roles',
       header: 'Vai trò',
-      meta: { align: 'center', list: { width: '140px' } },
+      meta: { align: 'center', list: { width: '140px', valueClassName: 'min-w-0 whitespace-normal' } },
       cell: ({ row }) => (
-        <div className="flex flex-wrap justify-center gap-1">
+        <div className="flex min-w-0 flex-wrap justify-center gap-1">
           {(row.original.roles ?? []).map((r) => (
-            <Badge key={r} variant="outline">{roleLabel(r)}</Badge>
+            <Badge key={r} variant="outline" className="h-auto max-w-full whitespace-normal px-2 py-0.5 text-center leading-4">{roleLabel(r)}</Badge>
           ))}
         </div>
       ),
@@ -294,8 +294,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
-      meta: { align: 'right', list: { width: '130px' } },
-      cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
+      meta: { align: 'right', list: { width: '130px', valueClassName: 'text-xs' } },
+      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
   ], []);
 
