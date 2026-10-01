@@ -4,6 +4,7 @@ import { Plus, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +17,7 @@ import {
 
 export default function ClusterManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const { filters: { clusterSearch: search }, setters: { clusterSearch: setSearch } } = useQueryFilters({ clusterSearch: '' });
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);

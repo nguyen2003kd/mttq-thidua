@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   periodsApi,
   getPeriodApiError,
@@ -39,7 +40,7 @@ const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Dr
 
 export default function PeriodManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const { filters: { periodSearch: search }, setters: { periodSearch: setSearch } } = useQueryFilters({ periodSearch: '' });
   const debouncedSearch = useDebounce(search.trim(), 300);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);

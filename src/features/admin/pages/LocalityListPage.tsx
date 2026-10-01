@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { PageHeader, DataTable, Button, FilterSelect, DetailDialog, FormDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,7 +25,7 @@ export default function LocalityListPage() {
   const updateLocality = useScoreStore((s) => s.updateLocality);
   const deleteLocality = useScoreStore((s) => s.deleteLocality);
 
-  const [unitFilter, setUnitFilter] = useState<string>('');
+  const { filters: { unitFilter }, setters: { unitFilter: setUnitFilter } } = useQueryFilters({ unitFilter: '' });
 
   const [selectedLocality, setSelectedLocality] = useState<Locality | null>(null);
 

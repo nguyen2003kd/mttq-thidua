@@ -6,6 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
 // import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái duyệt
 import { Button } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Input } from '@/components/ui/input';
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái duyệt
 import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
@@ -81,8 +82,11 @@ export default function BanLeaderApprovalPage() {
   const { banId = 'ban1' } = useParams<{ banId?: string }>();
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<LocalityReviewRow | null>(null);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const {
+    filters: { fromDate, toDate },
+    setters: { fromDate: setFromDate, toDate: setToDate },
+    setFilters: setQueryFilters,
+  } = useQueryFilters({ fromDate: '', toDate: '' });
 
   const submissionsQuery = useQuery({
     queryKey: ['leader-submissions', { includeUnsubmitted: true }],
@@ -161,6 +165,6 @@ export default function BanLeaderApprovalPage() {
 
   return <div className="space-y-6">
     <PageHeader title="Danh sách địa phương" description="Hồ sơ do chuyên viên chuyển lãnh đạo ban thẩm định." />
-    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => { setFromDate(''); setToDate(''); }} toolbar={<div className="flex flex-wrap items-center gap-2"><Button disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button></div>} emptyState={{ title: 'Không có địa phương', description: 'Chưa có địa phương nào trong dữ liệu.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ SpecialistApproved chờ lãnh đạo ban thẩm định" />
+    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => setQueryFilters({ fromDate: '', toDate: '' })} toolbar={<div className="flex flex-wrap items-center gap-2"><Button disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button></div>} emptyState={{ title: 'Không có địa phương', description: 'Chưa có địa phương nào trong dữ liệu.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ SpecialistApproved chờ lãnh đạo ban thẩm định" />
   </div>;
 }

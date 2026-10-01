@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   PageHeader,
   DataTable,
@@ -62,11 +63,29 @@ export default function CriteriaListPage() {
   const localities = useScoreStore((s) => s.localities);
   const deadline = useScoreStore((s) => s.deadline);
   const setDeadline = useScoreStore((s) => s.setDeadline);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CriteriaGroupStatusApi | ''>('');
-  const [sort, setSort] = useState('createdAt-desc');
-  const [yearFilter, setYearFilter] = useState<string>('');
-  const [periodFilter, setPeriodFilter] = useState<string>('');
+  const {
+    filters: { search: initialSearch, statusFilter, sort, yearFilter, periodFilter },
+    setters: {
+      statusFilter: setStatusFilter,
+      sort: setSort,
+      yearFilter: setYearFilter,
+      periodFilter: setPeriodFilter,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{
+    search: string;
+    statusFilter: CriteriaGroupStatusApi | '';
+    sort: string;
+    yearFilter: string;
+    periodFilter: string;
+  }>({
+    search: '',
+    statusFilter: '',
+    sort: 'createdAt-desc',
+    yearFilter: '',
+    periodFilter: '',
+  });
+  const [search, setSearch] = useState(initialSearch);
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
     queryKey: ['criteria-groups', { search, statusFilter, periodId: periodFilter, sortBy, sortOrder }],
@@ -252,6 +271,7 @@ export default function CriteriaListPage() {
 
   const openCreateDialog = () => {
     resetEditor();
+    if (activePeriods.some((period) => period.id === periodFilter)) setPeriodId(periodFilter);
     setOpen(true);
   };
 
@@ -406,7 +426,19 @@ export default function CriteriaListPage() {
       <PageHeader
         title={LABELS.CRITERIA_TABLE}
         description="Quản lý nhóm tiêu chí và tiêu chí chấm điểm thi đua khen thưởng."
-        actions={new Date(deadline).getTime() <= Date.now() ? <Badge className="h-7 bg-accent/20 px-3 text-foreground">Đến hạn gợi ý công bố</Badge> : undefined}
+        actions={
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
+            <FilterSelect
+              label="Kỳ thi đua"
+              labelPosition="outside"
+              value={periodFilter}
+              onChange={(value) => { setPeriodFilter(value); setSelectedTable(null); setApplyValidationError(null); }}
+              allLabel="Tất cả kỳ thi đua"
+              options={periods.map((p) => ({ value: p.id, label: p.name }))}
+            />
+            {new Date(deadline).getTime() <= Date.now() && <Badge className="h-7 bg-accent/20 px-3 text-foreground">Đến hạn gợi ý công bố</Badge>}
+          </div>
+        }
       />
 
       {applyValidationError && (
@@ -438,14 +470,6 @@ export default function CriteriaListPage() {
         pageSize={10}
         onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
-        inlineFilters={
-          <FilterSelect
-            label="Kỳ"
-            value={periodFilter}
-            onChange={(value) => { setPeriodFilter(value); setSelectedTable(null); setApplyValidationError(null); }}
-            options={periods.map((p) => ({ value: p.id, label: p.name }))}
-          />
-        }
         filters={
           <>
             <FilterSelect
@@ -497,11 +521,7 @@ export default function CriteriaListPage() {
         ]}
         onClearFilters={
           statusFilter || yearFilter || sort !== 'createdAt-desc'
-            ? () => {
-                setStatusFilter('');
-                setYearFilter('');
-                setSort('createdAt-desc');
-              }
+            ? () => setQueryFilters({ statusFilter: '', yearFilter: '', sort: 'createdAt-desc' })
             : undefined
         }
         emptyState={{

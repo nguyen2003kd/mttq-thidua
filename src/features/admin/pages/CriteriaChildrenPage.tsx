@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { formatDate } from '@/lib/utils';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/features/admin/api/criteriaGroupsApi';
 import { useAuthStore } from '@/store/authStore';
@@ -70,7 +71,9 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parent
 
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
-  const [search, setSearch] = useState(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
+  const { filters: { search: initialSearch, sort }, setters: { sort: setSort } } = useQueryFilters({ search: '', sort: 'createdAt-desc' });
+  const [search, setSearch] = useState(initialSearch);
+  const [selected, setSelected] = useState<CriteriaItem | null>(null);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
   const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
@@ -114,13 +117,13 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'maxScore',
       header: 'Điểm chuẩn',
-      meta: { align: 'right', list: { width: 'minmax(110px,0.7fr)' } },
+      meta: { align: 'center', list: { width: 'minmax(110px,0.7fr)' } },
     },
     {
       accessorKey: 'bonusScore',
       header: 'Điểm thưởng tối đa',
       cell: ({ row }) => row.original.bonusScore ?? 0,
-      meta: { align: 'right', list: { width: 'minmax(145px,0.85fr)' } },
+      meta: { align: 'center', list: { width: 'minmax(145px,0.85fr)' } },
     },
     {
       accessorKey: 'deadline',
