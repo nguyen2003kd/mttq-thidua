@@ -1,7 +1,7 @@
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
 import { queryClient } from '@/api/mutator/query-client';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LocalityLayout } from '@/components/layout/LocalityLayout';
@@ -22,6 +22,7 @@ const ChangePasswordPage = lazy(() => import('@/features/auth/ChangePasswordPage
 const ProfileCompletionPage = lazy(() => import('@/features/auth/ProfileCompletionPage'));
 const AccountPage = lazy(() => import('@/features/auth/AccountPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
+const CriteriaPeriodSelectionPage = lazy(() => import('@/features/admin/pages/CriteriaPeriodSelectionPage'));
 const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
@@ -51,6 +52,13 @@ const SpecialistScoreSummaryPage = lazy(() => import('@/features/cham-diem/pages
 const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaChildrenPage'));
 const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
 const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/LocalityResultsPage'));
+
+function SpecialistCriteriaEntryPage() {
+  const [searchParams] = useSearchParams();
+  return searchParams.get('view') === 'periods'
+    ? <CriteriaPeriodSelectionPage />
+    : <CriteriaListPage />;
+}
 
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'];
 
@@ -197,7 +205,7 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={ROUTES.SPECIALIST_REVIEW} replace />} />
-              <Route path="tieu-chi" element={<CriteriaListPage />} />
+              <Route path="tieu-chi" element={<SpecialistCriteriaEntryPage />} />
               <Route path="tieu-chi/:id/con" element={<CriteriaChildrenPage />} />
               <Route path="duyet" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />

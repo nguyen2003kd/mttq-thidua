@@ -116,8 +116,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
 
     if (user?.role === 'SPECIALIST') {
+      items.push({ to: `${ROUTES.SPECIALIST_CRITERIA}?view=periods`, label: 'Quản lý tiêu chí', icon: Table });
       if (criteriaTables[0]) {
-        items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
         items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
       }
       items.push({ to: ROUTES.SPECIALIST_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
