@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsIdMembersQueryKey } from '@/api/endpoints/departments';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -66,19 +72,19 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
   const [assignUserId, setAssignUserId] = useState('');
 
   const departmentsQuery = useQuery({
-    queryKey: ['admin-departments', { search: debouncedSearch }],
+    queryKey: dataQueryKey(getGetApiV1DepartmentsQueryKey(), { search: debouncedSearch, page: 1, pageSize: 100 }),
     queryFn: () => departmentsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100 }),
   });
   const departments = departmentsQuery.data?.items ?? [];
 
   const membersQuery = useQuery({
-    queryKey: ['admin-department-members', selected?.id],
+    queryKey: dataQueryKey(getGetApiV1DepartmentsIdMembersQueryKey(selected?.id ?? '')),
     queryFn: () => departmentsApi.listMembers(selected!.id),
     enabled: Boolean(selected?.id) && editOpen,
   });
 
   const assignableUsersQuery = useQuery({
-    queryKey: ['admin-department-assignable-users'],
+    queryKey: dataQueryKey(getGetApiV1UsersQueryKey(), { page: 1, pageSize: 200, view: 'department-assignable' }),
     queryFn: async () => {
       const raw = await getApiV1Users({ Page: 1, PageSize: 200 });
       return ((raw as unknown as UsersEnvelope)?.data?.items ?? []).filter(
@@ -88,10 +94,16 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
     enabled: editOpen,
   });
 
-  const invalidateDepartmentMembership = (departmentId: string) => Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['admin-department-members', departmentId] }),
-    queryClient.invalidateQueries({ queryKey: ['admin-department-assignable-users'] }),
-    queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+  const invalidateDepartments = (includeAssignedGroups = false) => invalidateQueryResources(queryClient, [
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+    ...(includeAssignedGroups ? [getGetApiV1CriteriaGroupsQueryKey(), getGetApiV1SubmissionsQueryKey()] : []),
+  ]);
+  const invalidateDepartmentMembership = (includeAssignedGroups = false) => invalidateQueryResources(queryClient, [
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1UsersQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+    ...(includeAssignedGroups ? [getGetApiV1CriteriaGroupsQueryKey(), getGetApiV1SubmissionsQueryKey()] : []),
   ]);
 
   const createMutation = useMutation({
@@ -99,32 +111,26 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
     onSuccess: async () => {
       toast.success('Đã tạo ban');
       setCreateOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ['admin-departments'] });
+      await invalidateDepartments();
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: { name: string; description?: string | null } }) => departmentsApi.update(id, payload),
-    onSuccess: async (_updated, { id }) => {
+    onSuccess: async () => {
       toast.success('Đã cập nhật ban');
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['admin-departments'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-department-members', id] }),
-      ]);
+      await invalidateDepartments(true);
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => departmentsApi.remove(id),
-    onSuccess: async (_deleted, id) => {
+    onSuccess: async () => {
       toast.success('Đã xóa ban');
       setDeleteOpen(false);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['admin-departments'] }),
-        invalidateDepartmentMembership(id),
-      ]);
+      await invalidateDepartmentMembership(true);
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
@@ -132,19 +138,19 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
   const assignMutation = useMutation({
     mutationFn: ({ userId, departmentId }: { userId: string; departmentId: string }) =>
       putApiV1UsersId(userId, { departmentId } as never),
-    onSuccess: async (_updated, { departmentId }) => {
+    onSuccess: async () => {
       toast.success('Đã thêm thành viên vào ban');
       setAssignUserId('');
-      await invalidateDepartmentMembership(departmentId);
+      await invalidateDepartmentMembership();
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: ({ departmentId, userId }: { departmentId: string; userId: string }) => departmentsApi.removeMember(departmentId, userId),
-    onSuccess: async (_removed, { departmentId }) => {
+    onSuccess: async () => {
       toast.success('Đã gỡ thành viên khỏi ban');
-      await invalidateDepartmentMembership(departmentId);
+      await invalidateDepartmentMembership();
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });

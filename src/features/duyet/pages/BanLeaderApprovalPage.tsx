@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { Eye, Search } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -89,13 +92,12 @@ export default function BanLeaderApprovalPage() {
   } = useQueryFilters({ fromDate: '', toDate: '' });
 
   const submissionsQuery = useQuery({
-    queryKey: ['leader-submissions', { includeUnsubmitted: true }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: listEveryLeaderSubmission,
-    staleTime: 0,
   });
 
   const groupsQuery = useQuery({
-    queryKey: ['leader-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
 

@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 // import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 // import { Send, Trophy } from 'lucide-react';
@@ -121,13 +124,12 @@ export default function CommitteeApprovalPage() {
   // });
 
   const submissionsQuery = useQuery({
-    queryKey: ['committee-submissions', { includeUnsubmitted: true }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: listEveryCommitteeSubmission,
-    staleTime: 0,
   });
 
   const groupsQuery = useQuery({
-    queryKey: ['committee-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
 

@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey, getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { ArrowLeft, Download, Edit3, Eye, FileText, MessageSquareWarning, Save } from 'lucide-react';
 // import { Send } from 'lucide-react'; // tạm ẩn cùng nút "Duyệt & trình Hội đồng" của Lãnh đạo ban
 import { toast } from 'sonner';
@@ -100,38 +105,35 @@ export default function BanLeaderReviewDetailPage() {
 
   const localityCode = localityId ? getLocalityCode(localityId) : '';
   const groupQuery = useQuery({
-    queryKey: ['leader-criteria-group-detail', tableId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(tableId ?? '')),
     queryFn: () => specialistApi.getCriteriaGroup(tableId!),
     enabled: Boolean(tableId),
   });
   const submissionsQuery = useQuery({
-    queryKey: ['leader-submissions-by-group', tableId, localityCode],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(tableId ?? ''), { view: 'leader-submission', localityCode, stages: LEADER_VISIBLE_STAGES }),
     queryFn: async () => {
       const pages = await Promise.all(LEADER_VISIBLE_STAGES.map((stage) => specialistApi.listSubmissionsByGroup(tableId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
       return pages.flatMap((page) => page.items).filter(isRealSubmission).find((submission) => (submission.createdByWardCode ?? submission.createdBy ?? '') === localityCode) ?? null;
     },
     enabled: Boolean(tableId && localityCode),
-    staleTime: 0,
   });
   const submissionDetailQuery = useQuery({
-    queryKey: ['leader-submission-detail', submissionsQuery.data?.id],
-    queryFn: async () => {
-      const data = await specialistApi.getSubmission(submissionsQuery.data!.id);
-      return isRealSubmission(data) ? data : null;
-    },
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submissionsQuery.data?.id ?? '')),
+    queryFn: () => specialistApi.getSubmission(submissionsQuery.data!.id),
+    select: (data) => isRealSubmission(data) ? data : null,
     enabled: Boolean(submissionsQuery.data?.id),
-    staleTime: 0,
   });
   const approvalHistoriesQuery = useQuery({
-    queryKey: ['leader-approval-histories', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submissionsQuery.data?.id ?? ''), { action: 'Approve', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listApprovalHistories(submissionsQuery.data!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(submissionsQuery.data?.id),
-    staleTime: 0,
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
-    queryKey: ['leader-legacy-specialist-forwarding-files', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: submissionsQuery.data?.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submissionsQuery.data!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
-    enabled: Boolean(submissionsQuery.data?.id),
+    enabled: Boolean(submissionsQuery.data?.id)
+      && (approvalHistoriesQuery.isSuccess || approvalHistoriesQuery.isError)
+      && !approvalHistoriesQuery.data?.items.find((history) => history.stageLevel === 'LocalSubmitted')?.files?.length,
   });
 
   const submission = submissionDetailQuery.data ?? submissionsQuery.data;
@@ -202,7 +204,7 @@ export default function BanLeaderReviewDetailPage() {
 
   const uploadPendingLeaderAttachments = async () => {
     const pending = Object.entries(pendingAttachments);
-    if (pending.length === 0) return;
+    if (pending.length === 0) return false;
 
     const uploadedIds: string[] = [];
     const failedFiles: string[] = [];
@@ -221,7 +223,6 @@ export default function BanLeaderReviewDetailPage() {
     }
 
     if (uploadedIds.length > 0) {
-      await Promise.all(uploadedIds.map((resultId) => queryClient.invalidateQueries({ queryKey: ['official-score-revision-files', resultId] })));
       setPendingAttachments((current) => {
         const next = { ...current };
         uploadedIds.forEach((resultId) => delete next[resultId]);
@@ -229,6 +230,7 @@ export default function BanLeaderReviewDetailPage() {
       });
     }
     if (failedFiles.length > 0) toast.warning(`Điểm đã được lưu nhưng ${failedFiles.length} tệp Lãnh đạo chưa tải lên được.`);
+    return uploadedIds.length > 0;
   };
 
   const saveAllScores = async (notifyWhenEmpty = true) => {
@@ -242,7 +244,10 @@ export default function BanLeaderReviewDetailPage() {
       if (Object.keys(pendingAttachments).length > 0) {
         setSavingAll(true);
         try {
-          await uploadPendingLeaderAttachments();
+          const uploaded = await uploadPendingLeaderAttachments();
+          if (uploaded) {
+            await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsQueryKey(), getGetApiV1FilesQueryKey()]);
+          }
           return true;
         } finally {
           setSavingAll(false);
@@ -263,14 +268,12 @@ export default function BanLeaderReviewDetailPage() {
         scoreItems: dirtyItems,
       });
       if (!response.processed) throw new Error('API chưa xử lý lưu điểm.');
-      await uploadPendingLeaderAttachments();
+      const uploaded = await uploadPendingLeaderAttachments();
       setSavedDraftIds((current) => new Set([...current, ...dirtyItems.map((item) => item.submissionResultId)]));
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['leader-submission-detail', submission.id] }),
-        queryClient.invalidateQueries({ queryKey: ['leader-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group', tableId, localityCode] }),
-        queryClient.invalidateQueries({ queryKey: ['specialist-score-summary-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['score-group-submissions', tableId] }),
+      await invalidateQueryResources(queryClient, [
+        getGetApiV1SubmissionsQueryKey(),
+        ['submission-results'],
+        ...(uploaded ? [getGetApiV1FilesQueryKey()] : []),
       ]);
       toast.success('Đã Lưu nháp điểm Lãnh đạo.');
       return true;
@@ -292,10 +295,10 @@ export default function BanLeaderReviewDetailPage() {
     }
     try {
       await specialistApi.requestRevision({ submissionId: submission.id, reason, submissionResultIds: selectedResultIds, file });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['leader-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group', tableId, localityCode] }),
-        queryClient.invalidateQueries({ queryKey: ['leader-submission-detail', submission.id] }),
+      await invalidateQueryResources(queryClient, [
+        getGetApiV1SubmissionsQueryKey(),
+        ['submission-results'],
+        ...(file ? [getGetApiV1FilesQueryKey()] : []),
       ]);
       toast.success('Đã gửi yêu cầu Chuyên viên chấm lại hồ sơ.');
       navigate(backToList);
@@ -393,6 +396,7 @@ export default function BanLeaderReviewDetailPage() {
     <ReviewScoreModal
       open={scoreEditOpen}
       onOpenChange={setScoreEditOpen}
+      criterionId={selectedResultItem?.criterion.id}
       criterionName={selectedResultItem?.criterion.content}
       maxScoreOverride={selectedResultItem?.criterion.maxPoint}
       maxBonusOverride={selectedResultItem?.criterion.maxBonusPoint}

@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -66,10 +67,8 @@ export const getRoles = (
 
 
 export const getGetRolesQueryKey = (params?: GetRolesParams,) => {
-    return [
-    `/api/v1/roles`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/roles` });
+};
 
 
 export const getGetRolesQueryOptions = <TData = Awaited<ReturnType<typeof getRoles>>, TError = ErrorResponse>(params?: GetRolesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoles>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -252,10 +251,8 @@ export const getRoleById = (
 
 
 export const getGetRoleByIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/roles/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/roles/${id}` });
+};
 
 
 export const getGetRoleByIdQueryOptions = <TData = Awaited<ReturnType<typeof getRoleById>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoleById>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -399,10 +400,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 export const getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey = (submissionId: string,
     params?: GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams,) => {
-    return [
-    `/api/v1/submissions/${submissionId}/approval-histories`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/submissions/${submissionId}/approval-histories` });
+};
 
 
 export const getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsSubmissionIdApprovalHistories>>, TError = unknown>(submissionId: string,
@@ -493,10 +492,8 @@ export const getApiV1SubmissionResultsResultIdHistories = (
 
 export const getGetApiV1SubmissionResultsResultIdHistoriesQueryKey = (resultId: string,
     params?: GetApiV1SubmissionResultsResultIdHistoriesParams,) => {
-    return [
-    `/api/v1/submission-results/${resultId}/histories`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/submission-results/${resultId}/histories` });
+};
 
 
 export const getGetApiV1SubmissionResultsResultIdHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionResultsResultIdHistories>>, TError = unknown>(resultId: string,
@@ -585,10 +582,8 @@ export const getApiV1SubmissionsScoreHistories = (
 
 
 export const getGetApiV1SubmissionsScoreHistoriesQueryKey = (params?: GetApiV1SubmissionsScoreHistoriesParams,) => {
-    return [
-    `/api/v1/submissions/score-histories`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/submissions/score-histories` });
+};
 
 
 export const getGetApiV1SubmissionsScoreHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsScoreHistories>>, TError = unknown>(params?: GetApiV1SubmissionsScoreHistoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsScoreHistories>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

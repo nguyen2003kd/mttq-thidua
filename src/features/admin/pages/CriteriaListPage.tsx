@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } from '@/api/endpoints/departments';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { useScoreStore } from '@/store/scoreStore';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
@@ -97,7 +104,7 @@ export default function CriteriaListPage() {
   const [search, setSearch] = useState(initialSearch);
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
-    queryKey: ['criteria-groups', { search, statusFilter, periodId: periodFilter, sortBy, sortOrder }],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { search, status: statusFilter, periodId: periodFilter, sortBy, sortOrder, page: 1, pageSize: 100 }),
     queryFn: () => criteriaGroupsApi.list({ search: search || undefined, status: statusFilter || undefined, periodId: periodFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
   });
   const criteriaTables = useMemo(() => (groupPage?.items ?? []).map(toCriteriaTable), [groupPage]);
@@ -108,13 +115,13 @@ export default function CriteriaListPage() {
   );
 
   const departmentsQuery = useQuery({
-    queryKey: ['admin-departments-all'],
+    queryKey: dataQueryKey(getGetApiV1DepartmentsAllQueryKey()),
     queryFn: () => departmentsApi.listAll(),
   });
   const departments = departmentsQuery.data ?? [];
 
   const periodsQuery = useQuery({
-    queryKey: ['admin-periods-all'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: () => periodsApi.listAll(),
   });
   const periods = periodsQuery.data ?? [];
@@ -158,15 +165,22 @@ export default function CriteriaListPage() {
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
   const { uploading: fileUploading, uploadProgress: fileProgress, uploadFiles } = useFileUpload();
+  const invalidateCriteria = () => invalidateQueryResources(queryClient, [
+    getGetApiV1CriteriaGroupsQueryKey(),
+    getGetApiV1SubmissionsQueryKey(),
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
+  const fetchLatestGroup = (groupId: string) => queryClient.fetchQuery({
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(groupId)),
+    queryFn: () => criteriaGroupsApi.get(groupId),
+    staleTime: 0,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => criteriaGroupsApi.delete(id),
-    onSuccess: async (_deleted, id) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
-      ]);
+    onSuccess: async () => {
+      await invalidateCriteria();
       setSelectedTable(null);
       setDeleteOpen(false);
       toast.success('Đã xóa nhóm tiêu chí nháp.');
@@ -323,7 +337,7 @@ export default function CriteriaListPage() {
   const openApplyDialog = async (table: CriteriaTable) => {
     setSaving(true);
     try {
-      const latestGroup = await criteriaGroupsApi.get(table.id);
+      const latestGroup = await fetchLatestGroup(table.id);
       const latestTable = toCriteriaTable(latestGroup);
       const validation = validateCriteriaApplication(
         latestTable.totalScore,
@@ -396,7 +410,7 @@ export default function CriteriaListPage() {
     try {
       const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId, periodId: periodId || undefined };
       if (editingTable) {
-        const latestGroup = await criteriaGroupsApi.get(editingTable.id);
+        const latestGroup = await fetchLatestGroup(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
         if (parsedTotalScore < childrenTotal) {
           toast.error(
@@ -417,13 +431,7 @@ export default function CriteriaListPage() {
           toast.success('Đã tạo nhóm tiêu chí mới. Hãy thêm tiêu chí con trước khi áp dụng.');
         }
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
-        ...(editingTable ? [
-          queryClient.invalidateQueries({ queryKey: ['criteria-group', editingTable.id] }),
-          queryClient.invalidateQueries({ queryKey: ['criteria', editingTable.id] }),
-        ] : []),
-      ]);
+      await invalidateCriteria();
       setSelectedTable(null);
       setOpen(false);
       resetEditor();
@@ -436,7 +444,7 @@ export default function CriteriaListPage() {
           cleanupFailed = true;
           setOpen(false);
           resetEditor();
-          void queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+          await invalidateCriteria();
         }
       }
       toast.error(cleanupFailed
@@ -740,7 +748,7 @@ export default function CriteriaListPage() {
           }
           setSaving(true);
           try {
-            const latestGroup = await criteriaGroupsApi.get(applyTable.id);
+            const latestGroup = await fetchLatestGroup(applyTable.id);
             const validation = validateCriteriaApplication(
               latestGroup.maxPoint,
               latestGroup.criteria.map((item) => item.maxPoint),
@@ -760,9 +768,12 @@ export default function CriteriaListPage() {
                 toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
               }
             }
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['criteria-groups'] }),
-              queryClient.invalidateQueries({ queryKey: ['criteria-group', applyTable.id] }),
+            await invalidateQueryResources(queryClient, [
+              getGetApiV1CriteriaGroupsQueryKey(),
+              getGetApiV1SubmissionsQueryKey(),
+              getGetApiV1FilesQueryKey(),
+              getGetApiV1DepartmentsQueryKey(),
+              getGetApiV1AuditLogsQueryKey(),
             ]);
             setSelectedTable(null);
             setApplyTable(null);

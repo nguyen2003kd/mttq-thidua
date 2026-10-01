@@ -23,7 +23,11 @@ const orvalConfig = async () => {
           query: {
             // Do not force a hook type here. Orval's defaults map GET to
             // useQuery and POST/PUT/PATCH/DELETE to useMutation.
-            useInfinite: false 
+            useInfinite: false,
+            queryKey: {
+              path: 'src/api/mutator/query-keys.ts',
+              name: 'apiQueryKey',
+            },
           },
           mutator: {
             path: 'src/api/mutator/custom-instance.ts',

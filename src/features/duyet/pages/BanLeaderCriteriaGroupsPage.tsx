@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 // import { useQueryClient } from '@tanstack/react-query'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 // import { Send } from 'lucide-react'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
@@ -53,12 +56,11 @@ export default function BanLeaderCriteriaGroupsPage() {
   // const [forwardOpen, setForwardOpen] = useState(false); // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 
   const submissionsQuery = useQuery({
-    queryKey: ['leader-submissions', { stage: LEADER_STAGE }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'leader-groups', stages: LEADER_VISIBLE_STAGES }),
     queryFn: listEveryLeaderSubmission,
-    staleTime: 0,
   });
   const groupsQuery = useQuery({
-    queryKey: ['leader-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
 

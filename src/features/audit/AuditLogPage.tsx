@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import {
   ChevronLeft,
   ChevronRight,
@@ -658,7 +661,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   const search = useDebounce(searchInput, 350);
   const selectedPeriodId = usePeriodStore((state) => state.selectedPeriodId);
   const effectivePeriodFilter = periodFilter || selectedPeriodId || '';
-  const periodsQuery = useQuery({ queryKey: ['publication-periods'], queryFn: periodsApi.listAll });
+  const periodsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'), queryFn: periodsApi.listAll });
   const periods = periodsQuery.data ?? [];
   const selectedPeriod = periods.find((period) => period.id === effectivePeriodFilter);
 
@@ -678,7 +681,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     ...(search ? { search } : {}),
   }), [page, from, to, module, action, entityName, search, selectedPeriod]);
 
-  const logsQuery = useQuery({ queryKey: ['audit-logs', query], queryFn: () => auditLogsApi.list(query) });
+  const logsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuditLogsQueryKey(), query), queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;
 
   const resetPage = () => setPage(1);

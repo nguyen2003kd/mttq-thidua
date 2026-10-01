@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -125,10 +126,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1PeriodsQueryKey = (params?: GetApiV1PeriodsParams,) => {
-    return [
-    `/api/v1/periods`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/periods` });
+};
 
 
 export const getGetApiV1PeriodsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Periods>>, TError = unknown>(params?: GetApiV1PeriodsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Periods>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -211,10 +210,8 @@ export const getApiV1PeriodsId = (
 
 
 export const getGetApiV1PeriodsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/periods/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/periods/${id}` });
+};
 
 
 export const getGetApiV1PeriodsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1PeriodsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1PeriodsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

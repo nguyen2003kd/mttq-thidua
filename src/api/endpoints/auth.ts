@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -493,10 +494,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1AuthProfileQueryKey = () => {
-    return [
-    `/api/v1/auth/profile`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/auth/profile` });
+};
 
 
 export const getGetApiV1AuthProfileQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuthProfile>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuthProfile>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -824,10 +823,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1AuthSessionsQueryKey = (params?: GetApiV1AuthSessionsParams,) => {
-    return [
-    `/api/v1/auth/sessions`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/auth/sessions` });
+};
 
 
 export const getGetApiV1AuthSessionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuthSessions>>, TError = unknown>(params?: GetApiV1AuthSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuthSessions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

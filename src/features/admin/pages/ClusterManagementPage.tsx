@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Plus, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -31,7 +33,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const [fWardSearch, setFWardSearch] = useState('');
 
   const clustersQuery = useQuery({
-    queryKey: ['admin-clusters'],
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' })),
     queryFn: () => clustersApi.list(),
   });
 
@@ -43,15 +45,14 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   }, [clustersQuery.data, search]);
 
   const availableWardsQuery = useQuery({
-    queryKey: ['admin-cluster-available-wards'],
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters/available-wards' })),
     queryFn: () => clustersApi.availableWards(),
     enabled: editOpen || createOpen,
   });
 
-  const invalidateClusters = () => queryClient.invalidateQueries({ queryKey: ['admin-clusters'] });
-  const invalidateClusterWards = () => Promise.all([
-    invalidateClusters(),
-    queryClient.invalidateQueries({ queryKey: ['admin-cluster-available-wards'] }),
+  const invalidateClusters = () => invalidateQueryResources(queryClient, [
+    apiQueryKey({}, { url: '/api/v1/clusters' }),
+    getGetApiV1AuditLogsQueryKey(),
   ]);
 
   const createMutation = useMutation({
@@ -71,7 +72,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       }
       setCreateOpen(false);
       setFWardCodes([]);
-      await invalidateClusterWards();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -93,7 +94,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       toast.success('Đã xóa cụm');
       setDeleteOpen(false);
       setSelected(null);
-      await invalidateClusterWards();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -105,7 +106,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       toast.success('Đã thêm phường/xã vào cụm');
       setSelected(updated);
       setAssignWardCode('');
-      await invalidateClusterWards();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -122,7 +123,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
           wards: selected.wards.filter((w) => w.wardCode !== vars.wardCode),
         });
       }
-      await invalidateClusterWards();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -156,7 +157,10 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
     setEDescription(cluster.description ?? '');
     setAssignWardCode('');
     setEditOpen(true);
-    void clustersApi.get(cluster.id).then((detail) => setSelected(detail)).catch(() => undefined);
+    void queryClient.fetchQuery({
+      queryKey: dataQueryKey(apiQueryKey({}, { url: `/api/v1/clusters/${cluster.id}` })),
+      queryFn: () => clustersApi.get(cluster.id),
+    }).then((detail) => setSelected(detail)).catch(() => undefined);
   };
 
   const handleCreate = (e: React.FormEvent) => {

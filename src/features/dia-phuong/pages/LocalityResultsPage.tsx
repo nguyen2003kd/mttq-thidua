@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1ResultPublicationsLocalQueryKey } from '@/api/endpoints/local-result-publications';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, ListTree, MessageSquareText, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -224,7 +230,7 @@ export default function LocalityResultsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const periodsQuery = useQuery({
-    queryKey: ['publication-periods'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
@@ -253,18 +259,19 @@ export default function LocalityResultsPage() {
   }, [periodId]);
 
   const submissionsQuery = useQuery({
-    queryKey: ['locality-final-submissions'],
+    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
-    enabled: !id,
+    enabled: !id && Boolean(localityId),
   });
   const groupsQuery = useQuery({
-    queryKey: ['locality-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    enabled: !id && Boolean(localityId),
   });
   const publicationQuery = useQuery({
-    queryKey: ['local-result-publication', periodId],
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsLocalQueryKey(), { periodId, localityId }),
     queryFn: () => resultPublicationApi.getLocalResult(periodId),
-    enabled: Boolean(periodId),
+    enabled: Boolean(periodId && localityId),
   });
 
   const submissions = useMemo(() => {
@@ -298,39 +305,34 @@ export default function LocalityResultsPage() {
   );
 
   const detailQuery = useQuery({
-    queryKey: ['locality-final-submission', id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(id ?? '')),
     queryFn: () => localityApi.getSubmission(id!),
     enabled: Boolean(id),
     retry: false,
   });
   const detailSubmission = detailQuery.data;
   const detailGroupQuery = useQuery({
-    queryKey: ['locality-final-group', detailSubmission?.criteriaGroupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(detailSubmission?.criteriaGroupId ?? '')),
     queryFn: () => localityApi.getCriteriaGroup(detailSubmission!.criteriaGroupId),
     enabled: Boolean(detailSubmission?.criteriaGroupId),
   });
   const historiesQuery = useQuery({
-    queryKey: ['locality-final-histories', id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(id ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(id!, { page: 1, pageSize: 100 }),
     enabled: Boolean(id) && !detailQuery.isError,
   });
 
   // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason theo stage
-  const commentsQuery = useQuery({
-    queryKey: ['locality-final-comments', submissions.map((submission) => submission.id)],
-    enabled: submissions.length > 0,
-    queryFn: async () => {
-      const pages = await Promise.all(submissions.map((submission) => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 })));
-      const comments = new Map<string, { council: string | null }>();
-      pages.forEach((page, index) => {
-        const items = page.items;
-        comments.set(submissions[index].id, {
-          council: [...items].reverse().find((item) => item.stageLevel === 'LeaderApproved' && item.reason)?.reason ?? null,
-        });
-      });
-      return comments;
-    },
+  const commentHistoriesQueries = useQueries({
+    queries: submissions.map((submission) => ({
+      queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission.id), { page: 1, pageSize: 100 }),
+      queryFn: () => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 }),
+      enabled: !id && Boolean(publicationQuery.data?.isPublished),
+    })),
   });
+  const commentsBySubmission = new Map(submissions.map((submission, index) => [submission.id, {
+    council: [...(commentHistoriesQueries[index].data?.items ?? [])].reverse().find((item) => item.stageLevel === 'LeaderApproved' && item.reason)?.reason ?? null,
+  }]));
 
   const submissionById = useMemo(() => new Map(submissions.map((submission) => [submission.id, submission])), [submissions]);
 
@@ -378,7 +380,7 @@ export default function LocalityResultsPage() {
     if (periodsQuery.isError || submissionsQuery.isError || groupsQuery.isError || publicationQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(periodsQuery.error ?? submissionsQuery.error ?? groupsQuery.error ?? publicationQuery.error)} />;
     if (!periodId) return <div className="space-y-5"><PageHeader title="Kết quả thi đua" description="Kết quả của địa phương theo từng kỳ thi đua đã được công bố." actions={periodSelector} /><EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
-    const selectedComments = selectedRow?.submissionId ? commentsQuery.data?.get(selectedRow.submissionId) : null;
+    const selectedComments = selectedRow?.submissionId ? commentsBySubmission.get(selectedRow.submissionId) : null;
     const publication = publicationQuery.data;
     const totalCurrentPoint = rows.reduce((sum, row) => sum + row.currentPoint, 0);
     const totalOfficialBonus = rows.reduce((sum, row) => sum + (row.officialBonus ?? 0), 0);

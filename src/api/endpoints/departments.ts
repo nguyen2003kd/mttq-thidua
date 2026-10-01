@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -125,10 +126,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1DepartmentsQueryKey = (params?: GetApiV1DepartmentsParams,) => {
-    return [
-    `/api/v1/departments`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/departments` });
+};
 
 
 export const getGetApiV1DepartmentsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Departments>>, TError = unknown>(params?: GetApiV1DepartmentsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Departments>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -332,10 +331,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1DepartmentsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/departments/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/departments/${id}` });
+};
 
 
 export const getGetApiV1DepartmentsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1DepartmentsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1DepartmentsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -418,10 +415,8 @@ export const getApiV1DepartmentsAll = (
 
 
 export const getGetApiV1DepartmentsAllQueryKey = () => {
-    return [
-    `/api/v1/departments/all`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/departments/all` });
+};
 
 
 export const getGetApiV1DepartmentsAllQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1DepartmentsAll>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1DepartmentsAll>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -504,10 +499,8 @@ export const getApiV1DepartmentsIdMembers = (
 
 
 export const getGetApiV1DepartmentsIdMembersQueryKey = (id: string,) => {
-    return [
-    `/api/v1/departments/${id}/members`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/departments/${id}/members` });
+};
 
 
 export const getGetApiV1DepartmentsIdMembersQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1DepartmentsIdMembers>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1DepartmentsIdMembers>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
