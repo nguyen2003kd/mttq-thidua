@@ -70,11 +70,13 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
     queryKey: ['result-publication-preview', periodId],
     queryFn: () => resultPublicationApi.getPreview(periodId),
     enabled: open && Boolean(periodId),
+    staleTime: 0,
   });
   const criteriaGroupsQuery = useQuery({
     queryKey: ['result-publication-criteria-groups', periodId],
     queryFn: () => resultPublicationApi.getCriteriaGroups(periodId),
     enabled: open && Boolean(periodId),
+    staleTime: 0,
   });
   const unsubmittedGroups = criteriaGroupsQuery.data?.flatMap((group) =>
     group.localities

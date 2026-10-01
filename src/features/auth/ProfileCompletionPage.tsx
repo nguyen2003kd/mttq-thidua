@@ -1,3 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -34,6 +36,7 @@ function extractError(error: unknown) {
  */
 export default function ProfileCompletionPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const requiresCompletion = useAuthStore((s) => s.requires_profile_completion);
   const fullName = useAuthStore((s) => s.full_name);
@@ -52,6 +55,7 @@ export default function ProfileCompletionPage() {
   const onSubmit = async (values: FormValues) => {
     try {
       const profile = await profileApi.update({ fullName: values.fullName, phone: values.phone });
+      queryClient.setQueryData(getGetApiV1AuthProfileQueryKey(), profile);
       setStore({
         full_name: profile.fullName,
         phone: profile.phone,

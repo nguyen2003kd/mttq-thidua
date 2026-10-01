@@ -384,10 +384,10 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const canProcessSelectedRow = Boolean(selectedRow && selectedRow.record.state === config.targetState);
   const selectionToolbar = isLeaderView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
-      <Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
+      <Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
         <History className="mr-1.5 h-4 w-4" />Lịch sử
       </Button>
       <Button disabled={!canProcessSelectedRow || !canApprove} disabledReason={!selectedRow ? 'Chọn một hồ sơ để duyệt.' : !canApprove ? 'Tài khoản hiện tại không có quyền duyệt hồ sơ.' : 'Hồ sơ đã được chuyển sang Hội đồng, chỉ có thể xem lịch sử.'} action={config.approveAction} state={config.targetState} onClick={() => selectedRow && (config.useConfirmDialog ? setConfirmRow(selectedRow) : handleApprove(selectedRow))}>
@@ -399,10 +399,10 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     </div>
   ) : isCouncilView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
-      <Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
+      <Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
         <History className="mr-1.5 h-4 w-4" />Lịch sử
       </Button>
       {config.enableComment && (

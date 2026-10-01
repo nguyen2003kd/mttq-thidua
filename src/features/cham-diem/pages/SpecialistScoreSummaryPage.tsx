@@ -204,7 +204,7 @@ function LocalityCriteriaDialog({
     queryKey: ["specialist-score-summary-submission-detail", selectedSubmission?.id],
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(locality && selectedSubmission),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   });
 
   const closeDialog = () => {
@@ -435,6 +435,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const submissionsQuery = useQuery({
     queryKey: ["specialist-score-summary-submissions", periodFilter],
     queryFn: () => listEverySubmission(periodFilter || undefined),
+    staleTime: 0,
   });
   const clustersQuery = useQuery({
     queryKey: ["specialist-score-summary-clusters"],

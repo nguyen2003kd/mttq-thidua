@@ -50,6 +50,7 @@ export default function CouncilCriteriaGroupsPage() {
   const submissionsQuery = useQuery({
     queryKey: ['council-submissions', { stage: COUNCIL_STAGE }],
     queryFn: listEveryCouncilSubmission,
+    staleTime: 0,
   });
   const groupsQuery = useQuery({
     queryKey: ['council-criteria-groups'],
@@ -93,6 +94,6 @@ export default function CouncilCriteriaGroupsPage() {
 
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua." actions={<Button variant="outline" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`)} toolbar={<Button disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Hội đồng theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`)} toolbar={<Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Hội đồng theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }

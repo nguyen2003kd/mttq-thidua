@@ -76,6 +76,7 @@ export default function ScoreByCriteriaPage() {
     queryKey: ['score-group-submissions', groupId],
     queryFn: () => listEverySubmissionByGroup(groupId!),
     enabled: Boolean(groupId) && groupQuery.isSuccess,
+    staleTime: 0,
   });
 
   const groupColumns = useMemo<ColumnDef<CriteriaGroupApi>[]>(() => [
@@ -120,7 +121,7 @@ export default function ScoreByCriteriaPage() {
           selectedRowId={selectedGroup?.id}
           onRowClick={setSelectedGroup}
           onRowDoubleClick={(group) => navigate(`/thi-dua/cham-diem/theo-tieu-chi/${group.id}`)}
-          toolbar={<Button disabled={!selectedGroup} disabledReason="Chọn một nhóm tiêu chí để xem địa phương." onClick={() => selectedGroup && navigate(`/thi-dua/cham-diem/theo-tieu-chi/${selectedGroup.id}`)}><Eye className="mr-1.5 size-4" />Xem địa phương</Button>}
+          toolbar={<Button hideWhen={!selectedGroup} disabled={!selectedGroup} disabledReason="Chọn một nhóm tiêu chí để xem địa phương." onClick={() => selectedGroup && navigate(`/thi-dua/cham-diem/theo-tieu-chi/${selectedGroup.id}`)}><Eye className="mr-1.5 size-4" />Xem địa phương</Button>}
           emptyState={{ title: groupSearch ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí', description: groupSearch ? 'Thử từ khóa khác.' : 'Chưa có nhóm tiêu chí nào được áp dụng.', icon: <Search className="size-8" /> }}
           stickyTitle="Nhóm tiêu chí"
           stickyDescription="Chọn nhóm để xem địa phương"
@@ -156,7 +157,7 @@ export default function ScoreByCriteriaPage() {
         selectedRowId={selectedRow?.code}
         onRowClick={setSelectedRow}
         onRowDoubleClick={(row) => navigate(`/thi-dua/cham-diem/${row.code}/${groupId}`)}
-        toolbar={<Button disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
+        toolbar={<Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
         emptyState={{ title: 'Chưa có hồ sơ', description: 'Chưa có địa phương nào nộp hồ sơ cho nhóm tiêu chí này.', icon: <Search className="size-8" /> }}
         stickyTitle="Danh sách địa phương"
         stickyDescription={groupQuery.data?.name ?? ''}

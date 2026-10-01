@@ -50,7 +50,7 @@ export default function CommitteeCriteriaGroupsPage() {
   const { localityId } = useParams<{ localityId?: string }>();
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<CommitteeCriteriaGroupRow | null>(null);
-  const submissionsQuery = useQuery({ queryKey: ['committee-submissions', { stage: COMMITTEE_STAGE }], queryFn: listEveryCommitteeSubmission });
+  const submissionsQuery = useQuery({ queryKey: ['committee-submissions', { stage: COMMITTEE_STAGE }], queryFn: listEveryCommitteeSubmission, staleTime: 0 });
   const groupsQuery = useQuery({ queryKey: ['committee-criteria-groups'], queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }) });
   const localityCode = localityId ? getLocalityCode(localityId) : '';
   const submissions = useMemo(() => (submissionsQuery.data?.items ?? []).filter((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode), [localityCode, submissionsQuery.data]);
@@ -75,6 +75,6 @@ export default function CommitteeCriteriaGroupsPage() {
   const openDetail = (row: CommitteeCriteriaGroupRow) => navigate(`/thi-dua/duyet/ban-thuong-truc/${localityId}/${row.groupId}`);
   return <div className="space-y-6">
     <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Chọn một nhóm để đối chiếu chi tiết các tiêu chí con trước khi công bố." actions={<Button variant="outline" render={<Link to="/thi-dua/duyet/ban-thuong-truc" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={openDetail} toolbar={<Button disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Ban Thường trực theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={openDetail} toolbar={<Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Ban Thường trực theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }

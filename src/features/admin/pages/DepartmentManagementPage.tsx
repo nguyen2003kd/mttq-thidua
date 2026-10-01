@@ -88,38 +88,43 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
     enabled: editOpen,
   });
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin-departments'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin-department-members'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin-department-assignable-users'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-  };
+  const invalidateDepartmentMembership = (departmentId: string) => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['admin-department-members', departmentId] }),
+    queryClient.invalidateQueries({ queryKey: ['admin-department-assignable-users'] }),
+    queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
+  ]);
 
   const createMutation = useMutation({
     mutationFn: (payload: { name: string; description?: string | null }) => departmentsApi.create(payload),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Đã tạo ban');
       setCreateOpen(false);
-      invalidate();
+      await queryClient.invalidateQueries({ queryKey: ['admin-departments'] });
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: { name: string; description?: string | null } }) => departmentsApi.update(id, payload),
-    onSuccess: () => {
+    onSuccess: async (_updated, { id }) => {
       toast.success('Đã cập nhật ban');
-      invalidate();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-departments'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-department-members', id] }),
+      ]);
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => departmentsApi.remove(id),
-    onSuccess: () => {
+    onSuccess: async (_deleted, id) => {
       toast.success('Đã xóa ban');
       setDeleteOpen(false);
-      invalidate();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-departments'] }),
+        invalidateDepartmentMembership(id),
+      ]);
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
@@ -127,19 +132,19 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
   const assignMutation = useMutation({
     mutationFn: ({ userId, departmentId }: { userId: string; departmentId: string }) =>
       putApiV1UsersId(userId, { departmentId } as never),
-    onSuccess: () => {
+    onSuccess: async (_updated, { departmentId }) => {
       toast.success('Đã thêm thành viên vào ban');
       setAssignUserId('');
-      invalidate();
+      await invalidateDepartmentMembership(departmentId);
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: ({ departmentId, userId }: { departmentId: string; userId: string }) => departmentsApi.removeMember(departmentId, userId),
-    onSuccess: () => {
+    onSuccess: async (_removed, { departmentId }) => {
       toast.success('Đã gỡ thành viên khỏi ban');
-      invalidate();
+      await invalidateDepartmentMembership(departmentId);
     },
     onError: (e) => toast.error(getDepartmentApiError(e)),
   });

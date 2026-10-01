@@ -219,7 +219,6 @@ export default function LocalityCriteriaPage() {
   const periodsQuery = useQuery({
     queryKey: ['periods'],
     queryFn: () => periodsApi.listAll(),
-    staleTime: 60_000,
   });
   const periods = periodsQuery.data ?? [];
 
@@ -234,12 +233,14 @@ export default function LocalityCriteriaPage() {
       pageSize: 100,
     }),
     enabled: Boolean(localityId),
+    staleTime: 0,
   });
 
   const mySubmissionsQuery = useQuery({
     queryKey: ['locality-my-submissions', localityId],
     queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
     enabled: Boolean(localityId),
+    staleTime: 0,
   });
 
   // Map criteriaGroupId → submission
@@ -380,6 +381,7 @@ export default function LocalityCriteriaPage() {
     queryKey: ['locality-submission', submission?.id],
     queryFn: () => localityApi.getSubmission(submission!.id),
     enabled: Boolean(submission?.id),
+    staleTime: 0,
   });
 
   // File phải gắn theo từng SubmissionResult; BE không hỗ trợ entityType "submission".
@@ -469,6 +471,7 @@ export default function LocalityCriteriaPage() {
     queryKey: ['locality-revision-histories', submission?.id],
     queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
     enabled: Boolean(submission?.id),
+    staleTime: 0,
   });
 
   // Sự kiện mở lại hồ sơ gần nhất: yêu cầu chỉnh sửa hoặc thêm tiêu chí bổ sung.
@@ -700,7 +703,7 @@ export default function LocalityCriteriaPage() {
           onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}`)}
           emptyState={{ title: groupSearch || statusFilter || yearFilter || periodFilter ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí được giao.' }}
           toolbar={
-            <Button disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
+            <Button hideWhen={!selectedListTable} disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
               <Eye className="size-4" />Xem
             </Button>
           }
@@ -1022,9 +1025,9 @@ export default function LocalityCriteriaPage() {
         }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
-            <Button disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
+            <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
+            <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
+            <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
               <Button disabled={savingAll || !canSubmit || !allCriteriaComplete} disabledReason={submitDisabledReason} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>

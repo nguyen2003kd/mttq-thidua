@@ -150,13 +150,12 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const departmentsQuery = useQuery({
     queryKey: ['admin-departments-all'],
     queryFn: () => departmentsApi.listAll(),
-    staleTime: 60_000,
   });
   const departments = departmentsQuery.data ?? [];
 
   const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
   const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
+  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); } });
   const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
 
   const [createOpen, setCreateOpen] = useState(false);
