@@ -6,16 +6,22 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileCheck,
+  FilePlus2,
+  FileText,
+  FileX2,
   History,
   LogOut,
   Bell,
   Inbox,
   ChevronDown,
   CheckCheck,
+  Clock,
   Menu,
+  MessageSquareWarning,
   KeyRound,
   UserRound,
   Settings2,
+  AlarmClock,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
@@ -23,6 +29,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useSseNotifications } from '@/hooks/useSseNotifications';
 import { notificationsApi } from '@/features/notifications/api/notificationsApi';
+import { getNotificationTarget, parseNotificationPayload } from '@/lib/notificationNavigation';
 import { ROLE_LABELS } from '@/constants/enums';
 import { ROUTES } from '@/constants/routes';
 import { LABELS } from '@/constants/labels';
@@ -60,6 +67,41 @@ function renderNotificationBody(body: string): ReactNode {
       ? <strong key={`${part}-${index}`} className="font-semibold text-foreground">{part}</strong>
       : <span key={`${part}-${index}`}>{part}</span>;
   });
+}
+
+/** Icon + màu theo loại thông báo — phân biệt rõ từng loại sự kiện (xanh dương / xanh lá / vàng / đỏ). */
+interface NotificationVisual {
+  Icon: ComponentType<{ className?: string }>;
+  colorClass: string;
+}
+
+function getNotificationVisual(eventType: string | undefined): NotificationVisual {
+  switch (eventType) {
+    // Xanh dương — nhóm tiêu chí được giao / cập nhật.
+    case 'criteria_group_applied':
+    case 'criteria_group_updated':
+      return { Icon: ClipboardList, colorClass: 'bg-primary/10 text-primary' };
+    // Vàng — thay đổi tiêu chí, yêu cầu chỉnh sửa, nhắc nộp hồ sơ.
+    case 'criteria_added':
+    case 'criteria_updated':
+      return { Icon: FileText, colorClass: 'bg-warning/10 text-warning' };
+    case 'criteria_disabled':
+      return { Icon: FileX2, colorClass: 'bg-destructive/10 text-destructive' };
+    case 'revision_requested':
+    case 'scorer_revision_requested':
+    case 'reviewer_revision_requested':
+    case 'specialist_review_requested':
+      return { Icon: MessageSquareWarning, colorClass: 'bg-warning/10 text-warning' };
+    case 'submission_reminder':
+      return { Icon: AlarmClock, colorClass: 'bg-warning/10 text-warning' };
+    // Xanh lá — kết quả tốt / bổ sung mới.
+    case 'supplementary_criteria_added':
+      return { Icon: FilePlus2, colorClass: 'bg-success/10 text-success' };
+    case 'result_published':
+      return { Icon: Trophy, colorClass: 'bg-success/10 text-success' };
+    default:
+      return { Icon: Bell, colorClass: 'bg-primary/10 text-primary' };
+  }
 }
 
 /** Định dạng thời gian tương đối: "Vừa xong", "5 phút trước", … fallback ngày vi-VN. */
@@ -174,13 +216,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
     markAllReadStore();
   };
 
-  const handleNotificationClick = async (id: string, isRead?: boolean) => {
-    if (isRead) return;
-    markReadStore(id);
-    try {
-      await notificationsApi.markRead(id);
-    } catch {
-      // ignore — will re-sync on next connect
+  const handleNotificationClick = async (id: string, isRead?: boolean, data?: string) => {
+    if (!isRead) {
+      markReadStore(id);
+      try {
+        await notificationsApi.markRead(id);
+      } catch {
+        // ignore — will re-sync on next connect
+      }
+    }
+
+    // Bấm thông báo → chuyển tới nội dung của thông báo (nhóm tiêu chí, kết quả, hồ sơ…).
+    const target = getNotificationTarget(parseNotificationPayload(data), user?.role, wardCode);
+    if (target) {
+      setMobileNavOpen(false);
+      navigate(target.to);
     }
   };
 
@@ -366,44 +416,56 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     </div>
                   ) : (
                     <>
-                      {notifications.map((n) => (
-                        <button
-                          key={n.id}
-                          type="button"
-                          onClick={() => handleNotificationClick(n.id, n.isRead)}
-                          className={`flex w-full cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted/70 ${
-                            n.isRead ? '' : 'bg-primary/[0.06]'
-                          }`}
-                        >
-                          <span
-                            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                              n.isRead ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
+                      {notifications.map((n) => {
+                        const visual = getNotificationVisual(parseNotificationPayload(n.data)?.eventType);
+                        return (
+                          <button
+                            key={n.id}
+                            type="button"
+                            onClick={() => handleNotificationClick(n.id, n.isRead, n.data)}
+                            className={`flex w-full cursor-pointer items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-150 hover:bg-muted/70 ${
+                              n.isRead ? '' : 'bg-primary/[0.06]'
                             }`}
                           >
-                            <Bell className="h-4 w-4" />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="flex items-center gap-2">
-                              <span
-                                className={`min-w-0 flex-1 truncate text-sm leading-5 ${
-                                  n.isRead ? 'font-medium text-foreground/90' : 'font-semibold text-foreground'
-                                }`}
-                              >
-                                {n.title}
-                              </span>
-                              {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" />}
+                            <span
+                              className={`relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${visual.colorClass}`}
+                            >
+                              <visual.Icon className="h-4 w-4" />
+                              {!n.isRead && (
+                                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-background bg-destructive" />
+                              )}
                             </span>
-                            {n.body && (
-                              <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-muted-foreground">
-                                {renderNotificationBody(n.body)}
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-start gap-2">
+                                <span
+                                  className={`min-w-0 flex-1 text-sm leading-5 ${
+                                    n.isRead ? 'font-medium text-foreground/90' : 'font-semibold text-foreground'
+                                  }`}
+                                >
+                                  {n.title}
+                                </span>
+                                {!n.isRead && (
+                                  <span className="mt-0.5 shrink-0 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                                    Mới
+                                  </span>
+                                )}
                               </span>
-                            )}
-                            <span className="mt-1 block text-[11px] text-muted-foreground/75">
-                              {formatRelativeTime(n.createdAt)}
+                              {n.body && (
+                                <>
+                                  <span aria-hidden className="my-1.5 block h-px w-full bg-border" />
+                                  <span className="line-clamp-3 block text-xs leading-5 text-muted-foreground">
+                                    {renderNotificationBody(n.body)}
+                                  </span>
+                                </>
+                              )}
+                              <span className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/75">
+                                <Clock className="h-3 w-3" />
+                                {formatRelativeTime(n.createdAt)}
+                              </span>
                             </span>
-                          </span>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                       {loadingNotifications && (
                         <p className="px-3 py-2.5 text-center text-xs text-muted-foreground">Đang tải…</p>
                       )}
