@@ -36,8 +36,6 @@ interface ManagedUser {
   username: string | null;
   /** Họ tên người đại diện — tên hiển thị chính. */
   fullName: string | null;
-  firstName: string | null;
-  lastName: string | null;
   phone: string | null;
   wardCode: string | null;
   /** Ban (department) tài khoản thuộc về. */
@@ -184,8 +182,6 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
-  const [eFirstName, setEFirstName] = useState('');
-  const [eLastName, setELastName] = useState('');
   const [ePhone, setEPhone] = useState('');
   const [eWardCode, setEWardCode] = useState('');
   const [eStatus, setEStatus] = useState('Active');
@@ -196,8 +192,6 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const openEdit = (u: ManagedUser) => {
     setSelected(u);
     setEFullName(u.fullName ?? '');
-    setEFirstName(u.firstName ?? '');
-    setELastName(u.lastName ?? '');
     setEPhone(u.phone ?? '');
     setEWardCode(u.wardCode ?? '');
     setEStatus(u.status || 'Active');
@@ -209,6 +203,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
     if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
+    if (!fPhone.trim()) { toast.error('Vui lòng nhập số điện thoại.'); return; }
     if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
     if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
@@ -230,8 +225,6 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       id: selected.id,
       body: {
         fullName: eFullName.trim() || null,
-        firstName: eFirstName.trim() || null,
-        lastName: eLastName.trim() || null,
         phone: ePhone.trim() || null,
         wardCode: eWardCode.trim() || null,
         departmentId: eDepartment || null,
@@ -263,8 +256,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       id: 'fullName',
       header: 'Họ và tên',
       meta: { className: 'font-medium', list: { width: 'minmax(180px, 1.4fr)' } },
-      // Ưu tiên fullName (người đại diện) → fallback firstName + lastName.
-      cell: ({ row }) => row.original.fullName?.trim() || `${row.original.lastName ?? ''} ${row.original.firstName ?? ''}`.trim() || '—',
+      // Tên hiển thị chính là fullName (người đại diện); trống thì hiện —.
+      cell: ({ row }) => row.original.fullName?.trim() || '—',
     },
     {
       accessorKey: 'email',
@@ -392,7 +385,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           <Input id="u-full-name" value={fFullName} onChange={(e) => setFFullName(e.target.value)} placeholder="VD: Nguyễn Văn A — tên hiển thị chính" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="u-phone">Số điện thoại</Label>
+          <Label htmlFor="u-phone">Số điện thoại <span className="text-destructive">*</span></Label>
           <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -439,16 +432,6 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         <div className="space-y-1.5">
           <Label htmlFor="e-full-name">Họ tên người đại diện</Label>
           <Input id="e-full-name" value={eFullName} onChange={(e) => setEFullName(e.target.value)} placeholder="Tên hiển thị chính trong hệ thống" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="e-last-name">Họ</Label>
-            <Input id="e-last-name" value={eLastName} onChange={(e) => setELastName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e-first-name">Tên</Label>
-            <Input id="e-first-name" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
-          </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">

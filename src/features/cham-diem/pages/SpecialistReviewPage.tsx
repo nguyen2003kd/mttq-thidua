@@ -77,6 +77,8 @@ interface SpecialistCriteriaItem {
   code: string;
   title: string;
   evidenceFiles: EvidenceFile[];
+  /** File đính kèm khi Chuyên viên thêm tiêu chí bổ sung (category = supplementary). */
+  supplementaryFiles: EvidenceFile[];
   proposedScore: number;
   proposedBonusScore: number;
   maxProposedScore: number;
@@ -116,6 +118,7 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
         code: `TC_${String(index + 1).padStart(2, '0')}`,
         title: criterion.content,
         evidenceFiles: [],
+        supplementaryFiles: [],
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: criterion.maxPoint,
@@ -934,8 +937,10 @@ function RevisionHistorySection({
   );
 }
 
-function toEvidenceFiles(files: SubmissionResultFile[] | undefined): EvidenceFile[] {
-  return (files ?? []).map((file) => ({
+function toEvidenceFiles(files: SubmissionResultFile[] | undefined, category?: 'evidence' | 'supplementary'): EvidenceFile[] {
+  return (files ?? [])
+    .filter((file) => !category || file.category?.toLowerCase() === category)
+    .map((file) => ({
     id: file.id,
     fileName: file.displayName || file.originalName,
     fileSize: formatFileSize(file.sizeBytes),
@@ -1115,14 +1120,14 @@ function TableSectionHeader({ title, countLabel, actions }: { title: string; cou
   );
 }
 
-function EvidenceInlineList({ files, onPreview }: { files: EvidenceFile[]; onPreview: (file: EvidenceFile) => void }) {
+function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng', emptyText = 'Chưa có minh chứng' }: { files: EvidenceFile[]; onPreview: (file: EvidenceFile) => void; countLabel?: string; emptyText?: string }) {
   if (files.length === 0) {
-    return <p className="text-xs text-muted-foreground">Chưa có minh chứng</p>;
+    return <p className="text-xs text-muted-foreground">{emptyText}</p>;
   }
 
   return (
     <div className="min-w-0">
-      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{files.length} file minh chứng</p>
+      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{files.length} {countLabel}</p>
       <ul className="space-y-1.5">
         {files.map((file) => (
           <li key={file.id} className="flex min-w-0 items-start rounded-md border border-border bg-background transition-colors hover:bg-muted/40">
@@ -1279,6 +1284,12 @@ function CriterionDetailDialog({
             <p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p>
             <EvidenceInlineList files={item.evidenceFiles} onPreview={onPreviewEvidence} />
           </div>
+          {item.supplementaryFiles.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">Tệp đính kèm từ chuyên viên</p>
+              <EvidenceInlineList files={item.supplementaryFiles} onPreview={onPreviewEvidence} countLabel="tệp đính kèm" />
+            </div>
+          )}
         </div>
         <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
@@ -1644,7 +1655,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         id: c.id,
         code: `TC_${String(idx + 1).padStart(2, '0')}`,
         title: c.content,
-        evidenceFiles: toEvidenceFiles(result?.files),
+        evidenceFiles: toEvidenceFiles(result?.files, 'evidence'),
+        supplementaryFiles: toEvidenceFiles(result?.files, 'supplementary'),
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: c.maxPoint,
