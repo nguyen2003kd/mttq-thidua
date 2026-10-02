@@ -700,10 +700,10 @@ export default function LocalityCriteriaPage() {
           onClearFilters={statusFilter || yearFilter || periodFilter || sortFilter !== DEFAULT_GROUP_SORT ? clearFilters : undefined}
           pageSize={10}
           onRowClick={setSelectedListTable}
-          onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}`)}
+          onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}?periodId=${encodeURIComponent(periodFilter)}`)}
           emptyState={{ title: groupSearch || statusFilter || yearFilter || periodFilter ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí được giao.' }}
           toolbar={
-            <Button variant="info" hideWhen={!selectedListTable} disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
+            <Button variant="info" hideWhen={!selectedListTable} disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}?periodId=${encodeURIComponent(periodFilter)}`)}>
               <Eye className="size-4" />Xem
             </Button>
           }
@@ -988,7 +988,7 @@ export default function LocalityCriteriaPage() {
             </div>
           </div>
         )}
-        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">

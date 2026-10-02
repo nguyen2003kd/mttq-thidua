@@ -61,6 +61,22 @@ function SpecialistCriteriaEntryPage() {
     : <CriteriaListPage />;
 }
 
+function LocalityCriteriaEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const periodId = searchParams.get('periodId');
+  const showPeriods = searchParams.get('view') === 'periods' || !periodId;
+
+  if (!showPeriods) return <LocalityCriteriaPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      onOpenPeriod={(period) => navigate(`${ROUTES.LOCALITY_CRITERIA}?periodId=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'];
 
 /** URL cũ /cham-diem/theo-dia-phuong/:id → flow mới /cham-diem/:diaPhuongId. */
@@ -226,7 +242,7 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={ROUTES.LOCALITY_CRITERIA} replace />} />
-              <Route path="tieu-chi" element={<LocalityCriteriaPage />} />
+              <Route path="tieu-chi" element={<LocalityCriteriaEntryPage />} />
               <Route path="tieu-chi/:id" element={<LocalityCriteriaPage />} />
               <Route path="ket-qua" element={<LocalityResultsPage />} />
               <Route path="ket-qua/:id" element={<LocalityResultsPage />} />
