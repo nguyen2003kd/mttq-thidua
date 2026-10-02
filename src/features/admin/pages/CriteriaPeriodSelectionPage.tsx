@@ -5,7 +5,7 @@ import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
 import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Pencil, Plus } from 'lucide-react';
+import { Eye, Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, DataTable, EmptyState, FormDialog, PageHeader } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +41,15 @@ const emptyPeriodForm: PeriodFormState = {
   status: 'Active',
 };
 
-export default function CriteriaPeriodSelectionPage() {
+interface CriteriaPeriodSelectionPageProps {
+  readOnly?: boolean;
+  onOpenPeriod?: (period: PeriodApi) => void;
+}
+
+export default function CriteriaPeriodSelectionPage({
+  readOnly = false,
+  onOpenPeriod,
+}: CriteriaPeriodSelectionPageProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -104,6 +112,14 @@ export default function CriteriaPeriodSelectionPage() {
     });
     setEditOpen(true);
   }, []);
+
+  const openPeriod = (period: PeriodApi) => {
+    if (onOpenPeriod) {
+      onOpenPeriod(period);
+      return;
+    }
+    navigate(`${ROUTES.SPECIALIST_CRITERIA}?periodFilter=${encodeURIComponent(period.id)}`);
+  };
 
   const handleCreate = (event: FormEvent) => {
     event.preventDefault();
@@ -183,7 +199,10 @@ export default function CriteriaPeriodSelectionPage() {
   if (periodsQuery.isError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Quản lý tiêu chí" description="Chọn kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó." />
+        <PageHeader
+          title={readOnly ? 'Tiêu chí được giao' : 'Quản lý tiêu chí'}
+          description={readOnly ? 'Chọn kỳ thi đua để xem tiêu chí được giao cho địa phương.' : 'Chọn kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó.'}
+        />
         <EmptyState title="Không tải được danh sách kỳ thi đua" description="Vui lòng thử tải lại trang." />
       </div>
     );
@@ -191,7 +210,10 @@ export default function CriteriaPeriodSelectionPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Quản lý tiêu chí" description="Chọn một kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó." />
+      <PageHeader
+        title={readOnly ? 'Tiêu chí được giao' : 'Quản lý tiêu chí'}
+        description={readOnly ? 'Chọn kỳ thi đua để xem tiêu chí được giao cho địa phương.' : 'Chọn một kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó.'}
+      />
       <DataTable
         data={periods}
         columns={columns}
@@ -203,28 +225,38 @@ export default function CriteriaPeriodSelectionPage() {
         getRowId={(period) => period.id}
         selectedRowId={selectedPeriod?.id}
         onRowClick={setSelectedPeriod}
-        onRowDoubleClick={(period) => navigate(`${ROUTES.SPECIALIST_CRITERIA}?periodFilter=${encodeURIComponent(period.id)}`)}
+        onRowDoubleClick={openPeriod}
         toolbar={(
           <div className="flex items-center gap-2">
             {selectedPeriod && (
-              <Button variant="edit" size="sm" onClick={() => openEdit(selectedPeriod)}>
-                <Pencil className="h-4 w-4" /> Chỉnh sửa kỳ
+              <Button
+                variant={readOnly ? 'info' : 'edit'}
+                size="sm"
+                onClick={() => readOnly ? openPeriod(selectedPeriod) : openEdit(selectedPeriod)}
+              >
+                {readOnly ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                {readOnly ? 'Xem tiêu chí' : 'Chỉnh sửa kỳ'}
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={() => {
-                setSelectedPeriod(null);
-                setForm(emptyPeriodForm);
-                setCreateOpen(true);
-              }}
-              action="create"
-            >
-              <Plus className="h-4 w-4" /> Thêm kỳ thi đua
-            </Button>
+            {!readOnly && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSelectedPeriod(null);
+                  setForm(emptyPeriodForm);
+                  setCreateOpen(true);
+                }}
+                action="create"
+              >
+                <Plus className="h-4 w-4" /> Thêm kỳ thi đua
+              </Button>
+            )}
           </div>
         )}
-        emptyState={{ title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ thi đua trước khi quản lý tiêu chí.' }}
+        emptyState={{
+          title: 'Chưa có kỳ thi đua',
+          description: readOnly ? 'Chuyên viên chưa thiết lập kỳ thi đua.' : 'Tạo kỳ thi đua trước khi quản lý tiêu chí.',
+        }}
         stickyTitle="Danh sách kỳ thi đua"
         stickyDescription="Chọn một kỳ để xem nhóm tiêu chí"
       />

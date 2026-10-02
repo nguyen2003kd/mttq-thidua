@@ -86,6 +86,28 @@ describe('CriteriaPeriodSelectionPage', () => {
     });
   });
 
+  it('lets locality users open a selected period without create or edit actions', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    vi.spyOn(periodsApi, 'listAll').mockResolvedValue([period]);
+    const onOpenPeriod = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/dia-phuong/tieu-chi']}>
+          <CriteriaPeriodSelectionPage readOnly onOpenPeriod={onOpenPeriod} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByText(period.name));
+    expect(await screen.findByRole('button', { name: /Xem tiêu chí/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Thêm kỳ thi đua/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Chỉnh sửa kỳ/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Xem tiêu chí/ }));
+    expect(onOpenPeriod).toHaveBeenCalledWith(period);
+  });
+
   it('selects a period before exposing the edit action', async () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.spyOn(periodsApi, 'listAll').mockResolvedValue([period]);
