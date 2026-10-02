@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading } from '@/components/core';
+import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading, PeriodSelect } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -717,9 +717,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   const visibleItems = result.items;
 
   const periodSelector = (
-    <FilterSelect
-      label="Kỳ thi đua"
-      labelPosition="outside"
+    <PeriodSelect
       value={effectivePeriodFilter}
       onChange={handlePeriodChange}
       allLabel="Tất cả kỳ thi đua"

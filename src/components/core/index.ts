@@ -27,4 +27,5 @@ export { FileUpload, type FileUploadProps } from './FileUpload';
 export { FileAttachmentList, type FileAttachmentListProps } from './FileAttachmentList';
 export { FilePreviewDialog, type FilePreviewDialogProps } from './FilePreviewDialog';
 export { PageLoading, type PageLoadingProps } from './PageLoading';
+export { PeriodSelect, type PeriodSelectProps } from './PeriodSelect';
 export { ActionProgressOverlay } from './ActionProgressOverlay';

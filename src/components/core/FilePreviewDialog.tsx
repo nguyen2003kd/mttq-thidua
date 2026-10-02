@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { File as FileIcon } from 'lucide-react';
+import { File as FileIcon, Music } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -220,6 +220,8 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
     || resolved?.mimeType === 'application/vnd.ms-excel'
     || resolved?.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const isPdf = resolved?.mimeType === 'application/pdf' || ext === 'pdf';
+  const isAudio = !!resolved?.mimeType.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext);
+  const isVideo = !!resolved?.mimeType.startsWith('video/') || ['mp4', 'webm', 'mov'].includes(ext);
 
   // CSV: fetch arrayBuffer → XLSX.read → render bảng có chrome kiểu Excel
   useEffect(() => {
@@ -272,6 +274,30 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
             />
           ) : isPdf ? (
             <iframe src={url} title={fileName} className="h-full w-full rounded-md border-0 bg-white" />
+          ) : isAudio ? (
+            <div className="flex w-full max-w-xl flex-col items-center gap-4 rounded-md border bg-white p-8">
+              <Music className="h-10 w-10 text-primary" />
+              <p className="max-w-full truncate text-sm font-medium text-foreground">{fileName}</p>
+              <audio
+                src={url}
+                controls
+                className="w-full"
+                onError={() => {
+                  if (useBlobPreview) setPreviewError('Tệp âm thanh không đọc được. Vui lòng tải file về máy.');
+                  else setUseBlobPreview(true);
+                }}
+              />
+            </div>
+          ) : isVideo ? (
+            <video
+              src={url}
+              controls
+              className="max-h-full w-auto max-w-full rounded-md"
+              onError={() => {
+                if (useBlobPreview) setPreviewError('Tệp video không đọc được. Vui lòng tải file về máy.');
+                else setUseBlobPreview(true);
+              }}
+            />
           ) : isOfficeDoc ? (
             <iframe
               src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}

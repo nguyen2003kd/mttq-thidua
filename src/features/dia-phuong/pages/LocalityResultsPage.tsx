@@ -10,7 +10,7 @@ import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, ListTree, MessageSquareText, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { Button, EmptyState, FilePreviewDialog, FilterSelect, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, PeriodSelect, TruncatedText } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -307,9 +307,7 @@ export default function LocalityResultsPage() {
     [groupsQuery.data, periodId],
   );
   const periodSelector = (
-    <FilterSelect
-      label="Kỳ thi đua"
-      labelPosition="outside"
+    <PeriodSelect
       value={periodId}
       onChange={(value) => {
         if (!value) return;
@@ -321,8 +319,6 @@ export default function LocalityResultsPage() {
         });
       }}
       allLabel="Chọn kỳ thi đua"
-      includeAllOption={false}
-      disabled={selectablePeriods.length === 0}
       options={selectablePeriods.map((period) => ({ value: period.id, label: period.name }))}
     />
   );

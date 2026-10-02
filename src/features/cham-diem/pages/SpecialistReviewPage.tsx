@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TableColumnVisibility, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, PeriodSelect, TableColumnVisibility, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -51,6 +51,8 @@ import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialis
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import {
   localityApi,
   mergeSubmissionCriteria,
@@ -60,7 +62,7 @@ import {
 } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFileBlob, getFilesApiError } from '@/features/files/api/filesApi';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatDateTime, cn } from '@/lib/utils';
+import { formatDate, formatDateTime, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 
@@ -512,8 +514,9 @@ function RevisionNoteView({ note, reasonClassName = 'text-sm leading-5 text-mute
               type="button"
               onClick={(event) => { event.stopPropagation(); onPreview(file); }}
               className="inline-flex max-w-full items-center gap-1 rounded-md border border-info/30 bg-background px-1.5 py-0.5 text-xs text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
+              title={`Xem ${file.displayName ?? file.originalName}`}
             >
-              <FileText className="h-3 w-3 shrink-0" />
+              <Eye className="h-3 w-3 shrink-0" />
               <span className="truncate">{file.displayName ?? file.originalName}</span>
             </button>
           ))}
@@ -954,7 +957,7 @@ function toEvidenceFiles(files: SubmissionResultFile[] | undefined, category?: '
     id: file.id,
     fileName: file.displayName || file.originalName,
     fileSize: formatFileSize(file.sizeBytes),
-    uploadedAt: new Intl.DateTimeFormat('vi-VN').format(new Date(file.createdAt)),
+    uploadedAt: file.createdAt,
     fileId: file.id,
   }));
 }
@@ -1140,10 +1143,10 @@ function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng'
       <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{files.length} {countLabel}</p>
       <ul className="space-y-1.5">
         {files.map((file) => (
-          <li key={file.id} className="flex min-w-0 items-start rounded-md border border-border bg-background transition-colors hover:bg-muted/40">
+          <li key={file.id} className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1.5 transition-colors hover:bg-muted/40">
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-start gap-2 rounded-l-md px-2 py-1.5 text-left text-info-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-info-foreground dark:text-info"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-l-md px-2 py-1.5 text-left text-info-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-info-foreground dark:text-info"
               title={file.fileName}
               aria-label={`Xem ${file.fileName}`}
               onClick={(event) => {
@@ -1151,17 +1154,33 @@ function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng'
                 onPreview(file);
               }}
             >
-              <FileText className="mt-0.5 size-3.5 shrink-0 text-info-foreground dark:text-info" aria-hidden="true" />
-              <span className="min-w-0">
-                <span className="line-clamp-2 break-all text-xs font-medium leading-4 text-foreground">{file.fileName}</span>
-                <span className="mt-0.5 block text-[11px] text-muted-foreground">{file.fileSize}</span>
+              <FileText className="size-3.5 shrink-0 text-info-foreground dark:text-info" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium leading-4 text-foreground">{file.fileName}</span>
+                <span className="block text-[11px] leading-4 text-muted-foreground">
+                  {[file.fileSize, file.uploadedAt ? formatDate(file.uploadedAt) : null].filter(Boolean).join(' · ')}
+                </span>
               </span>
             </button>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="m-1 shrink-0"
+              className="size-6 shrink-0"
+              title={`Xem ${file.fileName}`}
+              aria-label={`Xem ${file.fileName}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreview(file);
+              }}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shrink-0"
               title={`Tải xuống ${file.fileName}`}
               aria-label={`Tải xuống ${file.fileName}`}
               onClick={(event) => {
@@ -1169,7 +1188,7 @@ function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng'
                 void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
               }}
             >
-              <Download className="size-4" />
+              <Download className="size-3.5" />
             </Button>
           </li>
         ))}
@@ -1469,7 +1488,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     groupStatusFilter: '',
     groupSortFilter: DEFAULT_GROUP_SORT,
     groupYearFilter: '',
-    groupPeriodFilter: '',
+    groupPeriodFilter: usePeriodStore.getState().selectedPeriodId ?? '',
   });
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
@@ -1761,6 +1780,20 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }, [localityGroups]);
 
+  // Mặc định chọn kỳ Active (lần đầu vào trang, khi chưa chọn kỳ ở trang nào).
+  const periodsQuery = useQuery({ queryKey: ['publication-periods'], queryFn: periodsApi.listAll });
+  const periodAutoSelected = useRef(false);
+  useEffect(() => {
+    if (periodAutoSelected.current || periodsQuery.isLoading || groupPeriodFilter) return;
+    const periods = periodsQuery.data ?? [];
+    const activeId = periods.find((period) => period.status === 'Active')?.id ?? periods[0]?.id;
+    if (activeId && !usePeriodStore.getState().selectedPeriodId) {
+      periodAutoSelected.current = true;
+      setGroupPeriodFilter(activeId);
+      usePeriodStore.getState().setSelectedPeriod(activeId);
+    }
+  }, [periodsQuery.data, periodsQuery.isLoading, groupPeriodFilter, setGroupPeriodFilter]);
+
   const filteredGroups = useMemo(() => {
     const groups = debouncedGroupSearch
       ? (searchedGroupsQuery.data?.items ?? [])
@@ -1897,7 +1930,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                   <TableRow
                     key={row.localityId}
                     aria-selected={selectedLocalityId === row.localityId}
-                    className={selectedLocalityId === row.localityId ? 'cursor-pointer bg-primary/10 hover:bg-primary/10' : 'cursor-pointer hover:bg-muted'}
+                    className={
+                      selectedLocalityId === row.localityId
+                        ? 'cursor-pointer bg-primary/10 hover:bg-primary/10'
+                        : row.overallStatus === 'CHO_DUYET' || row.overallStatus === 'YEU_CAU_SUA'
+                          ? 'cursor-pointer bg-warning/15 hover:bg-warning/25'
+                          : 'cursor-pointer hover:bg-muted'
+                    }
                     onClick={() => setSelectedLocalityId(row.localityId)}
                     onDoubleClick={() => navigate(`${basePath}/${row.localityId}`)}
                   >
@@ -1925,7 +1964,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
 
           <div className="xl:hidden">
             {visibleRows.length > 0 ? visibleRows.map((row) => (
-              <article key={row.localityId} className="p-4 sm:p-5">
+              <article
+                key={row.localityId}
+                className={cn(
+                  'rounded-lg border p-4 sm:p-5',
+                  row.overallStatus === 'CHO_DUYET' || row.overallStatus === 'YEU_CAU_SUA'
+                    ? 'border-warning/50 bg-warning/15'
+                    : 'border-border bg-card',
+                )}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><MapPin className="size-5" /></span>
@@ -1990,20 +2037,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           description="Xem tiến độ và thực hiện chấm điểm từng nhóm tiêu chí"
           actions={
             <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
-              <div className="flex h-11 items-center rounded-lg border border-primary/25 bg-primary/[0.04] px-3">
-                <FilterSelect
-                  label="Kỳ thi đua"
-                  labelPosition="outside"
-                  value={groupPeriodFilter}
-                  onChange={(value) => {
-                    setGroupPeriodFilter(value);
-                    setSelectedGroupId(null);
-                  }}
-                  allLabel="Tất cả kỳ thi đua"
-                  options={groupPeriodOptions}
-                  className="border-primary/30 bg-card hover:border-primary/55"
-                />
-              </div>
+              <PeriodSelect
+                value={groupPeriodFilter}
+                onChange={(value) => {
+                  setGroupPeriodFilter(value);
+                  usePeriodStore.getState().setSelectedPeriod(value || null);
+                  setSelectedGroupId(null);
+                }}
+                options={groupPeriodOptions}
+              />
               <Button
                 variant="back"
                 render={<Link to={basePath} />}
