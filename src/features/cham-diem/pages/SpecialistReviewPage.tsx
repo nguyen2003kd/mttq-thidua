@@ -2114,7 +2114,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     onClick={() => setSelectedGroupId(group.id)}
                     onDoubleClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}
                   >
-                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
+                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p></TableCell>
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
@@ -2136,7 +2136,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   </div>
                   <GroupStatusBadge status={group.status} role={scoringRole} stage={submissionByGroup.get(group.id)?.currentStage} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p>
+                {/* <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p> */}
                 <dl className="mt-4 grid grid-cols-3 overflow-hidden rounded-md border border-border bg-border">
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm đề xuất</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm thưởng</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedBonusScore}</dd></div>
