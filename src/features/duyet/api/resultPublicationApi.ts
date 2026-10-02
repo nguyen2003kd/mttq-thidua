@@ -16,7 +16,7 @@ const request = async <T>(config: AxiosRequestConfig) => {
 export interface ResultPublicationLocality {
   wardCode: string;
   wardName: string;
-  status: 'NotSubmitted' | 'RequiresRevision' | 'ReviewerApproved' | 'CouncilApproved' | 'CommitteeFinalized' | 'InProgress';
+  status: 'NotSubmitted' | 'RequiresRevision' | 'ReviewerApproved' | 'SpecialistApproved' | 'CouncilApproved' | 'CommitteeFinalized' | 'InProgress';
   submissionId: string | null;
   currentPoint: number;
   maxPoint: number;
