@@ -452,6 +452,10 @@ export default function LocalityResultsPage() {
               </div>
             </dl>
             <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:col-span-2">
+                <p className="text-xs font-medium text-muted-foreground">Nhận xét chung</p>
+                <p className="whitespace-pre-wrap text-sm leading-6">{publication.publicationNote?.trim() || 'Chưa có đánh giá.'}</p>
+              </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <p className="text-xs font-medium text-muted-foreground">Nhận xét Hội đồng thi đua</p>
                 <CommentButton label="Nhận xét từ Hội đồng thi đua" value={selectedComments?.council} />
