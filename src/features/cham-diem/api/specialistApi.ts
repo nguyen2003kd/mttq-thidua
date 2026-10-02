@@ -239,6 +239,14 @@ export const specialistApi = {
       data: { ...payload, action: 'UpdateScore' },
     }),
 
+  // Comment — cấp trên (Hội đồng / Ban thường trực) ghi nhận xét vào lịch sử, không đổi điểm hay stage
+  comment: (payload: { submissionId: string; reason: string }) =>
+    request<{ processed: boolean; submissionId: string; action: string }>({
+      url: '/api/v1/submissions/approve',
+      method: 'POST',
+      data: { submissionId: payload.submissionId, action: 'Comment', reason: payload.reason },
+    }),
+
   // Supplementary criteria — chuyên viên bổ sung tiêu chí phát sinh (không có điểm, hồ sơ về RequiresRevision)
   addSupplementaryCriteria: (payload: { submissionId: string; content: string; deadline?: string | null; note: string }) =>
     request<{ added: boolean; submissionId: string; criteriaId: string; submissionResultId: string }>({

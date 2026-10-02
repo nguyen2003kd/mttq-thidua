@@ -90,6 +90,10 @@ export interface ApprovalHistoryItem {
   id: string;
   submissionId: string;
   userId: string;
+  /** Tên hiển thị của người thao tác (BE mới trả; dữ liệu cũ có thể null). */
+  actorName?: string | null;
+  /** Role của người thao tác — phân biệt nhận xét các cấp khi cùng nhận xét ở stage SpecialistApproved. */
+  actorRole?: string | null;
   stageLevel: string;
   action: string;
   reason: string | null;

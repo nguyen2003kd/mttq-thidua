@@ -38,14 +38,19 @@ const REVIEWER_CONFIG: Record<Reviewer, {
 }> = {
   council: {
     stage: 'LeaderApproved', state: 'CHO_DUYET_HOI_DONG', label: 'Hội đồng thi đua',
-    visibleStages: ['LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'],
+    // Hội đồng xem/nhận xét ngay hồ sơ chuyên viên đã duyệt, không chờ Lãnh đạo ban chuyển;
+    // hồ sơ CommitteeFinalized khóa vĩnh viễn nên không còn hiện.
+    visibleStages: ['SpecialistApproved', 'LeaderApproved', 'CouncilApproved'],
+    // Cũ: ['LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'],
     listPath: '/thi-dua/duyet/hoi-dong-tdkt', historyPath: '/hoi-dong/lich-su',
     groupPath: (localityId) => `/thi-dua/duyet/hoi-dong-tdkt/${localityId}`,
     description: 'Đối chiếu kết quả lãnh đạo ban đã duyệt trước khi xét duyệt hồ sơ.',
   },
   committee: {
     stage: 'CouncilApproved', state: 'CHO_DUYET_BTT', label: 'Ban thường trực',
-    visibleStages: ['CouncilApproved', 'CommitteeFinalized'],
+    // Ban thường trực xem/nhận xét ngay hồ sơ chuyên viên đã duyệt — các cấp giữa không duyệt/chuyển.
+    visibleStages: ['SpecialistApproved', 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'],
+    // Cũ: ['CouncilApproved', 'CommitteeFinalized'],
     listPath: '/thi-dua/duyet/ban-thuong-truc', historyPath: '/uy-ban/lich-su', groupPath: () => null,
     description: 'Đối chiếu kết quả Hội đồng đã duyệt trước khi công bố kết quả.',
   },

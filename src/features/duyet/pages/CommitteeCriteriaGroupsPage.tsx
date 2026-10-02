@@ -11,7 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 
 const COMMITTEE_STAGE = 'CouncilApproved' as const;
-const COMMITTEE_VISIBLE_STAGES = [COMMITTEE_STAGE, 'CommitteeFinalized'] as const;
+// Ban thường trực xem ngay hồ sơ chuyên viên đã duyệt — các cấp giữa không duyệt/chuyển.
+const COMMITTEE_VISIBLE_STAGES = ['SpecialistApproved', 'LeaderApproved', COMMITTEE_STAGE, 'CommitteeFinalized'] as const;
+// Cũ — chỉ hồ sơ đã tới cấp Ban thường trực:
+// const COMMITTEE_VISIBLE_STAGES = [COMMITTEE_STAGE, 'CommitteeFinalized'] as const;
 
 interface CommitteeCriteriaGroupRow {
   groupId: string;

@@ -13,7 +13,11 @@ import { Button } from '@/components/core';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
-const COUNCIL_VISIBLE_STAGES = [COUNCIL_STAGE, 'CouncilApproved', 'CommitteeFinalized'] as const;
+// Hội đồng xem/nhận xét ngay hồ sơ chuyên viên đã duyệt, không chờ Lãnh đạo ban chuyển.
+// Hồ sơ đã CommitteeFinalized khóa vĩnh viễn nên không còn hiện.
+const COUNCIL_VISIBLE_STAGES = ['SpecialistApproved', COUNCIL_STAGE, 'CouncilApproved'] as const;
+// Cũ — chỉ hồ sơ đã tới cấp Hội đồng trở lên:
+// const COUNCIL_VISIBLE_STAGES = [COUNCIL_STAGE, 'CouncilApproved', 'CommitteeFinalized'] as const;
 
 interface CouncilCriteriaGroupRow {
   groupId: string;

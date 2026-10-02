@@ -28,7 +28,7 @@ import { cn, formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
 
-const PUBLISHED_SUBMISSION_STAGES = new Set(['ReviewerApproved', 'CouncilApproved', 'CommitteeFinalized']);
+const PUBLISHED_SUBMISSION_STAGES = new Set(['ReviewerApproved', 'SpecialistApproved', 'CouncilApproved', 'CommitteeFinalized']);
 
 const ACTION_MAP: Record<string, ActionType> = {
   approve: 'APPROVE',
@@ -58,12 +58,37 @@ const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
   CommitteeFinalized: { role: 'COMMITTEE', label: 'Ban thường trực' },
 };
 
+// Ưu tiên role thật của người thao tác — các cấp trên đều nhận xét ở cùng stage
+// SpecialistApproved nên không thể suy ra cấp chỉ từ stageLevel.
+const ROLE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
+  LEADER: { role: 'LEADER', label: 'Lãnh đạo ban' },
+  COUNCIL: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
+  COMMITTEE: { role: 'COMMITTEE', label: 'Ban thường trực' },
+  STANDING_COMMITTEE: { role: 'COMMITTEE', label: 'Ban thường trực' },
+  SPECIALIST: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  REVIEWER: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  SCORER: { role: 'SCORER', label: 'Chuyên viên cấp 2' },
+  ADMIN: { role: 'ADMIN', label: 'Quản trị viên' },
+  SYSTEM_ADMIN: { role: 'ADMIN', label: 'Quản trị viên' },
+  LOCAL: { role: 'LOCAL', label: 'Địa phương' },
+  LOCALITY: { role: 'LOCAL', label: 'Địa phương' },
+  LOCAL_UNIT: { role: 'LOCAL', label: 'Địa phương' },
+};
+
+function hasActorRole(item: ApprovalHistoryItem, ...roles: string[]) {
+  const actorRoles = (item.actorRole ?? '').split(',').map((role) => role.trim().toUpperCase());
+  return roles.some((role) => actorRoles.includes(role));
+}
+
 function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
-  const actor = STAGE_ACTOR_MAP[item.stageLevel];
+  const actor = (item.actorRole ?? '')
+    .split(',')
+    .map((role) => ROLE_ACTOR_MAP[role.trim().toUpperCase()])
+    .find(Boolean) ?? STAGE_ACTOR_MAP[item.stageLevel];
   return {
     id: item.id,
     timestamp: item.createdAt,
-    actorName: actor?.label ?? 'Hệ thống',
+    actorName: item.actorName ?? actor?.label ?? 'Hệ thống',
     actorRole: actor?.role ?? 'LOCAL',
     action: ACTION_MAP[item.action?.toLowerCase()] ?? 'EDIT',
     fieldName: item.submissionId,
@@ -322,7 +347,9 @@ export default function LocalityResultsPage() {
     enabled: Boolean(id) && !detailQuery.isError,
   });
 
-  // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason theo stage
+  // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason.
+  // Các cấp trên đều nhận xét ở cùng stage SpecialistApproved nên phân biệt bằng
+  // actorRole; dữ liệu cũ (chưa có actorRole) fallback theo stageLevel.
   const commentHistoriesQueries = useQueries({
     queries: submissions.map((submission) => ({
       queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission.id), { page: 1, pageSize: 100 }),
@@ -330,9 +357,15 @@ export default function LocalityResultsPage() {
       enabled: !id && Boolean(publicationQuery.data?.isPublished),
     })),
   });
-  const commentsBySubmission = new Map(submissions.map((submission, index) => [submission.id, {
-    council: [...(commentHistoriesQueries[index].data?.items ?? [])].reverse().find((item) => item.stageLevel === 'LeaderApproved' && item.reason)?.reason ?? null,
-  }]));
+  const commentsBySubmission = new Map(submissions.map((submission, index) => {
+    // Cũ — match nhận xét theo stageLevel của cấp tiếp theo:
+    //   council: item.stageLevel === 'LeaderApproved'
+    //   committee: item.stageLevel === 'CouncilApproved'
+    const histories = [...(commentHistoriesQueries[index].data?.items ?? [])].reverse();
+    const council = histories.find((item) => item.reason && (hasActorRole(item, 'COUNCIL') || (!item.actorRole && item.stageLevel === 'LeaderApproved')))?.reason ?? null;
+    const committee = histories.find((item) => item.reason && (hasActorRole(item, 'COMMITTEE', 'STANDING_COMMITTEE') || (!item.actorRole && item.stageLevel === 'CouncilApproved')))?.reason ?? null;
+    return [submission.id, { council, committee }];
+  }));
 
   const submissionById = useMemo(() => new Map(submissions.map((submission) => [submission.id, submission])), [submissions]);
 
@@ -427,7 +460,7 @@ export default function LocalityResultsPage() {
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <p className="text-xs font-medium text-muted-foreground">Nhận xét Ban thường trực</p>
-                <CommentButton label="Nhận xét từ Ban thường trực" value={publication?.publicationNote} />
+                <CommentButton label="Nhận xét từ Ban thường trực" value={selectedComments?.committee} />
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:col-span-2">
                 <p className="text-xs font-medium text-muted-foreground">Tệp đính kèm công bố</p>
