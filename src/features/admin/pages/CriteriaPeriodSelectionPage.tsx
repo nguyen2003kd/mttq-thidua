@@ -178,24 +178,7 @@ export default function CriteriaPeriodSelectionPage() {
       ),
       meta: { align: 'center', list: { width: '160px' } },
     },
-    {
-      id: 'actions',
-      header: 'Hành động',
-      cell: ({ row }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(event) => {
-            event.stopPropagation();
-            openEdit(row.original);
-          }}
-        >
-          <Pencil className="h-4 w-4" /> Chỉnh sửa
-        </Button>
-      ),
-      meta: { align: 'right', list: { width: '150px' } },
-    },
-  ], [openEdit]);
+  ], []);
 
   if (periodsQuery.isError) {
     return (
@@ -218,18 +201,28 @@ export default function CriteriaPeriodSelectionPage() {
         searchable
         searchPlaceholder="Tìm theo tên kỳ thi đua..."
         getRowId={(period) => period.id}
-        onRowClick={(period) => navigate(`${ROUTES.SPECIALIST_CRITERIA}?periodFilter=${encodeURIComponent(period.id)}`)}
+        selectedRowId={selectedPeriod?.id}
+        onRowClick={setSelectedPeriod}
+        onRowDoubleClick={(period) => navigate(`${ROUTES.SPECIALIST_CRITERIA}?periodFilter=${encodeURIComponent(period.id)}`)}
         toolbar={(
-          <Button
-            size="sm"
-            onClick={() => {
-              setForm(emptyPeriodForm);
-              setCreateOpen(true);
-            }}
-            action="create"
-          >
-            <Plus className="h-4 w-4" /> Thêm kỳ thi đua
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedPeriod && (
+              <Button variant="outline" size="sm" onClick={() => openEdit(selectedPeriod)}>
+                <Pencil className="h-4 w-4" /> Chỉnh sửa kỳ
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedPeriod(null);
+                setForm(emptyPeriodForm);
+                setCreateOpen(true);
+              }}
+              action="create"
+            >
+              <Plus className="h-4 w-4" /> Thêm kỳ thi đua
+            </Button>
+          </div>
         )}
         emptyState={{ title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ thi đua trước khi quản lý tiêu chí.' }}
         stickyTitle="Danh sách kỳ thi đua"

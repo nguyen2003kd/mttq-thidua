@@ -49,7 +49,7 @@ describe('CriteriaPeriodSelectionPage', () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByText(period.name));
+    fireEvent.doubleClick(await screen.findByText(period.name));
     await waitFor(() => {
       expect(screen.getByTestId('current-location')).toHaveTextContent(
         '/chuyen-vien/tieu-chi?periodFilter=period-1',
@@ -86,7 +86,7 @@ describe('CriteriaPeriodSelectionPage', () => {
     });
   });
 
-  it('edits a period without using the row selection action', async () => {
+  it('selects a period before exposing the edit action', async () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     vi.spyOn(periodsApi, 'listAll').mockResolvedValue([period]);
     const updatePeriod = vi.spyOn(periodsApi, 'update').mockResolvedValue({ ...period, endYear: 2031 });
@@ -101,7 +101,9 @@ describe('CriteriaPeriodSelectionPage', () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /Chỉnh sửa/ }));
+    fireEvent.click(await screen.findByText(period.name));
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/chuyen-vien/tieu-chi?view=periods');
+    fireEvent.click(await screen.findByRole('button', { name: /Chỉnh sửa kỳ/ }));
     expect(screen.getByTestId('current-location')).toHaveTextContent('/chuyen-vien/tieu-chi?view=periods');
     fireEvent.change(screen.getByLabelText(/Năm kết thúc/), { target: { value: '2031' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
