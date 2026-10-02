@@ -116,8 +116,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
 
     if (user?.role === 'SPECIALIST') {
+      items.push({ to: `${ROUTES.SPECIALIST_CRITERIA}?view=periods`, label: 'Quản lý tiêu chí', icon: Table });
       if (criteriaTables[0]) {
-        items.push({ to: ROUTES.SPECIALIST_CRITERIA, label: 'Quản lý tiêu chí', icon: Table });
         items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
       }
       items.push({ to: ROUTES.SPECIALIST_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
@@ -146,9 +146,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     if (user?.role === 'COUNCIL') {
       items.push({ to: ROUTES.DUYET_COUNCIL, label: 'Duyệt — Hội đồng TĐKT', icon: FileCheck });
+      items.push({ to: ROUTES.COUNCIL_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
     }
 
-
+    if (user?.role === 'COMMITTEE') {
+      items.push({ to: ROUTES.DUYET_STANDING, label: 'Duyệt — Ban Thường trực', icon: FileCheck });
+      items.push({ to: ROUTES.COMMITTEE_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
+    }
 
     if (user?.role && user.role !== 'LOCAL') {
       items.push({ to: ROUTES.AUDIT_LOG.replace('/:diaPhuongId', ''), label: LABELS.AUDIT_TIMELINE_TITLE, icon: History });

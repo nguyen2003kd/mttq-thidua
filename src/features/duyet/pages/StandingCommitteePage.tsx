@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { CriteriaItem, CriteriaTable, Locality, ScoreEntry, ScoreRecord } from '@/types/domain';
 import { PublishResultModal, type PublishResultValue } from '@/features/workflow/components/PublishResultModal';
 import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
@@ -67,9 +68,11 @@ export default function StandingCommitteePage() {
   const [viewRow, setViewRow] = useState<ApprovalRow | null>(null);
   const [viewingEvidence, setViewingEvidence] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string>();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const {
+    filters: { statusFilter, fromDate, toDate },
+    setters: { statusFilter: setStatusFilter, fromDate: setFromDate, toDate: setToDate },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{ statusFilter: StatusFilter; fromDate: string; toDate: string }>({ statusFilter: 'ALL', fromDate: '', toDate: '' });
 
   const rows = useMemo(() => {
     const list: ApprovalRow[] = [];
@@ -241,11 +244,11 @@ export default function StandingCommitteePage() {
             </div>
           }
           activeFilters={activeFilters}
-          onClearFilters={activeFilters.length > 0 ? () => { setStatusFilter('ALL'); setFromDate(''); setToDate(''); } : undefined}
+          onClearFilters={activeFilters.length > 0 ? () => setQueryFilters({ statusFilter: 'ALL', fromDate: '', toDate: '' }) : undefined}
           toolbar={
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedRow && <span className="mr-1 max-w-[220px] truncate text-xs text-muted-foreground">Đã chọn: {selectedRow.locality.name}</span>}
-              <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
+              <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
                 <Eye className="mr-1.5 h-4 w-4" />Xem hồ sơ
               </Button>
               <Button

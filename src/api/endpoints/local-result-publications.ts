@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -53,10 +54,8 @@ export const getApiV1ResultPublicationsLocal = (
 
 
 export const getGetApiV1ResultPublicationsLocalQueryKey = () => {
-    return [
-    `/api/v1/result-publications/local`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/result-publications/local` });
+};
 
 
 export const getGetApiV1ResultPublicationsLocalQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

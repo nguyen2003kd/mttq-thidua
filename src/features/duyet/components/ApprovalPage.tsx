@@ -2,6 +2,7 @@ import { useMemo, useState, type ComponentType } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   PageHeader,
   DataTable,
@@ -83,13 +84,35 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const [editing, setEditing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [viewing, setViewing] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
-  const [leaderStatus, setLeaderStatus] = useState<'ALL' | 'CHO_DUYET_BAN' | 'CHO_DUYET_HOI_DONG'>('CHO_DUYET_BAN');
-  const [leaderFromDate, setLeaderFromDate] = useState('');
-  const [leaderToDate, setLeaderToDate] = useState('');
-  const [councilLocalityId, setCouncilLocalityId] = useState('ALL');
-  const [councilStatus, setCouncilStatus] = useState<'ALL' | 'CHO_DUYET_HOI_DONG'>('ALL');
-  const [councilFromDate, setCouncilFromDate] = useState('');
-  const [councilToDate, setCouncilToDate] = useState('');
+  const {
+    filters: { leaderStatus, leaderFromDate, leaderToDate, councilLocalityId, councilStatus, councilFromDate, councilToDate },
+    setters: {
+      leaderStatus: setLeaderStatus,
+      leaderFromDate: setLeaderFromDate,
+      leaderToDate: setLeaderToDate,
+      councilLocalityId: setCouncilLocalityId,
+      councilStatus: setCouncilStatus,
+      councilFromDate: setCouncilFromDate,
+      councilToDate: setCouncilToDate,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{
+    leaderStatus: 'ALL' | 'CHO_DUYET_BAN' | 'CHO_DUYET_HOI_DONG';
+    leaderFromDate: string;
+    leaderToDate: string;
+    councilLocalityId: string;
+    councilStatus: 'ALL' | 'CHO_DUYET_HOI_DONG';
+    councilFromDate: string;
+    councilToDate: string;
+  }>({
+    leaderStatus: 'CHO_DUYET_BAN',
+    leaderFromDate: '',
+    leaderToDate: '',
+    councilLocalityId: 'ALL',
+    councilStatus: 'ALL',
+    councilFromDate: '',
+    councilToDate: '',
+  });
 
   const scoringStage: Exclude<ScoringStage, 'LOCAL' | 'SPECIALIST'> =
     config.targetState === 'CHO_DUYET_BAN'
@@ -353,18 +376,18 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   ].filter((item): item is { label: string; value: string; onClear: () => void } => Boolean(item)) : undefined;
 
   const clearApprovalFilters = isLeaderView
-    ? () => { setLeaderStatus('ALL'); setLeaderFromDate(''); setLeaderToDate(''); }
+    ? () => setQueryFilters({ leaderStatus: 'ALL', leaderFromDate: '', leaderToDate: '' })
     : isCouncilView
-      ? () => { setCouncilLocalityId('ALL'); setCouncilStatus('ALL'); setCouncilFromDate(''); setCouncilToDate(''); }
+      ? () => setQueryFilters({ councilLocalityId: 'ALL', councilStatus: 'ALL', councilFromDate: '', councilToDate: '' })
       : undefined;
 
   const canProcessSelectedRow = Boolean(selectedRow && selectedRow.record.state === config.targetState);
   const selectionToolbar = isLeaderView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
-      <Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
+      <Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
         <History className="mr-1.5 h-4 w-4" />Lịch sử
       </Button>
       <Button disabled={!canProcessSelectedRow || !canApprove} disabledReason={!selectedRow ? 'Chọn một hồ sơ để duyệt.' : !canApprove ? 'Tài khoản hiện tại không có quyền duyệt hồ sơ.' : 'Hồ sơ đã được chuyển sang Hội đồng, chỉ có thể xem lịch sử.'} action={config.approveAction} state={config.targetState} onClick={() => selectedRow && (config.useConfirmDialog ? setConfirmRow(selectedRow) : handleApprove(selectedRow))}>
@@ -376,10 +399,10 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     </div>
   ) : isCouncilView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
-      <Button variant="outline" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
+      <Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
         <History className="mr-1.5 h-4 w-4" />Lịch sử
       </Button>
       {config.enableComment && (

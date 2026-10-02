@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -66,10 +67,8 @@ export const getPermissions = (
 
 
 export const getGetPermissionsQueryKey = (params?: GetPermissionsParams,) => {
-    return [
-    `/api/v1/permissions`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/permissions` });
+};
 
 
 export const getGetPermissionsQueryOptions = <TData = Awaited<ReturnType<typeof getPermissions>>, TError = ErrorResponse>(params?: GetPermissionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPermissions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -252,10 +251,8 @@ export const getPermissionById = (
 
 
 export const getGetPermissionByIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/permissions/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/permissions/${id}` });
+};
 
 
 export const getGetPermissionByIdQueryOptions = <TData = Awaited<ReturnType<typeof getPermissionById>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPermissionById>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

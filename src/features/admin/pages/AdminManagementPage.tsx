@@ -43,7 +43,11 @@ export default function AdminManagementPage() {
         description="Quản lý tài khoản, ban, cụm và kỳ thi đua tại một nơi."
       />
 
-      <Tabs value={activeTab} onValueChange={(value) => setSearchParams({ tab: value })}>
+      <Tabs value={activeTab} onValueChange={(value) => setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set('tab', value);
+        return next;
+      })}>
         <TabsList
           variant="line"
           aria-label="Chọn nội dung quản lý"

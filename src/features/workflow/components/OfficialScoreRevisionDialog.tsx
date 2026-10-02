@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { Download, FileText } from 'lucide-react';
 import { Button } from '@/components/core';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,7 +17,7 @@ interface OfficialScoreRevisionDialogProps {
 /** Xem điểm đã sửa và tệp đính kèm khi sửa điểm (category=score-update của chuyên viên, LeaderScoring của lãnh đạo). */
 export function OfficialScoreRevisionDialog({ open, onOpenChange, result, criterionLabel }: OfficialScoreRevisionDialogProps) {
   const filesQuery = useQuery({
-    queryKey: ['official-score-revision-files', result?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), 'score-revisions', result?.id),
     queryFn: async () => {
       const [scoreUpdate, leaderScoring] = await Promise.all([
         filesApi.list({ entityType: 'SubmissionResult', entityId: result!.id, category: 'score-update', page: 1, pageSize: 100 }),

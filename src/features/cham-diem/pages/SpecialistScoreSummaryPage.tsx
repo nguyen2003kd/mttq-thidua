@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { apiQueryKey, dataQueryKey } from '@/api/mutator/query-keys';
 import {
   Award,
   ArrowLeft,
@@ -11,7 +14,8 @@ import {
   Search,
   Trophy,
 } from "lucide-react";
-import { Button, EmptyState, FilterSelect, PageLoading } from "@/components/core";
+import { Button, EmptyState, FilterSelect, PageHeader, PageLoading } from "@/components/core";
+import { useQueryFilters } from "@/hooks/useQueryFilters";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -73,12 +77,18 @@ function normalizeWardCode(code: string) {
   return code.trim().replace(/^loc-/i, "").toLowerCase();
 }
 
-async function listClustersWithWards() {
-  const clusters = await clustersApi.list();
+async function listClustersWithWards(queryClient: QueryClient) {
+  const clusters = await queryClient.fetchQuery({
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' })),
+    queryFn: () => clustersApi.list(),
+  });
   // Một số response danh sách chỉ có wardCount; lấy detail khi thiếu danh sách xã/phường.
   return Promise.all(clusters.map((cluster) =>
     (cluster.wards?.length ?? 0) < cluster.wardCount
-      ? clustersApi.get(cluster.id)
+      ? queryClient.fetchQuery({
+        queryKey: dataQueryKey(apiQueryKey({}, { url: `/api/v1/clusters/${cluster.id}` })),
+        queryFn: () => clustersApi.get(cluster.id),
+      })
       : cluster,
   ));
 }
@@ -200,10 +210,9 @@ function LocalityCriteriaDialog({
     ? selectedSubmission.criteriaGroupName?.trim() || "Nhóm tiêu chí " + (selectedGroupIndex + 1)
     : null;
   const detailQuery = useQuery({
-    queryKey: ["specialist-score-summary-submission-detail", selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(locality && selectedSubmission),
-    staleTime: 5 * 60 * 1000,
   });
 
   const closeDialog = () => {
@@ -228,7 +237,7 @@ function LocalityCriteriaDialog({
         <div key={selectedSubmissionId ?? "groups"} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {selectedSubmission ? (
             <div className="space-y-4">
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedSubmissionId(null)}>
+              <Button type="button" variant="back" onClick={() => setSelectedSubmissionId(null)}>
                 <ArrowLeft className="size-4" />
                 Tất cả nhóm tiêu chí
               </Button>
@@ -419,25 +428,26 @@ function ResultSummary({
 }
 
 /** Bảng tổng hợp điểm toàn tỉnh của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
-export default function SpecialistScoreSummaryPage() {
+export default function SpecialistScoreSummaryPage({ readOnly = false }: { readOnly?: boolean }) {
+  const queryClient = useQueryClient();
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState('');
+  const { filters: { periodFilter }, setters: { periodFilter: setPeriodFilter } } = useQueryFilters({ periodFilter: '' });
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
-  const canPublish = useAuthStore((state) => state.user?.role === 'SPECIALIST');
+  const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
   const periodsQuery = useQuery({
-    queryKey: ["specialist-score-summary-periods"],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const periods = periodsQuery.data ?? [];
   const submissionsQuery = useQuery({
-    queryKey: ["specialist-score-summary-submissions", periodFilter],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: periodFilter || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(periodFilter || undefined),
   });
   const clustersQuery = useQuery({
-    queryKey: ["specialist-score-summary-clusters"],
-    queryFn: listClustersWithWards,
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' }), 'with-wards'),
+    queryFn: () => listClustersWithWards(queryClient),
   });
   const clusters = useMemo(
     () => [...(clustersQuery.data ?? [])].sort((left, right) =>
@@ -610,31 +620,39 @@ export default function SpecialistScoreSummaryPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-6 pb-8">
+      <PageHeader
+        title="Bảng tổng hợp điểm"
+        actions={
+          <FilterSelect
+            label="Kỳ thi đua"
+            labelPosition="outside"
+            value={periodFilter}
+            onChange={setPeriodFilter}
+            allLabel="Tất cả kỳ thi đua"
+            options={periods.map((period) => ({ value: period.id, label: period.name }))}
+          />
+        }
+      />
       <section
         className="overflow-hidden rounded-lg border border-border bg-card"
         aria-label="Tổng quan kết quả và bảng xếp hạng"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-5">
-          <FilterSelect
-            label="Kỳ thi đua"
-            value={periodFilter}
-            onChange={setPeriodFilter}
-            allLabel="Tất cả kỳ"
-            options={periods.map((period) => ({ value: period.id, label: period.name }))}
-          />
+        <div className="flex flex-wrap items-center justify-end gap-3 px-4 py-2 sm:px-5">
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{rows.length} đơn vị</Badge>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void handleExport()}
-              disabled={exporting}
-              disabledReason="Đang xuất file Excel…"
-            >
-              <Download className="size-4" />
-              {exporting ? "Đang xuất…" : "Xuất Excel"}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                disabledReason="Đang xuất file Excel…"
+              >
+                <Download className="size-4" />
+                {exporting ? "Đang xuất…" : "Xuất Excel"}
+              </Button>
+            )}
             {canPublish && (
               <Button
                 type="button"
@@ -646,21 +664,23 @@ export default function SpecialistScoreSummaryPage() {
                 Công bố kết quả
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-expanded={!overviewCollapsed}
-              aria-controls="specialist-score-summary-overview"
-              onClick={() => setOverviewCollapsed((collapsed) => !collapsed)}
-            >
-              {overviewCollapsed ? (
-                <ChevronDown className="size-4" />
-              ) : (
-                <ChevronUp className="size-4" />
-              )}
-              {overviewCollapsed ? "Mở rộng" : "Thu gọn"}
-            </Button>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={!overviewCollapsed}
+                aria-controls="specialist-score-summary-overview"
+                onClick={() => setOverviewCollapsed((collapsed) => !collapsed)}
+              >
+                {overviewCollapsed ? (
+                  <ChevronDown className="size-4" />
+                ) : (
+                  <ChevronUp className="size-4" />
+                )}
+                {overviewCollapsed ? "Mở rộng" : "Thu gọn"}
+              </Button>
+            )}
           </div>
         </div>
         <div
@@ -927,7 +947,7 @@ export default function SpecialistScoreSummaryPage() {
         locality={selectedLocality}
         onClose={() => setSelectedLocalityId(null)}
       />
-      <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />
+      {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />}
     </div>
   );
 }

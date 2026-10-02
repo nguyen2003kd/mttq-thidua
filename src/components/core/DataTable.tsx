@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, isValidElement, type CSSProperties, type ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   useReactTable,
   getCoreRowModel,
@@ -234,9 +235,16 @@ export function DataTable<TData, TValue = unknown>({
       return {};
     }
   });
+  const {
+    filters: { search: restoredSearch },
+    setters: { search: setPersistedSearch },
+  } = useQueryFilters({ search: initialSearchValue });
   const [globalFilter, setGlobalFilter] = useState('');
-  const [searchInput, setSearchInput] = useState(initialSearchValue);
+  const [searchInput, setSearchInput] = useState(restoredSearch);
   const debouncedSearchInput = useDebounce(searchInput, 300);
+  useEffect(() => {
+    setSearchInput(restoredSearch);
+  }, [restoredSearch]);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
@@ -347,8 +355,11 @@ export function DataTable<TData, TValue = unknown>({
 
   // Tìm kiếm qua API và lọc trên FE là hai chế độ loại trừ nhau.
   useEffect(() => {
+    if (!searchable) return;
+    const searchValue = debouncedSearchInput.trim();
+    setPersistedSearch(searchValue);
     if (onSearchChange) {
-      onSearchChange(debouncedSearchInput.trim());
+      onSearchChange(searchValue);
       return;
     }
     if (searchKey) {
@@ -357,7 +368,7 @@ export function DataTable<TData, TValue = unknown>({
       setGlobalFilter(debouncedSearchInput);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
-  }, [debouncedSearchInput, searchKey, onSearchChange]);
+  }, [debouncedSearchInput, searchKey, onSearchChange, searchable, setPersistedSearch]);
 
   const visibleColumns = table.getVisibleLeafColumns();
   const toggleableColumns = table.getAllLeafColumns().filter((column) => column.getCanHide());

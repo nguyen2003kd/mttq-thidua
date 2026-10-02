@@ -14,6 +14,8 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,116,168,0.25)] hover:bg-primary/90 hover:shadow-[0_1px_3px_rgba(0,116,168,0.3)]",
         outline:
           "border-border bg-background text-foreground hover:border-foreground/25 hover:bg-muted hover:text-foreground aria-expanded:border-foreground/25 aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        back:
+          "!h-11 !px-6 rounded-lg border-primary/70 border-b-[4px] bg-primary py-2 text-primary-foreground transition-all hover:brightness-110 hover:-translate-y-[1px] hover:border-b-[6px] active:border-b-[2px] active:brightness-90 active:not-aria-[haspopup]:translate-y-[2px]",
         secondary:
           "border-border/80 bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:

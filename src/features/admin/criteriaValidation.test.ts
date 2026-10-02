@@ -3,6 +3,7 @@ import {
   CRITERIA_TOTAL_MISMATCH_MESSAGE,
   EMPTY_CRITERIA_MESSAGE,
   validateCriteriaApplication,
+  validateCriteriaDeadline,
 } from './criteriaValidation';
 
 describe('validateCriteriaApplication', () => {
@@ -32,5 +33,38 @@ describe('validateCriteriaApplication', () => {
       childTotal: 0,
       message: EMPTY_CRITERIA_MESSAGE,
     });
+  });
+});
+
+describe('validateCriteriaDeadline', () => {
+  const trustedNowMs = Date.parse('2026-10-01T09:00:00');
+
+  it('requires a deadline for an applied group that has none', () => {
+    expect(validateCriteriaDeadline({ deadline: '', originalDeadline: '', isApplied: true, trustedNowMs }))
+      .toBe('Vui lòng chọn hạn nộp cho nhóm tiêu chí đã áp dụng.');
+  });
+
+  it('requires an applied group deadline to remain after trusted time', () => {
+    expect(validateCriteriaDeadline({
+      deadline: '2026-10-01T08:00',
+      originalDeadline: '2026-10-01T08:00',
+      isApplied: true,
+      trustedNowMs,
+    })).toBe('Hạn nộp phải sau thời gian chuẩn hiện tại.');
+    expect(validateCriteriaDeadline({
+      deadline: '2026-10-02T10:00',
+      originalDeadline: '2026-10-02T10:00',
+      isApplied: true,
+      trustedNowMs,
+    })).toBeNull();
+  });
+
+  it('keeps an optional unchanged deadline on a non-applied group', () => {
+    expect(validateCriteriaDeadline({
+      deadline: '2026-09-01T10:00',
+      originalDeadline: '2026-09-01T10:00',
+      isApplied: false,
+      trustedNowMs,
+    })).toBeNull();
   });
 });

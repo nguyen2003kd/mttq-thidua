@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } from '@/api/endpoints/departments';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, DataTable, Button, FilterSelect, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -124,13 +129,14 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const currentRole = useAuthStore((s) => s.user?.role);
   const canManageAccounts = ['ADMIN', 'SYSTEM_ADMIN'].includes(currentRole ?? '');
   const canCreateAccounts = canManageAccounts || currentRole === 'SPECIALIST';
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const {
+    filters: { userSearch: search, userStatus: statusFilter, userRole: roleFilter },
+    setters: { userSearch: setSearch, userStatus: setStatusFilter, userRole: setRoleFilter },
+  } = useQueryFilters({ userSearch: '', userStatus: '', userRole: '' });
   const debouncedSearch = useDebounce(search, 350);
 
   const usersQuery = useQuery({
-    queryKey: ['admin-users', { search: debouncedSearch, statusFilter, roleFilter }],
+    queryKey: dataQueryKey(getGetApiV1UsersQueryKey(), { search: debouncedSearch.trim(), status: statusFilter, role: roleFilter, page: 1, pageSize: 100 }),
     queryFn: async () => {
       const raw = await getApiV1Users({
         Search: debouncedSearch.trim() || undefined,
@@ -143,19 +149,26 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     },
   });
 
-  const users = usersQuery.data?.items ?? [];
+  // Trang quản lý tài khoản chỉ dành cho tài khoản chấm điểm: Chuyên viên cấp 2 và Lãnh đạo ban.
+  const users = (usersQuery.data?.items ?? []).filter((user) =>
+    (user.roles ?? []).some((role) => ['SCORER', 'REVIEWER'].includes(role.trim().toUpperCase())),
+  );
 
   const departmentsQuery = useQuery({
-    queryKey: ['admin-departments-all'],
+    queryKey: dataQueryKey(getGetApiV1DepartmentsAllQueryKey()),
     queryFn: () => departmentsApi.listAll(),
-    staleTime: 60_000,
   });
   const departments = departmentsQuery.data ?? [];
 
-  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
+  const invalidateAccounts = () => invalidateQueryResources(queryClient, [
+    getGetApiV1UsersQueryKey(),
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
+  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: async () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); await invalidateAccounts(); } });
+  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: async () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); await invalidateAccounts(); } });
+  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: async () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); await invalidateQueryResources(queryClient, [getGetApiV1UsersQueryKey(), getGetApiV1AuditLogsQueryKey()]); } });
+  const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: async () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); await invalidateAccounts(); } });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -166,10 +179,9 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const [fEmail, setFEmail] = useState('');
   const [fUsername, setFUsername] = useState('');
   const [fFullName, setFFullName] = useState('');
-  const [fFirstName, setFFirstName] = useState('');
-  const [fLastName, setFLastName] = useState('');
   const [fPhone, setFPhone] = useState('');
-  const [fRole, setFRole] = useState('Scorer');
+  const [fRole, setFRole] = useState('');
+  const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
   const [eFirstName, setEFirstName] = useState('');
@@ -196,14 +208,16 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
+    if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
+    if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
+    if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
       email: fEmail.trim(),
       username: fUsername.trim() || null,
       fullName: fFullName.trim() || null,
-      firstName: fFirstName.trim() || null,
-      lastName: fLastName.trim() || null,
       phone: fPhone.trim() || null,
       role: fRole,
+      departmentId: fDepartment,
     }, {
       onError: (err) => toast.error(extractErrorMessage(err)),
     });
@@ -266,11 +280,11 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       id: 'roles',
       header: 'Vai trò',
-      meta: { align: 'center', list: { width: '140px' } },
+      meta: { align: 'center', list: { width: '140px', valueClassName: 'min-w-0 whitespace-normal' } },
       cell: ({ row }) => (
-        <div className="flex flex-wrap justify-center gap-1">
+        <div className="flex min-w-0 flex-wrap justify-center gap-1">
           {(row.original.roles ?? []).map((r) => (
-            <Badge key={r} variant="outline">{roleLabel(r)}</Badge>
+            <Badge key={r} variant="outline" className="h-auto max-w-full whitespace-normal px-2 py-0.5 text-center leading-4">{roleLabel(r)}</Badge>
           ))}
         </div>
       ),
@@ -292,8 +306,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
-      meta: { align: 'right', list: { width: '130px' } },
-      cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
+      meta: { align: 'right', list: { width: '130px', valueClassName: 'text-xs' } },
+      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
   ], []);
 
@@ -331,7 +345,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
               label="Vai trò"
               value={roleFilter}
               onChange={setRoleFilter}
-              options={[{ value: '', label: 'Tất cả' }, ...ROLE_OPTIONS]}
+              options={[{ value: '', label: 'Tất cả' }, ...CREATE_ROLE_OPTIONS]}
             />
           </div>
         }
@@ -342,11 +356,11 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         onClearFilters={() => { setStatusFilter(''); setRoleFilter(''); }}
         emptyState={{
           title: 'Chưa có tài khoản',
-          description: 'Thêm tài khoản đầu tiên để bắt đầu.',
+          description: 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
           canCreateAccounts ? (
-            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFRole('Scorer'); setCreateOpen(true); }} action="create">
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
               <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
             </Button>
           ) : undefined
@@ -374,37 +388,42 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="u-full-name">Họ tên người đại diện</Label>
+          <Label htmlFor="u-full-name">Họ tên người đại diện <span className="text-destructive">*</span></Label>
           <Input id="u-full-name" value={fFullName} onChange={(e) => setFFullName(e.target.value)} placeholder="VD: Nguyễn Văn A — tên hiển thị chính" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-last-name">Họ</Label>
-            <Input id="u-last-name" value={fLastName} onChange={(e) => setFLastName(e.target.value)} placeholder="Nguyễn" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-first-name">Tên</Label>
-            <Input id="u-first-name" value={fFirstName} onChange={(e) => setFFirstName(e.target.value)} placeholder="Văn" />
-          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="u-phone">Số điện thoại</Label>
           <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="u-role">Vai trò</Label>
-          <Select
-            value={fRole}
-            onValueChange={(v) => setFRole(v ?? 'Scorer')}
-            itemToStringLabel={(role) => roleLabels[role] ?? 'Vai trò khác'}
-          >
-            <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CREATE_ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="u-role">Vai trò <span className="text-destructive">*</span></Label>
+            <Select
+              value={fRole}
+              onValueChange={(v) => setFRole(v ?? '')}
+              itemToStringLabel={(role) => roleLabels[role] ?? 'Vai trò khác'}
+            >
+              <SelectTrigger id="u-role"><SelectValue placeholder="Chọn vai trò" /></SelectTrigger>
+              <SelectContent>
+                {CREATE_ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="u-department">Ban <span className="text-destructive">*</span></Label>
+            <Select
+              value={fDepartment}
+              onValueChange={(v) => setFDepartment(v ?? '')}
+              itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban'}
+            >
+              <SelectTrigger id="u-department"><SelectValue placeholder="Chọn ban" /></SelectTrigger>
+              <SelectContent>
+                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">Mật khẩu khởi tạo sẽ lấy từ biến môi trường DEFAULT_PASSWORD.</p>
+        <p className="text-xs text-muted-foreground">Mật khẩu khởi tạo sẽ là <b>MTTQ@2026</b>.</p>
       </FormDialog>
 
       {/* Sửa tài khoản */}

@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey, getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1SubmissionResultsResultIdHistoriesQueryKey, getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
@@ -42,6 +47,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
@@ -56,6 +62,7 @@ import { downloadFile, filesApi, getFileBlob, getFilesApiError } from '@/feature
 import { Card, CardContent } from '@/components/ui/card';
 import { formatDateTime, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 
 interface EvidenceFile {
   id: string;
@@ -649,7 +656,7 @@ function CriterionHistoryPanel({
   currentExplanation: string | null;
 }) {
   const historiesQuery = useQuery({
-    queryKey: ['specialist-result-histories', resultId],
+    queryKey: dataQueryKey(getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(resultId ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listResultHistories(resultId!, { page: 1, pageSize: 100 }),
     enabled: Boolean(resultId),
   });
@@ -716,7 +723,7 @@ function OfficialScoreRevisionDialog({
   criterionLabel: string;
 }) {
   const scoreUpdateFilesQuery = useQuery({
-    queryKey: ['specialist-score-update-files', result?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), 'score-revisions', result?.id),
     queryFn: async () => {
       const [scoreUpdate, leaderScoring] = await Promise.all([
         filesApi.list({
@@ -799,14 +806,14 @@ function RevisionHistorySection({
   const [expanded, setExpanded] = useState(false);
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
   const approvalHistoriesQuery = useQuery({
-    queryKey: ['specialist-approval-histories', submissionId],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submissionId), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(submissionId, { page: 1, pageSize: 100 }),
     enabled: Boolean(submissionId),
   });
   const approvalHistories = approvalHistoriesQuery.data?.items ?? [];
   const resultHistoriesQueries = useQueries({
     queries: results.map((result) => ({
-      queryKey: ['specialist-result-histories', result.id],
+      queryKey: dataQueryKey(getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(result.id), { page: 1, pageSize: 100 }),
       queryFn: () => localityApi.listResultHistories(result.id, { page: 1, pageSize: 100 }),
       enabled: expanded,
     })),
@@ -1304,9 +1311,15 @@ function ScoreEditDialog({
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentChanged, setAttachmentChanged] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const initializedItem = useRef<string | null>(null);
 
   useEffect(() => {
-    if (item && open) {
+    if (!open) {
+      initializedItem.current = null;
+      return;
+    }
+    if (item && initializedItem.current !== item.id) {
+      initializedItem.current = item.id;
       form.reset({
         score: item.officialScore ?? item.proposedScore,
         bonusScore: item.officialBonusScore ?? item.proposedBonusScore,
@@ -1405,13 +1418,35 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const queryClient = useQueryClient();
   const userRole = useAuthStore((s) => s.user?.role);
   const scoringRole: ScoringRole = userRole === 'SCORER' || userRole === 'REVIEWER' ? userRole : 'SPECIALIST';
-  const [localitySearch, setLocalitySearch] = useState('');
-  const [submissionStageFilter, setSubmissionStageFilter] = useState<SubmissionStageFilter>('');
-  const [groupSearch, setGroupSearch] = useState('');
-  const [groupStatusFilter, setGroupStatusFilter] = useState<GroupStatusFilter>('');
-  const [groupSortFilter, setGroupSortFilter] = useState<string>(DEFAULT_GROUP_SORT);
-  const [groupYearFilter, setGroupYearFilter] = useState('');
-  const [groupPeriodFilter, setGroupPeriodFilter] = useState('');
+  const {
+    filters: { localitySearch, submissionStageFilter, groupSearch, groupStatusFilter, groupSortFilter, groupYearFilter, groupPeriodFilter },
+    setters: {
+      localitySearch: setLocalitySearch,
+      submissionStageFilter: setSubmissionStageFilter,
+      groupSearch: setGroupSearch,
+      groupStatusFilter: setGroupStatusFilter,
+      groupSortFilter: setGroupSortFilter,
+      groupYearFilter: setGroupYearFilter,
+      groupPeriodFilter: setGroupPeriodFilter,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{
+    localitySearch: string;
+    submissionStageFilter: SubmissionStageFilter;
+    groupSearch: string;
+    groupStatusFilter: GroupStatusFilter;
+    groupSortFilter: string;
+    groupYearFilter: string;
+    groupPeriodFilter: string;
+  }>({
+    localitySearch: '',
+    submissionStageFilter: '',
+    groupSearch: '',
+    groupStatusFilter: '',
+    groupSortFilter: DEFAULT_GROUP_SORT,
+    groupYearFilter: '',
+    groupPeriodFilter: '',
+  });
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -1466,12 +1501,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   // vẫn xuất hiện. Trang chi tiết chỉ tải submissions thuộc nhóm đang xem.
   const includeUnsubmitted = !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
-    queryKey: ['specialist-submissions', { stage: activeSubmissionStage, includeUnsubmitted }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', stage: activeSubmissionStage || undefined, includeUnsubmitted: includeUnsubmitted || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
     enabled: !isDetailRoute,
   });
   const detailGroupSubmissionsQuery = useQuery({
-    queryKey: ['specialist-group-submissions', nhomTieuChiId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(nhomTieuChiId ?? ''), 'all'),
     queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
     enabled: isDetailRoute,
   });
@@ -1482,11 +1517,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
   );
   const groupsQuery = useQuery({
-    queryKey: ['specialist-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
   const searchedGroupsQuery = useQuery({
-    queryKey: ['specialist-criteria-groups-search', debouncedGroupSearch],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', search: debouncedGroupSearch, page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ search: debouncedGroupSearch, page: 1, pageSize: 100 }),
     enabled: Boolean(diaPhuongId && !nhomTieuChiId && debouncedGroupSearch),
   });
@@ -1564,23 +1599,23 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   );
 
   const selectedGroupDetailQuery = useQuery({
-    queryKey: ['specialist-group-detail', nhomTieuChiId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(nhomTieuChiId ?? '')),
     queryFn: () => specialistApi.getCriteriaGroup(nhomTieuChiId!),
     enabled: Boolean(nhomTieuChiId),
   });
 
   const selectedSubmissionDetailQuery = useQuery({
-    queryKey: ['specialist-submission-detail', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(selectedSubmission?.id),
   });
   const selectedForwardingHistoriesQuery = useQuery({
-    queryKey: ['specialist-forwarding-histories', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(selectedSubmission?.id ?? ''), { action: 'Approve', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listApprovalHistories(selectedSubmission!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(selectedSubmission?.id),
   });
   const selectedRevisionHistoriesQuery = useQuery({
-    queryKey: ['specialist-revision-histories', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(selectedSubmission?.id ?? ''), { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => localityApi.listApprovalHistories(selectedSubmission!.id, {
       action: 'RequestRevision',
       page: 1,
@@ -1591,9 +1626,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     enabled: Boolean(selectedSubmission?.id),
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
-    queryKey: ['specialist-legacy-forwarding-files', selectedSubmission?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: selectedSubmission?.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: selectedSubmission!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
-    enabled: Boolean(selectedSubmission?.id),
+    enabled: Boolean(selectedSubmission?.id) && selectedForwardingHistoriesQuery.isSuccess
+      && !selectedForwardingHistoriesQuery.data?.items.find((history) => history.stageLevel === 'LocalSubmitted')?.files?.length,
   });
 
   const selectedGroup: SpecialistCriteriaGroup | undefined = useMemo(() => {
@@ -1724,6 +1760,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     });
   }, [debouncedGroupSearch, groupPeriodFilter, groupSortFilter, groupStatusFilter, groupYearFilter, localityGroups, scoringRole, searchedGroupsQuery.data, submissionByGroup]);
 
+  const periodScopedGroupProgress = useMemo(
+    () => getSpecialistGroupProgress(localityGroups, groupPeriodFilter),
+    [groupPeriodFilter, localityGroups],
+  );
+
   const filteredLocalityRows = useMemo(() => {
     const keyword = debouncedLocalitySearch.trim().toLocaleLowerCase('vi');
     return localityRows.filter((row) => {
@@ -1789,6 +1830,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               />
               <Button
                 variant="info"
+                hideWhen={!selectedLocality}
                 disabled={!selectedLocality}
                 disabledReason="Chọn một địa phương trong bảng để xem hồ sơ."
                 onClick={() => selectedLocality && navigate(`${basePath}/${selectedLocality.localityId}`)}
@@ -1900,9 +1942,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   }
 
   if (!nhomTieuChiId) {
-    const completedGroups = localityGroups.filter((group) => group.status === 'DA_CHAM').length;
-    const revisionGroups = localityGroups.filter((group) => group.hasModificationRequest).length;
-    const totalCount = localityGroups.length;
+    const { completedGroups, revisionGroups, totalCount } = periodScopedGroupProgress;
     const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
     const activeGroupFilters = [
@@ -1921,7 +1961,31 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         <PageHeader
           title={`Nhóm tiêu chí của ${district.localityName}`}
           description="Xem tiến độ và thực hiện chấm điểm từng nhóm tiêu chí"
-          actions={<Button variant="outline" render={<Link to={basePath} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>}
+          actions={
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
+              <div className="flex h-11 items-center rounded-lg border border-primary/25 bg-primary/[0.04] px-3">
+                <FilterSelect
+                  label="Kỳ thi đua"
+                  labelPosition="outside"
+                  value={groupPeriodFilter}
+                  onChange={(value) => {
+                    setGroupPeriodFilter(value);
+                    setSelectedGroupId(null);
+                  }}
+                  allLabel="Tất cả kỳ thi đua"
+                  options={groupPeriodOptions}
+                  className="border-primary/30 bg-card hover:border-primary/55"
+                />
+              </div>
+              <Button
+                variant="back"
+                render={<Link to={basePath} />}
+                nativeButton={false}
+              >
+                <ArrowLeft className="size-4" />Quay về
+              </Button>
+            </div>
+          }
         />
 
         <section className="grid gap-5 rounded-lg border border-border border-l-[3px] border-l-primary bg-card p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)] lg:items-center" aria-label="Tổng quan địa phương">
@@ -1963,23 +2027,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <FilterSelect
-                label="Kỳ"
-                value={groupPeriodFilter}
-                onChange={(value) => {
-                  setGroupPeriodFilter(value);
-                  setSelectedGroupId(null);
-                }}
-                options={groupPeriodOptions}
-              />
               <FilterDropdown
                 activeCount={activeGroupFilters.length}
                 activeFilters={activeGroupFilters}
                 openBelow
                 onClear={() => {
-                  setGroupStatusFilter('');
-                  setGroupSortFilter(DEFAULT_GROUP_SORT);
-                  setGroupYearFilter('');
+                  setQueryFilters({ groupStatusFilter: '', groupSortFilter: DEFAULT_GROUP_SORT, groupYearFilter: '' });
                   setGroupColumnVisibility({});
                   setSelectedGroupId(null);
                 }}
@@ -2014,6 +2067,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               </FilterDropdown>
               <Button
                 variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
+                hideWhen={!selectedGroupRow}
                 disabled={!selectedGroupRow}
                 disabledReason="Chọn một nhóm tiêu chí trong bảng để xem hoặc chấm điểm."
                 onClick={() => selectedGroupRow && navigate(`${basePath}/${district.localityId}/${selectedGroupRow.id}`)}
@@ -2296,6 +2350,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     }
   };
 
+  const refreshSubmissionData = (criteriaChanged = false) => invalidateQueryResources(queryClient, [
+    getGetApiV1SubmissionsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/submission-results' }),
+    getGetApiV1FilesQueryKey(),
+    ...(criteriaChanged ? [getGetApiV1CriteriaGroupsQueryKey()] : []),
+  ]);
+
   const saveDraftScores = async () => {
     if (specialistActionsLocked) {
       toast.info(specialistLockReason);
@@ -2312,14 +2373,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       return;
     }
     setSavingDraft(true);
+    let serverChanged = false;
     try {
       await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
+      serverChanged = true;
       await uploadPendingScoreAttachments();
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+      await refreshSubmissionData();
+      serverChanged = false;
       setScoreOverrides(new Map());
       toast.success('Đã lưu nháp điểm chấm.');
     } catch (error) {
+      if (serverChanged) await refreshSubmissionData();
       toast.error('Không lưu được bản nháp điểm chấm.', { description: getFilesApiError(error) });
     } finally {
       setSavingDraft(false);
@@ -2348,20 +2412,25 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.error('Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.');
       return;
     }
+    let serverChanged = false;
     try {
+      const items = specialistPermissions.canEdit ? buildScoreItems() : [];
       if (specialistPermissions.canEdit) {
-        const items = buildScoreItems();
         if (items.length > 0) {
           await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
+          serverChanged = true;
         }
+        serverChanged ||= pendingScoreAttachments.size > 0;
         await uploadPendingScoreAttachments();
       }
       await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] });
-      await queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] });
+      serverChanged = true;
+      await refreshSubmissionData();
+      serverChanged = false;
       setScoreOverrides(new Map());
       toast.success(`Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
     } catch (error) {
+      if (serverChanged) await refreshSubmissionData();
       toast.error(`Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
       throw error;
     }
@@ -2379,7 +2448,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       <PageHeader
         title="Chi tiết chấm điểm kết quả tiêu chí"
         description={`${district.localityName} · ${selectedGroup.groupName}`}
-        actions={<Button variant="outline" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
+        actions={<Button variant="back" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
       />
 
       <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm">
@@ -2451,13 +2520,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'revision-note', label: isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa' },
               ]}
             />
-            <Button variant="outline" disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
+            <Button variant="outline" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
               <Eye className="size-4" />Xem chi tiết
             </Button>
             {specialistPermissions.canEdit && (
               <>
                 <Button
                   variant="outline"
+                  hideWhen={!selectedCriterion}
                   disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || selectedCriterion.isDisabled || specialistActionsLocked || selectedCriterionRevisionLocked}
                   disabledReason={selectedCriterionLockReason}
                   onClick={() => setScoreEditOpen(true)}
@@ -2559,7 +2629,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="-ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                          className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
                           aria-expanded={historyExpanded}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -2765,12 +2835,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             return false;
           }
 
+          let serverChanged = false;
           try {
             const response = await specialistApi.addSupplementaryCriteria({
               submissionId: submission.id,
               content: name.trim(),
               note: reason.trim(),
             });
+            serverChanged = true;
             if (file) {
               await filesApi.upload(file, {
                 displayName: file.name,
@@ -2779,14 +2851,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 category: 'supplementary',
               });
             }
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-group-detail'] }),
-            ]);
+            await refreshSubmissionData(true);
+            serverChanged = false;
             toast.success('Đã thêm tiêu chí bổ sung. Hồ sơ đã chuyển về địa phương để bổ sung.');
             return true;
           } catch (error) {
+            if (serverChanged) await refreshSubmissionData(true);
             toast.error('Không thể thêm tiêu chí bổ sung.', { description: getFilesApiError(error) });
             return false;
           }
@@ -2903,10 +2973,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               submissionResultIds: selectedResultIds,
               file: attachment,
             });
-            await Promise.all([
-              queryClient.invalidateQueries({ queryKey: ['specialist-submissions'] }),
-              queryClient.invalidateQueries({ queryKey: ['specialist-submission-detail'] }),
-            ]);
+            await refreshSubmissionData();
             toast.success(`Đã gửi yêu cầu chỉnh sửa đến ${revisionTargetLabel}.`);
             return true;
           } catch (error) {

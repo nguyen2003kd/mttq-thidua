@@ -188,7 +188,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
           )}
 
           <div className="flex justify-end gap-2 border-t pt-4">
-            <Button type="button" variant="outline" onClick={() => { setStep(1); setError(''); }}>Quay lại</Button>
+            <Button type="button" variant="back" onClick={() => { setStep(1); setError(''); }}>Quay lại</Button>
             <Button type="submit" disabled={pending}>
               {submitMutation.isPending ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}
             </Button>

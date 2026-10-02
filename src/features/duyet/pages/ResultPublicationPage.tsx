@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1ResultPublicationsOverviewQueryKey, getGetApiV1ResultPublicationsPreviewQueryKey } from '@/api/endpoints/result-publications';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { AlertTriangle, CheckCircle2, History, Send, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Button, EmptyState, FileUpload, PageHeader, PageLoading } from '@/components/core';
+import { Button, EmptyState, FileUpload, FilterSelect, PageHeader, PageLoading } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi, type ResultPublicationCriteriaGroup } from '../api/resultPublicationApi';
 
@@ -34,13 +39,13 @@ function GroupRow({ group }: { group: ResultPublicationCriteriaGroup }) {
 export default function ResultPublicationPage() {
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [periodId, setPeriodId] = useState('');
+  const { filters: { periodId }, setters: { periodId: setPeriodId } } = useQueryFilters({ periodId: '' });
   const [publicationNote, setPublicationNote] = useState('');
   const [publicationFile, setPublicationFile] = useState<File[]>([]);
   const [publicationError, setPublicationError] = useState<string | null>(null);
 
   const periodsQuery = useQuery({
-    queryKey: ['publication-periods'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
@@ -50,15 +55,15 @@ export default function ResultPublicationPage() {
   useEffect(() => {
     if (!selectablePeriods.some((period) => period.id === periodId))
       setPeriodId(defaultPeriodId);
-  }, [defaultPeriodId, periodId, selectablePeriods]);
+  }, [defaultPeriodId, periodId, selectablePeriods, setPeriodId]);
 
   const overviewQuery = useQuery({
-    queryKey: ['result-publication-overview', periodId],
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsOverviewQueryKey(), periodId),
     queryFn: () => resultPublicationApi.getOverview(periodId),
     enabled: Boolean(periodId),
   });
   const previewQuery = useQuery({
-    queryKey: ['result-publication-preview', periodId],
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsPreviewQueryKey(), periodId),
     queryFn: () => resultPublicationApi.getPreview(periodId),
     enabled: previewOpen && Boolean(periodId),
   });
@@ -73,11 +78,10 @@ export default function ResultPublicationPage() {
       return resultPublicationApi.publish(targetPeriodId, note, file);
     },
     onSuccess: async (result) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['result-publication-overview'] }),
-        queryClient.invalidateQueries({ queryKey: ['result-publication-preview'] }),
-        queryClient.invalidateQueries({ queryKey: ['committee-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['local-result-publication'] }),
+      await invalidateQueryResources(queryClient, [
+        ['result-publications'],
+        getGetApiV1SubmissionsQueryKey(),
+        getGetApiV1CriteriaGroupsQueryKey(),
       ]);
       setPreviewOpen(false);
       setPublicationNote('');
@@ -122,17 +126,17 @@ export default function ResultPublicationPage() {
         title="Công bố kết quả thi đua"
         description={`Tổng quan trạng thái các nhóm tiêu chí trong kỳ ${selectedPeriod?.name ?? ''}.`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Select
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
+            <FilterSelect
+              label="Kỳ thi đua"
+              labelPosition="outside"
               value={periodId}
-              onValueChange={(value) => setPeriodId(value ?? '')}
-              itemToStringLabel={(id) => selectablePeriods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
-            >
-              <SelectTrigger aria-label="Kỳ thi đua"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
-              <SelectContent>
-                {selectablePeriods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+              onChange={setPeriodId}
+              allLabel="Chọn kỳ thi đua"
+              includeAllOption={false}
+              disabled={selectablePeriods.length === 0}
+              options={selectablePeriods.map((period) => ({ value: period.id, label: period.name }))}
+            />
             <Button variant="outline" render={<Link to="/thi-dua/duyet/ban-thuong-truc/duyet" />} nativeButton={false}>
               <CheckCircle2 className="mr-1.5 size-4" />Duyệt theo địa phương
             </Button>

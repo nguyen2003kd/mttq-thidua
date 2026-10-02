@@ -1,7 +1,15 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } from '@/api/endpoints/departments';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   PageHeader,
   DataTable,
@@ -28,15 +36,15 @@ import { departmentsApi } from '@/features/admin/api/departmentsApi';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
-import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
+import { useTrustedTime } from '@/hooks/useTrustedTime';
+import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile } from '@/features/admin/criteriaExcel';
 import type { CriteriaPayload } from '@/features/admin/api/criteriaGroupsApi';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
-const getCurrentLocalDateTime = () => {
-  const now = new Date();
-  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return localNow.toISOString().slice(0, 16);
+const toLocalDateTimeInput = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  return new Date(timestampMs - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Published' ? 'PUBLISHED' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
 const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
@@ -56,20 +64,47 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   updatedAt: group.updatedAt ?? undefined,
 });
 
+function TrustedDeadlineInput({ value, onChange, trustedNowRef }: { value: string; onChange: (value: string) => void; trustedNowRef: { current: number | null } }) {
+  const { nowMs } = useTrustedTime();
+  useEffect(() => { trustedNowRef.current = nowMs; }, [nowMs, trustedNowRef]);
+  useEffect(() => () => { trustedNowRef.current = null; }, [trustedNowRef]);
+  const min = nowMs === null ? undefined : toLocalDateTimeInput(Math.floor(nowMs / 60_000) * 60_000 + 60_000);
+
+  return <Input id="close-date" type="datetime-local" min={min} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 bg-muted pl-9" />;
+}
+
 export default function CriteriaListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const localities = useScoreStore((s) => s.localities);
   const deadline = useScoreStore((s) => s.deadline);
   const setDeadline = useScoreStore((s) => s.setDeadline);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CriteriaGroupStatusApi | ''>('');
-  const [sort, setSort] = useState('createdAt-desc');
-  const [yearFilter, setYearFilter] = useState<string>('');
-  const [periodFilter, setPeriodFilter] = useState<string>('');
+  const {
+    filters: { search: initialSearch, statusFilter, sort, yearFilter, periodFilter },
+    setters: {
+      statusFilter: setStatusFilter,
+      sort: setSort,
+      yearFilter: setYearFilter,
+      periodFilter: setPeriodFilter,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{
+    search: string;
+    statusFilter: CriteriaGroupStatusApi | '';
+    sort: string;
+    yearFilter: string;
+    periodFilter: string;
+  }>({
+    search: '',
+    statusFilter: '',
+    sort: 'createdAt-desc',
+    yearFilter: '',
+    periodFilter: '',
+  });
+  const [search, setSearch] = useState(initialSearch);
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
-    queryKey: ['criteria-groups', { search, statusFilter, periodId: periodFilter, sortBy, sortOrder }],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { search, status: statusFilter, periodId: periodFilter, sortBy, sortOrder, page: 1, pageSize: 100 }),
     queryFn: () => criteriaGroupsApi.list({ search: search || undefined, status: statusFilter || undefined, periodId: periodFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
   });
   const criteriaTables = useMemo(() => (groupPage?.items ?? []).map(toCriteriaTable), [groupPage]);
@@ -80,16 +115,14 @@ export default function CriteriaListPage() {
   );
 
   const departmentsQuery = useQuery({
-    queryKey: ['admin-departments-all'],
+    queryKey: dataQueryKey(getGetApiV1DepartmentsAllQueryKey()),
     queryFn: () => departmentsApi.listAll(),
-    staleTime: 60_000,
   });
   const departments = departmentsQuery.data ?? [];
 
   const periodsQuery = useQuery({
-    queryKey: ['admin-periods-all'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: () => periodsApi.listAll(),
-    staleTime: 60_000,
   });
   const periods = periodsQuery.data ?? [];
   const activePeriods = periods.filter((period) => period.status === 'Active');
@@ -112,6 +145,8 @@ export default function CriteriaListPage() {
   const [departmentId, setDepartmentId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
+  const trustedNowRef = useRef<number | null>(null);
+  const isAppliedEdit = editingTable?.status === 'ACTIVE';
   const [importedCriteria, setImportedCriteria] = useState<CriteriaPayload[] | null>(null);
   const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
@@ -130,11 +165,22 @@ export default function CriteriaListPage() {
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
   const { uploading: fileUploading, uploadProgress: fileProgress, uploadFiles } = useFileUpload();
+  const invalidateCriteria = () => invalidateQueryResources(queryClient, [
+    getGetApiV1CriteriaGroupsQueryKey(),
+    getGetApiV1SubmissionsQueryKey(),
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
+  const fetchLatestGroup = (groupId: string) => queryClient.fetchQuery({
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(groupId)),
+    queryFn: () => criteriaGroupsApi.get(groupId),
+    staleTime: 0,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => criteriaGroupsApi.delete(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+      await invalidateCriteria();
       setSelectedTable(null);
       setDeleteOpen(false);
       toast.success('Đã xóa nhóm tiêu chí nháp.');
@@ -252,6 +298,7 @@ export default function CriteriaListPage() {
 
   const openCreateDialog = () => {
     resetEditor();
+    if (activePeriods.some((period) => period.id === periodFilter)) setPeriodId(periodFilter);
     setOpen(true);
   };
 
@@ -290,7 +337,7 @@ export default function CriteriaListPage() {
   const openApplyDialog = async (table: CriteriaTable) => {
     setSaving(true);
     try {
-      const latestGroup = await criteriaGroupsApi.get(table.id);
+      const latestGroup = await fetchLatestGroup(table.id);
       const latestTable = toCriteriaTable(latestGroup);
       const validation = validateCriteriaApplication(
         latestTable.totalScore,
@@ -346,9 +393,14 @@ export default function CriteriaListPage() {
       return;
     }
 
-    const originalCloseDate = editingTable ? toDateTimeInput(editingTable.closeDate) : '';
-    if (closeDate && closeDate !== originalCloseDate && new Date(closeDate).getTime() < Date.now()) {
-      toast.error('Hạn nộp không được ở thời gian quá khứ.');
+    const deadlineError = validateCriteriaDeadline({
+      deadline: closeDate,
+      originalDeadline: editingTable ? toDateTimeInput(editingTable.closeDate) : '',
+      isApplied: isAppliedEdit,
+      trustedNowMs: trustedNowRef.current,
+    });
+    if (deadlineError) {
+      toast.error(deadlineError);
       return;
     }
 
@@ -358,7 +410,7 @@ export default function CriteriaListPage() {
     try {
       const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId, periodId: periodId || undefined };
       if (editingTable) {
-        const latestGroup = await criteriaGroupsApi.get(editingTable.id);
+        const latestGroup = await fetchLatestGroup(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
         if (parsedTotalScore < childrenTotal) {
           toast.error(
@@ -379,7 +431,7 @@ export default function CriteriaListPage() {
           toast.success('Đã tạo nhóm tiêu chí mới. Hãy thêm tiêu chí con trước khi áp dụng.');
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+      await invalidateCriteria();
       setSelectedTable(null);
       setOpen(false);
       resetEditor();
@@ -392,7 +444,7 @@ export default function CriteriaListPage() {
           cleanupFailed = true;
           setOpen(false);
           resetEditor();
-          void queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+          await invalidateCriteria();
         }
       }
       toast.error(cleanupFailed
@@ -406,7 +458,19 @@ export default function CriteriaListPage() {
       <PageHeader
         title={LABELS.CRITERIA_TABLE}
         description="Quản lý nhóm tiêu chí và tiêu chí chấm điểm thi đua khen thưởng."
-        actions={new Date(deadline).getTime() <= Date.now() ? <Badge className="h-7 bg-accent/20 px-3 text-foreground">Đến hạn gợi ý công bố</Badge> : undefined}
+        actions={
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
+            <FilterSelect
+              label="Kỳ thi đua"
+              labelPosition="outside"
+              value={periodFilter}
+              onChange={(value) => { setPeriodFilter(value); setSelectedTable(null); setApplyValidationError(null); }}
+              allLabel="Tất cả kỳ thi đua"
+              options={periods.map((p) => ({ value: p.id, label: p.name }))}
+            />
+            {new Date(deadline).getTime() <= Date.now() && <Badge className="h-7 bg-accent/20 px-3 text-foreground">Đến hạn gợi ý công bố</Badge>}
+          </div>
+        }
       />
 
       {applyValidationError && (
@@ -438,14 +502,6 @@ export default function CriteriaListPage() {
         pageSize={10}
         onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
-        inlineFilters={
-          <FilterSelect
-            label="Kỳ"
-            value={periodFilter}
-            onChange={(value) => { setPeriodFilter(value); setSelectedTable(null); setApplyValidationError(null); }}
-            options={periods.map((p) => ({ value: p.id, label: p.name }))}
-          />
-        }
         filters={
           <>
             <FilterSelect
@@ -497,11 +553,7 @@ export default function CriteriaListPage() {
         ]}
         onClearFilters={
           statusFilter || yearFilter || sort !== 'createdAt-desc'
-            ? () => {
-                setStatusFilter('');
-                setYearFilter('');
-                setSort('createdAt-desc');
-              }
+            ? () => setQueryFilters({ statusFilter: '', yearFilter: '', sort: 'createdAt-desc' })
             : undefined
         }
         emptyState={{
@@ -519,13 +571,13 @@ export default function CriteriaListPage() {
               onChange={handleExcelFileChange}
             />
               <>
-                <Button disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để chỉnh sửa." onClick={() => selectedTable && openEditDialog(selectedTable)}>
+                <Button variant="warning" hideWhen={!selectedTable} disabled={!selectedTable || selectedTable.status === 'PUBLISHED'} disabledReason={!selectedTable ? 'Chọn một nhóm tiêu chí để chỉnh sửa.' : selectedTable.status === 'PUBLISHED' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa.' : undefined} onClick={() => selectedTable && selectedTable.status !== 'PUBLISHED' && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
-                <Button variant="outline" disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="outline" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
                 <Button
@@ -547,6 +599,7 @@ export default function CriteriaListPage() {
                 </Button>
                 <Button
                   variant="outline"
+                  hideWhen={!selectedTable}
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT' || deleteMutation.isPending}
                   disabledReason={
                     !selectedTable
@@ -635,20 +688,21 @@ export default function CriteriaListPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span></Label>
+            <Label htmlFor="close-date" className="text-[13.5px] font-semibold">Hạn nộp {isAppliedEdit ? <span className="text-destructive">*</span> : <span className="text-xs font-normal text-muted-foreground">Không bắt buộc</span>}</Label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="close-date" type="datetime-local" min={getCurrentLocalDateTime()} value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="h-11 pl-9 bg-muted" />
+              <TrustedDeadlineInput value={closeDate} onChange={setCloseDate} trustedNowRef={trustedNowRef} />
             </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Info className="size-3.5" />
-              Có thể để trống nếu chưa quy định hạn nộp.
+              {isAppliedEdit ? 'Hạn nộp phải sau thời gian chuẩn hiện tại.' : 'Có thể để trống nếu chưa quy định hạn nộp.'}
             </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="criteria-period" className="text-[13.5px] font-semibold">Kỳ thi đua <span className="text-destructive">*</span></Label>
             <Select
               value={periodId}
+              disabled={isAppliedEdit}
               onValueChange={(v) => setPeriodId(v ?? '')}
               itemToStringLabel={(id) => periods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
             >
@@ -662,6 +716,7 @@ export default function CriteriaListPage() {
             <Label htmlFor="criteria-department" className="text-[13.5px] font-semibold">Ban xử lý <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">Chuyên viên và lãnh đạo ban sẽ xử lý hồ sơ của nhóm này</span></Label>
             <Select
               value={departmentId}
+              disabled={isAppliedEdit}
               onValueChange={(v) => setDepartmentId(v ?? '')}
               itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban xử lý'}
             >
@@ -693,7 +748,7 @@ export default function CriteriaListPage() {
           }
           setSaving(true);
           try {
-            const latestGroup = await criteriaGroupsApi.get(applyTable.id);
+            const latestGroup = await fetchLatestGroup(applyTable.id);
             const validation = validateCriteriaApplication(
               latestGroup.maxPoint,
               latestGroup.criteria.map((item) => item.maxPoint),
@@ -713,7 +768,13 @@ export default function CriteriaListPage() {
                 toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
               }
             }
-            await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+            await invalidateQueryResources(queryClient, [
+              getGetApiV1CriteriaGroupsQueryKey(),
+              getGetApiV1SubmissionsQueryKey(),
+              getGetApiV1FilesQueryKey(),
+              getGetApiV1DepartmentsQueryKey(),
+              getGetApiV1AuditLogsQueryKey(),
+            ]);
             setSelectedTable(null);
             setApplyTable(null);
             toast.success('Đã áp dụng nhóm tiêu chí cho các địa phương.');

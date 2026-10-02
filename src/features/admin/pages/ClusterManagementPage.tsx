@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Plus, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +19,7 @@ import {
 
 export default function ClusterManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const { filters: { clusterSearch: search }, setters: { clusterSearch: setSearch } } = useQueryFilters({ clusterSearch: '' });
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -30,7 +33,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const [fWardSearch, setFWardSearch] = useState('');
 
   const clustersQuery = useQuery({
-    queryKey: ['admin-clusters'],
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' })),
     queryFn: () => clustersApi.list(),
   });
 
@@ -42,15 +45,15 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   }, [clustersQuery.data, search]);
 
   const availableWardsQuery = useQuery({
-    queryKey: ['admin-cluster-available-wards'],
+    queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters/available-wards' })),
     queryFn: () => clustersApi.availableWards(),
     enabled: editOpen || createOpen,
   });
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin-clusters'] });
-    void queryClient.invalidateQueries({ queryKey: ['admin-cluster-available-wards'] });
-  };
+  const invalidateClusters = () => invalidateQueryResources(queryClient, [
+    apiQueryKey({}, { url: '/api/v1/clusters' }),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
 
   const createMutation = useMutation({
     mutationFn: async (payload: { name: string; description?: string | null; wardCodes: string[] }) => {
@@ -61,7 +64,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       const failed = results.filter((r) => r.status === 'rejected').length;
       return { created, failed };
     },
-    onSuccess: ({ failed }) => {
+    onSuccess: async ({ failed }) => {
       if (failed > 0) {
         toast.warning(`Đã tạo cụm, nhưng ${failed} phường/xã không gán được.`);
       } else {
@@ -69,7 +72,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
       }
       setCreateOpen(false);
       setFWardCodes([]);
-      invalidate();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -77,21 +80,21 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: { name: string; description?: string | null } }) =>
       clustersApi.update(id, payload),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       toast.success('Đã cập nhật cụm');
       setSelected(updated);
-      invalidate();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => clustersApi.remove(id),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Đã xóa cụm');
       setDeleteOpen(false);
       setSelected(null);
-      invalidate();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -99,11 +102,11 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const assignMutation = useMutation({
     mutationFn: ({ clusterId, wardCode }: { clusterId: string; wardCode: string }) =>
       clustersApi.assignWard(clusterId, wardCode),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       toast.success('Đã thêm phường/xã vào cụm');
       setSelected(updated);
       setAssignWardCode('');
-      invalidate();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -111,7 +114,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
   const removeWardMutation = useMutation({
     mutationFn: ({ clusterId, wardCode }: { clusterId: string; wardCode: string }) =>
       clustersApi.removeWard(clusterId, wardCode),
-    onSuccess: (_res, vars) => {
+    onSuccess: async (_res, vars) => {
       toast.success('Đã gỡ phường/xã khỏi cụm');
       if (selected) {
         setSelected({
@@ -120,7 +123,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
           wards: selected.wards.filter((w) => w.wardCode !== vars.wardCode),
         });
       }
-      invalidate();
+      await invalidateClusters();
     },
     onError: (e) => toast.error(getClusterApiError(e)),
   });
@@ -154,7 +157,10 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
     setEDescription(cluster.description ?? '');
     setAssignWardCode('');
     setEditOpen(true);
-    void clustersApi.get(cluster.id).then((detail) => setSelected(detail)).catch(() => undefined);
+    void queryClient.fetchQuery({
+      queryKey: dataQueryKey(apiQueryKey({}, { url: `/api/v1/clusters/${cluster.id}` })),
+      queryFn: () => clustersApi.get(cluster.id),
+    }).then((detail) => setSelected(detail)).catch(() => undefined);
   };
 
   const handleCreate = (e: React.FormEvent) => {

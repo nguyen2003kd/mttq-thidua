@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -9,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   periodsApi,
   getPeriodApiError,
@@ -35,11 +39,11 @@ interface FormState {
   status: PeriodStatusApi;
 }
 
-const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Draft' };
+const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Active' };
 
 export default function PeriodManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const { filters: { periodSearch: search }, setters: { periodSearch: setSearch } } = useQueryFilters({ periodSearch: '' });
   const debouncedSearch = useDebounce(search.trim(), 300);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -48,15 +52,13 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const periodsQuery = useQuery({
-    queryKey: ['admin-periods', { search: debouncedSearch }],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), { search: debouncedSearch, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
     queryFn: () => periodsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
   });
 
   const periods = periodsQuery.data?.items ?? [];
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin-periods'] });
-  };
+  const invalidate = () => invalidateQueryResources(queryClient, [getGetApiV1PeriodsQueryKey(), getGetApiV1AuditLogsQueryKey()]);
 
   const buildPayload = (): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi } | null => {
     const startYear = Number(form.startYear);
@@ -74,10 +76,10 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
 
   const createMutation = useMutation({
     mutationFn: (payload: ReturnType<typeof buildPayload> & object) => periodsApi.create(payload),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Đã tạo kỳ thi đua');
       setCreateOpen(false);
-      invalidate();
+      await invalidate();
     },
     onError: (e) => toast.error(getPeriodApiError(e)),
   });
@@ -85,22 +87,22 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ReturnType<typeof buildPayload> & object }) =>
       periodsApi.update(id, payload),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       toast.success('Đã cập nhật kỳ thi đua');
       setSelected(updated);
       setEditOpen(false);
-      invalidate();
+      await invalidate();
     },
     onError: (e) => toast.error(getPeriodApiError(e)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => periodsApi.remove(id),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Đã xóa kỳ thi đua');
       setDeleteOpen(false);
       setSelected(null);
-      invalidate();
+      await invalidate();
     },
     onError: (e) => toast.error(getPeriodApiError(e)),
   });
@@ -175,12 +177,12 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         <Label htmlFor="p-status">Trạng thái</Label>
         <Select
           value={form.status}
-          onValueChange={(v) => setForm((f) => ({ ...f, status: (v ?? 'Draft') as PeriodStatusApi }))}
+          onValueChange={(v) => setForm((f) => ({ ...f, status: (v ?? f.status) as PeriodStatusApi }))}
           itemToStringLabel={(status) => STATUS_LABELS[status as PeriodStatusApi] ?? 'Trạng thái kỳ thi đua'}
         >
           <SelectTrigger id="p-status"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="Draft">Nháp</SelectItem>
+            {editOpen && <SelectItem value="Draft">Nháp</SelectItem>}
             <SelectItem value="Active">Đang áp dụng</SelectItem>
             <SelectItem value="Closed">Đã kết thúc</SelectItem>
           </SelectContent>

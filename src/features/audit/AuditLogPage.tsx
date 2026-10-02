@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,9 +14,9 @@ import {
 } from 'lucide-react';
 import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading } from '@/components/core';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
 import { periodsApi } from '@/features/admin/api/periodsApi';
@@ -46,6 +49,10 @@ const entityLabels: Record<string, string> = {
   FileVariant: 'phiên bản tệp tin',
   PublicationBatch: 'đợt công bố',
   FinalDecision: 'quyết định cuối cùng',
+  Period: 'kỳ thi đua',
+  Cluster: 'cụm thi đua',
+  ClusterWard: 'thành viên cụm thi đua',
+  Department: 'ban',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -54,6 +61,8 @@ const moduleLabels: Record<string, string> = {
   Files: 'Tài liệu',
   ResultPublication: 'Công bố kết quả',
   System: 'Hệ thống',
+  Entities: 'Kỳ thi đua',
+  Periods: 'Kỳ thi đua',
 };
 
 function getActionLabel(action: string) {
@@ -94,6 +103,8 @@ const fieldLabels: Record<string, string> = {
   Reason: 'Lý do',
   Level: 'Cấp xử lý',
   ActionLevel: 'Cấp xử lý',
+  StartYear: 'Năm bắt đầu',
+  EndYear: 'Năm kết thúc',
   ActorName: 'Người thực hiện',
   ChangedData: 'Dữ liệu thay đổi',
   SubmissionResultIds: 'Kết quả tiêu chí',
@@ -147,6 +158,7 @@ function getActionDisplay(item: Pick<AuditLogItem, 'action' | 'actionKind' | 'ac
 /** Thứ tự ưu tiên hiển thị field trong bảng chi tiết: định danh → điểm → trạng thái → ghi chú → tệp. */
 const fieldPriority: Record<string, number> = {
   Name: 0, Content: 1, Description: 2,
+  StartYear: 2, EndYear: 3,
   CriteriaGroupId: 3, CriteriaId: 4,
   Point: 10, BonusPoint: 11, OfficialPoint: 12, OfficialBonusPoint: 13,
   MaxPoint: 14, MaxBonusPoint: 15, SnapshotMaxPoint: 14, SnapshotMaxBonusPoint: 15,
@@ -257,7 +269,7 @@ function formatAuditValue(field: string, value: unknown) {
   if (value === null || value === undefined || value === '') return 'Chưa có';
 
   if (field === 'Status' && typeof value === 'number') {
-    return ({ 0: 'Nháp', 1: 'Đã áp dụng' } as Record<number, string>)[value] ?? String(value);
+    return ({ 0: 'Nháp', 1: 'Đã áp dụng', 2: 'Đã kết thúc' } as Record<number, string>)[value] ?? String(value);
   }
 
   if ((field === 'CurrentStage' || field === 'SubmissionStage') && typeof value === 'number') {
@@ -634,18 +646,24 @@ function DateRangeFilter({ label, value, onChange }: { label?: string; value: st
 /** Nội dung trang lịch sử audit: filter + bảng + modal chi tiết. Backend tự scope — role thường chỉ thấy log của mình, ADMIN thấy tất cả. Dùng lại cho trang lịch sử của từng role. */
 export function AuditLogView({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   const [page, setPage] = useState(1);
-  const [module, setModule] = useState('');
-  const [action, setAction] = useState('');
-  const [entityName, setEntityName] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const {
+    filters: { module, action, entityName, searchInput, from, to, periodFilter },
+    setters: {
+      module: setModule,
+      action: setAction,
+      entityName: setEntityName,
+      searchInput: setSearchInput,
+      periodFilter: setPeriodFilter,
+    },
+    setFilters: setQueryFilters,
+  } = useQueryFilters({ module: '', action: '', entityName: '', searchInput: '', from: '', to: '', periodFilter: '' });
   const [selected, setSelected] = useState<AuditLogItem | null>(null);
   const search = useDebounce(searchInput, 350);
-  const [periodFilter, setPeriodFilter] = useState(() => usePeriodStore.getState().selectedPeriodId ?? '');
-  const periodsQuery = useQuery({ queryKey: ['publication-periods'], queryFn: periodsApi.listAll });
+  const selectedPeriodId = usePeriodStore((state) => state.selectedPeriodId);
+  const effectivePeriodFilter = periodFilter || selectedPeriodId || '';
+  const periodsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'), queryFn: periodsApi.listAll });
   const periods = periodsQuery.data ?? [];
-  const selectedPeriod = periods.find((period) => period.id === periodFilter);
+  const selectedPeriod = periods.find((period) => period.id === effectivePeriodFilter);
 
   const query = useMemo<AuditLogQuery>(() => ({
     page,
@@ -663,18 +681,19 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     ...(search ? { search } : {}),
   }), [page, from, to, module, action, entityName, search, selectedPeriod]);
 
-  const logsQuery = useQuery({ queryKey: ['audit-logs', query], queryFn: () => auditLogsApi.list(query) });
+  const logsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuditLogsQueryKey(), query), queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;
 
   const resetPage = () => setPage(1);
   const clearFilters = () => {
-    setModule(''); setAction(''); setEntityName(''); setSearchInput(''); setFrom(''); setTo(''); setPeriodFilter(''); usePeriodStore.getState().setSelectedPeriod(null); resetPage();
+    setQueryFilters({ module: '', action: '', entityName: '', searchInput: '', from: '', to: '', periodFilter: '' });
+    usePeriodStore.getState().setSelectedPeriod(null);
+    resetPage();
   };
 
   const handleDateRangeChange = (value: string) => {
     const [nextFrom = '', nextTo = ''] = value.split('|');
-    setFrom(nextFrom);
-    setTo(nextTo);
+    setQueryFilters({ from: nextFrom, to: nextTo });
     resetPage();
   };
 
@@ -689,7 +708,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : action, onClear: () => { setAction(''); resetPage(); } }] : []),
     ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
     ...(selectedPeriod ? [{ label: 'Kỳ thi đua', value: selectedPeriod.name, onClear: () => handlePeriodChange('') }] : []),
-    ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setFrom(''); setTo(''); resetPage(); } }] : []),
+    ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setQueryFilters({ from: '', to: '' }); resetPage(); } }] : []),
   ];
 
   if (logsQuery.isPending) return <PageLoading label="Đang tải lịch sử thay đổi…" />;
@@ -698,24 +717,19 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   const visibleItems = result.items;
 
   const periodSelector = (
-    <div className="flex items-center gap-2">
-      <span className="shrink-0 text-sm font-medium text-muted-foreground">Kỳ thi đua</span>
-      <Select
-        value={periodFilter}
-        onValueChange={(value) => { if (value) handlePeriodChange(value); }}
-        itemToStringLabel={(value) => periods.find((period) => period.id === value)?.name ?? 'Kỳ thi đua'}
-      >
-        <SelectTrigger aria-label="Kỳ thi đua" className="w-56"><SelectValue placeholder="Tất cả kỳ thi đua" /></SelectTrigger>
-        <SelectContent>
-          {periods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </div>
+    <FilterSelect
+      label="Kỳ thi đua"
+      labelPosition="outside"
+      value={effectivePeriodFilter}
+      onChange={handlePeriodChange}
+      allLabel="Tất cả kỳ thi đua"
+      options={periods.map((period) => ({ value: period.id, label: period.name }))}
+    />
   );
 
   return (
     <div className="space-y-6">
-      <PageHeader title={title} description={description} actions={<div className="flex flex-wrap items-center gap-2">{actions}{periodSelector}</div>} />
+      <PageHeader title={title} description={description} actions={<div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">{actions}{periodSelector}</div>} />
 
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3">

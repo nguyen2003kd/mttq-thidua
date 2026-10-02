@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1ResultPublicationsCriteriaGroupsQueryKey, getGetApiV1ResultPublicationsPreviewQueryKey } from '@/api/endpoints/result-publications';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { AlertTriangle, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, FileUpload } from '@/components/core';
@@ -52,7 +57,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
   const [publicationError, setPublicationError] = useState<string | null>(null);
 
   const periodsQuery = useQuery({
-    queryKey: ['publication-periods'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
     enabled: open,
   });
@@ -67,12 +72,12 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
   }, [defaultPeriodId, open, periodId, selectablePeriods]);
 
   const previewQuery = useQuery({
-    queryKey: ['result-publication-preview', periodId],
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsPreviewQueryKey(), periodId),
     queryFn: () => resultPublicationApi.getPreview(periodId),
     enabled: open && Boolean(periodId),
   });
   const criteriaGroupsQuery = useQuery({
-    queryKey: ['result-publication-criteria-groups', periodId],
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsCriteriaGroupsQueryKey(), periodId),
     queryFn: () => resultPublicationApi.getCriteriaGroups(periodId),
     enabled: open && Boolean(periodId),
   });
@@ -104,12 +109,10 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
       return resultPublicationApi.publish(targetPeriodId, note, file);
     },
     onSuccess: async (result) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['result-publication-overview'] }),
-        queryClient.invalidateQueries({ queryKey: ['result-publication-criteria-groups'] }),
-        queryClient.invalidateQueries({ queryKey: ['result-publication-preview'] }),
-        queryClient.invalidateQueries({ queryKey: ['committee-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['local-result-publication'] }),
+      await invalidateQueryResources(queryClient, [
+        ['result-publications'],
+        getGetApiV1SubmissionsQueryKey(),
+        getGetApiV1CriteriaGroupsQueryKey(),
       ]);
       onOpenChange(false);
       setPublicationNote('');

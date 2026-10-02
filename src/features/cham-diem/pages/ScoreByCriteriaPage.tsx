@@ -1,9 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -57,21 +61,22 @@ export default function ScoreByCriteriaPage() {
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<LocalityScoreRow | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<CriteriaGroupApi | null>(null);
-  const [groupSearch, setGroupSearch] = useState('');
+  const { filters: { search: initialSearch } } = useQueryFilters({ search: '' });
+  const [groupSearch, setGroupSearch] = useState(initialSearch);
 
   const groupsQuery = useQuery({
-    queryKey: ['score-criteria-groups', groupSearch],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', search: groupSearch || undefined, page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ search: groupSearch || undefined, page: 1, pageSize: 100 }),
     enabled: !groupId,
   });
   const groupQuery = useQuery({
-    queryKey: ['score-criteria-group', groupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(groupId ?? '')),
     queryFn: () => specialistApi.getCriteriaGroup(groupId!),
     enabled: Boolean(groupId),
     retry: false,
   });
   const submissionsQuery = useQuery({
-    queryKey: ['score-group-submissions', groupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(groupId ?? ''), 'all'),
     queryFn: () => listEverySubmissionByGroup(groupId!),
     enabled: Boolean(groupId) && groupQuery.isSuccess,
   });
@@ -118,7 +123,7 @@ export default function ScoreByCriteriaPage() {
           selectedRowId={selectedGroup?.id}
           onRowClick={setSelectedGroup}
           onRowDoubleClick={(group) => navigate(`/thi-dua/cham-diem/theo-tieu-chi/${group.id}`)}
-          toolbar={<Button disabled={!selectedGroup} disabledReason="Chọn một nhóm tiêu chí để xem địa phương." onClick={() => selectedGroup && navigate(`/thi-dua/cham-diem/theo-tieu-chi/${selectedGroup.id}`)}><Eye className="mr-1.5 size-4" />Xem địa phương</Button>}
+          toolbar={<Button hideWhen={!selectedGroup} disabled={!selectedGroup} disabledReason="Chọn một nhóm tiêu chí để xem địa phương." onClick={() => selectedGroup && navigate(`/thi-dua/cham-diem/theo-tieu-chi/${selectedGroup.id}`)}><Eye className="mr-1.5 size-4" />Xem địa phương</Button>}
           emptyState={{ title: groupSearch ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí', description: groupSearch ? 'Thử từ khóa khác.' : 'Chưa có nhóm tiêu chí nào được áp dụng.', icon: <Search className="size-8" /> }}
           stickyTitle="Nhóm tiêu chí"
           stickyDescription="Chọn nhóm để xem địa phương"
@@ -132,7 +137,7 @@ export default function ScoreByCriteriaPage() {
       title="Không tìm thấy nhóm tiêu chí"
       description="Nhóm tiêu chí này không tồn tại hoặc đã bị xóa."
       icon={<Search className="size-8" />}
-      action={<Button variant="outline" render={<Link to="/thi-dua/cham-diem" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Về danh sách địa phương</Button>}
+      action={<Button variant="back" render={<Link to="/thi-dua/cham-diem" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Về danh sách địa phương</Button>}
     />;
   }
 
@@ -141,7 +146,7 @@ export default function ScoreByCriteriaPage() {
       <PageHeader
         title={groupQuery.data?.name ?? 'Chấm điểm theo nhóm tiêu chí'}
         description="Chọn một địa phương để xem và chấm hồ sơ."
-        actions={<Button variant="outline" render={<Link to="/thi-dua/cham-diem/theo-tieu-chi" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>}
+        actions={<Button variant="back" render={<Link to="/thi-dua/cham-diem/theo-tieu-chi" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>}
       />
       <DataTable
         data={rows}
@@ -154,7 +159,7 @@ export default function ScoreByCriteriaPage() {
         selectedRowId={selectedRow?.code}
         onRowClick={setSelectedRow}
         onRowDoubleClick={(row) => navigate(`/thi-dua/cham-diem/${row.code}/${groupId}`)}
-        toolbar={<Button disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
+        toolbar={<Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
         emptyState={{ title: 'Chưa có hồ sơ', description: 'Chưa có địa phương nào nộp hồ sơ cho nhóm tiêu chí này.', icon: <Search className="size-8" /> }}
         stickyTitle="Danh sách địa phương"
         stickyDescription={groupQuery.data?.name ?? ''}

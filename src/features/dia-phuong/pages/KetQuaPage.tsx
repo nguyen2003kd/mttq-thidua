@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronRight, FileCheck, ListTree, MapPin, Trophy } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { Button, EmptyState, PageHeader, PageLoading } from '@/components/core';
@@ -65,15 +68,15 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
 export default function KetQuaPage() {
   const localityId = useAuthStore((state) => state.user?.localityId);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const submissionsQuery = useQuery({ queryKey: ['locality-result-submissions', localityId], queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), enabled: Boolean(localityId) });
-  const groupsQuery = useQuery({ queryKey: ['locality-result-criteria-groups'], queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }), enabled: Boolean(localityId) });
+  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), enabled: Boolean(localityId) });
+  const groupsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }), queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }), enabled: Boolean(localityId) });
   const publishedSubmissionIds = useMemo(
     () => (submissionsQuery.data?.items ?? []).filter((submission) => submission.currentStage === 'CommitteeFinalized').map((submission) => submission.id),
     [submissionsQuery.data?.items],
   );
   const submissionDetailsQueries = useQueries({
     queries: publishedSubmissionIds.map((submissionId) => ({
-      queryKey: ['locality-result-submission-detail', submissionId],
+      queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submissionId)),
       queryFn: () => localityApi.getSubmission(submissionId),
       enabled: Boolean(submissionId),
     })),
@@ -102,7 +105,7 @@ export default function KetQuaPage() {
   if (submissionsQuery.isError || groupsQuery.isError || submissionDetailsQueries.some((query) => query.isError)) return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error ?? submissionDetailsQueries.find((query) => query.error)?.error)} />;
 
   return <div className="mx-auto w-full max-w-[1600px] space-y-6 pb-8">
-    <PageHeader title={`Kết quả thi đua`} description="Điểm chính thức đã công bố theo nhóm tiêu chí và tiêu chí con." actions={<Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title={`Kết quả thi đua`} description="Điểm chính thức đã công bố theo nhóm tiêu chí và tiêu chí con." actions={<Button variant="back" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     {resultGroups.length === 0 ? <EmptyState title="Kết quả chưa được công bố" description="Điểm chính thức sẽ hiển thị tại đây sau khi Ban Thường trực công bố kết quả." icon={<FileCheck className="size-8" />} /> : <>
       <section className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-[1.15fr_1fr_1fr]" aria-label="Tổng quan kết quả">
         <div className="bg-card px-5 py-4"><p className="text-xs font-medium text-muted-foreground">Điểm tỉnh chấm</p><p className="mt-1 text-2xl font-semibold tabular-nums text-primary">{hasProvinceScore ? formatScore(totalProvinceScore) : '—'}</p></div>

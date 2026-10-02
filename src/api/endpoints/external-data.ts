@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -60,10 +61,8 @@ export const getApiV1ExternalProvincesCodeWards = (
 
 export const getGetApiV1ExternalProvincesCodeWardsQueryKey = (code: string,
     params?: GetApiV1ExternalProvincesCodeWardsParams,) => {
-    return [
-    `/api/v1/external/provinces/${code}/wards`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/external/provinces/${code}/wards` });
+};
 
 
 export const getGetApiV1ExternalProvincesCodeWardsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ExternalProvincesCodeWards>>, TError = unknown>(code: string,

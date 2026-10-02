@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Eye, MessageSquare, Search } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -7,6 +10,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, RejectDialog } from '@/components/core';
 // import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái duyệt
 import { Button } from '@/components/core';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Input } from '@/components/ui/input';
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái duyệt
 import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
@@ -82,19 +86,22 @@ export default function BanLeaderApprovalPage() {
   const { banId = 'ban1' } = useParams<{ banId?: string }>();
   const navigate = useNavigate();
   const [selectedRow, setSelectedRow] = useState<LocalityReviewRow | null>(null);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const {
+    filters: { fromDate, toDate },
+    setters: { fromDate: setFromDate, toDate: setToDate },
+    setFilters: setQueryFilters,
+  } = useQueryFilters({ fromDate: '', toDate: '' });
   const [commentOpen, setCommentOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const queryClient = useQueryClient();
 
   const submissionsQuery = useQuery({
-    queryKey: ['leader-submissions', { includeUnsubmitted: true }],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: listEveryLeaderSubmission,
   });
 
   const groupsQuery = useQuery({
-    queryKey: ['leader-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
   });
 
@@ -171,7 +178,7 @@ export default function BanLeaderApprovalPage() {
       for (const submission of selectedRow.submissions.filter(canCommentSubmission)) {
         await specialistApi.comment({ submissionId: submission.id, reason: comment });
       }
-      await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
+      await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsQueryKey()]);
       setSelectedRow(null);
       toast.success('Đã lưu nhận xét của Lãnh đạo ban vào lịch sử hồ sơ.');
     } catch (error) {
@@ -191,7 +198,7 @@ export default function BanLeaderApprovalPage() {
 
   return <div className="space-y-6">
     <PageHeader title="Danh sách địa phương" description="Hồ sơ do chuyên viên chuyển lãnh đạo ban thẩm định." />
-    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => { setFromDate(''); setToDate(''); }} toolbar={<div className="flex flex-wrap items-center gap-2"><Button disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button><Button variant="outline" disabled={!selectedRow || !canCommentSelected || actionPending} disabledReason={!selectedRow ? 'Chọn một địa phương để nhận xét.' : !canCommentSelected ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button></div>} emptyState={{ title: 'Không có địa phương', description: 'Chưa có địa phương nào trong dữ liệu.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ SpecialistApproved chờ lãnh đạo ban thẩm định" />
+    <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => setQueryFilters({ fromDate: '', toDate: '' })} toolbar={<div className="flex flex-wrap items-center gap-2"><Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button><Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow || !canCommentSelected || actionPending} disabledReason={!selectedRow ? 'Chọn một địa phương để nhận xét.' : !canCommentSelected ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button></div>} emptyState={{ title: 'Không có địa phương', description: 'Chưa có địa phương nào trong dữ liệu.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ SpecialistApproved chờ lãnh đạo ban thẩm định" />
     <RejectDialog open={commentOpen} onOpenChange={setCommentOpen} localityName={selectedRow?.locality.name} state="CHO_DUYET_BAN" title="Nhận xét địa phương" confirmLabel="Gửi nhận xét" confirmVariant="default" submitAction="approve" description="Nhận xét được lưu vào lịch sử hồ sơ và không làm thay đổi điểm hoặc trạng thái duyệt." reasonLabel="Nội dung nhận xét" reasonPlaceholder="Nhập nhận xét của Lãnh đạo ban về hồ sơ địa phương." onConfirm={saveComment} />
   </div>;
 }

@@ -16,10 +16,12 @@ export interface ButtonProps
   fallback?: ReactNode;
   /** Lý do hiện khi nút đang bị khóa. */
   disabledReason?: ReactNode;
+  hideWhen?: boolean;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ action, state, scope, fallback, disabledReason, ...props }, ref) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ action, state, scope, fallback, disabledReason, hideWhen, ...props }, ref) {
   const can = useCan();
+  if (hideWhen) return null;
   const isFullWidth = typeof props.className === 'string' && /(?:^|\s)!?w-full(?:\s|$)/.test(props.className);
 
   if (action && !can(action, { state, scope })) {

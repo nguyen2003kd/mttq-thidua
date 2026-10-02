@@ -2,13 +2,16 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button, PageHeader, PageLoading, EmptyState } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { useAuthStore } from '@/store/authStore';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from './api/profileApi';
 
@@ -61,10 +64,11 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 
 /** Trang Tài khoản — xem thông tin đăng nhập (read-only) + sửa họ tên/SĐT người đại diện. */
 export default function AccountPage() {
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const setStore = useAuthStore((s) => s.setStore);
 
-  const profileQuery = useQuery({ queryKey: ['auth-profile'], queryFn: () => profileApi.get() });
+  const profileQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey()), queryFn: () => profileApi.get() });
   const profile = profileQuery.data;
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm<FormValues>({
@@ -73,12 +77,13 @@ export default function AccountPage() {
   });
 
   useEffect(() => {
-    if (profile) reset({ fullName: profile.fullName ?? '', phone: profile.phone ?? '' });
-  }, [profile, reset]);
+    if (profile && !isDirty) reset({ fullName: profile.fullName ?? '', phone: profile.phone ?? '' });
+  }, [profile, reset, isDirty]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       const updated = await profileApi.update({ fullName: values.fullName, phone: values.phone });
+      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey()), updated);
       setStore({
         full_name: updated.fullName,
         phone: updated.phone,
@@ -86,6 +91,7 @@ export default function AccountPage() {
         ...(user ? { user: { ...user, name: profileDisplayName(updated) } } : {}),
       });
       reset({ fullName: updated.fullName ?? '', phone: updated.phone ?? '' });
+      await queryClient.invalidateQueries({ queryKey: getGetApiV1UsersQueryKey() });
       toast.success('Đã cập nhật thông tin người đại diện');
     } catch (error) {
       toast.error(extractError(error));

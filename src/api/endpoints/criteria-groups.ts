@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -126,10 +127,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1CriteriaGroupsQueryKey = (params?: GetApiV1CriteriaGroupsParams,) => {
-    return [
-    `/api/v1/criteria-groups`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/criteria-groups` });
+};
 
 
 export const getGetApiV1CriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError = unknown>(params?: GetApiV1CriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -333,10 +332,8 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1CriteriaGroupsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/criteria-groups/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/criteria-groups/${id}` });
+};
 
 
 export const getGetApiV1CriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

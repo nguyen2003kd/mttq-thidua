@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1ResultPublicationsLocalQueryKey } from '@/api/endpoints/local-result-publications';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, ListTree, MessageSquareText, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, FilterSelect, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AuditTimeline } from '@/components/core';
 import { localityApi, getLocalityApiError, mergeSubmissionCriteria, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { cn, formatDate } from '@/lib/utils';
@@ -245,11 +251,11 @@ export default function LocalityResultsPage() {
   const [publicationPreviewFile, setPublicationPreviewFile] = useState<{ id: string; displayName?: string | null; originalName?: string | null } | null>(null);
   const [mobilePage, setMobilePage] = useState(1);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
+  const { filters: { search }, setters: { search: setSearch } } = useQueryFilters({ search: '' });
   const [searchParams, setSearchParams] = useSearchParams();
 
   const periodsQuery = useQuery({
-    queryKey: ['publication-periods'],
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
@@ -278,18 +284,19 @@ export default function LocalityResultsPage() {
   }, [periodId]);
 
   const submissionsQuery = useQuery({
-    queryKey: ['locality-final-submissions'],
+    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
-    enabled: !id,
+    enabled: !id && Boolean(localityId),
   });
   const groupsQuery = useQuery({
-    queryKey: ['locality-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    enabled: !id && Boolean(localityId),
   });
   const publicationQuery = useQuery({
-    queryKey: ['local-result-publication', periodId],
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsLocalQueryKey(), { periodId, localityId }),
     queryFn: () => resultPublicationApi.getLocalResult(periodId),
-    enabled: Boolean(periodId),
+    enabled: Boolean(periodId && localityId),
   });
 
   const submissions = useMemo(() => {
@@ -302,66 +309,63 @@ export default function LocalityResultsPage() {
     [groupsQuery.data, periodId],
   );
   const periodSelector = (
-    <div className="flex items-center gap-2">
-      <span className="shrink-0 text-sm font-medium text-muted-foreground">Kỳ thi đua</span>
-      <Select
-        value={periodId}
-        onValueChange={(value) => {
-          if (!value) return;
-          setSelectedPeriod(value);
-          setSearchParams((params) => {
-            const next = new URLSearchParams(params);
-            next.set('periodId', value);
-            return next;
-          });
-        }}
-        itemToStringLabel={(id) => selectablePeriods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
-        disabled={selectablePeriods.length === 0}
-      >
-        <SelectTrigger aria-label="Kỳ thi đua" className="w-56"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
-        <SelectContent>
-          {selectablePeriods.map((period) => <SelectItem key={period.id} value={period.id}>{period.name}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </div>
+    <FilterSelect
+      label="Kỳ thi đua"
+      labelPosition="outside"
+      value={periodId}
+      onChange={(value) => {
+        if (!value) return;
+        setSelectedPeriod(value);
+        setSearchParams((params) => {
+          const next = new URLSearchParams(params);
+          next.set('periodId', value);
+          return next;
+        });
+      }}
+      allLabel="Chọn kỳ thi đua"
+      includeAllOption={false}
+      disabled={selectablePeriods.length === 0}
+      options={selectablePeriods.map((period) => ({ value: period.id, label: period.name }))}
+    />
   );
 
   const detailQuery = useQuery({
-    queryKey: ['locality-final-submission', id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(id ?? '')),
     queryFn: () => localityApi.getSubmission(id!),
     enabled: Boolean(id),
     retry: false,
   });
   const detailSubmission = detailQuery.data;
   const detailGroupQuery = useQuery({
-    queryKey: ['locality-final-group', detailSubmission?.criteriaGroupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(detailSubmission?.criteriaGroupId ?? '')),
     queryFn: () => localityApi.getCriteriaGroup(detailSubmission!.criteriaGroupId),
     enabled: Boolean(detailSubmission?.criteriaGroupId),
   });
   const historiesQuery = useQuery({
-    queryKey: ['locality-final-histories', id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(id ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(id!, { page: 1, pageSize: 100 }),
     enabled: Boolean(id) && !detailQuery.isError,
   });
 
-  // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason theo stage
-  const commentsQuery = useQuery({
-    queryKey: ['locality-final-comments', submissions.map((submission) => submission.id)],
-    enabled: submissions.length > 0,
-    queryFn: async () => {
-      const pages = await Promise.all(submissions.map((submission) => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 })));
-      const comments = new Map<string, { council: string | null; committee: string | null }>();
-      pages.forEach((page, index) => {
-        const items = page.items;
-        comments.set(submissions[index].id, {
-          // Cũ — match theo stageLevel: council = 'LeaderApproved', committee = 'CouncilApproved'.
-          council: [...items].reverse().find((item) => item.action === 'Comment' && item.reason && (hasActorRole(item, 'COUNCIL') || item.stageLevel === 'LeaderApproved'))?.reason ?? null,
-          committee: [...items].reverse().find((item) => item.action === 'Comment' && item.reason && (hasActorRole(item, 'COMMITTEE', 'STANDING_COMMITTEE') || item.stageLevel === 'CouncilApproved'))?.reason ?? null,
-        });
-      });
-      return comments;
-    },
+  // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason.
+  // Các cấp trên đều nhận xét ở cùng stage SpecialistApproved nên phân biệt bằng
+  // actorRole; dữ liệu cũ (chưa có actorRole) fallback theo stageLevel.
+  const commentHistoriesQueries = useQueries({
+    queries: submissions.map((submission) => ({
+      queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission.id), { page: 1, pageSize: 100 }),
+      queryFn: () => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 }),
+      enabled: !id && Boolean(publicationQuery.data?.isPublished),
+    })),
   });
+  const commentsBySubmission = new Map(submissions.map((submission, index) => {
+    // Cũ — match nhận xét theo stageLevel của cấp tiếp theo:
+    //   council: item.stageLevel === 'LeaderApproved'
+    //   committee: item.stageLevel === 'CouncilApproved'
+    const histories = [...(commentHistoriesQueries[index].data?.items ?? [])].reverse();
+    const council = histories.find((item) => item.reason && (hasActorRole(item, 'COUNCIL') || (!item.actorRole && item.stageLevel === 'LeaderApproved')))?.reason ?? null;
+    const committee = histories.find((item) => item.reason && (hasActorRole(item, 'COMMITTEE', 'STANDING_COMMITTEE') || (!item.actorRole && item.stageLevel === 'CouncilApproved')))?.reason ?? null;
+    return [submission.id, { council, committee }];
+  }));
 
   const submissionById = useMemo(() => new Map(submissions.map((submission) => [submission.id, submission])), [submissions]);
 
@@ -407,9 +411,9 @@ export default function LocalityResultsPage() {
   if (!id) {
     if (periodsQuery.isLoading || submissionsQuery.isLoading || groupsQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
     if (periodsQuery.isError || submissionsQuery.isError || groupsQuery.isError || publicationQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(periodsQuery.error ?? submissionsQuery.error ?? groupsQuery.error ?? publicationQuery.error)} />;
-    if (!periodId) return <div className="space-y-5">{periodSelector}<EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
+    if (!periodId) return <div className="space-y-5"><PageHeader title="Kết quả thi đua" description="Kết quả của địa phương theo từng kỳ thi đua đã được công bố." actions={periodSelector} /><EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
-    const selectedComments = selectedRow?.submissionId ? commentsQuery.data?.get(selectedRow.submissionId) : null;
+    const selectedComments = selectedRow?.submissionId ? commentsBySubmission.get(selectedRow.submissionId) : null;
     const publication = publicationQuery.data;
     const totalCurrentPoint = rows.reduce((sum, row) => sum + row.currentPoint, 0);
     const totalOfficialBonus = rows.reduce((sum, row) => sum + (row.officialBonus ?? 0), 0);
@@ -511,14 +515,14 @@ export default function LocalityResultsPage() {
 
   // ── Chi tiết kết quả ────────────────────────────────────────────────────────
   if (periodsQuery.isLoading || detailQuery.isLoading || detailGroupQuery.isLoading || publicationQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
-  if (!periodId) return <div className="space-y-5">{periodSelector}<EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
+  if (!periodId) return <div className="space-y-5"><PageHeader title="Chi tiết kết quả thi đua" actions={periodSelector} /><EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
   // `id` can be a criteria group id when the locality has no submission for that group
   const group = detailGroupQuery.data ?? (id ? groupById.get(id) : undefined);
   const detailPubGroup = group ? publicationQuery.data?.criteriaGroups.find((item) => item.criteriaGroupId === group.id) : undefined;
   if (detailQuery.isError && !group) return <EmptyState variant="error" title="Không tải được chi tiết kết quả" description={getLocalityApiError(detailQuery.error)} />;
   if (!publicationQuery.data?.isPublished || !group || !detailPubGroup || (detailSubmission && (!PUBLISHED_SUBMISSION_STAGES.has(detailSubmission.currentStage) || detailPubGroup.submissionId !== detailSubmission.id))) {
-    return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được công bố trong kỳ thi đua đã chọn." action={<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
+    return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được công bố trong kỳ thi đua đã chọn." action={<Button variant="back" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
   }
   const criteria = mergeSubmissionCriteria(group.criteria, detailSubmission?.results, detailSubmission?.id);
   const resultByCriterion = new Map((detailSubmission?.results ?? []).map((result) => [result.criteriaId, result]));
@@ -530,7 +534,7 @@ export default function LocalityResultsPage() {
 
   return <div className="space-y-5">
     <nav aria-label="Điều hướng" className="flex min-w-0 items-center gap-2 text-sm"><Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} className="shrink-0 text-primary hover:underline">Kết quả tiêu chí thi đua</Link><span className="text-muted-foreground">/</span><span className="truncate text-muted-foreground">{group.name ?? detailSubmission?.criteriaGroupName ?? 'Chi tiết nhóm'}</span></nav>
-    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<div className="flex items-center gap-2">{periodSelector}<Button variant="outline" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
+    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">{periodSelector}<Button variant="back" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
 
     <Card>
       <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">

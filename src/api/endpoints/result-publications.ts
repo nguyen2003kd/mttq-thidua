@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -61,10 +62,8 @@ export const getApiV1ResultPublicationsOverview = (
 
 
 export const getGetApiV1ResultPublicationsOverviewQueryKey = () => {
-    return [
-    `/api/v1/result-publications/overview`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/result-publications/overview` });
+};
 
 
 export const getGetApiV1ResultPublicationsOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -147,10 +146,8 @@ export const getApiV1ResultPublicationsCriteriaGroups = (
 
 
 export const getGetApiV1ResultPublicationsCriteriaGroupsQueryKey = () => {
-    return [
-    `/api/v1/result-publications/criteria-groups`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/result-publications/criteria-groups` });
+};
 
 
 export const getGetApiV1ResultPublicationsCriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -233,10 +230,8 @@ export const getApiV1ResultPublicationsCriteriaGroupsId = (
 
 
 export const getGetApiV1ResultPublicationsCriteriaGroupsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/result-publications/criteria-groups/${id}`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/result-publications/criteria-groups/${id}` });
+};
 
 
 export const getGetApiV1ResultPublicationsCriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -319,10 +314,8 @@ export const getApiV1ResultPublicationsPreview = (
 
 
 export const getGetApiV1ResultPublicationsPreviewQueryKey = () => {
-    return [
-    `/api/v1/result-publications/preview`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/result-publications/preview` });
+};
 
 
 export const getGetApiV1ResultPublicationsPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -61,10 +62,8 @@ export const getApiV1NotificationsStream = (
 
 
 export const getGetApiV1NotificationsStreamQueryKey = () => {
-    return [
-    `/api/v1/notifications/stream`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/notifications/stream` });
+};
 
 
 export const getGetApiV1NotificationsStreamQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1NotificationsStream>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1NotificationsStream>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -148,10 +147,8 @@ export const getApiV1Notifications = (
 
 
 export const getGetApiV1NotificationsQueryKey = (params?: GetApiV1NotificationsParams,) => {
-    return [
-    `/api/v1/notifications`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/notifications` });
+};
 
 
 export const getGetApiV1NotificationsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Notifications>>, TError = unknown>(params?: GetApiV1NotificationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Notifications>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -234,10 +231,8 @@ export const getApiV1NotificationsUnreadCount = (
 
 
 export const getGetApiV1NotificationsUnreadCountQueryKey = () => {
-    return [
-    `/api/v1/notifications/unread-count`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/notifications/unread-count` });
+};
 
 
 export const getGetApiV1NotificationsUnreadCountQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1NotificationsUnreadCount>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1NotificationsUnreadCount>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

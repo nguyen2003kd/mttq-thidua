@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -53,10 +54,8 @@ export const getHealth = (
 
 
 export const getGetHealthQueryKey = () => {
-    return [
-    `/health`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/health` });
+};
 
 
 export const getGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -58,10 +59,8 @@ export const getApiV1AuditLogs = (
 
 
 export const getGetApiV1AuditLogsQueryKey = (params?: GetApiV1AuditLogsParams,) => {
-    return [
-    `/api/v1/audit-logs`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/audit-logs` });
+};
 
 
 export const getGetApiV1AuditLogsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuditLogs>>, TError = unknown>(params?: GetApiV1AuditLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuditLogs>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
