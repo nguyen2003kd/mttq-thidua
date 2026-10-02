@@ -19,6 +19,13 @@ export interface ButtonProps
   hideWhen?: boolean;
 }
 
+const ACTION_VARIANTS: Partial<Record<Action, NonNullable<ButtonProps['variant']>>> = {
+  create: 'success',
+  edit: 'edit',
+  delete: 'destructive',
+  view: 'info',
+};
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ action, state, scope, fallback, disabledReason, hideWhen, ...props }, ref) {
   const can = useCan();
   if (hideWhen) return null;
@@ -28,7 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     return fallback ? <>{fallback}</> : null;
   }
 
-  const button = <BaseButton ref={ref} {...props} />;
+  const button = <BaseButton ref={ref} {...props} variant={props.variant ?? (action ? ACTION_VARIANTS[action] : undefined)} />;
   const reason = disabledReason
     ?? (typeof props.title === 'string' ? props.title : 'Thao tác hiện chưa khả dụng.');
 

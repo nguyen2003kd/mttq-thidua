@@ -137,6 +137,7 @@ export function CriterionGrid({
                         <Button
                           size="icon-xs"
                           variant="ghost"
+                          className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info"
                           title="Xem minh chứng"
                           onClick={() => onEvidence?.(placeholderEntry, criterion)}
                         >
@@ -146,6 +147,7 @@ export function CriterionGrid({
                           <Button
                             size="icon-xs"
                             variant="ghost"
+                            className="text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground dark:text-warning"
                             title={locked ? 'Tiêu chí đã bị khóa' : 'Sửa bản ghi'}
                             disabled={locked || record.state === 'DA_CONG_BO'}
                             onClick={() => onEdit(placeholderEntry, criterion)}

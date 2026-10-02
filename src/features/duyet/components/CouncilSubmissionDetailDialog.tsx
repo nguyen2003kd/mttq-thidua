@@ -87,7 +87,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                       <TableCell className="text-right font-semibold tabular-nums">{displayNumber((result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint))}</TableCell>
                       <TableCell className="max-w-[220px] whitespace-normal text-muted-foreground">{result.officialReason || '—'}</TableCell>
                       <TableCell className="max-w-[210px] whitespace-normal">
-                        {result.files.length ? <div className="space-y-1">{result.files.map((file) => <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex items-center gap-1 text-primary hover:underline"><FileText className="size-3.5 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : <span className="text-muted-foreground">—</span>}
+                        {result.files.length ? <div className="space-y-1">{result.files.map((file) => <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex items-center gap-1 text-info-foreground hover:underline dark:text-info"><FileText className="size-3.5 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="max-w-[190px] whitespace-normal text-muted-foreground">{criterion?.note || '—'}</TableCell>
                     </TableRow>

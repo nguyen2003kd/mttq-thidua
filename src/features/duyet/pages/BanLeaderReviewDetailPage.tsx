@@ -79,7 +79,7 @@ function LeaderCriterionDetailDialog({
         <div><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{result?.explanation || 'Chưa có diễn giải.'}</p></div>
         {result?.officialReason && <div><p className="text-xs font-medium text-muted-foreground">Lý do sửa điểm của Chuyên viên</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{result.officialReason}</p></div>}
         {leader?.reason && <div><p className="text-xs font-medium text-muted-foreground">Lý do Lãnh đạo sửa điểm</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{leader.reason}</p></div>}
-        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3"><p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p><p className="mt-0.5 text-xs text-muted-foreground">{result?.files.length ?? 0} file đính kèm</p>{result?.files.length ? <div className="mt-3 space-y-2">{result.files.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex items-center gap-2 text-sm text-primary hover:underline"><FileText className="size-4 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : null}</div>
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3"><p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p><p className="mt-0.5 text-xs text-muted-foreground">{result?.files.length ?? 0} file đính kèm</p>{result?.files.length ? <div className="mt-3 space-y-2">{result.files.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex items-center gap-2 text-sm text-info-foreground hover:underline dark:text-info"><FileText className="size-4 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : null}</div>
       </div>
       <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>{/* Tạm ẩn nút Sửa điểm — Lãnh đạo ban chỉ xem hồ sơ. */}</DialogFooter>
     </DialogContent>
@@ -375,7 +375,7 @@ export default function BanLeaderReviewDetailPage() {
       {(specialistForwarding || specialistForwardingFiles.length > 0) && <div className="flex justify-end border-b border-border bg-card/95 px-4 py-3 sm:px-5"><ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={setPreviewFile} /></div>}
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border bg-card/95 px-4 py-3 sm:px-5">
         <TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
-        <Button variant="outline" hideWhen={!selectedResultItem} disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
+        <Button variant="info" hideWhen={!selectedResultItem} disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
         <Button variant="outline" disabled={!canComment || commentPending} disabledReason={!canComment ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button>
         {/* Tạm ẩn nút Sửa điểm / Lưu nháp — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
         {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess || selectedResultDisabled} disabledReason={selectedResultDisabled ? 'Tiêu chí đã vô hiệu nên không thể cập nhật điểm.' : undefined} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
@@ -389,10 +389,10 @@ export default function BanLeaderReviewDetailPage() {
         {resultItems.map(({ criterion, result }) => {
           const revised = leaderScoreFor(result);
           return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#009ee3] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
-            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
             <TableCell className="border-r border-primary/15 px-4 py-5">
               {result?.files.length ? (
-                <Button type="button" variant="outline" size="sm" onClick={(event) => {
+                <Button type="button" variant="info" size="sm" onClick={(event) => {
                   event.stopPropagation();
                   setEvidenceDialog({ criterionName: criterion.content, files: result.files });
                 }}>
@@ -489,7 +489,7 @@ export default function BanLeaderReviewDetailPage() {
               <p className="text-xs text-muted-foreground">{item.description}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => { if (file) setPreviewFile(file); }}><Eye className="size-4" />Xem</Button>
+              <Button type="button" variant="info" size="sm" onClick={() => { if (file) setPreviewFile(file); }}><Eye className="size-4" />Xem</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => {
                 if (file) void downloadFile(file.id, file.displayName || file.originalName)
                   .catch(() => toast.error('Không thể tải file. Vui lòng thử lại.'));

@@ -49,6 +49,14 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
+        button: {
+          create: "hsl(var(--button-create))",
+          edit: "hsl(var(--button-edit))",
+          "edit-foreground": "hsl(var(--button-edit-foreground))",
+          warning: "hsl(var(--button-warning))",
+          view: "hsl(var(--button-view))",
+          delete: "hsl(var(--button-delete))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

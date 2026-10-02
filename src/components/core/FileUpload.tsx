@@ -198,7 +198,7 @@ export function FileUpload({
                   disabled={disabled || uploading}
                   aria-label={`Xóa file ${row.file.name}`}
                   onClick={() => removeAt(index)}
-                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

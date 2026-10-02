@@ -449,7 +449,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
                 <li key={item.id} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-border bg-card px-2 py-2">
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-info-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:text-info-foreground dark:text-info dark:hover:text-info"
                     title={`Xem file ${item.fileName}`}
                     aria-label={`Xem file ${item.fileName}`}
                     onClick={(event) => { event.stopPropagation(); onPreviewEvidenceFile?.(item); }}

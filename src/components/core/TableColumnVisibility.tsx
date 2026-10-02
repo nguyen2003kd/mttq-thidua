@@ -49,7 +49,7 @@ export function TableColumnVisibility({ storageKey, columns, className }: TableC
     <>
       <style>{hiddenRules}</style>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className={className} />}>
+        <DropdownMenuTrigger render={<Button type="button" variant="info" size="sm" className={className} />}>
           <SlidersHorizontal className="size-4" /> Cột hiển thị
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">

@@ -297,11 +297,11 @@ export function ApprovalPage(config: ApprovalPageConfig) {
             meta: { align: 'right' },
             cell: ({ row }: { row: { original: ApprovalRow } }) => (
               <div className="flex items-center justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setDetailRow(row.original)}>
+                <Button variant="info" size="sm" onClick={() => setDetailRow(row.original)}>
                   <Eye className="h-3.5 w-3.5 mr-1.5" />
                   Xem chi tiết
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setDiffRow(row.original)}>
+                <Button variant="info" size="sm" onClick={() => setDiffRow(row.original)}>
                   <History className="h-3.5 w-3.5 mr-1.5" />
                   Lịch sử
                 </Button>
@@ -384,10 +384,10 @@ export function ApprovalPage(config: ApprovalPageConfig) {
   const canProcessSelectedRow = Boolean(selectedRow && selectedRow.record.state === config.targetState);
   const selectionToolbar = isLeaderView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
-      <Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
+      <Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
         <History className="mr-1.5 h-4 w-4" />Lịch sử
       </Button>
       <Button disabled={!canProcessSelectedRow || !canApprove} disabledReason={!selectedRow ? 'Chọn một hồ sơ để duyệt.' : !canApprove ? 'Tài khoản hiện tại không có quyền duyệt hồ sơ.' : 'Hồ sơ đã được chuyển sang Hội đồng, chỉ có thể xem lịch sử.'} action={config.approveAction} state={config.targetState} onClick={() => selectedRow && (config.useConfirmDialog ? setConfirmRow(selectedRow) : handleApprove(selectedRow))}>
@@ -399,10 +399,10 @@ export function ApprovalPage(config: ApprovalPageConfig) {
     </div>
   ) : isCouncilView ? (
     <div className="flex flex-wrap items-center gap-2">
-      <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
+      <Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}>
         <Eye className="mr-1.5 h-4 w-4" />Xem chi tiết
       </Button>
-      <Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
+      <Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem lịch sử." onClick={() => selectedRow && setDiffRow(selectedRow)}>
         <History className="mr-1.5 h-4 w-4" />Lịch sử
       </Button>
       {config.enableComment && (
@@ -424,7 +424,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
       <PageHeader
         title={config.title}
         description={config.description}
-        actions={historyPath ? <Button variant="outline" render={<Link to={historyPath} />} nativeButton={false}><History className="mr-1.5 h-4 w-4" />Lịch sử duyệt</Button> : undefined}
+        actions={historyPath ? <Button variant="info" render={<Link to={historyPath} />} nativeButton={false}><History className="mr-1.5 h-4 w-4" />Lịch sử duyệt</Button> : undefined}
       />
 
       {rows.length === 0 ? (
@@ -459,7 +459,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
           title={config.approveLabel}
           description={config.confirmDescription ?? ''}
           confirmLabel={config.approveLabel}
-          variant="destructive"
+          variant="default"
           action={config.approveAction}
           state={config.targetState}
           confirmKeyword={config.confirmKeyword}
@@ -525,7 +525,7 @@ export function ApprovalPage(config: ApprovalPageConfig) {
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
                   <div><p className="font-semibold">{detailRow.table.name}</p><p className="text-xs text-muted-foreground">Điểm hiện tại: {liveRecord.totalScore}</p></div>
                   {!config.readOnlyDetail && (
-                    <Button variant="outline" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="mr-1.5 h-4 w-4" />Thêm tiêu chí bổ sung</Button>
+                    <Button variant="success" onClick={() => setSupplementaryOpen(true)}><FilePlus2 className="mr-1.5 h-4 w-4" />Thêm tiêu chí bổ sung</Button>
                   )}
                 </div>
                 <CriterionGrid

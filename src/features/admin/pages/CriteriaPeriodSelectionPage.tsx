@@ -207,7 +207,7 @@ export default function CriteriaPeriodSelectionPage() {
         toolbar={(
           <div className="flex items-center gap-2">
             {selectedPeriod && (
-              <Button variant="outline" size="sm" onClick={() => openEdit(selectedPeriod)}>
+              <Button variant="edit" size="sm" onClick={() => openEdit(selectedPeriod)}>
                 <Pencil className="h-4 w-4" /> Chỉnh sửa kỳ
               </Button>
             )}

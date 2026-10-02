@@ -261,7 +261,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
 
       {selected && !editOpen && !deleteOpen && (
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => selected && openEdit(selected)}>
+          <Button variant="edit" size="sm" onClick={() => selected && openEdit(selected)}>
             Chỉnh sửa
           </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>

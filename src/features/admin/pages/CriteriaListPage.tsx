@@ -596,13 +596,13 @@ export default function CriteriaListPage() {
               onChange={handleExcelFileChange}
             />
               <>
-                <Button hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="info" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" hideWhen={!selectedTable} disabled={!selectedTable || selectedTable.status === 'PUBLISHED'} disabledReason={!selectedTable ? 'Chọn một nhóm tiêu chí để chỉnh sửa.' : selectedTable.status === 'PUBLISHED' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa.' : undefined} onClick={() => selectedTable && selectedTable.status !== 'PUBLISHED' && openEditDialog(selectedTable)}>
+                <Button variant="edit" hideWhen={!selectedTable} disabled={!selectedTable || selectedTable.status === 'PUBLISHED'} disabledReason={!selectedTable ? 'Chọn một nhóm tiêu chí để chỉnh sửa.' : selectedTable.status === 'PUBLISHED' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa.' : undefined} onClick={() => selectedTable && selectedTable.status !== 'PUBLISHED' && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
-                <Button variant="outline" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="info" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
                 <Button
@@ -623,7 +623,7 @@ export default function CriteriaListPage() {
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="destructive"
                   hideWhen={!selectedTable}
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT' || deleteMutation.isPending}
                   disabledReason={
@@ -633,7 +633,6 @@ export default function CriteriaListPage() {
                         ? 'Chỉ có thể xóa nhóm tiêu chí ở trạng thái Nháp.'
                         : undefined
                   }
-                  className="border-danger text-danger hover:bg-danger/5"
                   onClick={() => {
                     if (selectedTable?.status === 'DRAFT') setDeleteOpen(true);
                   }}
@@ -641,13 +640,13 @@ export default function CriteriaListPage() {
                   <Trash2 className="mr-1.5 h-4 w-4" /> Xóa
                 </Button>
               </>
-            <Button variant="outline" onClick={downloadCriteriaExcelTemplate}>
+            <Button variant="info" onClick={downloadCriteriaExcelTemplate}>
               <Download className="mr-1.5 h-4 w-4" /> Tải mẫu Excel
             </Button>
-            <Button variant="outline" onClick={() => excelFileInputRef.current?.click()}>
+            <Button variant="success" onClick={() => excelFileInputRef.current?.click()}>
               <FileUp className="mr-1.5 h-4 w-4" /> Nhập từ Excel
             </Button>
-            <Button variant="outline" onClick={() => { setDeadlineValue(toDateTimeInput(deadline)); setDeadlineOpen(true); }}>Đặt thời gian gợi ý công bố kết quả</Button>
+            <Button variant="edit" onClick={() => { setDeadlineValue(toDateTimeInput(deadline)); setDeadlineOpen(true); }}>Đặt thời gian gợi ý công bố kết quả</Button>
             <Button onClick={openCreateDialog} action="create">
               <Plus className="mr-1.5 h-4 w-4" /> {LABELS.CREATE}
             </Button>

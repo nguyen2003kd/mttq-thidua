@@ -159,7 +159,7 @@ export default function ScoreByCriteriaPage() {
         selectedRowId={selectedRow?.code}
         onRowClick={setSelectedRow}
         onRowDoubleClick={(row) => navigate(`/thi-dua/cham-diem/${row.code}/${groupId}`)}
-        toolbar={<Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
+        toolbar={<Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một địa phương để xem và chấm hồ sơ." onClick={() => selectedRow && navigate(`/thi-dua/cham-diem/${selectedRow.code}/${groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>}
         emptyState={{ title: 'Chưa có hồ sơ', description: 'Chưa có địa phương nào nộp hồ sơ cho nhóm tiêu chí này.', icon: <Search className="size-8" /> }}
         stickyTitle="Danh sách địa phương"
         stickyDescription={groupQuery.data?.name ?? ''}

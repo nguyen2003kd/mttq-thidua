@@ -137,13 +137,11 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
       <Button
         ref={triggerRef}
         type="button"
-        variant="outline"
+        variant="info"
         size="sm"
         className={cn(
           '!h-9 gap-1.5 rounded-lg border px-2.5 text-[13px] font-normal',
-          activeCount > 0
-            ? 'border-primary/50 bg-primary/[0.06] text-primary'
-            : 'border-input bg-card hover:border-muted-foreground/55',
+          activeCount > 0 && 'border-white/40',
         )}
         onClick={toggle}
         aria-expanded={open}
@@ -151,7 +149,7 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
         <SlidersHorizontal className="h-4 w-4" />
         {label}
         {activeCount > 0 && (
-          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-primary-foreground">
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/20 px-1 text-[11px] font-semibold text-white">
             {activeCount}
           </span>
         )}
