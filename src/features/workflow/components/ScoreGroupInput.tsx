@@ -108,8 +108,8 @@ export function ScoreGroupInput({
                   {mode !== 'result' && (
                     <TableCell className="text-right align-top">
                       <div className="flex justify-end gap-1">
-                        <Button size="icon-xs" variant="ghost" title="Xem minh chứng" onClick={(event) => { event.stopPropagation(); onEvidence?.(placeholder, criterion); }}><Eye className="size-4" /></Button>
-                        {onEdit && <Button size="icon-xs" variant="ghost" title={locked ? 'Tiêu chí đã khóa' : 'Sửa điểm'} disabled={locked || record.state === 'DA_CONG_BO'} onClick={(event) => { event.stopPropagation(); onEdit(placeholder, criterion); }}><Pencil className="size-4" /></Button>}
+                        <Button size="icon-xs" variant="ghost" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" title="Xem minh chứng" onClick={(event) => { event.stopPropagation(); onEvidence?.(placeholder, criterion); }}><Eye className="size-4" /></Button>
+                        {onEdit && <Button size="icon-xs" variant="ghost" className="text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground dark:text-warning" title={locked ? 'Tiêu chí đã khóa' : 'Sửa điểm'} disabled={locked || record.state === 'DA_CONG_BO'} onClick={(event) => { event.stopPropagation(); onEdit(placeholder, criterion); }}><Pencil className="size-4" /></Button>}
                       </div>
                     </TableCell>
                   )}

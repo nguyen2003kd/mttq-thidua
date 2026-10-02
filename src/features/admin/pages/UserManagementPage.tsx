@@ -505,7 +505,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       {/* Actions row cho dòng được chọn */}
       {canManageAccounts && selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
+          <Button variant="warning" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
             <KeyRound className="h-3.5 w-3.5" /> Đặt lại mật khẩu
           </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>

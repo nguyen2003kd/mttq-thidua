@@ -277,7 +277,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
                   </div>
                   <div className="space-y-1">
                     {revisionFiles.map((file) => (
-                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-left text-xs hover:bg-muted">
+                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-info/5 px-2 py-1 text-left text-xs text-info-foreground hover:bg-info/10 dark:text-info">
                         <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{file.displayName ?? file.originalName}</span>
                         <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>

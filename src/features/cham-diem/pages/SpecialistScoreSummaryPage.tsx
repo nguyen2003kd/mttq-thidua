@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
 import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
@@ -46,6 +46,8 @@ import { useAuthStore } from "@/store/authStore";
 import { ResultPublicationDialog } from "@/features/duyet/components/ResultPublicationDialog";
 import { resultPublicationApi } from "@/features/duyet/api/resultPublicationApi";
 import { toast } from "sonner";
+
+const EmbeddedSpecialistReviewPage = lazy(() => import('./SpecialistReviewPage'));
 
 interface ScoreTotals {
   proposedScore: number;
@@ -190,13 +192,14 @@ function ScoreCell({ value }: { value: number | null }) {
   );
 }
 
-/** Danh sách nhóm và chi tiết tiêu chí con dùng chung một modal hai bước. */
 function LocalityCriteriaDialog({
   locality,
   onClose,
+  canReview,
 }: {
   locality: LocalityScoreSummary | null;
   onClose: () => void;
+  canReview: boolean;
 }) {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const selectedSubmission = locality?.submissions.find(
@@ -211,24 +214,107 @@ function LocalityCriteriaDialog({
   const detailQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
-    enabled: Boolean(locality && selectedSubmission),
+    enabled: Boolean(locality && selectedSubmission && !canReview),
   });
+  const comparisonContent = detailQuery.isLoading ? (
+    <div className="space-y-3" aria-label="Đang tải tiêu chí con">
+      <div className="h-16 animate-pulse rounded-md bg-muted" />
+      <div className="h-16 animate-pulse rounded-md bg-muted/70" />
+    </div>
+  ) : detailQuery.isError ? (
+    <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+      Không tải được tiêu chí con.
+      <Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>
+        Thử lại
+      </Button>
+    </div>
+  ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
+    <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+      Nhóm này chưa có kết quả tiêu chí con.
+    </p>
+  ) : (
+    <div className="overflow-hidden rounded-md border border-border">
+      <Table className="min-w-[1080px] table-fixed">
+        <colgroup>
+          <col className="w-[28%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+        </colgroup>
+        <TableHeader>
+          <TableRow className="bg-primary hover:bg-primary">
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Địa phương đề xuất</TableHead>
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">điểm thưởng địa phương</TableHead>
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của tỉnh </TableHead>
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của tỉnh</TableHead>
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng điểm địa phương</TableHead>
+            <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm tỉnh</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {detailQuery.data?.results.map((result, index) => (
+            <TableRow key={result.id} className="border-b border-border hover:bg-muted/40">
+              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
+                <p className="font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || "Tiêu chí con " + (index + 1)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}
+                </p>
+                {result.criteriaStatus === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
+              </TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
+              <TableCell className="px-4 py-3">
+                <ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null
+                  ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0)
+                  : null} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   const closeDialog = () => {
     setSelectedSubmissionId(null);
     onClose();
   };
 
+  const selectGroup = (submissionId: string) => {
+    setSelectedSubmissionId(submissionId);
+  };
+
+  const showGroups = () => {
+    setSelectedSubmissionId(null);
+  };
+
+  const embeddedLocalityId = selectedSubmission?.createdByWardCode
+    ?? selectedSubmission?.createdBy
+    ?? locality?.localityId
+    ?? '';
+
   return (
     <Dialog open={Boolean(locality)} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className={cn(
+        'flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0',
+        selectedSubmission && canReview ? 'h-[calc(100dvh-2rem)] sm:max-w-[1880px]' : 'sm:max-w-6xl',
+      )}>
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
           <DialogTitle>
             {selectedGroupName ?? "Nhóm tiêu chí của " + (locality?.localityName ?? "")}
           </DialogTitle>
           <DialogDescription>
             {selectedSubmission
-              ? "Đối chiếu điểm từng tiêu chí con của " + (locality?.localityName ?? "") + "."
+              ? canReview
+                ? "Thẩm định kết quả tiêu chí của " + (locality?.localityName ?? "") + "."
+                : "Xem chi tiết điểm từng tiêu chí con của " + (locality?.localityName ?? "") + "."
               : "Chọn một nhóm tiêu chí để xem các tiêu chí con và điểm chấm."}
           </DialogDescription>
         </DialogHeader>
@@ -236,76 +322,18 @@ function LocalityCriteriaDialog({
         <div key={selectedSubmissionId ?? "groups"} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {selectedSubmission ? (
             <div className="space-y-4">
-              <Button type="button" variant="back" onClick={() => setSelectedSubmissionId(null)}>
+              <Button type="button" variant="back" onClick={showGroups}>
                 <ArrowLeft className="size-4" />
                 Tất cả nhóm tiêu chí
               </Button>
 
-              {detailQuery.isLoading ? (
-                <div className="space-y-3" aria-label="Đang tải tiêu chí con">
-                  <div className="h-16 animate-pulse rounded-md bg-muted" />
-                  <div className="h-16 animate-pulse rounded-md bg-muted/70" />
-                </div>
-              ) : detailQuery.isError ? (
-                <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  Không tải được tiêu chí con.
-                  <Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>
-                    Thử lại
-                  </Button>
-                </div>
-              ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
-                <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  Nhóm này chưa có kết quả tiêu chí con.
-                </p>
-              ) : (
-                <div className="overflow-hidden rounded-md border border-border">
-                  <Table className="min-w-[1080px] table-fixed">
-                    <colgroup>
-                      <col className="w-[28%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                    </colgroup>
-                    <TableHeader>
-                      <TableRow className="bg-primary hover:bg-primary">
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Địa phương đề xuất</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">điểm thưởng địa phương</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của tỉnh </TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của tỉnh</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng điểm địa phương</TableHead>
-                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm tỉnh</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {detailQuery.data?.results.map((result, index) => (
-                        <TableRow key={result.id} className="border-b border-border hover:bg-muted/40">
-                          <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
-                            <p className="font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || "Tiêu chí con " + (index + 1)}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}
-                            </p>
-                            {result.criteriaStatus === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
-                          </TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
-                          <TableCell className="px-4 py-3">
-                            <ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null
-                              ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0)
-                              : null} />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+              {canReview ? (
+                <Suspense fallback={<div role="status" className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">Đang tải chi tiết chấm điểm…</div>}>
+                  <EmbeddedSpecialistReviewPage
+                    embeddedDetail={{ localityId: embeddedLocalityId, criteriaGroupId: selectedSubmission.criteriaGroupId }}
+                  />
+                </Suspense>
+              ) : comparisonContent}
             </div>
           ) : (
             <div className="space-y-4">
@@ -326,7 +354,7 @@ function LocalityCriteriaDialog({
                         key={submission.id}
                         type="button"
                         className="grid w-full grid-cols-2 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_110px_110px_20px]"
-                        onClick={() => setSelectedSubmissionId(submission.id)}
+                        onClick={() => selectGroup(submission.id)}
                       >
                         <span className="col-span-2 flex min-w-0 items-start gap-3 sm:col-span-1">
                           <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">{index + 1}</span>
@@ -434,6 +462,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const { filters: { periodFilter }, setters: { periodFilter: setPeriodFilter } } = useQueryFilters({ periodFilter: '' });
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
+  const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER'));
   const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
   const periodsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
@@ -908,7 +937,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                           onClick={() => setSelectedLocalityId(row.localityId)}
                         >
                           <span className="min-w-0">{row.localityName}</span>
-                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary">
+                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-info-foreground dark:text-info">
                             <Eye className="size-4" aria-hidden="true" />
                             Xem
                           </span>
@@ -945,6 +974,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
       <LocalityCriteriaDialog
         locality={selectedLocality}
         onClose={() => setSelectedLocalityId(null)}
+        canReview={canReview}
       />
       {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />}
     </div>

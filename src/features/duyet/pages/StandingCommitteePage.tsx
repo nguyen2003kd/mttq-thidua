@@ -210,7 +210,7 @@ export default function StandingCommitteePage() {
       <PageHeader
         title="Công bố kết quả — Ủy ban thường trực"
         description="Rà soát hồ sơ đã được Hội đồng thông qua và công bố kết quả cuối cùng cho địa phương."
-        actions={<Button variant="outline" render={<Link to="/uy-ban/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử công bố</Button>}
+        actions={<Button variant="info" render={<Link to="/uy-ban/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử công bố</Button>}
       />
 
       {rows.length === 0 ? (
@@ -248,7 +248,7 @@ export default function StandingCommitteePage() {
           toolbar={
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedRow && <span className="mr-1 max-w-[220px] truncate text-xs text-muted-foreground">Đã chọn: {selectedRow.locality.name}</span>}
-              <Button hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
+              <Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
                 <Eye className="mr-1.5 h-4 w-4" />Xem hồ sơ
               </Button>
               <Button

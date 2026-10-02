@@ -280,19 +280,19 @@ export default function CriteriaChildrenPage() {
         onClearFilters={sort !== 'createdAt-desc' ? () => setSort('createdAt-desc') : undefined}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted' || group.status === 'Published'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa tiêu chí con.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && group.status !== 'Published' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
+            <Button variant="edit" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted' || group.status === 'Published'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa tiêu chí con.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && group.status !== 'Published' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button
-              variant="outline"
+              variant="destructive"
               hideWhen={!selected}
               disabled={!selected || selected.status === 'Deleted' || !canDeleteCriteria || (group.status !== 'Draft' && group.status !== 'Applied') || groupCriteria.length <= 1 || deleteMutation.isPending}
               disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên trưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
-              className="border-danger text-danger hover:bg-danger/5"
               onClick={() => { if (selected && selected.status !== 'Deleted' && canDeleteCriteria) setDeleteOpen(true); }}
             >
               <Trash2 className="size-4" />Xóa
             </Button>
             <Button
+              variant="success"
               disabled={group.status === 'Published'}
               disabledReason={group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể thêm tiêu chí con mới.' : undefined}
               onClick={openCreateEditor}

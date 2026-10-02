@@ -161,6 +161,16 @@ interface LocalityRow {
   submissionIds: string[];
 }
 
+interface SpecialistReviewEmbeddedDetail {
+  localityId: string;
+  criteriaGroupId: string;
+}
+
+interface SpecialistReviewPageProps {
+  basePath?: string;
+  embeddedDetail?: SpecialistReviewEmbeddedDetail;
+}
+
 type SubmissionStageFilter = '' | SubmissionStage;
 type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 
@@ -501,7 +511,7 @@ function RevisionNoteView({ note, reasonClassName = 'text-sm leading-5 text-mute
               key={file.id}
               type="button"
               onClick={(event) => { event.stopPropagation(); onPreview(file); }}
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-info/30 bg-background px-1.5 py-0.5 text-xs text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
             >
               <FileText className="h-3 w-3 shrink-0" />
               <span className="truncate">{file.displayName ?? file.originalName}</span>
@@ -876,7 +886,7 @@ function RevisionHistorySection({
                                   key={file.id}
                                   type="button"
                                   onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })}
-                                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+                                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-info/30 bg-background px-1.5 py-0.5 text-xs text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
                                 >
                                   <FileText className="h-3 w-3 shrink-0" />
                                   <span className="truncate">{file.displayName ?? file.originalName}</span>
@@ -1133,7 +1143,7 @@ function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng'
           <li key={file.id} className="flex min-w-0 items-start rounded-md border border-border bg-background transition-colors hover:bg-muted/40">
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-start gap-2 rounded-l-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              className="flex min-w-0 flex-1 items-start gap-2 rounded-l-md px-2 py-1.5 text-left text-info-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-info-foreground dark:text-info"
               title={file.fileName}
               aria-label={`Xem ${file.fileName}`}
               onClick={(event) => {
@@ -1141,7 +1151,7 @@ function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng'
                 onPreview(file);
               }}
             >
-              <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+              <FileText className="mt-0.5 size-3.5 shrink-0 text-info-foreground dark:text-info" aria-hidden="true" />
               <span className="min-w-0">
                 <span className="line-clamp-2 break-all text-xs font-medium leading-4 text-foreground">{file.fileName}</span>
                 <span className="mt-0.5 block text-[11px] text-muted-foreground">{file.fileSize}</span>
@@ -1294,7 +1304,7 @@ function CriterionDetailDialog({
         <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
           {!item.isAddedBySpecialist && (
-            <Button type="button" disabled={editDisabled} disabledReason={editDisabledReason} onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
+            <Button type="button" variant="edit" disabled={editDisabled} disabledReason={editDisabledReason} onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -1422,9 +1432,12 @@ function ScoreEditDialog({
   );
 }
 
-export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }: { basePath?: string }) {
-  const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
+export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', embeddedDetail }: SpecialistReviewPageProps) {
+  const routeParams = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
+  const diaPhuongId = embeddedDetail?.localityId ?? routeParams.diaPhuongId;
+  const nhomTieuChiId = embeddedDetail?.criteriaGroupId ?? routeParams.nhomTieuChiId;
   const localityCode = diaPhuongId?.replace(/^loc-/i, '');
+  const isEmbedded = Boolean(embeddedDetail);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userRole = useAuthStore((s) => s.user?.role);
@@ -1929,7 +1942,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{row.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Cập nhật mới</dt><dd className="mt-1 font-medium">{row.hasNewSubmissions ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" onClick={() => navigate(`${basePath}/${row.localityId}`)}><Eye className="size-4" />Xem hồ sơ</Button>
+                <Button variant="info" className="mt-4 w-full sm:w-auto" onClick={() => navigate(`${basePath}/${row.localityId}`)}><Eye className="size-4" />Xem hồ sơ</Button>
               </article>
             )) : (
               <p className="px-4 py-12 text-center text-sm text-muted-foreground">Không có địa phương phù hợp.</p>
@@ -2080,7 +2093,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 />
               </FilterDropdown>
               <Button
-                variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
+                variant={selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'default' : 'info'}
                 hideWhen={!selectedGroupRow}
                 disabled={!selectedGroupRow}
                 disabledReason="Chọn một nhóm tiêu chí trong bảng để xem hoặc chấm điểm."
@@ -2154,7 +2167,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm thưởng</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedBonusScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{group.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} onClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}>
+                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'default' : 'info'} onClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}>
                   {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
                   {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
                 </Button>
@@ -2452,18 +2465,22 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
 
   return (
     <div className="space-y-5 pb-6">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <Link className="hover:text-primary" to={basePath}>Danh sách địa phương</Link>
-        <span>/</span>
-        <Link className="hover:text-primary" to={`${basePath}/${district.localityId}`}>{district.localityName}</Link>
-        <span>/</span>
-        <span className="font-medium text-foreground">{selectedGroup.groupName}</span>
-      </div>
-      <PageHeader
-        title="Chi tiết chấm điểm kết quả tiêu chí"
-        description={`${district.localityName} · ${selectedGroup.groupName}`}
-        actions={<Button variant="back" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
-      />
+      {!isEmbedded && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Link className="hover:text-primary" to={basePath}>Danh sách địa phương</Link>
+            <span>/</span>
+            <Link className="hover:text-primary" to={`${basePath}/${district.localityId}`}>{district.localityName}</Link>
+            <span>/</span>
+            <span className="font-medium text-foreground">{selectedGroup.groupName}</span>
+          </div>
+          <PageHeader
+            title="Chi tiết chấm điểm kết quả tiêu chí"
+            description={`${district.localityName} · ${selectedGroup.groupName}`}
+            actions={<Button variant="back" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
+          />
+        </>
+      )}
 
       <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm">
         <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
@@ -2535,13 +2552,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'leader-revision-note', label: 'Yêu cầu chỉnh sửa lãnh đạo ban' },
               ]}
             />
-            <Button variant="outline" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
+            <Button variant="info" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
               <Eye className="size-4" />Xem chi tiết
             </Button>
             {specialistPermissions.canEdit && (
               <>
                 <Button
-                  variant="outline"
+                  variant="edit"
                   hideWhen={!selectedCriterion}
                   disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || selectedCriterion.isDisabled || specialistActionsLocked || selectedCriterionRevisionLocked}
                   disabledReason={selectedCriterionLockReason}
@@ -2549,11 +2566,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 >
                   <Edit3 className="size-4" />Sửa điểm
                 </Button>
-                <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
+                <Button variant="default" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
               </>
             )}
             {/* Reviewer không chấm điểm (canEdit=false) nhưng vẫn được thêm tiêu chí bổ sung khi hồ sơ đang ở bước của mình. */}
-            <Button variant="outline" onClick={openSupplementaryDialog} disabled={supplementaryAddLocked} disabledReason={supplementaryAddLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
+            <Button variant="success" onClick={openSupplementaryDialog} disabled={supplementaryAddLocked} disabledReason={supplementaryAddLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             {selectedCriterion && (
               <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
                 <AlertCircle className="size-4 text-warning" />Yêu cầu chỉnh sửa
@@ -2562,7 +2579,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           </div>
           <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
             {specialistPermissions.canEdit && (
-              <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
+              <Button variant="default" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
             <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
           </div>
@@ -2646,7 +2663,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                          className="h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info"
                           aria-expanded={historyExpanded}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -2661,7 +2678,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                            className="h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info"
                             onClick={(event) => {
                               event.stopPropagation();
                               setScoreRevisionResult(result);
@@ -2804,7 +2821,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                       {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
                       {historyExpanded ? 'Ẩn lịch sử tiêu chí' : 'Xem lịch sử tiêu chí'}
                     </Button>
-                    {result.officialReason !== null && <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setScoreRevisionResult(result)}><Eye className="size-4" />Xem điểm đã sửa</Button>}
+                    {result.officialReason !== null && <Button type="button" variant="info" className="w-full sm:w-auto" onClick={() => setScoreRevisionResult(result)}><Eye className="size-4" />Xem điểm đã sửa</Button>}
                   </div>
                   {historyExpanded && (
                     <div className="mt-3">

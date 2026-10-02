@@ -21,13 +21,14 @@ const buttonVariants = cva(
         ghost:
           "text-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
-          "border-destructive/55 bg-background text-destructive hover:border-destructive hover:bg-destructive/10 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "border-button-delete bg-button-delete text-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] hover:bg-button-delete/90 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "h-auto border-0 px-0 text-primary underline-offset-4 hover:underline",
         success:
-          "bg-success text-success-foreground shadow-[0_1px_2px_rgba(0,0,0,0.15)] hover:bg-success/90",
-        info: "bg-info text-info-foreground shadow-[0_1px_2px_rgba(0,158,227,0.24)] hover:bg-info/90",
+          "border-button-create bg-button-create text-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] hover:bg-button-create/90",
+        edit: "border-button-edit bg-button-edit text-button-edit-foreground hover:bg-button-edit/90",
+        info: "border-button-view bg-button-view text-white shadow-[0_1px_2px_rgba(0,0,0,0.15)] hover:bg-button-view/90",
         warning:
-          "border-warning/50 bg-warning/10 text-warning-foreground hover:bg-warning/20",
+          "border-button-warning bg-button-warning text-white hover:bg-button-warning/90",
       },
       size: {
         default:

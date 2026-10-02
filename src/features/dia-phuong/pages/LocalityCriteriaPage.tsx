@@ -703,7 +703,7 @@ export default function LocalityCriteriaPage() {
           onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}`)}
           emptyState={{ title: groupSearch || statusFilter || yearFilter || periodFilter ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí được giao.' }}
           toolbar={
-            <Button hideWhen={!selectedListTable} disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
+            <Button variant="info" hideWhen={!selectedListTable} disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
               <Eye className="size-4" />Xem
             </Button>
           }
@@ -988,7 +988,7 @@ export default function LocalityCriteriaPage() {
             </div>
           </div>
         )}
-        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="outline" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
@@ -1008,7 +1008,7 @@ export default function LocalityCriteriaPage() {
             <span className="text-muted-foreground">File đính kèm yêu cầu bổ sung:</span>
             <div className="flex flex-wrap gap-2">
               {supplementaryFiles.map(({ file, criteriaName }) => (
-                <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-2 py-1 text-xs text-info-foreground hover:bg-info/10 dark:text-info">
                   <FileText className="h-3 w-3 text-muted-foreground" />
                   {file.displayName ?? file.originalName}
                   {criteriaName && <span className="text-muted-foreground">· {criteriaName}</span>}
@@ -1044,8 +1044,8 @@ export default function LocalityCriteriaPage() {
         }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
-            <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
             <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
@@ -1064,7 +1064,7 @@ export default function LocalityCriteriaPage() {
                 <TruncatedText as="p" value={file.displayName || file.originalName} className="text-sm font-medium" />
                 <p className="text-xs text-muted-foreground">{file.sizeBytes ? `${Math.ceil(file.sizeBytes / 1024)} KB` : 'Tệp đính kèm'} · {formatDate(file.createdAt)}</p>
               </div>
-              <Button variant="ghost" size="icon-xs" title="Xem file" onClick={() => { setDecisionOpen(false); setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName }); }}>
+              <Button variant="ghost" size="icon-xs" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" title="Xem file" onClick={() => { setDecisionOpen(false); setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName }); }}>
                 <Eye className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="icon-xs" title="Tải file về máy" onClick={() => void downloadFile(file.id, file.displayName || file.originalName)}>

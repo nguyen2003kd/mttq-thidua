@@ -117,7 +117,7 @@ export default function MinhChungPage() {
         description="COL.01.02 · Nhập điểm đề xuất, diễn giải và file minh chứng cho từng tiêu chí."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => toast.success('Đã lưu toàn bộ bản nháp')} disabled={!editable}>
+            <Button variant="default" onClick={() => toast.success('Đã lưu toàn bộ bản nháp')} disabled={!editable}>
               <Save className="mr-1.5 h-4 w-4" /> Lưu
             </Button>
             <Button onClick={() => setSubmitOpen(true)} disabled={!editable} action="submit" state="DRAFT">

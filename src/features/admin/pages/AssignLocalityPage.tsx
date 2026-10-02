@@ -200,6 +200,7 @@ export default function AssignLocalityPage() {
                       <Button
                         variant="ghost"
                         size="icon-xs"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         aria-label={`Bỏ tệp ${file.fileName}`}
                         onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))}
                       >
