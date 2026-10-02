@@ -55,7 +55,7 @@ interface ScoreTotals {
   hasProvinceScore: boolean;
 }
 
-type Classification = "EXCELLENT" | "GOOD" | "FAIR" | "BELOW" | "UNSCORED";
+type Classification = "EXCELLENT" | "GOOD" | "FAIR" | "UNSCORED";
 
 interface LocalityScoreSummary extends ScoreTotals {
   localityId: string;
@@ -134,8 +134,7 @@ function classifyScore(score: number | null): Classification {
   const scoreForClassification = Math.min(score, 100);
   if (scoreForClassification >= 95) return "EXCELLENT";
   if (scoreForClassification >= 85) return "GOOD";
-  if (scoreForClassification >= 70) return "FAIR";
-  return "BELOW";
+  return "FAIR";
 }
 
 function formatScore(value: number | null) {
@@ -372,7 +371,7 @@ function getDistribution(
       distribution[row[field]] += 1;
       return distribution;
     },
-    { EXCELLENT: 0, GOOD: 0, FAIR: 0, BELOW: 0, UNSCORED: 0 } satisfies Record<
+    { EXCELLENT: 0, GOOD: 0, FAIR: 0, UNSCORED: 0 } satisfies Record<
       Classification,
       number
     >,

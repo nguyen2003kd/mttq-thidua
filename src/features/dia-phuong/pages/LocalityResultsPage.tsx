@@ -102,14 +102,12 @@ function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
 function classification(score: number) {
   if (score >= 95) return 'Xuất sắc';
   if (score >= 85) return 'Tốt';
-  if (score >= 70) return 'Khá';
-  return 'Chưa xếp loại';
+  return 'Khá';
 }
 
 function classificationBadgeClass(score: number) {
   if (score >= 85) return 'bg-success text-success-foreground';
-  if (score >= 70) return 'bg-warning text-foreground';
-  return 'bg-muted text-muted-foreground';
+  return 'bg-warning text-foreground';
 }
 
 function publicationStatusLabel(status: string) {
