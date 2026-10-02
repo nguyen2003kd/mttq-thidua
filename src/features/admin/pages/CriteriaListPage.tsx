@@ -322,6 +322,8 @@ export default function CriteriaListPage() {
     try {
       const parsed = await parseCriteriaExcelFile(file);
       resetEditor();
+      // Kỳ thi đua đang hiển thị trên màn hình → chọn sẵn trong cửa sổ import.
+      if (activePeriods.some((period) => period.id === periodFilter)) setPeriodId(periodFilter);
       setName(parsed.name);
       setTotalScore(String(parsed.maxPoint));
       setContent(parsed.content);
@@ -404,6 +406,18 @@ export default function CriteriaListPage() {
       return;
     }
 
+    // Hạn nộp của tiêu chí con (nhập từ Excel) không được vượt quá hạn nộp của nhóm.
+    const groupDeadlineMs = closeDate ? new Date(closeDate).getTime() : 0;
+    if (groupDeadlineMs && importedCriteria) {
+      const violating = importedCriteria.find(
+        (item) => item.deadline && new Date(item.deadline).getTime() > groupDeadlineMs,
+      );
+      if (violating) {
+        toast.error(`Hạn nộp của tiêu chí con "${violating.content}" không được vượt quá hạn nộp của nhóm tiêu chí.`);
+        return;
+      }
+    }
+
     setSaving(true);
     let createdGroupId: string | null = null;
     let importedChildrenCreated = false;
@@ -417,6 +431,17 @@ export default function CriteriaListPage() {
             `Không thể giảm tổng điểm xuống ${parsedTotalScore}. Tổng điểm của các tiêu chí con hiện là ${childrenTotal}.`,
           );
           return;
+        }
+        // Hạn nộp mới của nhóm không được sớm hơn hạn nộp của tiêu chí con hiện có.
+        if (closeDate) {
+          const newDeadlineMs = new Date(closeDate).getTime();
+          const violating = latestGroup.criteria.find(
+            (criterion) => criterion.deadline && new Date(criterion.deadline).getTime() > newDeadlineMs,
+          );
+          if (violating) {
+            toast.error(`Hạn nộp của tiêu chí con "${violating.content}" không được vượt quá hạn nộp mới của nhóm tiêu chí.`);
+            return;
+          }
         }
         await criteriaGroupsApi.update(editingTable.id, payload);
         toast.success('Đã cập nhật nhóm tiêu chí');

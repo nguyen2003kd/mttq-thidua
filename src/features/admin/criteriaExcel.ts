@@ -159,7 +159,6 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
   if (!groupName) throw new Error('Ô A2 cần có tên nhóm tiêu chí.');
 
   const maxPoint = parseScore(cellValue(groupRow, 1), 'Điểm chuẩn tổng tại ô B2', false);
-  const maxBonusPoint = parseScore(cellValue(groupRow, 2), 'Điểm thưởng tổng tại ô C2', true);
   const deadline = parseDeadline(cellValue(groupRow, 4), 2);
   const content = toText(cellValue(groupRow, 3));
   const childRows = rows.slice(2)
@@ -182,21 +181,30 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
     };
   });
 
+  // Ô C2 không bắt buộc — bỏ trống thì lấy tổng điểm thưởng của các tiêu chí con.
+  const groupBonusRaw = cellValue(groupRow, 2);
+  const maxBonusPoint = isBlank(groupBonusRaw)
+    ? criteria.reduce((total, item) => total + item.maxBonusPoint, 0)
+    : parseScore(groupBonusRaw, 'Điểm thưởng tổng tại ô C2', true);
+
   const childPointTotal = criteria.reduce((total, item) => total + item.maxPoint, 0);
   if (toScoreUnits(childPointTotal) !== toScoreUnits(maxPoint)) {
     throw new Error(`Điểm chuẩn tổng tại ô B2 (${maxPoint}) không bằng tổng điểm chuẩn của tiêu chí con (${childPointTotal}).`);
   }
 
-  const childBonusTotal = criteria.reduce((total, item) => total + item.maxBonusPoint, 0);
-  if (toScoreUnits(childBonusTotal) !== toScoreUnits(maxBonusPoint)) {
-    throw new Error(`Điểm thưởng tổng tại ô C2 (${maxBonusPoint}) không bằng tổng điểm thưởng của tiêu chí con (${childBonusTotal}).`);
+  // Hạn nộp của nhóm tiêu chí và tiêu chí con không được ở quá khứ,
+  // và hạn nộp của tiêu chí con không được vượt quá hạn nộp của nhóm tiêu chí.
+  const nowMs = Date.now();
+  if (deadline && new Date(deadline).getTime() < nowMs) {
+    throw new Error('Hạn nộp của nhóm tiêu chí (Ô E2) không được ở thời gian quá khứ.');
   }
-
-  // Hạn nộp của tiêu chí con không được vượt quá hạn nộp của nhóm tiêu chí.
   if (deadline) {
     const groupDeadlineMs = new Date(deadline).getTime();
     for (const item of criteria) {
       if (!item.deadline) continue;
+      if (new Date(item.deadline).getTime() < nowMs) {
+        throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được ở thời gian quá khứ.`);
+      }
       if (new Date(item.deadline).getTime() > groupDeadlineMs) {
         throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được vượt quá hạn nộp của nhóm tiêu chí (Ô E2).`);
       }
