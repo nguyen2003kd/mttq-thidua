@@ -1682,6 +1682,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       all: getRevisionNotes(histories),
       specialist: getLatestRevisionNote(histories, 'ReviewerApproved'),
       reviewer: getRevisionNotes(histories, ['ScorerSubmitted', 'ReviewerRevisionRequested'])[0] ?? null,
+      scorerRequest: getRevisionNotes(histories, ['ScorerRevisionRequested']),
+      leaderRequest: getRevisionNotes(histories, ['ScorerSubmitted']),
     };
   }, [selectedRevisionHistoriesQuery.data]);
 
@@ -2112,7 +2114,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     onClick={() => setSelectedGroupId(group.id)}
                     onDoubleClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}
                   >
-                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
+                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p></TableCell>
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
@@ -2134,7 +2136,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   </div>
                   <GroupStatusBadge status={group.status} role={scoringRole} stage={submissionByGroup.get(group.id)?.currentStage} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p>
+                {/* <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p> */}
                 <dl className="mt-4 grid grid-cols-3 overflow-hidden rounded-md border border-border bg-border">
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm đề xuất</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm thưởng</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedBonusScore}</dd></div>
@@ -2517,7 +2519,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'proposed', label: 'Địa phương đề xuất' },
                 { id: 'explanation', label: 'Nội dung diễn giải' },
                 { id: 'score', label: 'Chuyên viên chấm' },
-                { id: 'revision-note', label: isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa' },
+                { id: 'specialist-revision-note', label: 'Yêu cầu chỉnh sửa chuyên viên' },
+                { id: 'leader-revision-note', label: 'Yêu cầu chỉnh sửa lãnh đạo ban' },
               ]}
             />
             <Button variant="outline" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
@@ -2554,14 +2557,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         </div>
         <div className="hidden overflow-hidden bg-primary xl:block">
           <div ref={tableHeaderInnerRef} className="will-change-transform">
-            <Table data-column-visibility-table="specialist-review-criteria" containerClassName="!overflow-visible" className="w-full min-w-[1600px] table-fixed">
+            <Table data-column-visibility-table="specialist-review-criteria" containerClassName="!overflow-visible" className="w-full min-w-[1800px] table-fixed">
             <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[15%]" />
-              <col className="w-[15%]" />
-              <col className="w-[17%]" />
               <col className="w-[16%]" />
-              <col className="w-[19%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[15%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
@@ -2570,7 +2574,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">{isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa'}</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa chuyên viên</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa lãnh đạo ban</TableHead>
               </TableRow>
             </TableHeader>
             </Table>
@@ -2586,22 +2591,22 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             }
           }}
         >
-          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1600px] table-fixed">
+          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1800px] table-fixed">
             <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[15%]" />
-              <col className="w-[15%]" />
-              <col className="w-[17%]" />
               <col className="w-[16%]" />
-              <col className="w-[19%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[15%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
             </colgroup>
             <TableBody>
               {displayGroup.items.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
                 const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
-                const revisionNotes = isScorerRevisionStage
-                  ? (reviewerNote ? [reviewerNote] : [])
-                  : leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
+                const specialistRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.scorerRequest, result?.id, result?.criteriaId);
+                const leaderRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.leaderRequest, result?.id, result?.criteriaId);
                 const historyExpanded = expandedCriterionHistoryId === item.id;
                 return (
                   <Fragment key={item.id}>
@@ -2685,11 +2690,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNotesView notes={revisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-center align-top"><RevisionNotesView notes={specialistRevisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="whitespace-normal px-4 py-5 text-center align-top"><RevisionNotesView notes={leaderRevisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={6} className="px-4 py-3">
+                    <TableCell colSpan={7} className="px-4 py-3">
                       <CriterionHistoryPanel
                         resultId={result?.id}
                         currentPoint={item.proposedScore}
@@ -2702,7 +2708,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   </Fragment>
                 );
               })}
-              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
+              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={7} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -2711,9 +2717,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           {displayGroup.items.map((item) => {
             const result = resultByCriteriaId.get(item.id);
             const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
-            const revisionNotes = isScorerRevisionStage
-              ? (reviewerNote ? [reviewerNote] : [])
-              : leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
+            const specialistRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.scorerRequest, result?.id, result?.criteriaId);
+            const leaderRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.leaderRequest, result?.id, result?.criteriaId);
             const historyExpanded = expandedCriterionHistoryId === item.id;
             return (
             <article key={item.id} className="p-4 sm:p-5">
@@ -2737,9 +2742,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
-                  {revisionNotes.length > 0 && (
+                  {(specialistRevisionNotes.length > 0 || leaderRevisionNotes.length > 0) && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">{isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa'}</dt><dd className="mt-1"><RevisionNotesView notes={revisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Yêu cầu chỉnh sửa chuyên viên</dt><dd className="mt-1"><RevisionNotesView notes={specialistRevisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Yêu cầu chỉnh sửa lãnh đạo ban</dt><dd className="mt-1"><RevisionNotesView notes={leaderRevisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
                     </dl>
                   )}
                 </div>
