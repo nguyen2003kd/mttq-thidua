@@ -10,4 +10,6 @@ export interface UpdateCriteriaGroupRequest {
   deadline?: string | null;
   /** @nullable */
   departmentId?: string | null;
+  /** @nullable */
+  periodId?: string | null;
 }
