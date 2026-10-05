@@ -1009,21 +1009,24 @@ export default function LocalityCriteriaPage() {
         title="Tự đánh giá và gửi minh chứng"
         description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatDate(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`}
         summary={(
-          <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-4 py-2.5">
-            <div className="pr-4">
-              <p className="text-xs text-muted-foreground">Điểm tự đánh giá hiện tại</p>
-              <p className="text-xl font-semibold tabular-nums">
-                {currentSelfScore}
-                <span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span>
-              </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-4 py-2.5">
+              <div className="pr-4">
+                <p className="text-xs text-muted-foreground">Điểm tự đánh giá hiện tại</p>
+                <p className="text-xl font-semibold tabular-nums">
+                  {currentSelfScore}
+                  <span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span>
+                </p>
+              </div>
+              <div className="pl-4">
+                <p className="text-xs text-muted-foreground">Điểm thưởng hiện tại</p>
+                <p className="text-xl font-semibold tabular-nums">{currentBonusScore}</p>
+              </div>
             </div>
-            <div className="pl-4">
-              <p className="text-xs text-muted-foreground">Điểm thưởng hiện tại</p>
-              <p className="text-xl font-semibold tabular-nums">{currentBonusScore}</p>
-            </div>
+            <ScoreStateBadge state={record.state} size="lg" />
           </div>
         )}
-        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2">{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">

@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clustersApi } from '@/features/admin/api/clustersApi';
-import { periodsApi } from '@/features/admin/api/periodsApi';
+import { periodsApi, type PeriodApi } from '@/features/admin/api/periodsApi';
 import { useAuthStore } from '@/store/authStore';
 import { specialistApi, type SubmissionApi, type SubmissionResultItem } from '../api/specialistApi';
 import SpecialistScoreSummaryPage from './SpecialistScoreSummaryPage';
@@ -62,7 +62,21 @@ const submission: SubmissionApi = {
   results: [result],
 };
 
-function prepareQueries() {
+function makePeriod(id: string, startYear: number, endYear: number, status: PeriodApi['status']): PeriodApi {
+  return {
+    id,
+    startYear,
+    endYear,
+    name: `${startYear}-${endYear}`,
+    status,
+    createdBy: null,
+    updatedBy: null,
+    createdAt: `${startYear}-01-01T00:00:00.000Z`,
+    updatedAt: null,
+  };
+}
+
+function prepareQueries(periods: PeriodApi[] = []) {
   vi.spyOn(specialistApi, 'listAllSubmissions').mockResolvedValue({
     items: [submission],
     total: 1,
@@ -70,15 +84,15 @@ function prepareQueries() {
     pageSize: 100,
   } as unknown as Awaited<ReturnType<typeof specialistApi.listAllSubmissions>>);
   vi.spyOn(specialistApi, 'getSubmission').mockResolvedValue(submission);
-  vi.spyOn(periodsApi, 'listAll').mockResolvedValue([]);
+  vi.spyOn(periodsApi, 'listAll').mockResolvedValue(periods);
   vi.spyOn(clustersApi, 'list').mockResolvedValue([]);
 }
 
-function renderPage(readOnly = false) {
+function renderPage(readOnly = false, initialEntry = '/chuyen-vien/tong-hop-cham-diem') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/chuyen-vien/tong-hop-cham-diem']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <SpecialistScoreSummaryPage readOnly={readOnly} />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -90,6 +104,40 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   useAuthStore.getState().resetStore();
+});
+
+describe('SpecialistScoreSummaryPage period filter', () => {
+  it('defaults to the period with the highest start year regardless of status', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    prepareQueries([
+      makePeriod('period-active', 2025, 2026, 'Active'),
+      makePeriod('period-latest', 2027, 2028, 'Closed'),
+    ]);
+    useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
+    renderPage();
+
+    expect(await screen.findByRole('combobox', { name: 'Kỳ thi đua: 2027-2028' })).toBeInTheDocument();
+    await waitFor(() => expect(specialistApi.listAllSubmissions).toHaveBeenCalledWith(
+      expect.objectContaining({ periodId: 'period-latest' }),
+    ));
+    expect(specialistApi.listAllSubmissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a period explicitly selected in the URL', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    prepareQueries([
+      makePeriod('period-active', 2025, 2026, 'Active'),
+      makePeriod('period-latest', 2027, 2028, 'Closed'),
+    ]);
+    useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
+    renderPage(false, '/chuyen-vien/tong-hop-cham-diem?periodFilter=period-active');
+
+    expect(await screen.findByRole('combobox', { name: 'Kỳ thi đua: 2025-2026' })).toBeInTheDocument();
+    await waitFor(() => expect(specialistApi.listAllSubmissions).toHaveBeenCalledWith(
+      expect.objectContaining({ periodId: 'period-active' }),
+    ));
+    expect(specialistApi.listAllSubmissions).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('SpecialistScoreSummaryPage detail modal', () => {
@@ -120,6 +168,6 @@ describe('SpecialistScoreSummaryPage detail modal', () => {
 
     expect(screen.queryByRole('tab', { name: 'Thẩm định' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-6xl');
-    expect(screen.getByText('Địa phương đề xuất')).toBeInTheDocument();
+    expect(await screen.findByText('Địa phương đề xuất')).toBeInTheDocument();
   });
 });

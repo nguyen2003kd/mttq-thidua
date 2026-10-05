@@ -46,12 +46,28 @@ const emptyPeriodForm: PeriodFormState = {
 interface CriteriaPeriodSelectionPageProps {
   readOnly?: boolean;
   onOpenPeriod?: (period: PeriodApi) => void;
+  copy?: Partial<{
+    title: string;
+    description: string;
+    openPeriodLabel: string;
+    emptyDescription: string;
+    stickyDescription: string;
+  }>;
 }
 
 export default function CriteriaPeriodSelectionPage({
   readOnly = false,
   onOpenPeriod,
+  copy: copyOverrides = {},
 }: CriteriaPeriodSelectionPageProps) {
+  const pageCopy = {
+    title: copyOverrides.title ?? (readOnly ? 'Tiêu chí được giao' : 'Quản lý tiêu chí'),
+    description: copyOverrides.description ?? (readOnly ? 'Chọn kỳ thi đua để xem tiêu chí được giao cho địa phương.' : 'Chọn một kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó.'),
+    errorDescription: copyOverrides.description ?? (readOnly ? 'Chọn kỳ thi đua để xem tiêu chí được giao cho địa phương.' : 'Chọn kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó.'),
+    openPeriodLabel: copyOverrides.openPeriodLabel ?? (readOnly ? 'Xem tiêu chí' : 'Chỉnh sửa kỳ'),
+    emptyDescription: copyOverrides.emptyDescription ?? (readOnly ? 'Chuyên viên chưa thiết lập kỳ thi đua.' : 'Tạo kỳ thi đua trước khi quản lý tiêu chí.'),
+    stickyDescription: copyOverrides.stickyDescription ?? 'Chọn một kỳ để xem nhóm tiêu chí',
+  };
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -203,8 +219,8 @@ export default function CriteriaPeriodSelectionPage({
     return (
       <div className="space-y-6">
         <PageHeader
-          title={readOnly ? 'Tiêu chí được giao' : 'Quản lý tiêu chí'}
-          description={readOnly ? 'Chọn kỳ thi đua để xem tiêu chí được giao cho địa phương.' : 'Chọn kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó.'}
+          title={pageCopy.title}
+          description={pageCopy.errorDescription}
         />
         <EmptyState title="Không tải được danh sách kỳ thi đua" description="Vui lòng thử tải lại trang." />
       </div>
@@ -214,8 +230,8 @@ export default function CriteriaPeriodSelectionPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={readOnly ? 'Tiêu chí được giao' : 'Quản lý tiêu chí'}
-        description={readOnly ? 'Chọn kỳ thi đua để xem tiêu chí được giao cho địa phương.' : 'Chọn một kỳ thi đua để xem các nhóm tiêu chí thuộc kỳ đó.'}
+        title={pageCopy.title}
+        description={pageCopy.description}
       />
       <DataTable
         data={periods}
@@ -238,7 +254,7 @@ export default function CriteriaPeriodSelectionPage({
                 onClick={() => readOnly ? openPeriod(selectedPeriod) : openEdit(selectedPeriod)}
               >
                 {readOnly ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                {readOnly ? 'Xem tiêu chí' : 'Chỉnh sửa kỳ'}
+                {pageCopy.openPeriodLabel}
               </Button>
             )}
             {!readOnly && (
@@ -258,10 +274,10 @@ export default function CriteriaPeriodSelectionPage({
         )}
         emptyState={{
           title: 'Chưa có kỳ thi đua',
-          description: readOnly ? 'Chuyên viên chưa thiết lập kỳ thi đua.' : 'Tạo kỳ thi đua trước khi quản lý tiêu chí.',
+          description: pageCopy.emptyDescription,
         }}
         stickyTitle="Danh sách kỳ thi đua"
-        stickyDescription="Chọn một kỳ để xem nhóm tiêu chí"
+        stickyDescription={pageCopy.stickyDescription}
       />
       <FormDialog
         open={createOpen}

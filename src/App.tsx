@@ -61,6 +61,29 @@ function SpecialistCriteriaEntryPage() {
     : <CriteriaListPage />;
 }
 
+function SpecialistReviewEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const groupPeriodFilter = searchParams.get('groupPeriodFilter');
+  const showPeriods = searchParams.get('view') === 'periods' || !groupPeriodFilter;
+
+  if (!showPeriods) return <SpecialistReviewPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Chấm và thẩm định',
+        description: 'Chọn kỳ thi đua để xem danh sách hồ sơ địa phương cần thẩm định.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để chấm và thẩm định.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ địa phương.',
+      }}
+      onOpenPeriod={(period) => navigate(`${ROUTES.SPECIALIST_REVIEW}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
 function LocalityCriteriaEntryPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -224,7 +247,7 @@ export default function App() {
               <Route index element={<Navigate to={ROUTES.SPECIALIST_REVIEW} replace />} />
               <Route path="tieu-chi" element={<SpecialistCriteriaEntryPage />} />
               <Route path="tieu-chi/:id/con" element={<CriteriaChildrenPage />} />
-              <Route path="duyet" element={<SpecialistReviewPage />} />
+              <Route path="duyet" element={<SpecialistReviewEntryPage />} />
               <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId/:nhomTieuChiId" element={<SpecialistReviewPage />} />
               <Route path="tong-hop-cham-diem" element={<SpecialistScoreSummaryPage />} />
