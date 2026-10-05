@@ -73,6 +73,10 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Năm kết thúc phải lớn hơn hoặc bằng năm bắt đầu.');
       return null;
     }
+    if (endYear < new Date().getFullYear() && endYear !== selected?.endYear) {
+      toast.error(selected ? 'Không thể cập nhật kỳ thi đua cho thời gian đã qua.' : 'Không thể tạo kỳ thi đua cho thời gian đã qua.');
+      return null;
+    }
     return { startYear, endYear, name: form.name.trim() || null, status: form.status };
   };
 
