@@ -54,8 +54,8 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const periodsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), { search: debouncedSearch, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
-    queryFn: () => periodsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), { search: debouncedSearch, page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' }),
+    queryFn: () => periodsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' }),
   });
 
   const periods = periodsQuery.data?.items ?? [];
@@ -71,10 +71,6 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
     }
     if (endYear < startYear) {
       toast.error('Năm kết thúc phải lớn hơn hoặc bằng năm bắt đầu.');
-      return null;
-    }
-    if (endYear < new Date().getFullYear() && endYear !== selected?.endYear) {
-      toast.error(selected ? 'Không thể cập nhật kỳ thi đua cho thời gian đã qua.' : 'Không thể tạo kỳ thi đua cho thời gian đã qua.');
       return null;
     }
     return { startYear, endYear, name: form.name.trim() || null, status: form.status };
@@ -136,27 +132,6 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         <Badge className={STATUS_BADGE[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
       ),
       meta: { list: { width: '150px' } },
-    },
-    {
-      id: 'actions',
-      header: 'Hành động',
-      meta: { align: 'right', list: { width: '110px' } },
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2 text-destructive hover:bg-destructive/10"
-          disabled={row.original.status !== 'Draft'}
-          disabledReason={row.original.status !== 'Draft' ? 'Chỉ có thể xóa kỳ thi đua ở trạng thái Nháp.' : undefined}
-          onClick={(event) => {
-            event.stopPropagation();
-            setSelected(row.original);
-            setDeleteOpen(true);
-          }}
-        >
-          <Trash2 className="h-3.5 w-3.5" /> Xóa
-        </Button>
-      ),
     },
   ], []);
 
@@ -232,9 +207,11 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         columns={columns}
         variant="list"
         getRowId={(row) => row.id}
+        selectedRowId={selected?.id}
         loading={periodsQuery.isLoading}
         pageSize={10}
-        onRowClick={openEdit}
+        onRowClick={setSelected}
+        onRowDoubleClick={openEdit}
         filters={
           <Input
             value={search}
@@ -247,9 +224,27 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
           ? { title: 'Không tìm thấy kỳ thi đua', description: 'Thử từ khóa khác.' }
           : { title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ đầu tiên để gắn nhóm tiêu chí.' }}
         toolbar={
-          <Button size="sm" className="h-9!" onClick={() => { setForm(emptyForm); setCreateOpen(true); }} action="create">
-            <Plus className="h-4 w-4 ml-2" /> Thêm kỳ
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {selected && !editOpen && !deleteOpen && !createOpen && (
+              <>
+                <Button variant="edit" size="sm" onClick={() => openEdit(selected)}>
+                  Chỉnh sửa
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={selected.status !== 'Draft'}
+                  disabledReason={selected.status !== 'Draft' ? 'Chỉ có thể xóa kỳ thi đua ở trạng thái Nháp.' : undefined}
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Xóa
+                </Button>
+              </>
+            )}
+            <Button size="sm" className="h-9!" onClick={() => { setSelected(null); setForm(emptyForm); setCreateOpen(true); }} action="create">
+              <Plus className="h-4 w-4 ml-2" /> Thêm kỳ
+            </Button>
+          </div>
         }
       />
 
@@ -287,22 +282,6 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         onConfirm={() => selected && deleteMutation.mutate(selected.id)}
       />
 
-      {selected && !editOpen && !deleteOpen && (
-        <div className="mt-3 flex items-center gap-2">
-          <Button variant="edit" size="sm" onClick={() => selected && openEdit(selected)}>
-            Chỉnh sửa
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={selected.status !== 'Draft'}
-            disabledReason={selected.status !== 'Draft' ? 'Chỉ có thể xóa kỳ thi đua ở trạng thái Nháp.' : undefined}
-            onClick={() => setDeleteOpen(true)}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Xóa
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
