@@ -62,7 +62,14 @@ const submission: SubmissionApi = {
   results: [result],
 };
 
-function makePeriod(id: string, startYear: number, endYear: number, status: PeriodApi['status']): PeriodApi {
+function makePeriod(
+  id: string,
+  startYear: number,
+  endYear: number,
+  status: PeriodApi['status'],
+  updatedAt: string | null = null,
+  createdAt = `${startYear}-01-01T00:00:00.000Z`,
+): PeriodApi {
   return {
     id,
     startYear,
@@ -71,8 +78,8 @@ function makePeriod(id: string, startYear: number, endYear: number, status: Peri
     status,
     createdBy: null,
     updatedBy: null,
-    createdAt: `${startYear}-01-01T00:00:00.000Z`,
-    updatedAt: null,
+    createdAt,
+    updatedAt,
   };
 }
 
@@ -84,7 +91,12 @@ function prepareQueries(periods: PeriodApi[] = []) {
     pageSize: 100,
   } as unknown as Awaited<ReturnType<typeof specialistApi.listAllSubmissions>>);
   vi.spyOn(specialistApi, 'getSubmission').mockResolvedValue(submission);
-  vi.spyOn(periodsApi, 'listAll').mockResolvedValue(periods);
+  vi.spyOn(periodsApi, 'list').mockResolvedValue({
+    items: periods,
+    total: periods.length,
+    page: 1,
+    pageSize: 100,
+  });
   vi.spyOn(clustersApi, 'list').mockResolvedValue([]);
 }
 
@@ -107,18 +119,40 @@ afterEach(() => {
 });
 
 describe('SpecialistScoreSummaryPage period filter', () => {
-  it('defaults to the period with the highest start year regardless of status', async () => {
+  it('defaults to the period with the most recent updatedAt', async () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
     prepareQueries([
-      makePeriod('period-active', 2025, 2026, 'Active'),
-      makePeriod('period-latest', 2027, 2028, 'Closed'),
+      makePeriod('period-latest-update', 2025, 2026, 'Closed', '2026-06-02T00:00:00.000Z'),
+      makePeriod('period-latest-start-year', 2027, 2028, 'Active', '2026-06-01T00:00:00.000Z'),
     ]);
     useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
     renderPage();
 
-    expect(await screen.findByRole('combobox', { name: 'Kỳ thi đua: 2027-2028' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Kỳ thi đua: 2025-2026' })).toBeInTheDocument();
+    await waitFor(() => expect(periodsApi.list).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 100,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    }));
     await waitFor(() => expect(specialistApi.listAllSubmissions).toHaveBeenCalledWith(
-      expect.objectContaining({ periodId: 'period-latest' }),
+      expect.objectContaining({ periodId: 'period-latest-update' }),
+    ));
+    expect(specialistApi.listAllSubmissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses createdAt as a fallback when updatedAt is null', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    prepareQueries([
+      makePeriod('period-updated', 2027, 2028, 'Active', '2026-06-01T00:00:00.000Z'),
+      makePeriod('period-created-latest', 2025, 2026, 'Closed', null, '2026-06-02T00:00:00.000Z'),
+    ]);
+    useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
+    renderPage();
+
+    expect(await screen.findByRole('combobox', { name: 'Kỳ thi đua: 2025-2026' })).toBeInTheDocument();
+    await waitFor(() => expect(specialistApi.listAllSubmissions).toHaveBeenCalledWith(
+      expect.objectContaining({ periodId: 'period-created-latest' }),
     ));
     expect(specialistApi.listAllSubmissions).toHaveBeenCalledTimes(1);
   });

@@ -466,31 +466,36 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER'));
   const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
+  const periodListParams = { page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' } as const;
   const periodsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
-    queryFn: periodsApi.listAll,
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey({
+      Page: periodListParams.page,
+      PageSize: periodListParams.pageSize,
+      SortBy: periodListParams.sortBy,
+      SortOrder: periodListParams.sortOrder,
+    }), 'options'),
+    queryFn: async () => (await periodsApi.list(periodListParams)).items,
   });
   const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
+  const sortedPeriods = useMemo(() => [...periods].sort((left, right) => {
+    const leftTimestamp = Date.parse(left.updatedAt ?? left.createdAt);
+    const rightTimestamp = Date.parse(right.updatedAt ?? right.createdAt);
+    return rightTimestamp - leftTimestamp || right.startYear - left.startYear || right.endYear - left.endYear;
+  }), [periods]);
   useEffect(() => {
     if (isPeriodFilterReady || periodsQuery.isLoading) return;
     if (periodsQuery.isError) {
       setIsPeriodFilterReady(true);
       return;
     }
-    if (periodFilter || periods.length === 0) {
+    if (periodFilter || sortedPeriods.length === 0) {
       setIsPeriodFilterReady(true);
       return;
     }
     if (periodDefaultingRef.current) return;
     periodDefaultingRef.current = true;
-    const newestPeriod = periods.reduce((latest, period) => (
-      period.startYear > latest.startYear ||
-      (period.startYear === latest.startYear && period.endYear > latest.endYear)
-        ? period
-        : latest
-    ), periods[0]);
-    setPeriodFilter(newestPeriod.id);
-  }, [isPeriodFilterReady, periodFilter, periods, periodsQuery.isError, periodsQuery.isLoading, setPeriodFilter]);
+    setPeriodFilter(sortedPeriods[0].id);
+  }, [isPeriodFilterReady, periodFilter, periodsQuery.isError, periodsQuery.isLoading, setPeriodFilter, sortedPeriods]);
   const submissionsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: periodFilter || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(periodFilter || undefined),
@@ -680,7 +685,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
             value={periodFilter}
             onChange={setPeriodFilter}
             allLabel="Tất cả kỳ thi đua"
-            options={periods.map((period) => ({ value: period.id, label: period.name }))}
+            options={sortedPeriods.map((period) => ({ value: period.id, label: period.name }))}
           />
         }
       />

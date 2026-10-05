@@ -1492,6 +1492,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     groupYearFilter: '',
     groupPeriodFilter: usePeriodStore.getState().selectedPeriodId ?? '',
   });
+  const withGroupPeriodFilter = (path: string) => groupPeriodFilter
+    ? `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`
+    : path;
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -1905,7 +1908,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                 hideWhen={!selectedLocality}
                 disabled={!selectedLocality}
                 disabledReason="Chọn một địa phương trong bảng để xem hồ sơ."
-                onClick={() => selectedLocality && navigate(`${basePath}/${selectedLocality.localityId}`)}
+                onClick={() => selectedLocality && navigate(withGroupPeriodFilter(`${basePath}/${selectedLocality.localityId}`))}
               >
                 <Eye className="size-4" />Xem hồ sơ
               </Button>
@@ -1950,7 +1953,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                           : 'cursor-pointer hover:bg-muted'
                     }
                     onClick={() => setSelectedLocalityId(row.localityId)}
-                    onDoubleClick={() => navigate(`${basePath}/${row.localityId}`)}
+                    onDoubleClick={() => navigate(withGroupPeriodFilter(`${basePath}/${row.localityId}`))}
                   >
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -2001,7 +2004,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{row.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Cập nhật mới</dt><dd className="mt-1 font-medium">{row.hasNewSubmissions ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button variant="info" className="mt-4 w-full sm:w-auto" onClick={() => navigate(`${basePath}/${row.localityId}`)}><Eye className="size-4" />Xem hồ sơ</Button>
+                <Button variant="info" className="mt-4 w-full sm:w-auto" onClick={() => navigate(withGroupPeriodFilter(`${basePath}/${row.localityId}`))}><Eye className="size-4" />Xem hồ sơ</Button>
               </article>
             )) : (
               <p className="px-4 py-12 text-center text-sm text-muted-foreground">Không có địa phương phù hợp.</p>
@@ -2046,7 +2049,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Link className="hover:text-primary" to={basePath}>Danh sách địa phương</Link>
+          <Link className="hover:text-primary" to={withGroupPeriodFilter(basePath)}>Danh sách địa phương</Link>
           <span>/</span>
           <span className="font-medium text-foreground">{district.localityName}</span>
         </div>
@@ -2066,7 +2069,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
               />
               <Button
                 variant="back"
-                render={<Link to={basePath} />}
+                render={<Link to={withGroupPeriodFilter(basePath)} />}
                 nativeButton={false}
               >
                 <ArrowLeft className="size-4" />Quay về
@@ -2162,7 +2165,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                 hideWhen={!selectedGroupRow}
                 disabled={!selectedGroupRow}
                 disabledReason="Chọn một nhóm tiêu chí trong bảng để xem hoặc chấm điểm."
-                onClick={() => selectedGroupRow && navigate(`${basePath}/${district.localityId}/${selectedGroupRow.id}`)}
+                onClick={() => selectedGroupRow && navigate(withGroupPeriodFilter(`${basePath}/${district.localityId}/${selectedGroupRow.id}`))}
               >
                 {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
                 {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
@@ -2202,7 +2205,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                     aria-selected={selectedGroupId === group.id}
                     className={selectedGroupId === group.id ? 'cursor-pointer bg-primary/10 hover:bg-primary/10' : 'cursor-pointer hover:bg-muted'}
                     onClick={() => setSelectedGroupId(group.id)}
-                    onDoubleClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}
+                    onDoubleClick={() => navigate(withGroupPeriodFilter(`${basePath}/${district.localityId}/${group.id}`))}
                   >
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p></TableCell>
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
@@ -2232,7 +2235,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm thưởng</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedBonusScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{group.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'default' : 'info'} onClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}>
+                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'default' : 'info'} onClick={() => navigate(withGroupPeriodFilter(`${basePath}/${district.localityId}/${group.id}`))}>
                   {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
                   {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
                 </Button>
@@ -2533,16 +2536,16 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       {!isEmbedded && (
         <>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Link className="hover:text-primary" to={basePath}>Danh sách địa phương</Link>
+            <Link className="hover:text-primary" to={withGroupPeriodFilter(basePath)}>Danh sách địa phương</Link>
             <span>/</span>
-            <Link className="hover:text-primary" to={`${basePath}/${district.localityId}`}>{district.localityName}</Link>
+            <Link className="hover:text-primary" to={withGroupPeriodFilter(`${basePath}/${district.localityId}`)}>{district.localityName}</Link>
             <span>/</span>
             <span className="font-medium text-foreground">{selectedGroup.groupName}</span>
           </div>
           <PageHeader
             title="Chi tiết chấm điểm kết quả tiêu chí"
             description={`${district.localityName} · ${selectedGroup.groupName}`}
-            actions={<Button variant="back" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
+            actions={<Button variant="back" render={<Link to={withGroupPeriodFilter(`${basePath}/${district.localityId}`)} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
           />
         </>
       )}
