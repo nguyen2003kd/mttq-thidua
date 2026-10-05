@@ -24,12 +24,14 @@ const STATUS_LABELS: Record<PeriodStatusApi, string> = {
   Draft: 'Nháp',
   Active: 'Đang áp dụng',
   Closed: 'Đã kết thúc',
+  Published: 'Đã công bố',
 };
 
 const STATUS_BADGE: Record<PeriodStatusApi, string> = {
   Draft: 'bg-primary/5 text-muted-foreground',
   Active: 'bg-success/15 text-success',
   Closed: 'bg-muted text-muted-foreground',
+  Published: 'bg-primary/10 text-primary',
 };
 
 interface FormState {
@@ -185,6 +187,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
             {editOpen && <SelectItem value="Draft">Nháp</SelectItem>}
             <SelectItem value="Active">Đang áp dụng</SelectItem>
             <SelectItem value="Closed">Đã kết thúc</SelectItem>
+            {editOpen && <SelectItem value="Published">Đã công bố</SelectItem>}
           </SelectContent>
         </Select>
       </div>
