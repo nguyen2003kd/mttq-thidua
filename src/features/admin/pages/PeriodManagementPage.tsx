@@ -118,12 +118,12 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
     {
       accessorKey: 'startYear',
       header: 'Năm bắt đầu',
-      meta: { align: 'center', list: { width: '110px' } },
+      meta: { align: 'center', list: { width: '150px' } },
     },
     {
       accessorKey: 'endYear',
       header: 'Năm kết thúc',
-      meta: { align: 'center', list: { width: '110px' } },
+      meta: { align: 'center', list: { width: '150px' } },
     },
     {
       accessorKey: 'status',
@@ -131,7 +131,28 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       cell: ({ row }) => (
         <Badge className={STATUS_BADGE[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
       ),
-      meta: { list: { width: '130px' } },
+      meta: { list: { width: '150px' } },
+    },
+    {
+      id: 'actions',
+      header: 'Hành động',
+      meta: { align: 'right', list: { width: '110px' } },
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 text-destructive hover:bg-destructive/10"
+          disabled={row.original.status !== 'Draft'}
+          disabledReason={row.original.status !== 'Draft' ? 'Chỉ có thể xóa kỳ thi đua ở trạng thái Nháp.' : undefined}
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelected(row.original);
+            setDeleteOpen(true);
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Xóa
+        </Button>
+      ),
     },
   ], []);
 
@@ -256,7 +277,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Xóa kỳ thi đua?"
-        description={`Xóa kỳ ${selected?.name ?? ''}? Chỉ nên xóa kỳ chưa gắn nhóm tiêu chí nào.`}
+        description={`Xóa kỳ ${selected?.name ?? ''}? Kỳ ở trạng thái Nháp sẽ bị xóa vĩnh viễn cùng các nhóm tiêu chí nháp bên trong (nếu có).`}
         confirmLabel="Xóa kỳ"
         variant="destructive"
         onConfirm={() => selected && deleteMutation.mutate(selected.id)}
@@ -267,7 +288,13 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
           <Button variant="edit" size="sm" onClick={() => selected && openEdit(selected)}>
             Chỉnh sửa
           </Button>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={selected.status !== 'Draft'}
+            disabledReason={selected.status !== 'Draft' ? 'Chỉ có thể xóa kỳ thi đua ở trạng thái Nháp.' : undefined}
+            onClick={() => setDeleteOpen(true)}
+          >
             <Trash2 className="h-3.5 w-3.5" /> Xóa
           </Button>
         </div>
