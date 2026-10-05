@@ -96,6 +96,10 @@ export default function CriteriaPeriodSelectionPage({
       toast.error('Năm kết thúc phải lớn hơn hoặc bằng năm bắt đầu.');
       return null;
     }
+    if (endYear < new Date().getFullYear() && endYear !== selectedPeriod?.endYear) {
+      toast.error(selectedPeriod ? 'Không thể cập nhật kỳ thi đua cho thời gian đã qua.' : 'Không thể tạo kỳ thi đua cho thời gian đã qua.');
+      return null;
+    }
     return { startYear, endYear, name: form.name.trim() || null, status: form.status };
   };
 
