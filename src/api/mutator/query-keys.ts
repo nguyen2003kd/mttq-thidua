@@ -1,7 +1,7 @@
 import { matchQuery, type InvalidateOptions, type QueryClient, type QueryKey } from '@tanstack/react-query';
 
 /** Shared by the existing generated key factories and Orval on regeneration. */
-export function apiQueryKey(properties: Record<string, unknown>, context: { url: string }): QueryKey {
+export function apiQueryKey(properties: Record<string, unknown>, context: { url: string; queryOptions?: unknown }): QueryKey {
   const path = context.url.split('?')[0].replace(/^\/api\/v\d+\//, '').replace(/^\/+|\/+$/g, '');
   const segments = path.split('/');
   let key: QueryKey = segments;

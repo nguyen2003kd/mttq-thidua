@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -26,6 +25,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -125,17 +125,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1EmulationClassificationsQueryKey = (params?: GetApiV1EmulationClassificationsParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/emulation-classifications` });
-};
+export const getGetApiV1EmulationClassificationsQueryKey = (params?: GetApiV1EmulationClassificationsParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/emulation-classifications` });
 
 
-export const getGetApiV1EmulationClassificationsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1EmulationClassifications>>, TError = unknown>(params?: GetApiV1EmulationClassificationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1EmulationClassifications>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1EmulationClassificationsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1EmulationClassifications>>, TError = unknown>(params?: GetApiV1EmulationClassificationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1EmulationClassifications>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1EmulationClassificationsQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/emulation-classifications`, queryOptions });
 
 
 
@@ -182,7 +181,7 @@ export function useGetApiV1EmulationClassifications<TData = Awaited<ReturnType<t
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1EmulationClassificationsQueryOptions(params,options)
+  const queryOptions = useGetApiV1EmulationClassificationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -209,17 +208,16 @@ export const getApiV1EmulationClassificationsId = (
 
 
 
-export const getGetApiV1EmulationClassificationsIdQueryKey = (id: string,) => {
-  return apiQueryKey({}, { url: `/api/v1/emulation-classifications/${id}` });
-};
+export const getGetApiV1EmulationClassificationsIdQueryKey = (id: string,) =>
+    apiQueryKey({ id }, { url: `/api/v1/emulation-classifications/${id}` });
 
 
-export const getGetApiV1EmulationClassificationsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1EmulationClassificationsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1EmulationClassificationsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1EmulationClassificationsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1EmulationClassificationsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1EmulationClassificationsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1EmulationClassificationsIdQueryKey(id);
+  const queryKey =  apiQueryKey({ id }, { url: `/api/v1/emulation-classifications/${id}`, queryOptions });
 
 
 
@@ -266,7 +264,7 @@ export function useGetApiV1EmulationClassificationsId<TData = Awaited<ReturnType
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1EmulationClassificationsIdQueryOptions(id,options)
+  const queryOptions = useGetApiV1EmulationClassificationsIdQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
