@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PeriodApi } from '../api/periodsApi';
 import { periodsApi } from '../api/periodsApi';
+import { useAuthStore } from '@/store/authStore';
 import CriteriaPeriodSelectionPage from './CriteriaPeriodSelectionPage';
 
 class ResizeObserverStub {
@@ -32,6 +33,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  useAuthStore.getState().resetStore();
 });
 
 describe('CriteriaPeriodSelectionPage', () => {
@@ -59,6 +61,7 @@ describe('CriteriaPeriodSelectionPage', () => {
 
   it('creates a period from the periods view', async () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
     vi.spyOn(periodsApi, 'listAll').mockResolvedValue([period]);
     const createPeriod = vi.spyOn(periodsApi, 'create').mockResolvedValue({ ...period, id: 'period-2' });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -108,8 +111,39 @@ describe('CriteriaPeriodSelectionPage', () => {
     expect(onOpenPeriod).toHaveBeenCalledWith(period);
   });
 
+  it('supports custom copy for a read-only period selection flow', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    vi.spyOn(periodsApi, 'listAll').mockResolvedValue([period]);
+    const onOpenPeriod = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/chuyen-vien/duyet']}>
+          <CriteriaPeriodSelectionPage
+            readOnly
+            copy={{
+              title: 'Chấm và thẩm định',
+              description: 'Chọn kỳ thi đua để xem danh sách hồ sơ địa phương cần thẩm định.',
+              openPeriodLabel: 'Xem',
+              emptyDescription: 'Chưa có kỳ thi đua để chấm và thẩm định.',
+              stickyDescription: 'Chọn một kỳ để xem hồ sơ địa phương.',
+            }}
+            onOpenPeriod={onOpenPeriod}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Chấm và thẩm định' })).toBeInTheDocument();
+    expect(screen.getByText('Chọn kỳ thi đua để xem danh sách hồ sơ địa phương cần thẩm định.')).toBeInTheDocument();
+    fireEvent.doubleClick(await screen.findByText(period.name));
+    await waitFor(() => expect(onOpenPeriod).toHaveBeenCalledWith(period));
+  });
+
   it('selects a period before exposing the edit action', async () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
     vi.spyOn(periodsApi, 'listAll').mockResolvedValue([period]);
     const updatePeriod = vi.spyOn(periodsApi, 'update').mockResolvedValue({ ...period, endYear: 2031 });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -179,24 +179,24 @@ type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | SubmissionStage; label: string }>> = {
   SCORER: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ chấm' },
+    { value: 'LocalSubmitted', label: 'Đang chờ duyệt' },
     { value: 'ScorerRevisionRequested', label: 'Yêu cầu chỉnh sửa' },
-    { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
-    { value: 'ScorerSubmitted', label: 'Đã gửi review' },
+    { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'ScorerSubmitted', label: 'Đã duyệt' },
   ],
   REVIEWER: [
     { value: '', label: 'Tất cả' },
-    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
-    { value: 'ReviewerRevisionRequested', label: 'Yêu cầu chỉnh sửa' },
-    { value: 'ReviewerApproved', label: 'Đã chuyển Chuyên viên trưởng' },
+    { value: 'ScorerSubmitted', label: 'Đang chờ duyệt' },
+    { value: 'ReviewerRevisionRequested', label: 'Đang chờ duyệt' },
+    { value: 'ReviewerApproved', label: 'Đã duyệt' },
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
-    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
-    { value: 'ReviewerApproved', label: 'Chờ duyệt' },
-    { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
-    { value: 'SpecialistApproved', label: 'Đã chuyển lãnh đạo' },
+    { value: 'LocalSubmitted', label: 'Đang chờ duyệt' },
+    { value: 'ScorerSubmitted', label: 'Đang chờ duyệt' },
+    { value: 'ReviewerApproved', label: 'Đang chờ duyệt' },
+    { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'SpecialistApproved', label: 'Đã duyệt' },
   ],
 };
 
@@ -1859,7 +1859,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                     <TabsTrigger
                       key={filter.value || 'ALL'}
                       value={filter.value || 'ALL'}
-                      className="!flex-none h-9 rounded-md px-3 data-active:bg-primary/5 data-active:text-primary after:bg-primary"
+                      className="!flex-none h-9 rounded-md px-3 after:bg-primary"
                     >
                       {filter.label}
                     </TabsTrigger>
@@ -2028,8 +2028,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   }
 
   if (!nhomTieuChiId) {
-    const { completedGroups, revisionGroups, totalCount } = periodScopedGroupProgress;
+    const { completedGroups, pendingGroups, revisionGroups, unsubmittedGroups, totalCount } = periodScopedGroupProgress;
     const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
+    const incompleteGroups = totalCount - completedGroups;
+    const progressStatusBadge = totalCount === 0
+      ? <Badge variant="outline" className="text-muted-foreground">Chưa có nhóm tiêu chí</Badge>
+      : incompleteGroups > 0
+        ? <Badge variant="secondary">Còn {incompleteGroups}/{totalCount} nhóm chưa hoàn thành</Badge>
+        : <Badge variant="success">Đã hoàn thành {totalCount}/{totalCount} nhóm</Badge>;
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
     const activeGroupFilters = [
       ...(groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : []),
@@ -2075,18 +2081,23 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">{district.localityName}</h2>
-                <OverallStatusBadge status={district.overallStatus} />
+                {progressStatusBadge}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">Hồ sơ thi đua năm 2026 · {completedGroups} nhóm đã chấm</p>
+              <p className="mt-1 text-sm text-muted-foreground">Thống kê theo bộ lọc kỳ thi đua</p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                <span><strong className="font-semibold text-success">{completedGroups}</strong> nhóm đã chấm</span>
+                <span><strong className="font-semibold text-warning-foreground">{pendingGroups}</strong> nhóm đang chờ xử lý</span>
+                <span><strong className="font-semibold text-warning-foreground">{revisionGroups}</strong> nhóm yêu cầu chỉnh sửa</span>
+                <span><strong className="font-semibold text-muted-foreground">{unsubmittedGroups}</strong> nhóm chưa nộp</span>
+              </div>
             </div>
           </div>
           <div>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs text-muted-foreground">Nhóm tiêu chí đã hoàn thành</p>
+                <p className="text-xs text-muted-foreground">Tiến độ nhóm đã chấm</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{completedGroups}/{totalCount}</p>
               </div>
-              {revisionGroups > 0 && <Badge variant="warning">{revisionGroups} nhóm cần chỉnh sửa</Badge>}
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Tiến độ hoàn thành nhóm tiêu chí" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
               <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${completionPercent}%` }} />

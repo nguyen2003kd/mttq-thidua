@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
 import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
@@ -460,6 +460,8 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const { filters: { periodFilter }, setters: { periodFilter: setPeriodFilter } } = useQueryFilters({ periodFilter: '' });
+  const [isPeriodFilterReady, setIsPeriodFilterReady] = useState(false);
+  const periodDefaultingRef = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER'));
@@ -468,10 +470,31 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
     queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
-  const periods = periodsQuery.data ?? [];
+  const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
+  useEffect(() => {
+    if (isPeriodFilterReady || periodsQuery.isLoading) return;
+    if (periodsQuery.isError) {
+      setIsPeriodFilterReady(true);
+      return;
+    }
+    if (periodFilter || periods.length === 0) {
+      setIsPeriodFilterReady(true);
+      return;
+    }
+    if (periodDefaultingRef.current) return;
+    periodDefaultingRef.current = true;
+    const newestPeriod = periods.reduce((latest, period) => (
+      period.startYear > latest.startYear ||
+      (period.startYear === latest.startYear && period.endYear > latest.endYear)
+        ? period
+        : latest
+    ), periods[0]);
+    setPeriodFilter(newestPeriod.id);
+  }, [isPeriodFilterReady, periodFilter, periods, periodsQuery.isError, periodsQuery.isLoading, setPeriodFilter]);
   const submissionsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: periodFilter || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(periodFilter || undefined),
+    enabled: isPeriodFilterReady && !periodsQuery.isError,
   });
   const clustersQuery = useQuery({
     queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' }), 'with-wards'),
@@ -629,7 +652,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
     }
   };
 
-  if (submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
+  if (!isPeriodFilterReady || submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
     return <PageLoading label="Đang tổng hợp và xếp hạng điểm…" />;
   if (submissionsQuery.isError || clustersQuery.isError || periodsQuery.isError) {
     const error = submissionsQuery.error ?? clustersQuery.error ?? periodsQuery.error;

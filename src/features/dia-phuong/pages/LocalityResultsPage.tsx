@@ -229,8 +229,8 @@ function AttachmentButton({ label, files, onPreview }: {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader><DialogTitle>{label}</DialogTitle></DialogHeader>
-        <div className="space-y-2">
-          {files.map((file) => <button key={file.id} type="button" onClick={() => { setOpen(false); onPreview(file); }} className="flex w-full min-w-0 items-center gap-2 rounded-md border border-info/30 px-3 py-2 text-left text-sm text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 truncate">{file.displayName || file.originalName}</span></button>)}
+        <div className="min-w-0 space-y-2">
+          {files.map((file) => <button key={file.id} type="button" onClick={() => { setOpen(false); onPreview(file); }} className="flex w-full min-w-0 items-start gap-2 rounded-md border border-info/30 px-3 py-2 text-left text-sm text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"><FileText className="mt-0.5 size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{file.displayName || file.originalName}</span></button>)}
         </div>
       </DialogContent>
     </Dialog>
