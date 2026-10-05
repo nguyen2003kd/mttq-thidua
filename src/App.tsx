@@ -11,6 +11,7 @@ import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
 import { ActionProgressOverlay, PageLoading } from '@/components/core';
@@ -84,6 +85,30 @@ function SpecialistReviewEntryPage() {
   );
 }
 
+function ScoreEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const groupPeriodFilter = searchParams.get('groupPeriodFilter');
+  const showPeriods = searchParams.get('view') === 'periods' || !groupPeriodFilter;
+  const basePath = '/thi-dua/cham-diem';
+
+  if (!showPeriods) return <SpecialistReviewPage basePath={basePath} />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Chấm điểm',
+        description: 'Chọn kỳ thi đua để xem danh sách địa phương cần chấm điểm.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để chấm điểm.',
+        stickyDescription: 'Chọn một kỳ để xem danh sách địa phương.',
+      }}
+      onOpenPeriod={(period) => navigate(`${basePath}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
 function LocalityCriteriaEntryPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -132,6 +157,7 @@ function AuthEvents() {
   useEffect(() => {
     const onLogout = () => {
       queryClient.clear();
+      useNotificationStore.getState().clear();
       navigate(ROUTES.LOGIN, { replace: true });
     };
     window.addEventListener('auth:logout', onLogout);
@@ -153,13 +179,14 @@ function ProactiveAuthRefresh() {
  */
 function ProfileGate() {
   const isSignedIn = useAuthStore((s) => s.isSignedIn);
+  const userId = useAuthStore((s) => s.id);
   const requiresCompletion = useAuthStore((s) => s.requires_profile_completion);
   const setStore = useAuthStore((s) => s.setStore);
 
   const profileQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey()),
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey(), userId ?? ''),
     queryFn: () => profileApi.get(),
-    enabled: isSignedIn && requiresCompletion === null,
+    enabled: isSignedIn && Boolean(userId) && requiresCompletion === null,
     staleTime: Infinity,
     retry: 1,
   });
@@ -330,7 +357,7 @@ export default function App() {
                 </RequireAuth>
               }
             >
-              <Route index element={<SpecialistReviewPage basePath="/thi-dua/cham-diem" />} />
+              <Route index element={<ScoreEntryPage />} />
               <Route path="theo-tieu-chi" element={<ScoreByCriteriaPage />} />
               <Route path="theo-tieu-chi/:id" element={<ScoreByCriteriaPage />} />
               <Route path="theo-dia-phuong/:id" element={<ScoreLocalityRedirect />} />

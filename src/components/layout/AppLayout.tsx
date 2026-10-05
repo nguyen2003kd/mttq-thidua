@@ -24,6 +24,7 @@ import {
   AlarmClock,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { queryClient } from '@/api/mutator/query-client';
 import { useScoreStore } from '@/store/scoreStore';
 import { useUIStore } from '@/store/uiStore';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -133,6 +134,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const notifications = useNotificationStore((s) => s.notifications);
   const markAllReadStore = useNotificationStore((s) => s.markAllRead);
   const markReadStore = useNotificationStore((s) => s.markRead);
+  const clearNotificationsStore = useNotificationStore((s) => s.clear);
   const fetchFirstPage = useNotificationStore((s) => s.fetchFirstPage);
   const loadMore = useNotificationStore((s) => s.loadMore);
   const loadingNotifications = useNotificationStore((s) => s.loading);
@@ -203,6 +205,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, [user, criteriaTables]);
 
   const handleLogout = () => {
+    queryClient.clear();
+    clearNotificationsStore();
     clearAuth();
     navigate(ROUTES.LOGIN);
   };

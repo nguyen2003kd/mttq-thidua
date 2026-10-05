@@ -68,7 +68,11 @@ export default function AccountPage() {
   const user = useAuthStore((s) => s.user);
   const setStore = useAuthStore((s) => s.setStore);
 
-  const profileQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey()), queryFn: () => profileApi.get() });
+  const profileQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey(), user?.id ?? ''),
+    queryFn: () => profileApi.get(),
+    enabled: Boolean(user?.id),
+  });
   const profile = profileQuery.data;
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm<FormValues>({
@@ -83,7 +87,7 @@ export default function AccountPage() {
   const onSubmit = async (values: FormValues) => {
     try {
       const updated = await profileApi.update({ fullName: values.fullName, phone: values.phone });
-      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey()), updated);
+      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey(), user?.id ?? ''), updated);
       setStore({
         full_name: updated.fullName,
         phone: updated.phone,
