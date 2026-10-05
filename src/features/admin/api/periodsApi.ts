@@ -1,7 +1,7 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
 
-export type PeriodStatusApi = 'Draft' | 'Active' | 'Closed';
+export type PeriodStatusApi = 'Draft' | 'Active' | 'Closed' | 'Published';
 
 export interface PeriodApi {
   id: string;
