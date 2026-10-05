@@ -106,14 +106,13 @@ export default function CriteriaChildrenPage() {
       await invalidateCriteria();
       setDeleteOpen(false);
       setSelected(null);
-      toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm còn ${updatedGroup.maxPoint} điểm.`);
+      toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm vẫn giữ nguyên ${updatedGroup.maxPoint} điểm.`);
     },
     onError: (apiError) => toast.error(getCriteriaApiError(apiError)),
   });
   const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard' && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
   const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
   const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
-  const remainingPointTotal = selected ? groupCriteria.filter((item) => item.id !== selected.id).reduce((total, item) => total + item.maxScore, 0) : 0;
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
@@ -320,7 +319,10 @@ export default function CriteriaChildrenPage() {
       open={deleteOpen}
       onOpenChange={setDeleteOpen}
       title="Xóa tiêu chí con"
-      description={selected ? `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tiêu chí sẽ chuyển sang trạng thái Vô hiệu, dữ liệu điểm và lịch sử vẫn được giữ lại. Tổng điểm tối đa của nhóm sẽ giảm từ ${group.maxPoint} xuống ${remainingPointTotal} điểm.` : 'Chọn tiêu chí cần xóa.'}
+      description={selected ? (group.status === 'Draft'
+        ? 'Bạn có chắc muốn xóa tiêu chí? Tiêu chí sẽ bị xóa hoàn toàn.'
+        : `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tiêu chí sẽ chuyển sang trạng thái Vô hiệu, dữ liệu điểm và lịch sử vẫn được giữ lại. Tổng điểm tối đa của nhóm vẫn giữ nguyên ${group.maxPoint} điểm.`)
+        : 'Chọn tiêu chí cần xóa.'}
       confirmLabel={deleteMutation.isPending ? 'Đang xóa…' : 'Xóa tiêu chí'}
       cancelLabel="Hủy"
       variant="destructive"
