@@ -273,10 +273,11 @@ function getGroupStatusFilterLabel(status: GroupStatusFilter) {
   return GROUP_STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ?? '';
 }
 
-async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmitted: boolean) {
+async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmitted: boolean, periodId?: string) {
   const firstPage = await specialistApi.listAllSubmissions({
     stage: stage || undefined,
     includeUnsubmitted: includeUnsubmitted || undefined,
+    periodId: periodId || undefined,
     page: 1,
     pageSize: 100,
     sortBy: 'createdAt',
@@ -289,6 +290,7 @@ async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmit
     Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
       stage: stage || undefined,
       includeUnsubmitted: includeUnsubmitted || undefined,
+      periodId: periodId || undefined,
       page: index + 2,
       pageSize: 100,
       sortBy: 'createdAt',
@@ -1537,6 +1539,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
   const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
+  // Kỳ thi đua cũng chỉ lọc danh sách địa phương; vào drill-down phải tải đủ hồ sơ mọi kỳ.
+  const activeLocalityPeriod = diaPhuongId ? '' : groupPeriodFilter;
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const isDetailRoute = Boolean(nhomTieuChiId);
@@ -1544,8 +1548,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   // vẫn xuất hiện. Trang chi tiết chỉ tải submissions thuộc nhóm đang xem.
   const includeUnsubmitted = !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', stage: activeSubmissionStage || undefined, includeUnsubmitted: includeUnsubmitted || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
-    queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', stage: activeSubmissionStage || undefined, includeUnsubmitted: includeUnsubmitted || undefined, period: activeLocalityPeriod || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted, activeLocalityPeriod),
     enabled: !isDetailRoute,
   });
   const detailGroupSubmissionsQuery = useQuery({
@@ -1571,8 +1575,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
 
   // Danh sách địa phương = nhóm submissions theo locality (wardCode)
   const totalAppliedGroups = useMemo(
-    () => (groupsQuery.data?.items ?? []).filter((group) => group.status === 'Applied' || group.status === 'Published').length,
-    [groupsQuery.data],
+    () => (groupsQuery.data?.items ?? [])
+      .filter((group) => (group.status === 'Applied' || group.status === 'Published') && (!activeLocalityPeriod || group.periodId === activeLocalityPeriod))
+      .length,
+    [groupsQuery.data, activeLocalityPeriod],
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
@@ -1771,17 +1777,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     return Array.from(years).sort((a, b) => Number(b) - Number(a)).map((year) => ({ value: year, label: year }));
   }, [localityGroups]);
 
-  const groupPeriodOptions = useMemo(() => {
-    const periods = new Map<string, string>();
-    for (const group of localityGroups) {
-      if (group.periodId) periods.set(group.periodId, group.periodName?.trim() || 'Kỳ thi đua chưa đặt tên');
-    }
-    return Array.from(periods, ([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
-  }, [localityGroups]);
-
   // Mặc định chọn kỳ Active (lần đầu vào trang, khi chưa chọn kỳ ở trang nào).
   const periodsQuery = useQuery({ queryKey: ['publication-periods'], queryFn: periodsApi.listAll });
+  // Danh sách kỳ dùng chung cho bộ chọn kỳ ở mọi màn của trang — lấy tất cả kỳ (trừ Draft)
+  // như các trang Địa phương, để màn trong cũng chọn được đủ kỳ thay vì chỉ kỳ của địa phương đang mở.
+  const groupPeriodOptions = useMemo(() => (periodsQuery.data ?? [])
+    .filter((period) => period.status !== 'Draft')
+    .map((period) => ({ value: period.id, label: period.name?.trim() || 'Kỳ thi đua chưa đặt tên' }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi')), [periodsQuery.data]);
   const periodAutoSelected = useRef(false);
   useEffect(() => {
     if (periodAutoSelected.current || periodsQuery.isLoading || groupPeriodFilter) return;
@@ -1877,6 +1880,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <PeriodSelect
+                value={groupPeriodFilter}
+                onChange={(value) => {
+                  setGroupPeriodFilter(value);
+                  usePeriodStore.getState().setSelectedPeriod(value || null);
+                  setSelectedLocalityId(null);
+                }}
+                options={groupPeriodOptions}
+              />
               <TableColumnVisibility
                 storageKey="specialist-localities"
                 columns={[
