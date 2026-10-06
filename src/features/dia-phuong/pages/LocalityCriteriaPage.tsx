@@ -418,7 +418,7 @@ export default function LocalityCriteriaPage() {
       submissionDetailQuery.data?.id,
     ).map((c, idx): CriteriaItem => ({
       id: c.id,
-      type: c.type as 'Standard' | 'Supplementary',
+      type: c.type as 'Standard' | 'Supplementary' | 'LateAdded',
       name: c.content,
       maxScore: c.maxPoint,
       bonusScore: c.maxBonusPoint || undefined,
@@ -496,12 +496,20 @@ export default function LocalityCriteriaPage() {
 
   // Khi lần mở lại gần nhất chỉ là thêm tiêu chí bổ sung thì không mở lại các tiêu chí
   // đã được yêu cầu chỉnh sửa ở vòng trước.
+  // Khi lần mở lại gần nhất là do Chuyên viên thêm tiêu chí mới (nhóm đã áp dụng) thì hiển thị
+  // banner riêng và cho phép nhập điểm đề xuất cho tiêu chí mới; yêu cầu chỉnh sửa thường vẫn khóa điểm.
   const latestReopenIsSupplementaryAdd = latestReopenHistory?.action?.toLowerCase() === 'addsupplementarycriteria';
 
   const latestRevisionReason = useMemo(
     () => extractRevisionReason(latestReopenHistory?.reason),
     [latestReopenHistory],
   );
+  const latestReopenReasonText = useMemo(() => {
+    if (!latestRevisionReason) return null;
+    return latestReopenIsSupplementaryAdd
+      ? latestRevisionReason.replace(/^Thêm tiêu chí (bổ sung|mới):\s*/, '')
+      : latestRevisionReason;
+  }, [latestRevisionReason, latestReopenIsSupplementaryAdd]);
 
   const latestSpecialistRevision = useMemo(() => {
     if (latestReopenIsSupplementaryAdd) return null;
@@ -1040,20 +1048,24 @@ export default function LocalityCriteriaPage() {
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-          <p className="font-medium text-warning-foreground">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại.</p>
-          {latestRevisionReason && (
+          <p className="font-medium text-warning-foreground">
+            {latestReopenIsSupplementaryAdd
+              ? 'Chuyên viên đã thêm tiêu chí mới cho nhóm tiêu chí đã áp dụng. Vui lòng nhập điểm đề xuất và minh chứng cho tiêu chí mới rồi nộp lại.'
+              : 'Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại.'}
+          </p>
+          {latestReopenReasonText && (
             <div className="text-sm">
-              <span className="text-muted-foreground">Lý do yêu cầu chỉnh sửa: </span>
-              <span className="italic">{latestRevisionReason}</span>
+              <span className="text-muted-foreground">{latestReopenIsSupplementaryAdd ? 'Nội dung tiêu chí mới: ' : 'Lý do yêu cầu chỉnh sửa: '}</span>
+              <span className="italic">{latestReopenReasonText}</span>
             </div>
           )}
         </div>
       )}
       {isRevisionStage && latestReopenIsSupplementaryAdd && supplementaryFiles.length > 0 && (
         <div className="max-w-2xl space-y-2 rounded-md border border-info/40 bg-info/10 px-4 py-3 text-sm">
-          <p className="font-medium text-info">Chuyên viên đã thêm tiêu chí bổ sung. Vui lòng nhập minh chứng cho tiêu chí bổ sung.</p>
+          <p className="font-medium text-info">Chuyên viên đã thêm tiêu chí mới. Vui lòng nhập điểm đề xuất và minh chứng cho tiêu chí mới.</p>
           <div className="space-y-1">
-            <span className="text-muted-foreground">File đính kèm yêu cầu bổ sung:</span>
+            <span className="text-muted-foreground">File đính kèm tiêu chí mới:</span>
             <div className="flex flex-wrap gap-2">
               {supplementaryFiles.map(({ file, criteriaName }) => (
                 <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-2 py-1 text-xs text-info-foreground hover:bg-info/10 dark:text-info">

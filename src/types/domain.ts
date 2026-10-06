@@ -16,7 +16,7 @@ export interface CriteriaItem {
   deadline?: string;
   note?: string;
   order: number;
-  type?: 'Standard' | 'Supplementary';
+  type?: 'Standard' | 'Supplementary' | 'LateAdded';
   status?: 'Draft' | 'Applied' | 'Deleted';
   /** Tiêu chí đã áp dụng bị sửa sẽ bị khóa ở báo cáo địa phương. */
   updatedAt?: string;
