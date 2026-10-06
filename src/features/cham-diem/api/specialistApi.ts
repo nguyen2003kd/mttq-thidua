@@ -58,7 +58,7 @@ const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
 const FORWARD_LABELS: Record<ScoringRole, string> = {
   SCORER: 'Gửi Lãnh đạo ban',
   REVIEWER: 'Gửi Chuyên viên trưởng',
-  SPECIALIST: 'Gửi Lãnh đạo ban',
+  SPECIALIST: 'Duyệt hồ sơ',
 };
 
 const LOCK_REASONS: Record<ScoringRole, string> = {
@@ -83,6 +83,7 @@ export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null
     canRequestRevision: isActionable,
     /** Được thêm tiêu chí bổ sung — reviewer không chấm điểm nhưng vẫn được bổ sung. */
     canAddSupplementary: isActionable,
+    usesForwardingDialog: role !== 'SPECIALIST',
     isForwarded: !isActionable,
     disabledReason: LOCK_REASONS[role],
     forwardLabel: FORWARD_LABELS[role],
@@ -207,7 +208,7 @@ export const specialistApi = {
   listScoreHistories: (params?: { search?: string; wardCode?: string; from?: string; to?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SpecialistScoreHistoryApi>>({ url: '/api/v1/submissions/score-histories', method: 'GET', params }),
 
-  // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
+  // Approvals — duyệt hồ sơ theo stage và vai trò hiện tại
   approveSubmission: (submissionId: string, reason?: string) =>
     request<{ processed: boolean; submissionId: string; action: string }>({
       url: '/api/v1/submissions/approve',
