@@ -121,6 +121,11 @@ function formatDate(value: string | null): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+/** Số điện thoại Việt Nam: 10–11 số, bắt đầu bằng 0 — bỏ qua khoảng trắng, dấu chấm, gạch. */
+function isValidPhoneNumber(value: string): boolean {
+  return /^0\d{9,10}$/.test(value.replace(/[\s.\-()]/g, ''));
+}
+
 export default function UserManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   // SPECIALIST được xem danh sách và tạo tài khoản chấm; chỉ ADMIN/SYSTEM_ADMIN mới xóa/reset mật khẩu.
@@ -204,6 +209,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
     if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
     if (!fPhone.trim()) { toast.error('Vui lòng nhập số điện thoại.'); return; }
+    if (!isValidPhoneNumber(fPhone)) { toast.error('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
     if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
     if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
@@ -221,6 +227,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const handleEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+    if (ePhone.trim() && !isValidPhoneNumber(ePhone)) { toast.error('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
     updateMutation.mutate({
       id: selected.id,
       body: {
