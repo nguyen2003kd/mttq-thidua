@@ -39,7 +39,7 @@ const getCurrentLocalDateTime = () => {
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
   id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
   deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order,
-  type: criterion.type === 'Supplementary' ? 'Supplementary' : 'Standard', status: criterion.status,
+  type: criterion.type === 'Supplementary' ? 'Supplementary' : criterion.type === 'LateAdded' ? 'LateAdded' : 'Standard', status: criterion.status,
 });
 
 interface EditorProps {
@@ -110,7 +110,7 @@ export default function CriteriaChildrenPage() {
     },
     onError: (apiError) => toast.error(getCriteriaApiError(apiError)),
   });
-  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard' && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
+  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => (criterion.type === 'Standard' || criterion.type === 'LateAdded') && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
   const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
   const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
