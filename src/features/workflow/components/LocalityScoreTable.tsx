@@ -376,6 +376,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TooltipContent className="max-w-sm whitespace-normal break-words">{criterion.name}</TooltipContent>
         </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+        {criterion.type === 'LateAdded' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí mới</Badge>}
         {criterionDisabled && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
         {(revisionReason || revisionFiles.length > 0) && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>}
@@ -592,6 +593,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   specialistRevisionFiles,
   onPreviewRevisionFile,
   editableCriteriaIds,
+  scoreUnlockForNewCriteria,
   onCompletionChange,
   uploading,
   toolbar,
@@ -703,6 +705,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               specialistRevisionFiles={specialistRevisionFiles}
               onPreviewRevisionFile={onPreviewRevisionFile}
               editableCriteriaIds={editableCriteriaIds}
+              scoreUnlockForNewCriteria={scoreUnlockForNewCriteria}
               onCompletionChange={onCompletionChange}
               uploading={uploading}
               onSelect={onSelect}
