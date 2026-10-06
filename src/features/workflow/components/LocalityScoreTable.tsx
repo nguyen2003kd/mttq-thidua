@@ -42,6 +42,8 @@ interface LocalityScoreTableProps {
   onPreviewRevisionFile?: (file: SpecialistRevisionFile) => void;
   /** Khi có danh sách này, chỉ các tiêu chí được yêu cầu mới cho phép chỉnh sửa. */
   editableCriteriaIds?: ReadonlySet<string> | null;
+  /** Lần mở lại gần nhất do Chuyên viên thêm tiêu chí → mở ô điểm cho result mới chờ nhập lần đầu. */
+  scoreUnlockForNewCriteria?: boolean;
   onCompletionChange?: (criteriaId: string, complete: boolean) => void;
   uploading?: boolean;
   toolbar?: ReactNode;
@@ -155,6 +157,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   onPreviewRevisionFile,
   onPreviewEvidenceFile,
   editableCriteriaIds,
+  scoreUnlockForNewCriteria,
   onCompletionChange,
 }, ref) {
   const [score, setScore] = useState('');
@@ -210,6 +213,10 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
   const criterionDisabled = criterion.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';
   const locked = Boolean(criterionDisabled || entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
+  // Chỉ mở ô điểm khi lần mở lại gần nhất là do Chuyên viên thêm tiêu chí (nhóm đã áp dụng)
+  // và result đang chờ địa phương nhập điểm lần đầu — luồng yêu cầu chỉnh sửa thường vẫn giữ nguyên điểm.
+  const scoreFieldsEditable = !scoreFieldsLocked
+    || (scoreUnlockForNewCriteria && entry?.reviewStatus === 'RequiresRevision');
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const availableEvidenceSlots = Math.max(0, MAX_FILES_PER_CRITERION - standardFiles.length);
   const evidenceFileError = dialogFiles.some((file) => file.size > MAX_FILE_SIZE)
@@ -322,8 +329,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       }
       return true;
     }
-    const nextScoreError = scoreFieldsLocked ? '' : validateScore(score, criterion.maxScore, 'Điểm đề xuất', true);
-    const nextBonusScoreError = scoreFieldsLocked ? '' : validateScore(bonusScore, maxBonus, 'Điểm thưởng');
+    const nextScoreError = scoreFieldsEditable ? validateScore(score, criterion.maxScore, 'Điểm đề xuất', true) : '';
+    const nextBonusScoreError = scoreFieldsEditable ? validateScore(bonusScore, maxBonus, 'Điểm thưởng') : '';
     setScoreError(nextScoreError);
     setBonusScoreError(nextBonusScoreError);
     setExplanationError('');
@@ -344,8 +351,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const collect = (): EvidenceFormValue | null => {
     if (locked) return null;
-    const proposedScore = scoreFieldsLocked ? entry?.proposedScore ?? entry?.value ?? 0 : Number(score || 0);
-    const proposedBonusScore = scoreFieldsLocked ? entry?.proposedBonusScore ?? 0 : Number(bonusScore || 0);
+    const proposedScore = scoreFieldsEditable ? Number(score || 0) : entry?.proposedScore ?? entry?.value ?? 0;
+    const proposedBonusScore = scoreFieldsEditable ? Number(bonusScore || 0) : entry?.proposedBonusScore ?? 0;
     return {
       proposedScore: isSupplementary ? 0 : proposedScore,
       proposedBonusScore: isSupplementary ? 0 : proposedBonusScore,
@@ -385,7 +392,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <ScorePlaceholder label="Điểm đề xuất" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
-            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || scoreFieldsLocked || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
+            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || !scoreFieldsEditable || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
           </div>
         )}
@@ -396,7 +403,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <ScorePlaceholder label="Điểm thưởng" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
-            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || scoreFieldsLocked || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
+            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || !scoreFieldsEditable || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
           </div>
         )}

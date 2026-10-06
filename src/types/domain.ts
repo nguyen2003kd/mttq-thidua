@@ -78,6 +78,8 @@ export interface ScoreEntry {
   explanation?: string;
   /** Phản hồi gần nhất từ cấp xét duyệt. */
   revisionRequest?: string | null;
+  /** Trạng thái xét duyệt của result — RequiresRevision = result mới chờ địa phương nhập điểm lần đầu. */
+  reviewStatus?: string;
   /** Dòng bị khóa do tiêu chí đã áp dụng được sửa/xóa. */
   locked?: boolean;
   isSupplementary?: boolean;
