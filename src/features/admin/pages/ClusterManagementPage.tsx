@@ -210,6 +210,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
             className="h-9 w-64"
           />
         }
+        onClearFilters={() => setSearch('')}
         emptyState={{ title: 'Chưa có cụm', description: 'Tạo cụm đầu tiên để bắt đầu nhóm phường/xã.' }}
         toolbar={
           <Button size="sm" className="h-9!" onClick={() => { setFName(''); setFDescription(''); setFWardCodes([]); setFWardSearch(''); setCreateOpen(true); }} action="create">

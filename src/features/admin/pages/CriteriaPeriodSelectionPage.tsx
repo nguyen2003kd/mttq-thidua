@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ROUTES } from '@/constants/routes';
-import { getPeriodApiError, periodsApi, type PeriodApi, type PeriodPayload, type PeriodStatusApi } from '../api/periodsApi';
+import { comparePeriodStatus, getPeriodApiError, periodsApi, type PeriodApi, type PeriodPayload, type PeriodStatusApi } from '../api/periodsApi';
 
 const PERIOD_STATUS_LABELS: Record<PeriodStatusApi, string> = {
   Draft: 'Nháp',
@@ -200,22 +200,29 @@ export default function CriteriaPeriodSelectionPage({
     {
       accessorKey: 'startYear',
       header: 'Năm bắt đầu',
-      meta: { align: 'center', list: { width: '132px' } },
+      enableSorting: true,
+      sortDescFirst: false,
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
       accessorKey: 'endYear',
       header: 'Năm kết thúc',
-      meta: { align: 'center', list: { width: '132px' } },
+      enableSorting: true,
+      sortDescFirst: false,
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
       accessorKey: 'status',
       header: 'Trạng thái',
+      enableSorting: true,
+      sortDescFirst: false,
+      sortingFn: (rowA, rowB) => comparePeriodStatus(rowA.original.status, rowB.original.status),
       cell: ({ row }) => (
         <Badge className={PERIOD_STATUS_STYLES[row.original.status]}>
           {PERIOD_STATUS_LABELS[row.original.status]}
         </Badge>
       ),
-      meta: { align: 'center', list: { width: '160px' } },
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
   ], []);
 
