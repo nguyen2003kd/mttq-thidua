@@ -3,6 +3,17 @@ import { mainInstance } from '@/api/mutator/custom-instance';
 
 export type PeriodStatusApi = 'Draft' | 'Active' | 'Closed' | 'Published';
 
+const PERIOD_STATUS_ORDER: Record<PeriodStatusApi, number> = {
+  Active: 0,
+  Published: 1,
+  Draft: 2,
+  Closed: 3,
+};
+
+export function comparePeriodStatus(left: PeriodStatusApi, right: PeriodStatusApi) {
+  return PERIOD_STATUS_ORDER[left] - PERIOD_STATUS_ORDER[right];
+}
+
 export interface PeriodApi {
   id: string;
   startYear: number;

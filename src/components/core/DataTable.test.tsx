@@ -17,7 +17,18 @@ interface SearchRow {
   name: string;
 }
 
+interface PeriodSortRow {
+  startYear: number;
+}
+
 const columns: ColumnDef<SearchRow>[] = [{ accessorKey: 'name', header: 'Tên' }];
+const sortableYearColumn: ColumnDef<PeriodSortRow>[] = [{
+  accessorKey: 'startYear',
+  header: 'Năm bắt đầu',
+  enableSorting: true,
+  sortDescFirst: false,
+  meta: { sortable: true, list: { width: '132px' } },
+}];
 
 function SearchParam() {
   const { search } = useLocation();
@@ -75,5 +86,85 @@ describe('DataTable text filters', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
     expect(onFilterChange).toHaveBeenCalledWith('Cụm 1');
+  });
+
+  it('enables and applies the clear action when a clear handler is provided', () => {
+    const onFilterChange = vi.fn();
+    const onClearFilters = vi.fn();
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ name: 'Cụm 1' }]}
+          columns={columns}
+          filters={<FilterTextInput value="Cụm 1" onChange={onFilterChange} placeholder="Tìm tên cụm…" />}
+          onClearFilters={onClearFilters}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bộ lọc' }));
+    const clearButton = screen.getByRole('button', { name: 'Xóa lọc' });
+    expect(clearButton).toBeEnabled();
+    fireEvent.click(clearButton);
+
+    expect(onFilterChange).toHaveBeenCalledWith('');
+    expect(onClearFilters).toHaveBeenCalled();
+  });
+});
+
+describe('DataTable list sorting', () => {
+  it('sorts opted-in columns when their headers are clicked', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ startYear: 2024 }, { startYear: 1991 }]}
+          columns={sortableYearColumn}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    const header = screen.getByText('Năm bắt đầu');
+    fireEvent.click(header);
+    expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['1991', '2024']);
+
+    fireEvent.click(header);
+    expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['2024', '1991']);
+  });
+
+  it('resets column sorting when an external sort preset changes', async () => {
+    const data = [{ startYear: 2024 }, { startYear: 1991 }];
+    const { rerender } = render(
+      <MemoryRouter>
+        <DataTable
+          data={data}
+          columns={sortableYearColumn}
+          variant="list"
+          showPagination={false}
+          sortingResetKey="createdAt-desc"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText('Năm bắt đầu'));
+    await waitFor(() => {
+      expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['1991', '2024']);
+    });
+
+    rerender(
+      <MemoryRouter>
+        <DataTable
+          data={data}
+          columns={sortableYearColumn}
+          variant="list"
+          showPagination={false}
+          sortingResetKey="name-asc"
+        />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['2024', '1991']);
+    });
   });
 });

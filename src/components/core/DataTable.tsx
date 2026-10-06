@@ -66,6 +66,7 @@ export interface DataTableColumnMeta {
   /** Class chỉ áp dụng cho tiêu đề cột khi dùng biến thể danh sách. */
   headerClassName?: string;
   align?: 'left' | 'center' | 'right';
+  sortable?: boolean;
   /** Không tự bọc Tooltip cho ô có input, button, hoặc nội dung tương tác. */
   disableTooltip?: boolean;
   list?: {
@@ -131,6 +132,7 @@ export interface DataTableProps<TData, TValue = unknown> {
   enableColumnVisibility?: boolean;
   /** Khóa riêng để ghi nhớ cột đã ẩn/hiện trên từng bảng. */
   columnVisibilityStorageKey?: string;
+  sortingResetKey?: string;
 }
 
 /** Control chọn cột hiển thị trong dropdown Bộ lọc — nhận giá trị nháp (id cột hiển thị nối dấu phẩy), chỉ áp dụng khi bấm Xác nhận. */
@@ -217,6 +219,7 @@ export function DataTable<TData, TValue = unknown>({
   stickyDescription,
   enableColumnVisibility = true,
   columnVisibilityStorageKey,
+  sortingResetKey,
 }: DataTableProps<TData, TValue>) {
   const resolvedColumnVisibilityStorageKey = useMemo(
     () => columnVisibilityStorageKey ?? `${stickyTitle ?? 'table'}:${columns.map((column) => String(column.id ?? ('accessorKey' in column ? column.accessorKey : '') ?? '')).join('|')}`,
@@ -225,6 +228,7 @@ export function DataTable<TData, TValue = unknown>({
   const selectionCbRef = useRef(onRowSelectionChange);
   selectionCbRef.current = onRowSelectionChange;
   const [sorting, setSorting] = useState<SortingState>([]);
+  const sortingResetKeyRef = useRef(sortingResetKey);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
@@ -245,6 +249,11 @@ export function DataTable<TData, TValue = unknown>({
   useEffect(() => {
     setSearchInput(restoredSearch);
   }, [restoredSearch]);
+  useEffect(() => {
+    if (sortingResetKeyRef.current === sortingResetKey) return;
+    sortingResetKeyRef.current = sortingResetKey;
+    setSorting([]);
+  }, [sortingResetKey]);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
@@ -552,15 +561,19 @@ export function DataTable<TData, TValue = unknown>({
             return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const canSort = meta?.sortable === true && header.column.getCanSort();
+              const sortDirection = header.column.getIsSorted();
 
               return (
                 <div
                   key={header.id}
+                  onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                   className={cn(
                     'relative flex items-center min-w-0 h-12 px-4 box-border',
                     idx === 0 && 'pl-5',
                     idx === arr.length - 1 && 'pr-5',
                     alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
+                    canSort && 'cursor-pointer select-none hover:text-primary-foreground/75',
                     meta?.className,
                   )}
                 >
@@ -574,6 +587,17 @@ export function DataTable<TData, TValue = unknown>({
                       </Tooltip>
                     ) : headerContent;
                   })()}
+                  {canSort && (
+                    <span className="shrink-0 text-primary-foreground/50">
+                      {sortDirection === 'asc' ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : sortDirection === 'desc' ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronsUpDown className="h-3.5 w-3.5" />
+                      )}
+                    </span>
+                  )}
                   {idx < arr.length - 1 && (
                     <span className="absolute right-0 top-0 h-full border-r border-white/30" />
                   )}

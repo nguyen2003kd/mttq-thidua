@@ -187,7 +187,7 @@ const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | Submi
   REVIEWER: [
     { value: '', label: 'Tất cả' },
     { value: 'ScorerSubmitted', label: 'Đang chờ duyệt' },
-    { value: 'ReviewerRevisionRequested', label: 'Đang chờ duyệt' },
+    { value: 'ReviewerRevisionRequested', label: 'Chờ Lãnh đạo ban chỉnh sửa' },
     { value: 'ReviewerApproved', label: 'Đã duyệt' },
   ],
   SPECIALIST: [

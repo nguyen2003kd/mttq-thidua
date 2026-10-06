@@ -350,10 +350,11 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           </div>
         }
         activeFilters={[
+          ...(search.trim() ? [{ label: 'Tìm kiếm', value: search.trim(), onClear: () => setSearch('') }] : []),
           ...(statusFilter ? [{ label: 'Trạng thái', value: statusLabels[statusFilter] ?? statusFilter, onClear: () => setStatusFilter('') }] : []),
           ...(roleFilter ? [{ label: 'Vai trò', value: roleLabels[roleFilter] ?? roleFilter, onClear: () => setRoleFilter('') }] : []),
         ]}
-        onClearFilters={() => { setStatusFilter(''); setRoleFilter(''); }}
+        onClearFilters={() => { setSearch(''); setStatusFilter(''); setRoleFilter(''); }}
         emptyState={{
           title: 'Chưa có tài khoản',
           description: 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',

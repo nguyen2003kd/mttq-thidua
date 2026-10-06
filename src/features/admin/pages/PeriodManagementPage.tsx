@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
+  comparePeriodStatus,
   periodsApi,
   getPeriodApiError,
   type PeriodApi,
@@ -118,20 +119,27 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
     {
       accessorKey: 'startYear',
       header: 'Năm bắt đầu',
-      meta: { align: 'center', list: { width: '150px' } },
+      enableSorting: true,
+      sortDescFirst: false,
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
       accessorKey: 'endYear',
       header: 'Năm kết thúc',
-      meta: { align: 'center', list: { width: '150px' } },
+      enableSorting: true,
+      sortDescFirst: false,
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
       accessorKey: 'status',
       header: 'Trạng thái',
+      enableSorting: true,
+      sortDescFirst: false,
+      sortingFn: (rowA, rowB) => comparePeriodStatus(rowA.original.status, rowB.original.status),
       cell: ({ row }) => (
         <Badge className={STATUS_BADGE[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
       ),
-      meta: { list: { width: '150px' } },
+      meta: { sortable: true, list: { width: '150px' } },
     },
   ], []);
 
@@ -220,6 +228,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
             className="h-9 w-64"
           />
         }
+        onClearFilters={() => setSearch('')}
         emptyState={search.trim()
           ? { title: 'Không tìm thấy kỳ thi đua', description: 'Thử từ khóa khác.' }
           : { title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ đầu tiên để gắn nhóm tiêu chí.' }}
