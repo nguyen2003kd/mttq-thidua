@@ -335,6 +335,8 @@ export default function LocalityCriteriaPage() {
         id: 'submissionStage',
         accessorFn: (row) => getSubmissionStageLabel(row.submissionStage),
         header: 'Trạng thái hồ sơ',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => {
           const badge = getSubmissionStageBadge(row.original.submissionStage);
           return (
@@ -344,28 +346,36 @@ export default function LocalityCriteriaPage() {
             </Badge>
           );
         },
-        meta: { list: { label: 'Trạng thái hồ sơ', width: 'minmax(170px, 1fr)' } },
+        meta: { sortable: true, list: { label: 'Trạng thái hồ sơ', width: 'minmax(170px, 1fr)' } },
       },
       {
         accessorKey: 'closeDate',
         header: 'Hạn nộp',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
-        meta: { list: { label: 'Hạn nộp', width: 'minmax(115px, .72fr)' } },
+        meta: { sortable: true, list: { label: 'Hạn nộp', width: 'minmax(115px, .72fr)' } },
       },
       {
         accessorKey: 'totalScore',
         header: 'Điểm tổng',
-        meta: { align: 'right', list: { label: 'Điểm tổng', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        meta: { align: 'right', sortable: true, list: { label: 'Điểm tổng', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
       },
       {
         accessorKey: 'totalBonusScore',
         header: 'Tổng điểm thưởng',
-        meta: { align: 'right', list: { label: 'Tổng điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
       {
         accessorKey: 'totalWithBonus',
         header: 'Tổng điểm + thưởng',
-        meta: { align: 'right', list: { label: 'Tổng điểm + thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm + thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
     ],
     [],

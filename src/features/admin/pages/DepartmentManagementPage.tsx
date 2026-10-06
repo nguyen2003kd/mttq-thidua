@@ -227,6 +227,7 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
             className="h-9 w-64"
           />
         }
+        onClearFilters={() => setSearch('')}
         emptyState={search.trim()
           ? { title: 'Không tìm thấy ban', description: 'Thử từ khóa khác.' }
           : { title: 'Chưa có ban', description: 'Tạo ban đầu tiên để bắt đầu phân công.' }}

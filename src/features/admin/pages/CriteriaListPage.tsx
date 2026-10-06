@@ -194,12 +194,15 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'name',
         header: LABELS.CRITERIA_TABLE_NAME,
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.name} className="w-full max-w-full font-medium" />
         ),
         meta: {
           className: 'font-medium',
           disableTooltip: true,
+          sortable: true,
           list: { width: 'minmax(220px, 1.5fr)' },
         },
       },
@@ -207,55 +210,72 @@ export default function CriteriaListPage() {
         id: 'departmentName',
         accessorFn: (row) => row.departmentName ?? '',
         header: 'Ban xử lý',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.departmentName} className="w-full max-w-full" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
+        meta: { disableTooltip: true, sortable: true, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
       {
         id: 'periodName',
         accessorFn: (row) => row.periodName ?? '',
         header: 'Kỳ',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.periodName} className="w-full max-w-full" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Kỳ', width: '110px' } },
+        meta: { disableTooltip: true, sortable: true, list: { label: 'Kỳ', width: '110px' } },
       },
       {
         id: 'content',
         accessorFn: (row) => row.content ?? row.criteria.map((criteria) => criteria.name).join(' '),
         header: 'Nội dung tiêu chí',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.content} className="w-full max-w-[280px] text-sm text-muted-foreground" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
+        meta: { disableTooltip: true, sortable: true, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
       {
         accessorKey: 'closeDate',
         header: 'Hạn nộp',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
         meta: {
+          sortable: true,
           list: { label: 'Hạn nộp', width: '1fr' },
         },
       },
       {
         accessorKey: 'totalScore',
         header: LABELS.CRITERIA_TOTAL_SCORE,
+        enableSorting: true,
+        sortDescFirst: false,
         meta: {
+          sortable: true,
           list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '1fr', valueClassName: 'text-primary' },
         },
       },
       {
         accessorKey: 'note',
         header: 'Ghi chú',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
+        meta: { disableTooltip: true, sortable: true, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
       {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
+        enableSorting: true,
+        sortDescFirst: false,
+        sortingFn: (rowA, rowB) => CRITERIA_STATUS_LABELS[rowA.original.status].localeCompare(CRITERIA_STATUS_LABELS[rowB.original.status], 'vi'),
         cell: ({ row }) =>
           row.original.status === 'ACTIVE'
             ? <Badge className="bg-success/15 text-success">Đã áp dụng</Badge>
@@ -265,12 +285,15 @@ export default function CriteriaListPage() {
               ? <Badge className="bg-primary/5 text-muted-foreground">Đã kết thúc</Badge>
               : <Badge className="bg-primary/5 text-muted-foreground">Nháp</Badge>,
         meta: {
+          sortable: true,
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
         },
       },
       {
         accessorKey: 'updatedAt',
         header: 'Cập nhật lần cuối',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText
             value={row.original.updatedAt ? formatDateTime(row.original.updatedAt) : 'Chưa cập nhật'}
@@ -279,6 +302,7 @@ export default function CriteriaListPage() {
         ),
         meta: {
           disableTooltip: true,
+          sortable: true,
           list: { label: 'Cập nhật lần cuối', width: 'minmax(168px, 1fr)', valueClassName: 'text-muted-foreground tabular-nums' },
         },
       },
@@ -530,6 +554,7 @@ export default function CriteriaListPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
+        sortingResetKey={sort}
         onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
         filters={

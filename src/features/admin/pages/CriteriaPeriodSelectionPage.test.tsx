@@ -173,4 +173,36 @@ describe('CriteriaPeriodSelectionPage', () => {
       });
     });
   });
+
+  it('sorts periods with active then published statuses first', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    const periods: PeriodApi[] = [
+      { ...period, id: 'draft', name: 'Kỳ nháp', status: 'Draft' },
+      { ...period, id: 'published', name: 'Kỳ đã công bố', status: 'Published' },
+      { ...period, id: 'closed', name: 'Kỳ đã kết thúc', status: 'Closed' },
+      { ...period, id: 'active', name: 'Kỳ đang áp dụng', status: 'Active' },
+    ];
+    vi.spyOn(periodsApi, 'listAll').mockResolvedValue(periods);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/chuyen-vien/tieu-chi?view=periods']}>
+          <CriteriaPeriodSelectionPage readOnly />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Kỳ nháp');
+    fireEvent.click(screen.getByText('Trạng thái'));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/^Kỳ (đang áp dụng|đã công bố|nháp|đã kết thúc)$/).map((item) => item.textContent)).toEqual([
+        'Kỳ đang áp dụng',
+        'Kỳ đã công bố',
+        'Kỳ nháp',
+        'Kỳ đã kết thúc',
+      ]);
+    });
+  });
 });
