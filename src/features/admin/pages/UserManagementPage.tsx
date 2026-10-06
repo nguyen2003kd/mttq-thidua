@@ -6,7 +6,7 @@ import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } fro
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -24,6 +24,7 @@ import {
 } from '@/api/endpoints/users';
 import type { CreateUserRequest, UpdateUserRequest } from '@/api/models';
 import { departmentsApi } from '../api/departmentsApi';
+import { isValidVietnamesePhoneNumber as isValidPhoneNumber } from '../userValidation';
 import { useAuthStore } from '@/store/authStore';
 
 // Swagger gen chưa cập nhật fullName/departmentId — mở rộng local cho tới khi chạy lại gen:api.
@@ -121,11 +122,6 @@ function formatDate(value: string | null): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-/** Số điện thoại Việt Nam: 10–11 số, bắt đầu bằng 0 — bỏ qua khoảng trắng, dấu chấm, gạch. */
-function isValidPhoneNumber(value: string): boolean {
-  return /^0\d{9,10}$/.test(value.replace(/[\s.\-()]/g, ''));
-}
-
 export default function UserManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   // SPECIALIST được xem danh sách và tạo tài khoản chấm; chỉ ADMIN/SYSTEM_ADMIN mới xóa/reset mật khẩu.
@@ -183,11 +179,13 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const [fUsername, setFUsername] = useState('');
   const [fFullName, setFFullName] = useState('');
   const [fPhone, setFPhone] = useState('');
+  const [fPhoneError, setFPhoneError] = useState('');
   const [fRole, setFRole] = useState('');
   const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
   const [ePhone, setEPhone] = useState('');
+  const [ePhoneError, setEPhoneError] = useState('');
   const [eWardCode, setEWardCode] = useState('');
   const [eStatus, setEStatus] = useState('Active');
   const [eDepartment, setEDepartment] = useState('');
@@ -198,6 +196,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     setSelected(u);
     setEFullName(u.fullName ?? '');
     setEPhone(u.phone ?? '');
+    setEPhoneError('');
     setEWardCode(u.wardCode ?? '');
     setEStatus(u.status || 'Active');
     setEDepartment(u.departmentId ?? '');
@@ -208,8 +207,9 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
     if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
-    if (!fPhone.trim()) { toast.error('Vui lòng nhập số điện thoại.'); return; }
-    if (!isValidPhoneNumber(fPhone)) { toast.error('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
+    if (!fPhone.trim()) { setFPhoneError('Vui lòng nhập số điện thoại.'); return; }
+    if (!isValidPhoneNumber(fPhone)) { setFPhoneError('Số điện thoại không hợp lệ'); return; }
+    setFPhoneError('');
     if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
     if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
@@ -227,7 +227,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const handleEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
-    if (ePhone.trim() && !isValidPhoneNumber(ePhone)) { toast.error('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
+    if (ePhone.trim() && !isValidPhoneNumber(ePhone)) { setEPhoneError('Số điện thoại không hợp lệ'); return; }
+    setEPhoneError('');
     updateMutation.mutate({
       id: selected.id,
       body: {
@@ -361,7 +362,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         }}
         toolbar={
           canCreateAccounts ? (
-            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFPhoneError(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
               <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
             </Button>
           ) : undefined
@@ -394,7 +395,23 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="u-phone">Số điện thoại <span className="text-destructive">*</span></Label>
-          <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
+          <Input
+            id="u-phone"
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            aria-invalid={Boolean(fPhoneError)}
+            aria-describedby={fPhoneError ? 'u-phone-error' : undefined}
+            value={fPhone}
+            onChange={(e) => { setFPhone(e.target.value); setFPhoneError(''); }}
+            placeholder="0901234567"
+          />
+          {fPhoneError && (
+            <p id="u-phone-error" role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+              <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+              {fPhoneError}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -444,7 +461,22 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="e-phone">Số điện thoại</Label>
-            <Input id="e-phone" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
+            <Input
+              id="e-phone"
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              aria-invalid={Boolean(ePhoneError)}
+              aria-describedby={ePhoneError ? 'e-phone-error' : undefined}
+              value={ePhone}
+              onChange={(e) => { setEPhone(e.target.value); setEPhoneError(''); }}
+            />
+            {ePhoneError && (
+              <p id="e-phone-error" role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+                {ePhoneError}
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="e-ward">Mã phường/xã</Label>
