@@ -17,7 +17,7 @@ export interface CriteriaItem {
   note?: string;
   order: number;
   type?: 'Standard' | 'Supplementary';
-  status?: 'Draft' | 'Applied';
+  status?: 'Draft' | 'Applied' | 'Deleted';
   /** Tiêu chí đã áp dụng bị sửa sẽ bị khóa ở báo cáo địa phương. */
   updatedAt?: string;
 }
@@ -46,6 +46,12 @@ export interface CriteriaTable {
   /** Nội dung/mô tả của nhóm tiêu chí. */
   content?: string;
   status: CriteriaTableStatus;
+  /** Ban (department) phụ trách xử lý nhóm tiêu chí. */
+  departmentId?: string;
+  departmentName?: string;
+  /** Kỳ thi đua mà nhóm tiêu chí thuộc về. */
+  periodId?: string;
+  periodName?: string;
   criteria: CriteriaItem[];
   assignedLocalityCount: number;
   assignmentAttachments?: CriteriaTableAttachment[];
@@ -60,6 +66,7 @@ export interface ScoreEntry {
   id: string;
   criteriaId: string;
   criteriaName: string;
+  criteriaStatus?: 'Draft' | 'Applied' | 'Deleted';
   value: number;
   state: ScoreState;
   scoredBy: string;
@@ -71,6 +78,8 @@ export interface ScoreEntry {
   explanation?: string;
   /** Phản hồi gần nhất từ cấp xét duyệt. */
   revisionRequest?: string | null;
+  /** Trạng thái xét duyệt của result — RequiresRevision = result mới chờ địa phương nhập điểm lần đầu. */
+  reviewStatus?: string;
   /** Dòng bị khóa do tiêu chí đã áp dụng được sửa/xóa. */
   locked?: boolean;
   isSupplementary?: boolean;

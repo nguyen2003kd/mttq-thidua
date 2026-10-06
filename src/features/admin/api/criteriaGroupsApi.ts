@@ -3,7 +3,7 @@ import { mainInstance } from '@/api/mutator/custom-instance';
 
 export type CriteriaGroupStatusApi = 'Draft' | 'Applied' | 'Closed' | 'Published';
 
-export type CriteriaStatusApi = 'Draft' | 'Applied';
+export type CriteriaStatusApi = 'Draft' | 'Applied' | 'Deleted';
 
 export interface CriteriaApi {
   id: string;
@@ -46,6 +46,10 @@ export interface CriteriaGroupApi {
   maxPoint: number;
   deadline: string | null;
   status: CriteriaGroupStatusApi;
+  departmentId: string | null;
+  departmentName: string | null;
+  periodId: string | null;
+  periodName: string | null;
   createdAt: string;
   updatedAt: string | null;
   criteria: CriteriaApi[];
@@ -72,9 +76,12 @@ interface ApiEnvelope<T> {
 
 export interface CriteriaGroupPayload {
   name: string;
-  content?: string;
+  content?: string | null;
   maxPoint: number;
   deadline?: string | null;
+  departmentId?: string | null;
+  /** Bắt buộc khi tạo mới nhóm tiêu chí. */
+  periodId?: string;
 }
 
 export interface CriteriaPayload {
@@ -99,6 +106,7 @@ export const criteriaGroupsApi = {
   list: (params?: {
     search?: string;
     status?: CriteriaGroupStatusApi;
+    periodId?: string;
     page?: number;
     pageSize?: number;
     sortBy?: CriteriaGroupSortBy;
@@ -123,7 +131,9 @@ export const criteriaGroupsApi = {
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'POST', data: { criteriaGroupId, items } }),
   updateCriteria: (id: string, payload: Omit<CriteriaPayload, 'type'> & { changeReason?: string }) =>
     request<CriteriaApi>({ url: `/api/v1/criteria/${id}`, method: 'PUT', data: payload }),
-  bulkUpdateStatus: (criteriaIds: string[], status: CriteriaStatusApi) =>
+  deleteCriteria: (id: string) =>
+    request<CriteriaGroupApi>({ url: `/api/v1/criteria/${id}`, method: 'DELETE' }),
+  bulkUpdateStatus: (criteriaIds: string[], status: Exclude<CriteriaStatusApi, 'Deleted'>) =>
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'PUT', data: { criteriaIds, status } }),
 };
 

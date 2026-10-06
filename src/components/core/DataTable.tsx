@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, isValidElement, type CSSProperties, type ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   useReactTable,
   getCoreRowModel,
@@ -65,6 +66,7 @@ export interface DataTableColumnMeta {
   /** Class chỉ áp dụng cho tiêu đề cột khi dùng biến thể danh sách. */
   headerClassName?: string;
   align?: 'left' | 'center' | 'right';
+  sortable?: boolean;
   /** Không tự bọc Tooltip cho ô có input, button, hoặc nội dung tương tác. */
   disableTooltip?: boolean;
   list?: {
@@ -81,10 +83,14 @@ export interface DataTableProps<TData, TValue = unknown> {
   loading?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Giá trị ban đầu của ô tìm kiếm, dùng khi khôi phục bộ lọc từ URL. */
+  initialSearchValue?: string;
   searchKey?: string;
-  /** Nhận giá trị tìm kiếm đã debounce để gọi API phía server khi cần. */
+  /** Nhận giá trị tìm kiếm đã debounce để gọi API phía server; tắt lọc tìm kiếm trên FE. */
   onSearchChange?: (value: string) => void;
   filters?: ReactNode;
+  /** Bộ lọc hiển thị ngay cạnh nút Bộ lọc, áp dụng trực tiếp khi chọn. */
+  inlineFilters?: ReactNode;
   /** Chip hiển thị các bộ lọc đang bật, kèm nút bỏ từng cái */
   activeFilters?: { label: string; value: string; onClear: () => void }[];
   /** Hiện link "Xóa tất cả" cạnh hàng chip */
@@ -110,6 +116,10 @@ export interface DataTableProps<TData, TValue = unknown> {
   selectedRowId?: string;
   /** Class áp dụng cho thẻ table bên trong, ví dụ min-width / table-fixed. */
   tableClassName?: string;
+  /** Tách header khỏi vùng cuộn ngang để header vẫn sticky theo trang. */
+  detachedStickyHeader?: boolean;
+  /** Bỏ bo góc trên của khung bảng — dùng khi có khối header riêng nằm ngay phía trên (vd LocalityScoreTable). */
+  flatTop?: boolean;
   /** Class cho vùng cuộn ngang chỉ của bảng, không làm toolbar hay footer bị tràn. */
   tableWrapperClassName?: string;
   /** Class cho container được tạo bên trong component Table. */
@@ -122,6 +132,7 @@ export interface DataTableProps<TData, TValue = unknown> {
   enableColumnVisibility?: boolean;
   /** Khóa riêng để ghi nhớ cột đã ẩn/hiện trên từng bảng. */
   columnVisibilityStorageKey?: string;
+  sortingResetKey?: string;
 }
 
 /** Control chọn cột hiển thị trong dropdown Bộ lọc — nhận giá trị nháp (id cột hiển thị nối dấu phẩy), chỉ áp dụng khi bấm Xác nhận. */
@@ -178,9 +189,11 @@ export function DataTable<TData, TValue = unknown>({
   loading = false,
   searchable = false,
   searchPlaceholder = 'Tìm kiếm...',
+  initialSearchValue = '',
   searchKey,
   onSearchChange,
   filters,
+  inlineFilters,
   activeFilters,
   onClearFilters,
   pageSize = 10,
@@ -196,6 +209,8 @@ export function DataTable<TData, TValue = unknown>({
   getRowId,
   selectedRowId,
   tableClassName,
+  detachedStickyHeader = false,
+  flatTop = false,
   tableWrapperClassName,
   tableContainerClassName,
   footer,
@@ -204,6 +219,7 @@ export function DataTable<TData, TValue = unknown>({
   stickyDescription,
   enableColumnVisibility = true,
   columnVisibilityStorageKey,
+  sortingResetKey,
 }: DataTableProps<TData, TValue>) {
   const resolvedColumnVisibilityStorageKey = useMemo(
     () => columnVisibilityStorageKey ?? `${stickyTitle ?? 'table'}:${columns.map((column) => String(column.id ?? ('accessorKey' in column ? column.accessorKey : '') ?? '')).join('|')}`,
@@ -212,6 +228,7 @@ export function DataTable<TData, TValue = unknown>({
   const selectionCbRef = useRef(onRowSelectionChange);
   selectionCbRef.current = onRowSelectionChange;
   const [sorting, setSorting] = useState<SortingState>([]);
+  const sortingResetKeyRef = useRef(sortingResetKey);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
@@ -222,14 +239,27 @@ export function DataTable<TData, TValue = unknown>({
       return {};
     }
   });
+  const {
+    filters: { search: restoredSearch },
+    setters: { search: setPersistedSearch },
+  } = useQueryFilters({ search: initialSearchValue });
   const [globalFilter, setGlobalFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState(restoredSearch);
   const debouncedSearchInput = useDebounce(searchInput, 300);
+  useEffect(() => {
+    setSearchInput(restoredSearch);
+  }, [restoredSearch]);
+  useEffect(() => {
+    if (sortingResetKeyRef.current === sortingResetKey) return;
+    sortingResetKeyRef.current = sortingResetKey;
+    setSorting([]);
+  }, [sortingResetKey]);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderInnerRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
-  const hasToolbar = Boolean(searchable || filters || toolbar || enableColumnVisibility);
+  const hasToolbar = Boolean(searchable || filters || inlineFilters || toolbar || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
 
@@ -305,6 +335,7 @@ export function DataTable<TData, TValue = unknown>({
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
+    manualFiltering: Boolean(onSearchChange),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -331,16 +362,22 @@ export function DataTable<TData, TValue = unknown>({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
   }, [rowSelection]);
 
-  // Chỉ lọc bảng hoặc gọi API sau khi người dùng ngừng gõ.
+  // Tìm kiếm qua API và lọc trên FE là hai chế độ loại trừ nhau.
   useEffect(() => {
+    if (!searchable) return;
+    const searchValue = debouncedSearchInput.trim();
+    setPersistedSearch(searchValue);
+    if (onSearchChange) {
+      onSearchChange(searchValue);
+      return;
+    }
     if (searchKey) {
       table.getColumn(searchKey)?.setFilterValue(debouncedSearchInput || undefined);
     } else {
       setGlobalFilter(debouncedSearchInput);
     }
-    onSearchChange?.(debouncedSearchInput.trim());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `table` là ref ổn định từ useReactTable
-  }, [debouncedSearchInput, searchKey, onSearchChange]);
+  }, [debouncedSearchInput, searchKey, onSearchChange, searchable, setPersistedSearch]);
 
   const visibleColumns = table.getVisibleLeafColumns();
   const toggleableColumns = table.getAllLeafColumns().filter((column) => column.getCanHide());
@@ -375,6 +412,8 @@ export function DataTable<TData, TValue = unknown>({
   }, 0);
 
   const totalRows = table.getRowCount();
+  /** Pagination chỉ hiển thị khi đủ điều kiện — giữ đồng bộ với renderPagination. */
+  const showPaginationBar = showPagination && !loading && totalRows > 0;
   const pageIndex = table.getState().pagination.pageIndex;
   const pageSizeState = table.getState().pagination.pageSize;
   const startRow = totalRows === 0 ? 0 : pageIndex * pageSizeState + 1;
@@ -383,7 +422,7 @@ export function DataTable<TData, TValue = unknown>({
   const renderPagination = () => {
     if (!showPagination || loading || totalRows === 0) return null;
     return (
-      <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1">
+      <div className={cn('flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1', (variant === 'list' || !footer) && 'rounded-b-[calc(var(--radius)_-_1px)]')}>
         <div className="text-xs text-muted-foreground">
           {enableRowSelection && table.getSelectedRowModel().rows.length > 0 && (
             <span className="mr-3">
@@ -431,17 +470,87 @@ export function DataTable<TData, TValue = unknown>({
     );
   };
 
+  const renderDetachedColGroup = () => (
+    <colgroup>
+      {table.getVisibleLeafColumns().map((column) => (
+        <col key={column.id} style={{ width: `${column.getSize()}px` }} />
+      ))}
+    </colgroup>
+  );
+
+  const renderTableHeader = (sticky: boolean) => (
+    <TableHeader>
+      {table.getHeaderGroups().map((headerGroup) => {
+        const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
+        return (
+          <TableRow
+            key={headerGroup.id}
+            style={sticky ? { '--toolbar-height': `${toolbarHeight}px` } as CSSProperties : undefined}
+            className={cn(
+              sticky && 'sticky top-[var(--toolbar-height)] z-20',
+              'border-border/40 bg-primary shadow-[0_2px_0_rgba(0,100,143,0.22)] hover:bg-transparent',
+            )}
+          >
+            {visibleHeaders.map((header, idx) => {
+              const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
+              const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const headerContent = flexRender(header.column.columnDef.header, header.getContext());
+              const headerText = extractCellText(headerContent).trim();
+
+              return (
+                <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', meta?.className)}>
+                  {header.isPlaceholder ? null : (
+                    <div
+                      className={cn(
+                        'flex items-center gap-1.5',
+                        header.column.getCanSort() && 'cursor-pointer select-none hover:text-primary-foreground/75',
+                        alignClass === 'text-right' && 'justify-end',
+                        alignClass === 'text-center' && 'justify-center',
+                      )}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {headerText ? (
+                        <Tooltip>
+                          <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                          <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
+                        </Tooltip>
+                      ) : headerContent}
+                      {header.column.getCanSort() && (
+                        <span className="text-primary-foreground/50">
+                          {header.column.getIsSorted() === 'asc' ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          ) : header.column.getIsSorted() === 'desc' ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronsUpDown className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </TableHead>
+              );
+            })}
+          </TableRow>
+        );
+      })}
+    </TableHeader>
+  );
+
   const renderList = () => {
     return (
       <>
         {/* Header nằm ngoài vùng cuộn ngang để sticky theo vùng cuộn trang. */}
         <div
-          className="sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)]"
+          className={cn(
+            'sticky top-[var(--toolbar-height)] z-20 overflow-hidden bg-primary shadow-[0_2px_0_rgba(0,100,143,0.22)]',
+            !hasToolbar && 'rounded-t-[calc(var(--radius)_-_1px)]',
+          )}
           style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties}
         >
           <div
             ref={listHeaderInnerRef}
-            className="grid gap-0 text-xs font-semibold text-primary-foreground will-change-transform"
+            className="grid gap-0 text-sm font-semibold text-primary-foreground will-change-transform"
             style={{
               gridTemplateColumns: listGridTemplate,
               minWidth: listMinWidth ? `${listMinWidth}px` : undefined,
@@ -452,15 +561,19 @@ export function DataTable<TData, TValue = unknown>({
             return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const canSort = meta?.sortable === true && header.column.getCanSort();
+              const sortDirection = header.column.getIsSorted();
 
               return (
                 <div
                   key={header.id}
+                  onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                   className={cn(
                     'relative flex items-center min-w-0 h-12 px-4 box-border',
                     idx === 0 && 'pl-5',
                     idx === arr.length - 1 && 'pr-5',
                     alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
+                    canSort && 'cursor-pointer select-none hover:text-primary-foreground/75',
                     meta?.className,
                   )}
                 >
@@ -474,6 +587,17 @@ export function DataTable<TData, TValue = unknown>({
                       </Tooltip>
                     ) : headerContent;
                   })()}
+                  {canSort && (
+                    <span className="shrink-0 text-primary-foreground/50">
+                      {sortDirection === 'asc' ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : sortDirection === 'desc' ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronsUpDown className="h-3.5 w-3.5" />
+                      )}
+                    </span>
+                  )}
                   {idx < arr.length - 1 && (
                     <span className="absolute right-0 top-0 h-full border-r border-white/30" />
                   )}
@@ -496,10 +620,10 @@ export function DataTable<TData, TValue = unknown>({
         {/* Body */}
         {loading ? (
           <div>
-            {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+            {Array.from({ length: Math.min(pageSize, 5) }).map((_, i, arr) => (
               <div
                 key={`list-skeleton-${i}`}
-                className="grid items-center gap-0 bg-card"
+                className={cn('grid items-center gap-0 bg-card', i === arr.length - 1 && 'rounded-b-[calc(var(--radius)_-_1px)]')}
                 style={{ gridTemplateColumns: listGridTemplate }}
               >
                 {visibleColumns.map((col, sIdx) => (
@@ -514,7 +638,7 @@ export function DataTable<TData, TValue = unknown>({
             ))}
           </div>
         ) : table.getRowModel().rows.length === 0 ? (
-          <div className="bg-card p-10">
+          <div className="rounded-b-[calc(var(--radius)_-_1px)] bg-card p-10">
             {emptyState ? (
               <EmptyState
                 title={emptyState.title}
@@ -538,6 +662,7 @@ export function DataTable<TData, TValue = unknown>({
                 onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(row.original) : undefined}
                 className={cn(
                   'relative z-0 grid items-center gap-0 border-b border-border/40 bg-card transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-muted',
+                  !showPaginationBar && 'last:rounded-b-[calc(var(--radius)_-_1px)]',
                   (enableRowSelection || onRowClick) && 'cursor-pointer',
                   (row.getIsSelected() || row.id === selectedRowId) && 'bg-primary/10',
                 )}
@@ -564,11 +689,11 @@ export function DataTable<TData, TValue = unknown>({
                     >
                       {text ? (
                         <Tooltip>
-                          <TooltipTrigger render={<span className={cn('truncate text-sm', list?.valueClassName)} />}>{value}</TooltipTrigger>
+                          <TooltipTrigger render={<span className={cn('truncate text-[15px]', list?.valueClassName)} />}>{value}</TooltipTrigger>
                           <TooltipContent className="max-w-80 whitespace-normal">{text}</TooltipContent>
                         </Tooltip>
                       ) : (
-                        <span className={cn('truncate text-sm', list?.valueClassName)}>{value}</span>
+                        <span className={cn('truncate text-[15px]', list?.valueClassName)}>{value}</span>
                       )}
                       {idx < arr.length - 1 && (
                         <span className="absolute right-0 top-0 h-full border-r border-primary/15" />
@@ -589,6 +714,96 @@ export function DataTable<TData, TValue = unknown>({
     );
   };
 
+  const groupedStickyHeader = detachedStickyHeader && variant === 'table';
+
+  const renderToolbar = (sticky: boolean) => hasToolbar ? (
+    <div
+      ref={toolbarRef}
+      className={cn(
+        sticky && 'sticky top-0 z-30',
+        groupedStickyHeader ? 'bg-background' : 'bg-background/95 backdrop-blur-sm',
+        'flex flex-wrap items-center gap-2 border-b border-border px-4 py-3',
+        !flatTop && 'rounded-t-[calc(var(--radius)_-_1px)]',
+      )}
+    >
+      {searchable && (
+        <div className={cn('relative w-full max-w-[300px] flex-1', inlineFilters && 'sm:min-w-[220px]')}>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              aria-label="Xóa tìm kiếm"
+              className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+      {filters && (
+        <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
+          {filters}
+          {showColumnVisibility && (
+            <ColumnVisibilityDraftControl
+              value={visibleToggleableColumns.map((column) => column.id).join(',')}
+              onChange={applyColumnVisibility}
+              items={columnVisibilityItems.map(({ column, label }) => ({ id: column.id, label }))}
+            />
+          )}
+        </FilterDropdown>
+      )}
+      {inlineFilters}
+      <div className={cn('ml-auto flex items-center gap-2', inlineFilters && 'flex-wrap justify-end')}>
+        {!filters && showColumnVisibility && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
+              <SlidersHorizontal className="size-4" /> Cột hiển thị
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Chọn cột hiển thị</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {columnVisibilityItems.map(({ column, label }) => {
+                  const visible = column.getIsVisible();
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={visible}
+                      disabled={visible && visibleToggleableColumns.length === 1}
+                      onCheckedChange={(checked) => column.toggleVisibility(Boolean(checked))}
+                    >
+                      {label}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {toolbar}
+      </div>
+    </div>
+  ) : null;
+
+  const renderDetachedHeader = () => (
+    <div className="overflow-hidden bg-primary">
+      <div ref={tableHeaderInnerRef} className="will-change-transform">
+        <Table className={tableClassName} containerClassName="!overflow-visible">
+          {renderDetachedColGroup()}
+          {renderTableHeader(false)}
+        </Table>
+      </div>
+    </div>
+  );
+
   return (
     <TooltipProvider delay={300}>
       <div className={cn('relative flex flex-col', className)}>
@@ -596,130 +811,29 @@ export function DataTable<TData, TValue = unknown>({
       <div ref={sentinelRef} className="absolute top-0 h-px w-full" aria-hidden="true" />
 
       {/* Unified container: toolbar + chips + table */}
-      <div className="overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
-      {/* Toolbar */}
-      {hasToolbar && (
-        <div ref={toolbarRef} className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
-          {searchable && (
-            <div className="relative w-full max-w-[300px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={searchPlaceholder}
-                className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => setSearchInput('')}
-                  aria-label="Xóa tìm kiếm"
-                  className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          )}
-          {filters && (
-            <FilterDropdown activeCount={activeFilters?.length ?? 0} activeFilters={activeFilters} onClear={onClearFilters}>
-              {filters}
-              {showColumnVisibility && (
-                <ColumnVisibilityDraftControl
-                  value={visibleToggleableColumns.map((column) => column.id).join(',')}
-                  onChange={applyColumnVisibility}
-                  items={columnVisibilityItems.map(({ column, label }) => ({ id: column.id, label }))}
-                />
-              )}
-            </FilterDropdown>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            {!filters && showColumnVisibility && (
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" />}>
-                  <SlidersHorizontal className="size-4" /> Cột hiển thị
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>Chọn cột hiển thị</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {columnVisibilityItems.map(({ column, label }) => {
-                      const visible = column.getIsVisible();
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={column.id}
-                          checked={visible}
-                          disabled={visible && visibleToggleableColumns.length === 1}
-                          onCheckedChange={(checked) => column.toggleVisibility(Boolean(checked))}
-                        >
-                          {label}
-                        </DropdownMenuCheckboxItem>
-                      );
-                    })}
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {toolbar}
-          </div>
+      <div className={cn('overflow-visible rounded-lg border border-primary shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]', flatTop && 'rounded-t-none')}>
+      {/* Với bảng tách header, giữ thanh công cụ và tiêu đề cột trong cùng một khối sticky để không lộ hàng dữ liệu ở khe giữa. */}
+      {groupedStickyHeader ? (
+        <div className="sticky top-[-16px] z-30 isolate sm:top-[-24px]">
+          {renderToolbar(false)}
+          {renderDetachedHeader()}
         </div>
-      )}
+      ) : renderToolbar(true)}
 
       {/* Table */}
       {variant === 'list' ? renderList() : (
         <div>
-          <div className={cn('overflow-visible', tableWrapperClassName)}>
+          <div
+            className={cn('overflow-visible', tableWrapperClassName)}
+            onScroll={detachedStickyHeader ? (event) => {
+              if (tableHeaderInnerRef.current) {
+                tableHeaderInnerRef.current.style.transform = `translateX(-${event.currentTarget.scrollLeft}px)`;
+              }
+            } : undefined}
+          >
           <Table className={tableClassName} containerClassName={cn('!overflow-visible', tableContainerClassName)}>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => {
-                const visibleHeaders = headerGroup.headers.filter((header) => header.column.getIsVisible());
-                return <TableRow key={headerGroup.id} style={{ '--toolbar-height': `${toolbarHeight}px` } as CSSProperties} className="sticky top-[var(--toolbar-height)] z-20 border-border/40 bg-primary shadow-[0_2px_0_rgba(168,32,44,0.18)] hover:bg-transparent">
-                  {visibleHeaders.map((header, idx) => {
-                    const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
-                    const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
-
-                    return (
-                      <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, meta?.className)}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={cn(
-                              'flex items-center gap-1.5',
-                              header.column.getCanSort() && 'cursor-pointer select-none hover:text-white/75',
-                              alignClass === 'text-right' && 'justify-end',
-                              alignClass === 'text-center' && 'justify-center',
-                            )}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {(() => {
-                              const headerContent = flexRender(header.column.columnDef.header, header.getContext());
-                              const headerText = extractCellText(headerContent).trim();
-                              return headerText ? (
-                                <Tooltip>
-                                  <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
-                                  <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
-                                </Tooltip>
-                              ) : headerContent;
-                            })()}
-                            {header.column.getCanSort() && (
-                              <span className="text-white/50">
-                                {header.column.getIsSorted() === 'asc' ? (
-                                  <ChevronUp className="h-3.5 w-3.5" />
-                                ) : header.column.getIsSorted() === 'desc' ? (
-                                  <ChevronDown className="h-3.5 w-3.5" />
-                                ) : (
-                                  <ChevronsUpDown className="h-3.5 w-3.5" />
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              })}
-            </TableHeader>
+            {detachedStickyHeader && renderDetachedColGroup()}
+            {!detachedStickyHeader && renderTableHeader(true)}
 
             <TableBody>
               {loading ? (
@@ -801,7 +915,7 @@ export function DataTable<TData, TValue = unknown>({
 
           {renderPagination()}
           {footer && (
-            <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
+            <div className="sticky bottom-0 z-10 rounded-b-[calc(var(--radius)_-_1px)] border-t border-border bg-card/95 px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(31,27,26,0.28)] backdrop-blur">
               {footer}
             </div>
           )}

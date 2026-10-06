@@ -5,6 +5,9 @@ export type Action = 'create' | 'edit' | 'delete' | 'submit' | 'approve' | 'reje
 
 const ROLE_ACTIONS: Record<Role, Action[]> = {
   LOCAL: ['view', 'create', 'edit', 'delete', 'submit'],
+  // Scorer chấm điểm; Reviewer thẩm tra/duyệt lại trước khi trình Chuyên viên.
+  SCORER: ['view', 'edit', 'submit'],
+  REVIEWER: ['view', 'approve', 'reject'],
   SPECIALIST: ['view', 'create', 'edit', 'delete', 'submit', 'reject', 'assign'],
   LEADER: ['view', 'approve', 'reject'],
   // Hội đồng và Ủy ban chỉ xem, duyệt/công bố hoặc yêu cầu bổ sung; không sửa điểm trực tiếp.
@@ -34,8 +37,8 @@ export function can(user: AuthUser | null, action: Action, context?: { state?: S
 export const ROUTE_ROLES: Record<string, Role[]> = {
   '/thi-dua/admin': ['SPECIALIST', 'ADMIN'],
   '/thi-dua/dia-phuong': ['LOCAL'],
-  '/thi-dua/cham-diem': ['SPECIALIST'],
-  '/chuyen-vien': ['SPECIALIST'],
+  '/thi-dua/cham-diem': ['SPECIALIST', 'SCORER'],
+  '/chuyen-vien': ['SPECIALIST', 'REVIEWER'],
   '/dia-phuong': ['LOCAL'],
   '/thi-dua/duyet/lanh-dao-ban': ['LEADER'],
   '/thi-dua/duyet/hoi-dong-tdkt': ['COUNCIL'],
@@ -44,7 +47,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   '/uy-ban/lich-su': ['COMMITTEE'],
   // Tạm tắt trang tổng quan — bật lại cùng với route trong App.tsx
   // '/thi-dua/dashboard-tong-quan': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
-  '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'LOCAL'],
+  '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'LOCAL', 'SCORER', 'REVIEWER'],
 };
 
 export function rolesForPath(pathname: string): Role[] | null {
@@ -59,6 +62,8 @@ export function canAccessRoute(role: Role, pathname: string): boolean {
 export function defaultRouteForRole(role: Role, user?: Pick<AuthUser, 'banId'> | null): string {
   switch (role) {
     case 'LOCAL': return ROUTES.LOCALITY_CRITERIA;
+    case 'SCORER': return '/thi-dua/cham-diem';
+    case 'REVIEWER': return ROUTES.SPECIALIST_REVIEW;
     case 'LEADER': return `/thi-dua/duyet/lanh-dao-ban/${user?.banId ?? 'ban1'}`;
     case 'COUNCIL': return ROUTES.DUYET_COUNCIL;
     case 'COMMITTEE': return ROUTES.DUYET_STANDING;

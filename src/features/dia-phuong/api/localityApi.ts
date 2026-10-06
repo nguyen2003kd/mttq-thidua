@@ -1,6 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
-import { criteriaGroupsApi, type CriteriaGroupApi, type CriteriaApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
+import { criteriaGroupsApi, type CriteriaGroupApi, type CriteriaApi, type CriteriaStatusApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
 import type { CriteriaItem, CriteriaTable, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { ScoreState } from '@/types/rbac';
 
@@ -29,11 +29,15 @@ export { criteriaGroupsApi, type CriteriaGroupApi, type CriteriaApi, type PagedR
 export type SubmissionStage =
   | 'Draft'
   | 'LocalSubmitted'
+  | 'ScorerSubmitted'
+  | 'ReviewerApproved'
   | 'SpecialistApproved'
   | 'LeaderApproved'
   | 'CouncilApproved'
   | 'CommitteeFinalized'
-  | 'RequiresRevision';
+  | 'RequiresRevision'
+  | 'ScorerRevisionRequested'
+  | 'ReviewerRevisionRequested';
 
 export interface SubmissionResultFile {
   id: string;
@@ -50,6 +54,7 @@ export interface SubmissionResultItem {
   submissionId: string;
   criteriaId: string;
   criteriaContent: string | null;
+  criteriaStatus?: CriteriaStatusApi | null;
   snapshotMaxPoint: number;
   snapshotMaxBonusPoint: number;
   point: number;
@@ -85,6 +90,10 @@ export interface ApprovalHistoryItem {
   id: string;
   submissionId: string;
   userId: string;
+  /** Tên hiển thị của người thao tác (BE mới trả; dữ liệu cũ có thể null). */
+  actorName?: string | null;
+  /** Role của người thao tác — phân biệt nhận xét các cấp khi cùng nhận xét ở stage SpecialistApproved. */
+  actorRole?: string | null;
   stageLevel: string;
   action: string;
   reason: string | null;
@@ -140,7 +149,7 @@ export interface FileItem {
 
 export const localityApi = {
   // Criteria groups — reuse từ criteriaGroupsApi
-  listCriteriaGroups: (params?: { search?: string; status?: string; page?: number; pageSize?: number }) =>
+  listCriteriaGroups: (params?: { search?: string; status?: string; periodId?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<CriteriaGroupApi>>({ url: '/api/v1/criteria-groups', method: 'GET', params }),
   getCriteriaGroup: (id: string) =>
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
@@ -208,6 +217,10 @@ export function getLocalityApiError(error: unknown) {
 const STAGE_TO_STATE: Record<SubmissionStage, ScoreState> = {
   Draft: 'DRAFT',
   LocalSubmitted: 'CHO_CHUYEN_VIEN',
+  ScorerSubmitted: 'CHO_CHUYEN_VIEN',
+  ScorerRevisionRequested: 'CHO_CHUYEN_VIEN',
+  ReviewerRevisionRequested: 'CHO_CHUYEN_VIEN',
+  ReviewerApproved: 'CHO_CHUYEN_VIEN',
   SpecialistApproved: 'CHO_DUYET_BAN',
   LeaderApproved: 'CHO_DUYET_HOI_DONG',
   CouncilApproved: 'CHO_DUYET_BTT',
@@ -234,6 +247,7 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissio
       deadline: c.deadline ?? undefined,
       note: c.note ?? undefined,
       order: idx + 1,
+      status: c.status,
       updatedAt: c.updatedAt ?? undefined,
     })),
     assignedLocalityCount: 0,
@@ -241,6 +255,30 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissio
     closeDate: group.deadline ?? '',
     updatedAt: group.updatedAt ?? undefined,
   };
+}
+
+/** Bổ sung lại các tiêu chí đã nộp nhưng sau đó bị vô hiệu để hồ sơ cũ vẫn hiển thị đầy đủ. */
+export function mergeSubmissionCriteria(criteria: CriteriaApi[] | null | undefined, results: SubmissionResultItem[] | null | undefined, submissionId?: string | null) {
+  const visibleCriteria = (criteria ?? [])
+    .filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === submissionId);
+  const criteriaIds = new Set(visibleCriteria.map((criterion) => criterion.id));
+  const deletedCriteria = (results ?? [])
+    .filter((result) => result.criteriaStatus === 'Deleted' && !criteriaIds.has(result.criteriaId))
+    .map((result): CriteriaApi => ({
+      id: result.criteriaId,
+      criteriaGroupId: null,
+      type: 'Standard',
+      targetSubmissionId: result.submissionId,
+      content: result.criteriaContent ?? 'Tiêu chí đã vô hiệu',
+      maxPoint: result.snapshotMaxPoint,
+      maxBonusPoint: result.snapshotMaxBonusPoint,
+      deadline: null,
+      note: null,
+      status: 'Deleted',
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+    }));
+  return [...visibleCriteria, ...deletedCriteria];
 }
 
 export function mapSubmissionToRecord(submission: SubmissionApi): ScoreRecord {
@@ -251,6 +289,8 @@ export function mapSubmissionToRecord(submission: SubmissionApi): ScoreRecord {
       id: r.id,
       criteriaId: r.criteriaId,
       criteriaName: r.criteriaContent ?? '',
+      criteriaStatus: r.criteriaStatus ?? undefined,
+      reviewStatus: r.reviewStatus,
       value: r.point ?? 0,
       state,
       scoredBy: '',
@@ -259,6 +299,7 @@ export function mapSubmissionToRecord(submission: SubmissionApi): ScoreRecord {
       proposedScore: r.point ?? undefined,
       proposedBonusScore: r.bonusPoint ?? undefined,
       explanation: r.explanation ?? undefined,
+      locked: r.criteriaStatus === 'Deleted',
     })),
     totalScore: submission.totalProposedPoint,
     submittedAt: submission.submittedAt,

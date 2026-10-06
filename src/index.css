@@ -9,121 +9,124 @@
 
 @layer base {
   :root {
-    /* Design tokens — Plan_Component_Va_Giao_Dien A2.1 */
+    /* Bảng màu thương hiệu: xanh dương #009EE3 (accent), xanh đậm tương tác ~#0074A8, đỏ #FF0000, trắng #FFFFFF.
+       Neutral (nền phụ, viền, chữ) dùng trung tính để không ám xanh. */
     --background: 0 0% 100%;
-    --foreground: 12 9% 11%; /* #1F1B1A */
+    --foreground: 0 0% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 12 9% 11%;
+    --card-foreground: 0 0% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 12 9% 11%;
+    --popover-foreground: 0 0% 13%;
 
-    /* Đỏ thương hiệu — #A8202C */
-    --primary: 355 68% 39%;
+    --primary: 198 100% 28%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 24 33% 97%;
-    --secondary-foreground: 355 68% 39%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 20%;
 
-    --muted: 24 33% 97%; /* #FAF7F5 */
-    --muted-foreground: 29 9% 41%; /* #71685F */
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 42%;
 
-    /* Vàng đồng — #E8B923 */
-    --accent: 45 81% 52%;
-    --accent-foreground: 12 9% 11%;
+    --accent: 198 100% 44.51%;
+    --accent-foreground: 198 100% 15%;
 
-    /* Semantic colors */
-    /* Đỏ nguy hiểm — #8B2635, không dùng thay đỏ thương hiệu */
-    --destructive: 351 57% 35%;
+    /* Các trạng thái dùng sắc độ của xanh hoặc đỏ để giữ đủ tương phản. */
+    --destructive: 0 100% 38%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 154 46% 34%; /* #2E7D5B */
+    --success: 142 71% 37%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 22 67% 55%; /* #D9773D */
-    --warning-foreground: 12 9% 11%;
+    --warning: 38 92% 44%;
+    --warning-foreground: 0 0% 7%;
 
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 100%;
+    --info: 198 100% 44.51%;
+    --info-foreground: 198 100% 15%;
 
-    --border: 27 16% 89%; /* #E7E2DE */
-    --input: 27 16% 89%;
-    --ring: 45 81% 52%;
+    --button-create: 153 46% 34%;
+    --button-edit: 46 81% 52%;
+    --button-edit-foreground: 0 0% 12%;
+    --button-warning: 24 100% 32%;
+    --button-view: 198 100% 22%;
+    --button-delete: 0 100% 38%;
+
+    --border: 0 0% 87%;
+    --input: 0 0% 87%;
+    --ring: 198 100% 44.51%;
 
     --radius: 0.625rem;
 
-    /* Sidebar — Deep Red */
     --sidebar-width: 260px;
-    --sidebar: 355 68% 39%;
+    --sidebar: 198 100% 22%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-border: 355 58% 32%;
-    --sidebar-primary: 45 81% 52%;
-    --sidebar-primary-foreground: 12 9% 11%;
-    --sidebar-accent: 355 58% 32%;
+    --sidebar-border: 198 100% 16%;
+    --sidebar-primary: 198 100% 44.51%;
+    --sidebar-primary-foreground: 198 100% 15%;
+    --sidebar-accent: 198 100% 30%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-ring: 45 81% 52%;
+    --sidebar-ring: 198 100% 44.51%;
 
-    /* Chart colors — Red + Gold + semantic */
-    --chart-1: 355 68% 39%;
-    --chart-2: 45 81% 52%;
-    --chart-3: 154 46% 34%;
-    --chart-4: 217 91% 60%;
-    --chart-5: 351 57% 35%;
+    --chart-1: 198 100% 44.51%;
+    --chart-2: 0 100% 50%;
+    --chart-3: 198 72% 40%;
+    --chart-4: 0 72% 62%;
+    --chart-5: 198 35% 66%;
   }
 
   .dark {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 96%;
+    --background: 198 100% 8%;
+    --foreground: 0 0% 100%;
 
     --card: 0 0% 12%;
-    --card-foreground: 0 0% 96%;
+    --card-foreground: 0 0% 100%;
 
     --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 96%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 355 74% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 198 100% 20%;
 
     --secondary: 0 0% 18%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 70%;
+    --muted-foreground: 0 0% 78%;
 
-    --accent: 45 90% 62%;
-    --accent-foreground: 0 0% 10%;
+    --accent: 198 100% 50%;
+    --accent-foreground: 198 100% 12%;
 
-    --destructive: 0 72% 55%;
+    --destructive: 0 100% 65%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 55% 50%;
+    --success: 142 60% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 45 90% 60%;
-    --warning-foreground: 0 0% 10%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 7%;
 
-    --info: 217 91% 65%;
-    --info-foreground: 0 0% 100%;
+    --info: 0 0% 100%;
+    --info-foreground: 198 100% 20%;
 
-    --border: 0 0% 100% / 10%;
-    --input: 0 0% 100% / 15%;
-    --ring: 355 74% 55%;
+    --border: 0 0% 100% / 18%;
+    --input: 0 0% 100% / 22%;
+    --ring: 0 0% 100%;
 
-    --sidebar: 355 70% 12%;
-    --sidebar-foreground: 40 30% 96%;
-    --sidebar-border: 355 60% 22%;
-    --sidebar-primary: 45 90% 62%;
-    --sidebar-primary-foreground: 355 70% 12%;
-    --sidebar-accent: 355 60% 22%;
-    --sidebar-accent-foreground: 40 30% 96%;
-    --sidebar-ring: 45 90% 62%;
+    --sidebar: 198 100% 22%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 100% / 18%;
+    --sidebar-primary: 198 100% 50%;
+    --sidebar-primary-foreground: 198 100% 12%;
+    --sidebar-accent: 198 100% 30%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-ring: 198 100% 50%;
 
-    --chart-1: 355 74% 55%;
-    --chart-2: 45 90% 62%;
-    --chart-3: 142 55% 50%;
-    --chart-4: 217 91% 65%;
-    --chart-5: 0 72% 55%;
+    --chart-1: 0 0% 100%;
+    --chart-2: 0 100% 50%;
+    --chart-3: 198 60% 78%;
+    --chart-4: 0 70% 72%;
+    --chart-5: 198 32% 60%;
   }
   .theme {
     --font-heading: var(--font-sans);
@@ -135,6 +138,8 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Be Vietnam Pro', sans-serif;
+    /* Nâng 1 nấc (400 -> 500) cho chữ dễ đọc hơn; tiêu đề vẫn 600 phân cấp rõ. */
+    font-weight: 500;
   }
   html {
     @apply font-sans;

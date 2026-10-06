@@ -1,24 +1,34 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { getGetApiV1ResultPublicationsLocalQueryKey } from '@/api/endpoints/local-result-publications';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileText, ListTree, MessageSquareText, Search, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, PeriodSelect, TruncatedText } from '@/components/core';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AuditTimeline } from '@/components/core';
-import { localityApi, getLocalityApiError, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
+import { localityApi, getLocalityApiError, mergeSubmissionCriteria, type ApprovalHistoryItem, type CriteriaApi, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { cn, formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
 
-const FINAL_STAGE = 'CouncilApproved' as const;
+const PUBLISHED_SUBMISSION_STAGES = new Set(['ReviewerApproved', 'SpecialistApproved', 'CouncilApproved', 'CommitteeFinalized']);
 
 const ACTION_MAP: Record<string, ActionType> = {
   approve: 'APPROVE',
@@ -36,20 +46,49 @@ const ACTION_MAP: Record<string, ActionType> = {
 // stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
 const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
   Draft: { role: 'LOCAL', label: 'Địa phương' },
-  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên' },
-  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên' },
+  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  ScorerSubmitted: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  ScorerRevisionRequested: { role: 'SCORER', label: 'Chuyên viên cấp 2' },
+  ReviewerRevisionRequested: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  ReviewerApproved: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
   SpecialistApproved: { role: 'LEADER', label: 'Lãnh đạo ban' },
   LeaderApproved: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
   CouncilApproved: { role: 'COMMITTEE', label: 'Ban thường trực' },
   CommitteeFinalized: { role: 'COMMITTEE', label: 'Ban thường trực' },
 };
 
+// Ưu tiên role thật của người thao tác — các cấp trên đều nhận xét ở cùng stage
+// SpecialistApproved nên không thể suy ra cấp chỉ từ stageLevel.
+const ROLE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
+  LEADER: { role: 'LEADER', label: 'Lãnh đạo ban' },
+  COUNCIL: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
+  COMMITTEE: { role: 'COMMITTEE', label: 'Ban thường trực' },
+  STANDING_COMMITTEE: { role: 'COMMITTEE', label: 'Ban thường trực' },
+  SPECIALIST: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  REVIEWER: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  SCORER: { role: 'SCORER', label: 'Chuyên viên cấp 2' },
+  ADMIN: { role: 'ADMIN', label: 'Quản trị viên' },
+  SYSTEM_ADMIN: { role: 'ADMIN', label: 'Quản trị viên' },
+  LOCAL: { role: 'LOCAL', label: 'Địa phương' },
+  LOCALITY: { role: 'LOCAL', label: 'Địa phương' },
+  LOCAL_UNIT: { role: 'LOCAL', label: 'Địa phương' },
+};
+
+function hasActorRole(item: ApprovalHistoryItem, ...roles: string[]) {
+  const actorRoles = (item.actorRole ?? '').split(',').map((role) => role.trim().toUpperCase());
+  return roles.some((role) => actorRoles.includes(role));
+}
+
 function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
-  const actor = STAGE_ACTOR_MAP[item.stageLevel];
+  const actor = (item.actorRole ?? '')
+    .split(',')
+    .map((role) => ROLE_ACTOR_MAP[role.trim().toUpperCase()])
+    .find(Boolean) ?? STAGE_ACTOR_MAP[item.stageLevel];
   return {
     id: item.id,
     timestamp: item.createdAt,
-    actorName: actor?.label ?? 'Hệ thống',
+    actorName: item.actorName ?? actor?.label ?? 'Hệ thống',
     actorRole: actor?.role ?? 'LOCAL',
     action: ACTION_MAP[item.action?.toLowerCase()] ?? 'EDIT',
     fieldName: item.submissionId,
@@ -63,18 +102,16 @@ function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
 function classification(score: number) {
   if (score >= 95) return 'Xuất sắc';
   if (score >= 85) return 'Tốt';
-  if (score >= 70) return 'Khá';
-  return 'Chưa xếp loại';
+  return 'Khá';
 }
 
 function classificationBadgeClass(score: number) {
   if (score >= 85) return 'bg-success text-success-foreground';
-  if (score >= 70) return 'bg-warning text-foreground';
-  return 'bg-muted text-muted-foreground';
+  return 'bg-warning text-foreground';
 }
 
 function publicationStatusLabel(status: string) {
-  if (status === 'CommitteeFinalized' || status === 'CouncilApproved') return 'Đã công bố';
+  if (PUBLISHED_SUBMISSION_STAGES.has(status)) return 'Đã công bố';
   if (status === 'RequiresRevision') return 'Yêu cầu chỉnh sửa';
   if (status === 'InProgress') return 'Đang xử lý';
   return 'Chưa nộp';
@@ -82,13 +119,13 @@ function publicationStatusLabel(status: string) {
 
 function publicationStatusBadge(status: string) {
   const label = publicationStatusLabel(status);
-  if (status === 'CommitteeFinalized' || status === 'CouncilApproved')
-    return <Badge className="border-[#2D2A26] bg-[#2D2A26] text-white">{label}</Badge>;
+  if (PUBLISHED_SUBMISSION_STAGES.has(status))
+    return <Badge className="border-primary bg-primary text-primary-foreground">{label}</Badge>;
   if (status === 'RequiresRevision')
-    return <Badge className="border-[#D9773D]/30 bg-[#D9773D]/15 text-[#8A4A1F]">{label}</Badge>;
+    return <Badge className="border-destructive/25 bg-destructive/10 text-destructive">{label}</Badge>;
   if (status === 'InProgress')
-    return <Badge className="border-[#E8B923]/30 bg-[#E8B923]/15 text-[#6E570B]">{label}</Badge>;
-  return <Badge className="border-[#9CA3AF]/25 bg-[#9CA3AF]/10 text-[#626A76]">{label}</Badge>;
+    return <Badge className="border-primary/25 bg-primary/10 text-primary">{label}</Badge>;
+  return <Badge className="border-primary/15 bg-primary/5 text-muted-foreground">{label}</Badge>;
 }
 
 interface ResultRow {
@@ -124,7 +161,7 @@ function ResultCards({ rows, page, onPageChange, onView }: { rows: ResultRow[]; 
       <div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">STT {(safePage - 1) * 10 + index + 1}</p><h2 className="mt-1 text-sm font-semibold leading-5">{row.groupName}</h2></div>{publicationStatusBadge(row.status)}</div>
       <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">{row.groupContent || '—'}</p>
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-y border-border py-3 text-sm"><span className="text-muted-foreground">Điểm đề xuất</span><span className="text-right font-semibold tabular-nums">{row.proposedPoint ?? '—'}</span><span className="text-muted-foreground">Điểm được chấm</span><span className="text-right font-semibold tabular-nums">{row.officialPoint ?? '—'}</span><span className="text-muted-foreground">Điểm thưởng được chấm</span><span className="text-right font-semibold tabular-nums">{row.officialBonus ?? '—'}</span><span className="text-muted-foreground">Điểm kết quả</span><span className="text-right font-semibold tabular-nums text-primary">{row.currentPoint}<span className="ml-1 text-xs font-medium text-muted-foreground">/ {row.maxPoint}</span></span></div>
-      <Button type="button" variant="outline" className="mt-3 w-full" onClick={() => onView(row)}><Eye className="size-4" />Xem chi tiết</Button>
+      <Button type="button" variant="info" className="mt-3 w-full" onClick={() => onView(row)}><Eye className="size-4" />Xem chi tiết</Button>
     </article>)}
     {!rows.length && <EmptyState title="Chưa có kết quả phù hợp" description="Thử điều chỉnh điều kiện tìm kiếm." />}
     {rows.length > 10 && <nav aria-label="Phân trang kết quả" className="flex items-center justify-between border-t border-border pt-3"><p className="text-xs text-muted-foreground">Trang {safePage}/{pageCount}</p><div className="flex gap-2"><Button type="button" variant="outline" size="icon" aria-label="Trang trước" disabled={safePage === 1} onClick={() => onPageChange(safePage - 1)}><ChevronLeft className="size-4" /></Button><Button type="button" variant="outline" size="icon" aria-label="Trang sau" disabled={safePage === pageCount} onClick={() => onPageChange(safePage + 1)}><ChevronRight className="size-4" /></Button></div></nav>}
@@ -154,7 +191,7 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
   const provinceTotal = provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus;
 
   return <TableRow className="bg-muted/[0.18] hover:bg-muted/40">
-    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p></div></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><div><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</div></div></TableCell>
     <TableCell className="whitespace-normal border-r border-primary/10 px-4 py-3 align-top text-sm leading-5 text-muted-foreground">{result?.explanation || criterion.note || '—'}</TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint + criterion.maxBonusPoint} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedScore} /></TableCell>
@@ -170,7 +207,7 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
 function CommentButton({ label, value }: { label: string; value?: string | null }) {
   const [open, setOpen] = useState(false);
   return <>
-    <Button type="button" variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); setOpen(true); }}><MessageSquareText className="size-4" />Xem nhận xét</Button>
+    <Button type="button" variant="info" size="sm" onClick={(event) => { event.stopPropagation(); setOpen(true); }}><MessageSquareText className="size-4" />Xem nhận xét</Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader><DialogTitle>{label}</DialogTitle></DialogHeader>
@@ -188,19 +225,19 @@ function AttachmentButton({ label, files, onPreview }: {
 }) {
   const [open, setOpen] = useState(false);
   return <>
-    <Button type="button" variant="outline" size="sm" disabled={!files.length} disabledReason="Không có tệp đính kèm." onClick={(event) => { event.stopPropagation(); setOpen(true); }}><FileText className="size-4" />Xem tệp đính kèm</Button>
+    <Button type="button" variant="info" size="sm" disabled={!files.length} disabledReason="Không có tệp đính kèm." onClick={(event) => { event.stopPropagation(); setOpen(true); }}><FileText className="size-4" />Xem tệp đính kèm</Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader><DialogTitle>{label}</DialogTitle></DialogHeader>
-        <div className="space-y-2">
-          {files.map((file) => <button key={file.id} type="button" onClick={() => { setOpen(false); onPreview(file); }} className="flex w-full min-w-0 items-center gap-2 rounded-md border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 truncate">{file.displayName || file.originalName}</span></button>)}
+        <div className="min-w-0 space-y-2">
+          {files.map((file) => <button key={file.id} type="button" onClick={() => { setOpen(false); onPreview(file); }} className="flex w-full min-w-0 items-start gap-2 rounded-md border border-info/30 px-3 py-2 text-left text-sm text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"><FileText className="mt-0.5 size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{file.displayName || file.originalName}</span></button>)}
         </div>
       </DialogContent>
     </Dialog>
   </>;
 }
 
-/** Kết quả thi đua của địa phương — chỉ hiển thị hồ sơ đã được Ủy ban công bố (CommitteeFinalized). */
+/** Kết quả thi đua của địa phương — chỉ hiển thị hồ sơ trong kỳ đã được công bố. */
 export default function LocalityResultsPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -212,62 +249,117 @@ export default function LocalityResultsPage() {
   const [publicationPreviewFile, setPublicationPreviewFile] = useState<{ id: string; displayName?: string | null; originalName?: string | null } | null>(null);
   const [mobilePage, setMobilePage] = useState(1);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
+  const { filters: { search }, setters: { search: setSearch } } = useQueryFilters({ search: '' });
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const periodsQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
+    queryFn: periodsApi.listAll,
+  });
+  const selectablePeriods = (periodsQuery.data ?? []).filter((period) => period.status !== 'Draft');
+  const defaultPeriodId = selectablePeriods.find((period) => period.status === 'Active')?.id ?? selectablePeriods[0]?.id ?? '';
+  const requestedPeriodId = searchParams.get('periodId') ?? '';
+  const storedPeriodId = usePeriodStore((s) => s.selectedPeriodId);
+  const setSelectedPeriod = usePeriodStore((s) => s.setSelectedPeriod);
+  const periodId = selectablePeriods.some((period) => period.id === requestedPeriodId)
+    ? requestedPeriodId
+    : selectablePeriods.some((period) => period.id === storedPeriodId) ? storedPeriodId! : defaultPeriodId;
+
+  useEffect(() => {
+    if (!periodsQuery.isLoading && periodId && searchParams.get('periodId') !== periodId) {
+      setSearchParams((params) => {
+        const next = new URLSearchParams(params);
+        next.set('periodId', periodId);
+        return next;
+      }, { replace: true });
+    }
+  }, [periodId, periodsQuery.isLoading, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setSelectedRow(null);
+    setExpandedGroupIds(new Set());
+    setMobilePage(1);
+  }, [periodId]);
 
   const submissionsQuery = useQuery({
-    queryKey: ['locality-final-submissions'],
+    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
-    enabled: !id,
+    enabled: !id && Boolean(localityId),
   });
   const groupsQuery = useQuery({
-    queryKey: ['locality-criteria-groups'],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    enabled: !id && Boolean(localityId),
   });
   const publicationQuery = useQuery({
-    queryKey: ['local-result-publication'],
-    queryFn: resultPublicationApi.getLocalResult,
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsLocalQueryKey(), { periodId, localityId }),
+    queryFn: () => resultPublicationApi.getLocalResult(periodId),
+    enabled: Boolean(periodId && localityId),
   });
 
-  const submissions = useMemo(
-    () => publicationQuery.data?.isPublished ? (submissionsQuery.data?.items ?? []) : [],
-    [publicationQuery.data?.isPublished, submissionsQuery.data],
+  const submissions = useMemo(() => {
+    if (!publicationQuery.data?.isPublished) return [];
+    const periodGroupIds = new Set(publicationQuery.data.criteriaGroups.map((group) => group.criteriaGroupId));
+    return (submissionsQuery.data?.items ?? []).filter((submission) => periodGroupIds.has(submission.criteriaGroupId));
+  }, [publicationQuery.data, submissionsQuery.data]);
+  const groupById = useMemo(
+    () => new Map((groupsQuery.data?.items ?? []).filter((group) => group.periodId === periodId).map((group) => [group.id, group])),
+    [groupsQuery.data, periodId],
   );
-  const groupById = useMemo(() => new Map((groupsQuery.data?.items ?? []).map((group) => [group.id, group])), [groupsQuery.data]);
+  const periodSelector = (
+    <PeriodSelect
+      value={periodId}
+      onChange={(value) => {
+        if (!value) return;
+        setSelectedPeriod(value);
+        setSearchParams((params) => {
+          const next = new URLSearchParams(params);
+          next.set('periodId', value);
+          return next;
+        });
+      }}
+      allLabel="Chọn kỳ thi đua"
+      options={selectablePeriods.map((period) => ({ value: period.id, label: period.name }))}
+    />
+  );
 
   const detailQuery = useQuery({
-    queryKey: ['locality-final-submission', id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(id ?? '')),
     queryFn: () => localityApi.getSubmission(id!),
     enabled: Boolean(id),
     retry: false,
   });
   const detailSubmission = detailQuery.data;
   const detailGroupQuery = useQuery({
-    queryKey: ['locality-final-group', detailSubmission?.criteriaGroupId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(detailSubmission?.criteriaGroupId ?? '')),
     queryFn: () => localityApi.getCriteriaGroup(detailSubmission!.criteriaGroupId),
     enabled: Boolean(detailSubmission?.criteriaGroupId),
   });
   const historiesQuery = useQuery({
-    queryKey: ['locality-final-histories', id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(id ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(id!, { page: 1, pageSize: 100 }),
     enabled: Boolean(id) && !detailQuery.isError,
   });
 
-  // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason theo stage
-  const commentsQuery = useQuery({
-    queryKey: ['locality-final-comments', submissions.map((submission) => submission.id)],
-    enabled: submissions.length > 0,
-    queryFn: async () => {
-      const pages = await Promise.all(submissions.map((submission) => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 })));
-      const comments = new Map<string, { council: string | null }>();
-      pages.forEach((page, index) => {
-        const items = page.items;
-        comments.set(submissions[index].id, {
-          council: [...items].reverse().find((item) => item.stageLevel === 'LeaderApproved' && item.reason)?.reason ?? null,
-        });
-      });
-      return comments;
-    },
+  // Nhận xét của Hội đồng / Ban thường trực — lấy từ approval_histories.reason.
+  // Các cấp trên đều nhận xét ở cùng stage SpecialistApproved nên phân biệt bằng
+  // actorRole; dữ liệu cũ (chưa có actorRole) fallback theo stageLevel.
+  const commentHistoriesQueries = useQueries({
+    queries: submissions.map((submission) => ({
+      queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission.id), { page: 1, pageSize: 100 }),
+      queryFn: () => localityApi.listApprovalHistories(submission.id, { page: 1, pageSize: 100 }),
+      enabled: !id && Boolean(publicationQuery.data?.isPublished),
+    })),
   });
+  const commentsBySubmission = new Map(submissions.map((submission, index) => {
+    // Cũ — match nhận xét theo stageLevel của cấp tiếp theo:
+    //   council: item.stageLevel === 'LeaderApproved'
+    //   committee: item.stageLevel === 'CouncilApproved'
+    const histories = [...(commentHistoriesQueries[index].data?.items ?? [])].reverse();
+    const council = histories.find((item) => item.reason && (hasActorRole(item, 'COUNCIL') || (!item.actorRole && item.stageLevel === 'LeaderApproved')))?.reason ?? null;
+    const committee = histories.find((item) => item.reason && (hasActorRole(item, 'COMMITTEE', 'STANDING_COMMITTEE') || (!item.actorRole && item.stageLevel === 'CouncilApproved')))?.reason ?? null;
+    return [submission.id, { council, committee }];
+  }));
 
   const submissionById = useMemo(() => new Map(submissions.map((submission) => [submission.id, submission])), [submissions]);
 
@@ -275,6 +367,7 @@ export default function LocalityResultsPage() {
     if (!publicationQuery.data?.isPublished) return [];
     return publicationQuery.data.criteriaGroups.map((group) => {
       const submission = group.submissionId ? submissionById.get(group.submissionId) ?? null : null;
+      const activeResults = (submission?.results ?? []).filter((result) => result.criteriaStatus !== 'Deleted');
       return {
         submission,
         submissionId: group.submissionId,
@@ -286,10 +379,10 @@ export default function LocalityResultsPage() {
         maxPoint: group.maxPoint,
         // totalProposedPoint đã gồm bonus → phải tính riêng điểm tự chấm
         // từ results để không cộng thưởng 2 lần ở cột Tổng.
-        proposedPoint: submission ? submission.results.reduce((total, result) => total + result.point, 0) : null,
-        proposedBonus: submission ? submission.results.reduce((total, result) => total + result.bonusPoint, 0) : null,
-        officialPoint: submission ? submission.results.reduce((total, result) => total + (result.officialPoint ?? result.point), 0) : null,
-        officialBonus: submission ? submission.results.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0) : null,
+        proposedPoint: submission ? activeResults.reduce((total, result) => total + result.point, 0) : null,
+        proposedBonus: submission ? activeResults.reduce((total, result) => total + result.bonusPoint, 0) : null,
+        officialPoint: submission ? activeResults.reduce((total, result) => total + (result.officialPoint ?? result.point), 0) : null,
+        officialBonus: submission ? activeResults.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0) : null,
       };
     });
   }, [groupById, publicationQuery.data, submissionById]);
@@ -310,22 +403,24 @@ export default function LocalityResultsPage() {
 
   // ── Danh sách kết quả đã công bố ────────────────────────────────────────────
   if (!id) {
-    if (submissionsQuery.isLoading || groupsQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
-    if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error)} />;
+    if (periodsQuery.isLoading || submissionsQuery.isLoading || groupsQuery.isLoading || publicationQuery.isLoading) return <PageLoading label="Đang tải kết quả thi đua…" />;
+    if (periodsQuery.isError || submissionsQuery.isError || groupsQuery.isError || publicationQuery.isError) return <EmptyState variant="error" title="Không tải được kết quả" description={getLocalityApiError(periodsQuery.error ?? submissionsQuery.error ?? groupsQuery.error ?? publicationQuery.error)} />;
+    if (!periodId) return <div className="space-y-5"><PageHeader title="Kết quả thi đua" description="Kết quả của địa phương theo từng kỳ thi đua đã được công bố." actions={periodSelector} /><EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
-    const selectedComments = selectedRow?.submissionId ? commentsQuery.data?.get(selectedRow.submissionId) : null;
+    const selectedComments = selectedRow?.submissionId ? commentsBySubmission.get(selectedRow.submissionId) : null;
     const publication = publicationQuery.data;
     const totalCurrentPoint = rows.reduce((sum, row) => sum + row.currentPoint, 0);
     const totalOfficialBonus = rows.reduce((sum, row) => sum + (row.officialBonus ?? 0), 0);
 
     return <div className="space-y-5">
+      <PageHeader title="Kết quả thi đua" description="Kết quả của địa phương theo từng kỳ thi đua đã được công bố." actions={periodSelector} />
       {publication?.isPublished && (
         <section className="overflow-hidden rounded-xl border border-primary/20 bg-card shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10"><Trophy className="size-4.5 text-primary" /></span>
               <div className="min-w-0">
-                <h2 className="text-base font-semibold">Kết quả đã được công bố chung</h2>
+                <h2 className="text-base font-semibold">Kết quả kỳ {publication.periodName} đã được công bố</h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {[publication.localityName, publication.publishedAt ? `Công bố ngày ${formatDate(publication.publishedAt)}` : null].filter(Boolean).join(' · ')}
                 </p>
@@ -353,13 +448,17 @@ export default function LocalityResultsPage() {
               </div>
             </dl>
             <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:col-span-2">
+                <p className="text-xs font-medium text-muted-foreground">Nhận xét chung</p>
+                <p className="whitespace-pre-wrap text-sm leading-6">{publication.publicationNote?.trim() || 'Chưa có đánh giá.'}</p>
+              </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <p className="text-xs font-medium text-muted-foreground">Nhận xét Hội đồng thi đua</p>
                 <CommentButton label="Nhận xét từ Hội đồng thi đua" value={selectedComments?.council} />
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <p className="text-xs font-medium text-muted-foreground">Nhận xét Ban thường trực</p>
-                <CommentButton label="Nhận xét từ Ban thường trực" value={publication?.publicationNote} />
+                <CommentButton label="Nhận xét từ Ban thường trực" value={selectedComments?.committee} />
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:col-span-2">
                 <p className="text-xs font-medium text-muted-foreground">Tệp đính kèm công bố</p>
@@ -382,11 +481,11 @@ export default function LocalityResultsPage() {
           </div>
         </div>
         <Table className="min-w-[1660px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[19%]" /><col className="w-[17%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
-          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng của tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tổng xã (phường) chấm</TableHead><TableHead className="whitespace-normal px-4 py-3 text-center leading-5 text-primary-foreground">Tổng tỉnh chấm</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm điểm thưởng địa phương (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng của tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tổng điểm địa phương (phường) chấm</TableHead><TableHead className="whitespace-normal px-4 py-3 text-center leading-5 text-primary-foreground">Tổng điểm tỉnh chấm</TableHead></TableRow></TableHeader>
           <TableBody>
             {filteredRows.flatMap((row) => {
               const expanded = expandedGroupIds.has(row.criteriaGroupId);
-              const criteria = groupById.get(row.criteriaGroupId)?.criteria ?? [];
+              const criteria = mergeSubmissionCriteria(groupById.get(row.criteriaGroupId)?.criteria, row.submission?.results, row.submission?.id);
               const resultsByCriteriaId = new Map((row.submission?.results ?? []).map((result) => [result.criteriaId, result]));
               const proposedTotal = row.proposedPoint === null || row.proposedBonus === null ? null : row.proposedPoint + row.proposedBonus;
               return [
@@ -408,31 +507,32 @@ export default function LocalityResultsPage() {
           </TableBody>
         </Table>
       </section>
-      <ResultCards rows={rows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}`)} />
+      <ResultCards rows={rows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}?periodId=${encodeURIComponent(periodId)}`)} />
     </div>;
   }
 
   // ── Chi tiết kết quả ────────────────────────────────────────────────────────
-  if (detailQuery.isLoading || detailGroupQuery.isLoading || publicationQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
+  if (periodsQuery.isLoading || detailQuery.isLoading || detailGroupQuery.isLoading || publicationQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải chi tiết kết quả…" />;
+  if (!periodId) return <div className="space-y-5"><PageHeader title="Chi tiết kết quả thi đua" actions={periodSelector} /><EmptyState title="Chưa có kỳ thi đua" description="Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để xem kết quả." /></div>;
 
   // `id` can be a criteria group id when the locality has no submission for that group
   const group = detailGroupQuery.data ?? (id ? groupById.get(id) : undefined);
+  const detailPubGroup = group ? publicationQuery.data?.criteriaGroups.find((item) => item.criteriaGroupId === group.id) : undefined;
   if (detailQuery.isError && !group) return <EmptyState variant="error" title="Không tải được chi tiết kết quả" description={getLocalityApiError(detailQuery.error)} />;
-  if (!publicationQuery.data?.isPublished || !group || (detailSubmission && detailSubmission.currentStage !== FINAL_STAGE)) {
-    return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được Ủy ban thường trực công bố." action={<Button variant="outline" render={<Link to="/dia-phuong/ket-qua" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
+  if (!publicationQuery.data?.isPublished || !group || !detailPubGroup || (detailSubmission && (!PUBLISHED_SUBMISSION_STAGES.has(detailSubmission.currentStage) || detailPubGroup.submissionId !== detailSubmission.id))) {
+    return <EmptyState title="Kết quả chưa được công bố" description="Chi tiết chỉ hiển thị khi hồ sơ đã được công bố trong kỳ thi đua đã chọn." action={<Button variant="back" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />;
   }
-
-  const detailPubGroup = publicationQuery.data.criteriaGroups.find((item) => item.criteriaGroupId === group.id);
-  const criteria = (group.criteria ?? []).filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === detailSubmission?.id);
+  const criteria = mergeSubmissionCriteria(group.criteria, detailSubmission?.results, detailSubmission?.id);
   const resultByCriterion = new Map((detailSubmission?.results ?? []).map((result) => [result.criteriaId, result]));
+  const activeDetailResults = (detailSubmission?.results ?? []).filter((result) => result.criteriaStatus !== 'Deleted');
   const audits = (historiesQuery.data?.items ?? []).map(mapHistoryToAudit).sort((left, right) => +new Date(right.timestamp) - +new Date(left.timestamp));
-  const detailProposedBonus = detailSubmission?.results.reduce((total, result) => total + result.bonusPoint, 0) ?? 0;
-  const detailOfficialBonus = detailSubmission?.results.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0) ?? 0;
+  const detailProposedBonus = activeDetailResults.reduce((total, result) => total + result.bonusPoint, 0);
+  const detailOfficialBonus = activeDetailResults.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0);
   const detailPublishedAt = detailSubmission?.updatedAt ?? publicationQuery.data.publishedAt;
 
   return <div className="space-y-5">
-    <nav aria-label="Điều hướng" className="flex min-w-0 items-center gap-2 text-sm"><Link to="/dia-phuong/ket-qua" className="shrink-0 text-primary hover:underline">Kết quả tiêu chí thi đua</Link><span className="text-muted-foreground">/</span><span className="truncate text-muted-foreground">{group.name ?? detailSubmission?.criteriaGroupName ?? 'Chi tiết nhóm'}</span></nav>
-    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<Button variant="outline" render={<Link to="/dia-phuong/ket-qua" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <nav aria-label="Điều hướng" className="flex min-w-0 items-center gap-2 text-sm"><Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} className="shrink-0 text-primary hover:underline">Kết quả tiêu chí thi đua</Link><span className="text-muted-foreground">/</span><span className="truncate text-muted-foreground">{group.name ?? detailSubmission?.criteriaGroupName ?? 'Chi tiết nhóm'}</span></nav>
+    <PageHeader title="Chi tiết kết quả thi đua" description={group.name ?? detailSubmission?.criteriaGroupName ?? ''} actions={<div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">{periodSelector}<Button variant="back" render={<Link to={`/dia-phuong/ket-qua?periodId=${encodeURIComponent(periodId)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
 
     <Card>
       <CardContent className="flex flex-wrap items-center justify-between gap-6 p-5">
@@ -443,7 +543,7 @@ export default function LocalityResultsPage() {
           <p className="mt-2 text-xs text-muted-foreground">Ngày công bố {detailPublishedAt ? formatDate(detailPublishedAt) : '—'}</p>
         </div>
         <div className="grid min-w-0 flex-[2] basis-[380px] grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-          <div><p className="text-xs text-muted-foreground">Tổng điểm đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission ? detailSubmission.results.reduce((total, result) => total + result.point, 0) : '—'}</p></div>
+          <div><p className="text-xs text-muted-foreground">Tổng điểm đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission ? activeDetailResults.reduce((total, result) => total + result.point, 0) : '—'}</p></div>
           <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng đề xuất</p><p className="mt-0.5 text-xl font-bold tabular-nums">{detailSubmission ? detailProposedBonus : '—'}</p></div>
           <div><p className="text-xs text-muted-foreground">Tổng điểm thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{detailSubmission?.totalFinalPoint ?? detailPubGroup?.currentPoint ?? 0}</p></div>
           <div><p className="text-xs text-muted-foreground">Tổng điểm thưởng thực tế</p><p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{detailSubmission ? detailOfficialBonus : 0}</p></div>
@@ -463,13 +563,13 @@ export default function LocalityResultsPage() {
             const result = resultByCriterion.get(criterion.id);
             const files = result?.files ?? [];
             return <TableRow key={criterion.id} className="cursor-pointer align-top" onClick={() => setCriterionDialog({ criterion, result: result ?? null })}>
-              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><TruncatedText as="p" value={criterion.content} maxLines={4} className="font-semibold leading-5" /><p className="mt-2 text-xs text-muted-foreground">{criterion.type === 'Supplementary' ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'}{criterion.deadline ? ` · Hạn nộp ${formatDate(criterion.deadline)}` : ''}</p></TableCell>
+              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5"><TruncatedText as="p" value={criterion.content} maxLines={4} className="font-semibold leading-5" /><p className="mt-2 text-xs text-muted-foreground">{criterion.type === 'Supplementary' ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'}{criterion.deadline ? ` · Hạn nộp ${formatDate(criterion.deadline)}` : ''}</p>{criterion.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</TableCell>
               <TableCell className="border-r border-primary/15 px-2 py-5">{result ? <ScorePair point={result.point} bonus={result.bonusPoint} maxPoint={result.snapshotMaxPoint} maxBonus={result.snapshotMaxBonusPoint} /> : <span className="block text-center text-sm text-muted-foreground">—</span>}</TableCell>
               <TableCell className="border-r border-primary/15 px-2 py-5">{result ? <ScorePair point={result.officialPoint ?? result.point} bonus={result.officialBonusPoint ?? result.bonusPoint} maxPoint={result.snapshotMaxPoint} maxBonus={result.snapshotMaxBonusPoint} /> : <span className="block text-center text-sm text-muted-foreground">—</span>}</TableCell>
               <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground"><TruncatedText value={result?.officialReason || '—'} maxLines={4} /></TableCell>
-              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">{files.length ? <Button type="button" variant="outline" size="sm" className="w-full justify-center" onClick={(event) => { event.stopPropagation(); setEvidenceDialog({ criterionName: criterion.content, files }); }}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có</span>}</TableCell>
+              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5">{files.length ? <Button type="button" variant="info" size="sm" className="w-full justify-center" onClick={(event) => { event.stopPropagation(); setEvidenceDialog({ criterionName: criterion.content, files }); }}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có</span>}</TableCell>
               <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-sm leading-6 text-muted-foreground"><TruncatedText value={criterion.note || '—'} maxLines={4} /></TableCell>
-              <TableCell className="px-3 py-5 text-center"><Button type="button" variant="ghost" size="icon" aria-label={`Xem chi tiết ${childCriterionName(criterion, result ?? null)}`} onClick={(event) => { event.stopPropagation(); setCriterionDialog({ criterion, result: result ?? null }); }}><Eye className="size-4" /></Button></TableCell>
+              <TableCell className="px-3 py-5 text-center"><Button type="button" variant="ghost" size="icon" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" aria-label={`Xem chi tiết ${childCriterionName(criterion, result ?? null)}`} onClick={(event) => { event.stopPropagation(); setCriterionDialog({ criterion, result: result ?? null }); }}><Eye className="size-4" /></Button></TableCell>
             </TableRow>;
           })}
           {!criteria.length && <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Chưa có tiêu chí con.</TableCell></TableRow>}
@@ -478,7 +578,7 @@ export default function LocalityResultsPage() {
       <div className="space-y-3 p-4 md:hidden">{criteria.map((criterion) => {
         const result = resultByCriterion.get(criterion.id) ?? null;
         const files = result?.files ?? [];
-        return <article key={criterion.id} className="rounded-lg border border-border p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">Tiêu chí con</p><p className="mt-1 text-sm font-semibold">{criterion.content}</p></div><Button type="button" variant="ghost" size="icon" aria-label={`Xem chi tiết ${childCriterionName(criterion, result)}`} onClick={() => setCriterionDialog({ criterion, result })}><Eye className="size-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Nội dung</p><p className="mt-1 text-sm leading-5">{criterion.content}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-xs text-muted-foreground">Điểm đề xuất</p><p className="mt-1 font-semibold tabular-nums">{result?.point ?? '—'}</p></div><div><p className="text-xs text-muted-foreground">Điểm thực tế</p><p className="mt-1 font-semibold tabular-nums text-primary">{result?.officialPoint ?? result?.point ?? '—'}</p></div></div><p className="mt-3 text-xs text-muted-foreground">Lý do</p><p className="mt-1 text-sm leading-5">{result?.officialReason || '—'}</p><div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><span className="text-xs text-muted-foreground">Ghi chú: {criterion.note || '—'}</span>{files.length ? <Button type="button" variant="outline" size="sm" onClick={() => setEvidenceDialog({ criterionName: criterion.content, files })}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</div></article>;
+        return <article key={criterion.id} className="rounded-lg border border-border p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">Tiêu chí con</p><p className="mt-1 text-sm font-semibold">{criterion.content}</p>{criterion.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</div><Button type="button" variant="ghost" size="icon" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" aria-label={`Xem chi tiết ${childCriterionName(criterion, result)}`} onClick={() => setCriterionDialog({ criterion, result })}><Eye className="size-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Nội dung</p><p className="mt-1 text-sm leading-5">{criterion.content}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-xs text-muted-foreground">Điểm đề xuất</p><p className="mt-1 font-semibold tabular-nums">{result?.point ?? '—'}</p></div><div><p className="text-xs text-muted-foreground">Điểm thực tế</p><p className="mt-1 font-semibold tabular-nums text-primary">{result?.officialPoint ?? result?.point ?? '—'}</p></div></div><p className="mt-3 text-xs text-muted-foreground">Lý do</p><p className="mt-1 text-sm leading-5">{result?.officialReason || '—'}</p><div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><span className="text-xs text-muted-foreground">Ghi chú: {criterion.note || '—'}</span>{files.length ? <Button type="button" variant="info" size="sm" onClick={() => setEvidenceDialog({ criterionName: criterion.content, files })}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</div></article>;
       })}{!criteria.length && <p className="py-8 text-center text-sm text-muted-foreground">Chưa có tiêu chí con.</p>}</div>
     </section>
 
@@ -520,6 +620,7 @@ export default function LocalityResultsPage() {
             <div className="rounded-lg border border-border bg-muted/20 p-4">
               <p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí con</p>
               <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6">{criterion.content}</p>
+              {criterion.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
               <p className="mt-2 text-xs text-muted-foreground">{criterion.type === 'Supplementary' ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'} · Hạn nộp: {criterion.deadline ? formatDate(criterion.deadline) : '—'}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

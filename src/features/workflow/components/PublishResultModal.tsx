@@ -142,7 +142,7 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
 
             <DialogFooter className="mx-0 mb-0 rounded-b-[8px] px-6 py-4">
               <Button type="button" variant="outline" onClick={close}>Đóng</Button>
-              <Button type="submit" className="bg-accent text-foreground hover:bg-accent/90">
+              <Button type="submit">
                 Tiếp tục xác nhận
               </Button>
             </DialogFooter>
@@ -177,8 +177,8 @@ export function PublishResultModal({ open, onOpenChange, locality, record, onPub
             </div>
 
             <DialogFooter className="mx-0 mb-0 rounded-b-[8px] px-6 py-4">
-              <Button type="button" variant="outline" disabled={submitting} onClick={() => setStep('details')}>Quay lại</Button>
-              <Button type="submit" disabled={submitting} className="bg-accent text-foreground hover:bg-accent/90" action="publish" state="CHO_DUYET_BTT">
+              <Button type="button" variant="back" disabled={submitting} onClick={() => setStep('details')}>Quay lại</Button>
+              <Button type="submit" disabled={submitting} action="publish" state="CHO_DUYET_BTT">
                 <Trophy className="size-4" />Xác nhận công bố
               </Button>
             </DialogFooter>

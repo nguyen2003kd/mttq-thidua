@@ -15,6 +15,9 @@ export interface FilterSelectProps {
   options: FilterOption[];
   /** Nhãn cho lựa chọn "tất cả" (value rỗng) */
   allLabel?: string;
+  labelPosition?: 'inside' | 'outside';
+  includeAllOption?: boolean;
+  disabled?: boolean;
   className?: string;
 }
 
@@ -28,35 +31,51 @@ export function FilterSelect({
   onChange,
   options,
   allLabel = 'Tất cả',
+  labelPosition = 'inside',
+  includeAllOption = true,
+  disabled,
   className,
 }: FilterSelectProps) {
   const active = value !== '';
   const selected = options.find((o) => o.value === value);
-
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as string)}>
+  const select = (
+    <Select value={value} onValueChange={(v) => onChange(v as string)} disabled={disabled}>
       <SelectTrigger
+        aria-label={labelPosition === 'outside' ? `${label}: ${selected?.label ?? allLabel}` : undefined}
         className={cn(
-          '!h-9 w-auto cursor-pointer gap-1.5 rounded-lg border px-2.5 text-[13px] font-normal transition-colors',
+          labelPosition === 'outside'
+            ? '!h-10 w-56 cursor-pointer gap-1.5 rounded-lg border px-3 text-sm font-normal transition-colors'
+            : '!h-9 w-auto cursor-pointer gap-1.5 rounded-lg border px-2.5 text-[13px] font-normal transition-colors',
           active
             ? 'border-primary/50 bg-primary/[0.06]'
             : 'border-input bg-card hover:border-muted-foreground/55',
           className,
         )}
       >
-        <span className={cn('text-muted-foreground', active && 'text-primary')}>{label}</span>
-        <span className="font-medium text-foreground">{selected ? selected.label : allLabel}</span>
+        {labelPosition === 'inside' && <span className={cn('text-muted-foreground', active && 'text-primary')}>{label}</span>}
+        <span className={cn('font-medium text-foreground', labelPosition === 'outside' && 'min-w-0 flex-1 truncate')}>
+          {selected ? selected.label : allLabel}
+        </span>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="" className="text-[13px] !rounded-none hover:bg-destructive/10 focus:bg-destructive/10 focus:text-foreground">
-          {allLabel}
-        </SelectItem>
+        {includeAllOption && (
+          <SelectItem value="" className="text-[13px] !rounded-none hover:bg-primary/10 focus:bg-primary/10 focus:text-foreground">
+            {allLabel}
+          </SelectItem>
+        )}
         {options.map((o) => (
-          <SelectItem key={o.value} value={o.value} className="text-[13px] !rounded-none hover:bg-destructive/10 focus:bg-destructive/10 focus:text-foreground">
+          <SelectItem key={o.value} value={o.value} className="text-[13px] !rounded-none hover:bg-primary/10 focus:bg-primary/10 focus:text-foreground">
             {o.label}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
   );
+
+  return labelPosition === 'outside' ? (
+    <div className="flex items-center gap-2">
+      <span className={cn('shrink-0 text-sm font-medium text-muted-foreground', active && 'text-primary')}>{label}</span>
+      {select}
+    </div>
+  ) : select;
 }

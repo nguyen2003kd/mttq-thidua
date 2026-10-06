@@ -26,7 +26,9 @@ export const LOCALITY_STATUS_LABELS: Record<LocalityStatus, string> = {
 
 export const ROLE_LABELS: Record<Role, string> = {
   LOCAL: 'Địa phương',
-  SPECIALIST: 'Chuyên viên',
+  SCORER: 'Chuyên viên cấp 2',
+  REVIEWER: 'Lãnh đạo ban',
+  SPECIALIST: 'Chuyên viên trưởng',
   LEADER: 'Lãnh đạo',
   COUNCIL: 'Hội đồng',
   COMMITTEE: 'Ủy ban',

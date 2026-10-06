@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } from '@/api/endpoints/departments';
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { ColumnDef } from '@tanstack/react-table';
 import { PageHeader, DataTable, Button, FilterSelect, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
@@ -18,10 +23,12 @@ import {
   postApiV1UsersIdResetPassword,
 } from '@/api/endpoints/users';
 import type { CreateUserRequest, UpdateUserRequest } from '@/api/models';
+import { departmentsApi } from '../api/departmentsApi';
+import { useAuthStore } from '@/store/authStore';
 
-// Swagger gen chưa cập nhật fullName — mở rộng local cho tới khi chạy lại gen:api.
-type CreateUserBody = CreateUserRequest & { fullName?: string | null };
-type UpdateUserBody = UpdateUserRequest & { fullName?: string | null };
+// Swagger gen chưa cập nhật fullName/departmentId — mở rộng local cho tới khi chạy lại gen:api.
+type CreateUserBody = CreateUserRequest & { fullName?: string | null; departmentId?: string | null };
+type UpdateUserBody = UpdateUserRequest & { fullName?: string | null; departmentId?: string | null };
 
 interface ManagedUser {
   id: string;
@@ -29,10 +36,11 @@ interface ManagedUser {
   username: string | null;
   /** Họ tên người đại diện — tên hiển thị chính. */
   fullName: string | null;
-  firstName: string | null;
-  lastName: string | null;
   phone: string | null;
   wardCode: string | null;
+  /** Ban (department) tài khoản thuộc về. */
+  departmentId: string | null;
+  departmentName: string | null;
   status: string;
   roles: string[];
   createdAt: string;
@@ -54,12 +62,19 @@ const STATUS_OPTIONS = [
 
 const ROLE_OPTIONS = [
   { value: 'local', label: 'Địa phương' },
-  { value: 'specialist', label: 'Chuyên viên' },
+  { value: 'specialist', label: 'Chuyên viên trưởng' },
   { value: 'leader', label: 'Lãnh đạo' },
   { value: 'council', label: 'Hội đồng' },
   { value: 'committee', label: 'Ủy ban' },
   { value: 'admin', label: 'Quản trị' },
   { value: 'system_admin', label: 'Quản trị hệ thống' },
+  { value: 'Scorer', label: 'Chuyên viên cấp 2' },
+  { value: 'Reviewer', label: 'Lãnh đạo ban' },
+];
+
+const CREATE_ROLE_OPTIONS = [
+  { value: 'Scorer', label: 'Chuyên viên cấp 2' },
+  { value: 'Reviewer', label: 'Lãnh đạo ban' },
 ];
 
 const statusLabels: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
@@ -69,15 +84,17 @@ function roleLabel(raw: string): string {
   const normalized = raw.trim().toUpperCase().replace(/[-\s]/g, '_');
   const map: Record<string, string> = {
     LOCAL: 'Địa phương',
-    SPECIALIST: 'Chuyên viên',
+    SPECIALIST: 'Chuyên viên trưởng',
     LEADER: 'Lãnh đạo',
     COUNCIL: 'Hội đồng',
     COMMITTEE: 'Ủy ban',
     ADMIN: 'Quản trị',
     SYSTEM_ADMIN: 'Quản trị hệ thống',
+    SCORER: 'Chuyên viên cấp 2',
+    REVIEWER: 'Lãnh đạo ban',
     USER: 'Người dùng',
   };
-  return map[normalized] ?? raw;
+  return map[normalized] ?? 'Vai trò khác';
 }
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -101,18 +118,28 @@ function formatDate(value: string | null): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-export default function UserManagementPage() {
+/** Số điện thoại Việt Nam: 10–11 số, bắt đầu bằng 0 — bỏ qua khoảng trắng, dấu chấm, gạch. */
+function isValidPhoneNumber(value: string): boolean {
+  return /^0\d{9,10}$/.test(value.replace(/[\s.\-()]/g, ''));
+}
+
+export default function UserManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  // SPECIALIST được xem danh sách và tạo tài khoản chấm; chỉ ADMIN/SYSTEM_ADMIN mới xóa/reset mật khẩu.
+  const currentRole = useAuthStore((s) => s.user?.role);
+  const canManageAccounts = ['ADMIN', 'SYSTEM_ADMIN'].includes(currentRole ?? '');
+  const canCreateAccounts = canManageAccounts || currentRole === 'SPECIALIST';
+  const {
+    filters: { userSearch: search, userStatus: statusFilter, userRole: roleFilter },
+    setters: { userSearch: setSearch, userStatus: setStatusFilter, userRole: setRoleFilter },
+  } = useQueryFilters({ userSearch: '', userStatus: '', userRole: '' });
   const debouncedSearch = useDebounce(search, 350);
 
   const usersQuery = useQuery({
-    queryKey: ['admin-users', { search: debouncedSearch, statusFilter, roleFilter }],
+    queryKey: dataQueryKey(getGetApiV1UsersQueryKey(), { search: debouncedSearch.trim(), status: statusFilter, role: roleFilter, page: 1, pageSize: 100 }),
     queryFn: async () => {
       const raw = await getApiV1Users({
         Search: debouncedSearch.trim() || undefined,
@@ -125,12 +152,26 @@ export default function UserManagementPage() {
     },
   });
 
-  const users = usersQuery.data?.items ?? [];
+  // Trang quản lý tài khoản chỉ dành cho tài khoản chấm điểm: Chuyên viên cấp 2 và Lãnh đạo ban.
+  const users = (usersQuery.data?.items ?? []).filter((user) =>
+    (user.roles ?? []).some((role) => ['SCORER', 'REVIEWER'].includes(role.trim().toUpperCase())),
+  );
 
-  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
-  const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); void queryClient.invalidateQueries({ queryKey: ['admin-users'] }); } });
+  const departmentsQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1DepartmentsAllQueryKey()),
+    queryFn: () => departmentsApi.listAll(),
+  });
+  const departments = departmentsQuery.data ?? [];
+
+  const invalidateAccounts = () => invalidateQueryResources(queryClient, [
+    getGetApiV1UsersQueryKey(),
+    getGetApiV1DepartmentsQueryKey(),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
+  const createMutation = useMutation({ mutationFn: (body: CreateUserBody) => postApiV1Users(body), onSuccess: async () => { toast.success('Đã tạo tài khoản'); setCreateOpen(false); await invalidateAccounts(); } });
+  const updateMutation = useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateUserBody }) => putApiV1UsersId(id, body), onSuccess: async () => { toast.success('Đã cập nhật tài khoản'); setEditOpen(false); await invalidateAccounts(); } });
+  const resetMutation = useMutation({ mutationFn: ({ id, password }: { id: string; password?: string }) => postApiV1UsersIdResetPassword(id, { password: password || undefined }), onSuccess: async () => { toast.success('Đã đặt lại mật khẩu', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); setResetOpen(false); await invalidateQueryResources(queryClient, [getGetApiV1UsersQueryKey(), getGetApiV1AuditLogsQueryKey()]); } });
+  const deleteMutation = useMutation({ mutationFn: (id: string) => deleteApiV1UsersId(id), onSuccess: async () => { toast.success('Đã xóa tài khoản', { description: 'Tài khoản bị đăng xuất khỏi mọi thiết bị.' }); await invalidateAccounts(); } });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -141,47 +182,43 @@ export default function UserManagementPage() {
   const [fEmail, setFEmail] = useState('');
   const [fUsername, setFUsername] = useState('');
   const [fFullName, setFFullName] = useState('');
-  const [fFirstName, setFFirstName] = useState('');
-  const [fLastName, setFLastName] = useState('');
   const [fPhone, setFPhone] = useState('');
-  const [fWardCode, setFWardCode] = useState('');
-  const [fPassword, setFPassword] = useState('');
-  const [fRole, setFRole] = useState('local');
+  const [fRole, setFRole] = useState('');
+  const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
-  const [eFirstName, setEFirstName] = useState('');
-  const [eLastName, setELastName] = useState('');
   const [ePhone, setEPhone] = useState('');
   const [eWardCode, setEWardCode] = useState('');
   const [eStatus, setEStatus] = useState('Active');
+  const [eDepartment, setEDepartment] = useState('');
 
   const [resetPassword, setResetPassword] = useState('');
 
   const openEdit = (u: ManagedUser) => {
     setSelected(u);
     setEFullName(u.fullName ?? '');
-    setEFirstName(u.firstName ?? '');
-    setELastName(u.lastName ?? '');
     setEPhone(u.phone ?? '');
     setEWardCode(u.wardCode ?? '');
     setEStatus(u.status || 'Active');
+    setEDepartment(u.departmentId ?? '');
     setEditOpen(true);
   };
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
-    if (fRole === 'local' && !fWardCode.trim()) { toast.error('Tài khoản địa phương cần nhập mã phường/xã.'); return; }
+    if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
+    if (!fPhone.trim()) { toast.error('Vui lòng nhập số điện thoại.'); return; }
+    if (!isValidPhoneNumber(fPhone)) { toast.error('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
+    if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
+    if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
       email: fEmail.trim(),
       username: fUsername.trim() || null,
       fullName: fFullName.trim() || null,
-      firstName: fFirstName.trim() || null,
-      lastName: fLastName.trim() || null,
       phone: fPhone.trim() || null,
-      wardCode: fWardCode.trim() || null,
-      password: fPassword || null,
       role: fRole,
+      departmentId: fDepartment,
     }, {
       onError: (err) => toast.error(extractErrorMessage(err)),
     });
@@ -190,14 +227,14 @@ export default function UserManagementPage() {
   const handleEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+    if (ePhone.trim() && !isValidPhoneNumber(ePhone)) { toast.error('Số điện thoại không hợp lệ (VD: 0901234567).'); return; }
     updateMutation.mutate({
       id: selected.id,
       body: {
         fullName: eFullName.trim() || null,
-        firstName: eFirstName.trim() || null,
-        lastName: eLastName.trim() || null,
         phone: ePhone.trim() || null,
         wardCode: eWardCode.trim() || null,
+        departmentId: eDepartment || null,
         status: eStatus,
       },
     }, {
@@ -226,8 +263,8 @@ export default function UserManagementPage() {
       id: 'fullName',
       header: 'Họ và tên',
       meta: { className: 'font-medium', list: { width: 'minmax(180px, 1.4fr)' } },
-      // Ưu tiên fullName (người đại diện) → fallback firstName + lastName.
-      cell: ({ row }) => row.original.fullName?.trim() || `${row.original.lastName ?? ''} ${row.original.firstName ?? ''}`.trim() || '—',
+      // Tên hiển thị chính là fullName (người đại diện); trống thì hiện —.
+      cell: ({ row }) => row.original.fullName?.trim() || '—',
     },
     {
       accessorKey: 'email',
@@ -243,14 +280,20 @@ export default function UserManagementPage() {
     {
       id: 'roles',
       header: 'Vai trò',
-      meta: { align: 'center', list: { width: '140px' } },
+      meta: { align: 'center', list: { width: '140px', valueClassName: 'min-w-0 whitespace-normal' } },
       cell: ({ row }) => (
-        <div className="flex flex-wrap justify-center gap-1">
+        <div className="flex min-w-0 flex-wrap justify-center gap-1">
           {(row.original.roles ?? []).map((r) => (
-            <Badge key={r} variant="outline">{roleLabel(r)}</Badge>
+            <Badge key={r} variant="outline" className="h-auto max-w-full whitespace-normal px-2 py-0.5 text-center leading-4">{roleLabel(r)}</Badge>
           ))}
         </div>
       ),
+    },
+    {
+      id: 'department',
+      header: 'Ban',
+      meta: { list: { width: 'minmax(120px, 1fr)' } },
+      cell: ({ row }) => row.original.departmentName ?? '—',
     },
     {
       accessorKey: 'status',
@@ -263,18 +306,18 @@ export default function UserManagementPage() {
     {
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
-      meta: { align: 'right', list: { width: '150px' } },
-      cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
+      meta: { align: 'right', list: { width: '130px', valueClassName: 'text-xs' } },
+      cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
   ], []);
 
   return (
     <div>
-      <PageHeader
+      {!embedded && <PageHeader
         title="Quản lý tài khoản"
         description="Quản lý người dùng hệ thống: tạo mới, cập nhật, đặt lại mật khẩu và xóa tài khoản."
         className="pb-3 border-b-0"
-      />
+      />}
 
       <DataTable
         data={users}
@@ -302,23 +345,26 @@ export default function UserManagementPage() {
               label="Vai trò"
               value={roleFilter}
               onChange={setRoleFilter}
-              options={[{ value: '', label: 'Tất cả' }, ...ROLE_OPTIONS]}
+              options={[{ value: '', label: 'Tất cả' }, ...CREATE_ROLE_OPTIONS]}
             />
           </div>
         }
         activeFilters={[
+          ...(search.trim() ? [{ label: 'Tìm kiếm', value: search.trim(), onClear: () => setSearch('') }] : []),
           ...(statusFilter ? [{ label: 'Trạng thái', value: statusLabels[statusFilter] ?? statusFilter, onClear: () => setStatusFilter('') }] : []),
           ...(roleFilter ? [{ label: 'Vai trò', value: roleLabels[roleFilter] ?? roleFilter, onClear: () => setRoleFilter('') }] : []),
         ]}
-        onClearFilters={() => { setStatusFilter(''); setRoleFilter(''); }}
+        onClearFilters={() => { setSearch(''); setStatusFilter(''); setRoleFilter(''); }}
         emptyState={{
           title: 'Chưa có tài khoản',
-          description: 'Thêm tài khoản đầu tiên để bắt đầu.',
+          description: 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
-          <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFFirstName(''); setFLastName(''); setFPhone(''); setFWardCode(''); setFPassword(''); setFRole('local'); setCreateOpen(true); }} action="create">
-            <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
-          </Button>
+          canCreateAccounts ? (
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
+              <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
+            </Button>
+          ) : undefined
         }
       />
 
@@ -343,44 +389,42 @@ export default function UserManagementPage() {
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="u-full-name">Họ tên người đại diện</Label>
+          <Label htmlFor="u-full-name">Họ tên người đại diện <span className="text-destructive">*</span></Label>
           <Input id="u-full-name" value={fFullName} onChange={(e) => setFFullName(e.target.value)} placeholder="VD: Nguyễn Văn A — tên hiển thị chính" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-last-name">Họ</Label>
-            <Input id="u-last-name" value={fLastName} onChange={(e) => setFLastName(e.target.value)} placeholder="Nguyễn" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-first-name">Tên</Label>
-            <Input id="u-first-name" value={fFirstName} onChange={(e) => setFFirstName(e.target.value)} placeholder="Văn" />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="u-phone">Số điện thoại <span className="text-destructive">*</span></Label>
+          <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="u-phone">Số điện thoại</Label>
-            <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="u-ward">Mã phường/xã {fRole === 'local' && <span className="text-destructive">*</span>}</Label>
-            <Input id="u-ward" value={fWardCode} onChange={(e) => setFWardCode(e.target.value)} placeholder="VD: 12345" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="u-role">Vai trò</Label>
-            <Select value={fRole} onValueChange={(v) => setFRole(v ?? 'local')}>
-              <SelectTrigger id="u-role"><SelectValue /></SelectTrigger>
+            <Label htmlFor="u-role">Vai trò <span className="text-destructive">*</span></Label>
+            <Select
+              value={fRole}
+              onValueChange={(v) => setFRole(v ?? '')}
+              itemToStringLabel={(role) => roleLabels[role] ?? 'Vai trò khác'}
+            >
+              <SelectTrigger id="u-role"><SelectValue placeholder="Chọn vai trò" /></SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                {CREATE_ROLE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="u-password">Mật khẩu</Label>
-            <Input id="u-password" type="password" value={fPassword} onChange={(e) => setFPassword(e.target.value)} placeholder="Bỏ trống dùng mật khẩu mặc định" autoComplete="new-password" />
+            <Label htmlFor="u-department">Ban <span className="text-destructive">*</span></Label>
+            <Select
+              value={fDepartment}
+              onValueChange={(v) => setFDepartment(v ?? '')}
+              itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban'}
+            >
+              <SelectTrigger id="u-department"><SelectValue placeholder="Chọn ban" /></SelectTrigger>
+              <SelectContent>
+                {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground">Mật khẩu khởi tạo sẽ là <b>MTTQ@2026</b>.</p>
       </FormDialog>
 
       {/* Sửa tài khoản */}
@@ -399,16 +443,6 @@ export default function UserManagementPage() {
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="e-last-name">Họ</Label>
-            <Input id="e-last-name" value={eLastName} onChange={(e) => setELastName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e-first-name">Tên</Label>
-            <Input id="e-first-name" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
             <Label htmlFor="e-phone">Số điện thoại</Label>
             <Input id="e-phone" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
           </div>
@@ -419,10 +453,27 @@ export default function UserManagementPage() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="e-status">Trạng thái</Label>
-          <Select value={eStatus} onValueChange={(v) => setEStatus(v ?? 'Active')}>
+          <Select
+            value={eStatus}
+            onValueChange={(v) => setEStatus(v ?? 'Active')}
+            itemToStringLabel={(status) => statusLabels[status] ?? 'Trạng thái khác'}
+          >
             <SelectTrigger id="e-status"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="e-department">Ban xử lý</Label>
+          <Select
+            value={eDepartment}
+            onValueChange={(v) => setEDepartment(v ?? '')}
+            itemToStringLabel={(id) => departments.find((department) => department.id === id)?.name ?? 'Ban xử lý'}
+          >
+            <SelectTrigger id="e-department"><SelectValue placeholder="Chọn ban (tùy chọn)" /></SelectTrigger>
+            <SelectContent>
+              {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -460,9 +511,9 @@ export default function UserManagementPage() {
       />
 
       {/* Actions row cho dòng được chọn */}
-      {selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
+      {canManageAccounts && selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
+          <Button variant="warning" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
             <KeyRound className="h-3.5 w-3.5" /> Đặt lại mật khẩu
           </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>

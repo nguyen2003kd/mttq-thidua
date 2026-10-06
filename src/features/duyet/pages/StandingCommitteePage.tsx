@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/store/authStore';
 import { useScoreStore } from '@/store/scoreStore';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { CriteriaItem, CriteriaTable, Locality, ScoreEntry, ScoreRecord } from '@/types/domain';
 import { PublishResultModal, type PublishResultValue } from '@/features/workflow/components/PublishResultModal';
 import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
@@ -37,7 +38,7 @@ function getOfficialEntryScore(entry: ScoreEntry) {
 }
 
 function getScoreTotals(record: ScoreRecord) {
-  return record.entries.reduce(
+  return record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted').reduce(
     (totals, entry) => {
       const official = getOfficialEntryScore(entry);
       return {
@@ -67,9 +68,11 @@ export default function StandingCommitteePage() {
   const [viewRow, setViewRow] = useState<ApprovalRow | null>(null);
   const [viewingEvidence, setViewingEvidence] = useState<{ entry: ScoreEntry; criterion?: CriteriaItem } | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string>();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const {
+    filters: { statusFilter, fromDate, toDate },
+    setters: { statusFilter: setStatusFilter, fromDate: setFromDate, toDate: setToDate },
+    setFilters: setQueryFilters,
+  } = useQueryFilters<{ statusFilter: StatusFilter; fromDate: string; toDate: string }>({ statusFilter: 'ALL', fromDate: '', toDate: '' });
 
   const rows = useMemo(() => {
     const list: ApprovalRow[] = [];
@@ -207,7 +210,7 @@ export default function StandingCommitteePage() {
       <PageHeader
         title="Công bố kết quả — Ủy ban thường trực"
         description="Rà soát hồ sơ đã được Hội đồng thông qua và công bố kết quả cuối cùng cho địa phương."
-        actions={<Button variant="outline" render={<Link to="/uy-ban/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử công bố</Button>}
+        actions={<Button variant="info" render={<Link to="/uy-ban/lich-su" />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử công bố</Button>}
       />
 
       {rows.length === 0 ? (
@@ -241,11 +244,11 @@ export default function StandingCommitteePage() {
             </div>
           }
           activeFilters={activeFilters}
-          onClearFilters={activeFilters.length > 0 ? () => { setStatusFilter('ALL'); setFromDate(''); setToDate(''); } : undefined}
+          onClearFilters={activeFilters.length > 0 ? () => setQueryFilters({ statusFilter: 'ALL', fromDate: '', toDate: '' }) : undefined}
           toolbar={
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedRow && <span className="mr-1 max-w-[220px] truncate text-xs text-muted-foreground">Đã chọn: {selectedRow.locality.name}</span>}
-              <Button variant="info" disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
+              <Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một hồ sơ để xem chi tiết." onClick={() => selectedRow && setViewRow(selectedRow)}>
                 <Eye className="mr-1.5 h-4 w-4" />Xem hồ sơ
               </Button>
               <Button
@@ -259,7 +262,7 @@ export default function StandingCommitteePage() {
                 <Send className="mr-1.5 h-4 w-4" />Yêu cầu Chuyên viên bổ sung
               </Button>
               <Button
-                className="bg-accent text-foreground hover:bg-accent/90"
+               
                 disabled={!canProcessSelectedRow}
                 disabledReason={disabledReason}
                 action="publish"

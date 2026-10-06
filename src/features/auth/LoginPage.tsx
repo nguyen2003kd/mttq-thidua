@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
+import { queryClient } from '@/api/mutator/query-client';
 import { postApiV1AuthLoginWeb } from '@/api/endpoints/auth';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -14,6 +16,8 @@ import { ROUTES } from '@/constants/routes';
 
 const APP_ROLES: Role[] = [
   'LOCAL',
+  'SCORER',
+  'REVIEWER',
   'SPECIALIST',
   'LEADER',
   'COUNCIL',
@@ -118,6 +122,8 @@ export default function LoginPage() {
       const sessionExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
       const refreshExpiresAt = new Date(Date.now() + refreshExpiresIn * 1000).toISOString();
       const accountName = loginData.username || loginData.email;
+      queryClient.clear();
+      useNotificationStore.getState().clear();
       setStore({
         isSignedIn: true,
         id: loginData.userId,
@@ -148,7 +154,7 @@ export default function LoginPage() {
           name: accountName,
           role,
           localityId: role === 'LOCAL' ? 'loc-25195' : undefined,
-          banId: role === 'LEADER' ? 'ban1' : undefined,
+          // banId được ProfileGate điền từ profile.departmentId sau khi fetch.
         },
       });
       if (loginData.requiresProfileCompletion) {
@@ -175,7 +181,7 @@ export default function LoginPage() {
       {/* Brand Panel — Left background image */}
       <div
         className="hidden lg:flex lg:w-[45%] xl:w-[48%] relative overflow-hidden bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/login-left.png')" }}
+        style={{ backgroundImage: "url('/login-left.png')", backgroundColor: 'hsl(var(--primary))', backgroundBlendMode: 'luminosity' }}
       >
         <div className="absolute inset-0 bg-primary/30" aria-hidden="true" />
 
@@ -224,7 +230,7 @@ export default function LoginPage() {
       >
         <div className="w-full max-w-110">
           {/* Form card */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-[0_18px_45px_rgba(41,20,20,0.16)] border border-white/60 p-8 sm:p-10 space-y-7">
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-[0_18px_45px_hsl(var(--foreground)/0.16)] border border-white/60 p-8 sm:p-10 space-y-7">
             {/* Header */}
             <div className="space-y-3 text-center">
               <div className="mx-auto w-14 h-14 rounded-full border-2 border-primary/20 bg-primary/5 flex items-center justify-center">

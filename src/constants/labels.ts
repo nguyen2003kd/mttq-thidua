@@ -75,7 +75,7 @@ export const LABELS = {
   DASHBOARD_DAYS_LEFT: 'ngày còn lại',
 
   // Audit
-  AUDIT_TIMELINE_TITLE: 'Lịch sử thay đổi',
+  AUDIT_TIMELINE_TITLE: 'Lịch sử',
   AUDIT_TIMESTAMP: 'Thời gian',
   AUDIT_ACTOR: 'Người thực hiện',
   AUDIT_ACTION: 'Hành động',

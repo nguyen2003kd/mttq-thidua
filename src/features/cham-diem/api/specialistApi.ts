@@ -1,6 +1,6 @@
 import { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
-import { type CriteriaGroupApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
+import { type CriteriaGroupApi, type CriteriaStatusApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
 
 // ── Response envelope ────────────────────────────────────────────────────────
 
@@ -25,11 +25,15 @@ const request = async <T>(config: AxiosRequestConfig) => {
 export type SubmissionStage =
   | 'Draft'
   | 'LocalSubmitted'
+  | 'ScorerSubmitted'
+  | 'ReviewerApproved'
   | 'SpecialistApproved'
   | 'LeaderApproved'
   | 'CouncilApproved'
   | 'CommitteeFinalized'
-  | 'RequiresRevision';
+  | 'RequiresRevision'
+  | 'ScorerRevisionRequested'
+  | 'ReviewerRevisionRequested';
 
 /** Các stage này xác nhận hồ sơ đã rời bước xử lý của Chuyên viên. */
 export const SPECIALIST_FORWARDED_STAGES = [
@@ -39,16 +43,49 @@ export const SPECIALIST_FORWARDED_STAGES = [
   'CommitteeFinalized',
 ] as const satisfies readonly SubmissionStage[];
 
+export type ScoringRole = 'SCORER' | 'REVIEWER' | 'SPECIALIST';
+
 /**
- * Quyền thao tác của Chuyên viên trên một hồ sơ. Dùng chung cho mọi nút chấm,
- * lưu nháp và chuyển duyệt để UI không bị lệch điều kiện khóa/mở.
+ * Stage mà mỗi role được thao tác (chấm/duyệt/trả về) — phải khớp ma trận
+ * role × stage ở backend (ApprovalService.ResolveApproveTarget).
  */
-export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined) {
-  const isForwarded = Boolean(stage && SPECIALIST_FORWARDED_STAGES.includes(stage as typeof SPECIALIST_FORWARDED_STAGES[number]));
+const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
+  SCORER: ['LocalSubmitted', 'ScorerRevisionRequested'],
+  REVIEWER: ['ScorerSubmitted', 'ReviewerRevisionRequested'],
+  SPECIALIST: ['ReviewerApproved'],
+};
+
+const FORWARD_LABELS: Record<ScoringRole, string> = {
+  SCORER: 'Gửi Lãnh đạo ban',
+  REVIEWER: 'Gửi Chuyên viên trưởng',
+  SPECIALIST: 'Gửi Lãnh đạo ban',
+};
+
+const LOCK_REASONS: Record<ScoringRole, string> = {
+  SCORER: 'Hồ sơ đã được gửi lên Lãnh đạo ban hoặc đang chờ cấp trên xử lý. Chuyên viên cấp 2 chỉ có thể xem thông tin.',
+  REVIEWER: 'Hồ sơ không ở bước thẩm định của bạn. Lãnh đạo ban chỉ có thể xem thông tin.',
+  SPECIALIST: 'Hồ sơ chưa đến bước xử lý của Chuyên viên trưởng hoặc đã được duyệt. Chuyên viên trưởng chỉ có thể xem thông tin.',
+};
+
+/**
+ * Quyền thao tác trên một hồ sơ theo role chấm điểm. Dùng chung cho mọi nút
+ * chấm, lưu nháp và chuyển duyệt để UI không bị lệch điều kiện khóa/mở.
+ * Mặc định SPECIALIST để tương thích các chỗ gọi cũ.
+ */
+export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined, role: ScoringRole = 'SPECIALIST') {
+  const isActionable = Boolean(stage && ACTIONABLE_STAGES[role].includes(stage));
   return {
-    canEdit: !isForwarded,
-    isForwarded,
-    disabledReason: 'Hồ sơ đã được chuyển lên cấp tiếp theo. Chuyên viên chỉ có thể xem thông tin.',
+    /** Được nhập/sửa điểm — reviewer chỉ duyệt, không chấm. */
+    canEdit: isActionable && role !== 'REVIEWER',
+    /** Được duyệt/gửi hồ sơ lên cấp tiếp theo tại stage hiện tại. */
+    canApprove: isActionable,
+    /** Được yêu cầu chỉnh sửa ở bước liền trước trong luồng. */
+    canRequestRevision: isActionable,
+    /** Được thêm tiêu chí bổ sung — reviewer không chấm điểm nhưng vẫn được bổ sung. */
+    canAddSupplementary: isActionable,
+    isForwarded: !isActionable,
+    disabledReason: LOCK_REASONS[role],
+    forwardLabel: FORWARD_LABELS[role],
   };
 }
 
@@ -67,6 +104,7 @@ export interface SubmissionResultItem {
   submissionId: string;
   criteriaId: string;
   criteriaContent: string | null;
+  criteriaStatus?: CriteriaStatusApi | null;
   snapshotMaxPoint: number;
   snapshotMaxBonusPoint: number;
   point: number;
@@ -156,7 +194,7 @@ export const specialistApi = {
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
 
   // Submissions — chuyên viên xem tất cả bài nộp
-  listAllSubmissions: (params?: { stage?: string; includeUnsubmitted?: boolean; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+  listAllSubmissions: (params?: { stage?: string; includeUnsubmitted?: boolean; departmentId?: string; periodId?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionApi>>({ url: '/api/v1/submissions', method: 'GET', params }),
 
   // Submissions by criteria group — chuyên viên xem tất cả bài nộp của địa phương
@@ -201,6 +239,14 @@ export const specialistApi = {
       data: { ...payload, action: 'UpdateScore' },
     }),
 
+  // Comment — cấp trên (Hội đồng / Ban thường trực) ghi nhận xét vào lịch sử, không đổi điểm hay stage
+  comment: (payload: { submissionId: string; reason: string }) =>
+    request<{ processed: boolean; submissionId: string; action: string }>({
+      url: '/api/v1/submissions/approve',
+      method: 'POST',
+      data: { submissionId: payload.submissionId, action: 'Comment', reason: payload.reason },
+    }),
+
   // Supplementary criteria — chuyên viên bổ sung tiêu chí phát sinh (không có điểm, hồ sơ về RequiresRevision)
   addSupplementaryCriteria: (payload: { submissionId: string; content: string; deadline?: string | null; note: string }) =>
     request<{ added: boolean; submissionId: string; criteriaId: string; submissionResultId: string }>({
@@ -210,10 +256,11 @@ export const specialistApi = {
     }),
 
   // RequestRevision — yêu cầu chỉnh sửa kèm tệp đính kèm (gắn vào ApprovalHistory của lần yêu cầu)
-  requestRevision: (payload: { submissionId: string; reason: string; submissionResultIds?: string[]; file?: File | null }) => {
+  requestRevision: (payload: { submissionId: string; reason: string; criteriaIds?: string[]; submissionResultIds?: string[]; file?: File | null }) => {
     const form = new FormData();
     form.append('submissionId', payload.submissionId);
     form.append('reason', payload.reason);
+    (payload.criteriaIds ?? []).forEach((id) => form.append('criteriaIds', id));
     (payload.submissionResultIds ?? []).forEach((id) => form.append('submissionResultIds', id));
     if (payload.file) form.append('files', payload.file);
     return request<ApprovalHistoryApi>({

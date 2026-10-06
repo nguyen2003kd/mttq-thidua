@@ -16,17 +16,26 @@ export interface ButtonProps
   fallback?: ReactNode;
   /** Lý do hiện khi nút đang bị khóa. */
   disabledReason?: ReactNode;
+  hideWhen?: boolean;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ action, state, scope, fallback, disabledReason, ...props }, ref) {
+const ACTION_VARIANTS: Partial<Record<Action, NonNullable<ButtonProps['variant']>>> = {
+  create: 'success',
+  edit: 'edit',
+  delete: 'destructive',
+  view: 'info',
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ action, state, scope, fallback, disabledReason, hideWhen, ...props }, ref) {
   const can = useCan();
+  if (hideWhen) return null;
   const isFullWidth = typeof props.className === 'string' && /(?:^|\s)!?w-full(?:\s|$)/.test(props.className);
 
   if (action && !can(action, { state, scope })) {
     return fallback ? <>{fallback}</> : null;
   }
 
-  const button = <BaseButton ref={ref} {...props} />;
+  const button = <BaseButton ref={ref} {...props} variant={props.variant ?? (action ? ACTION_VARIANTS[action] : undefined)} />;
   const reason = disabledReason
     ?? (typeof props.title === 'string' ? props.title : 'Thao tác hiện chưa khả dụng.');
 

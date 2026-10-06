@@ -1,4 +1,5 @@
 /* eslint-disable */
+import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -463,10 +464,8 @@ export const listSessions = (
 
 
 export const getListSessionsQueryKey = (params?: ListSessionsParams,) => {
-    return [
-    `/api/v1/auth/sessions`, ...(params ? [params] : [])
-    ] as const;
-    }
+  return apiQueryKey({ params: params }, { url: `/api/v1/auth/sessions` });
+};
 
 
 export const getListSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listSessions>>, TError = ErrorResponse>(params?: ListSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSessions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
@@ -930,10 +929,8 @@ export const getProfile = (
 
 
 export const getGetProfileQueryKey = () => {
-    return [
-    `/api/v1/auth/profile`
-    ] as const;
-    }
+  return apiQueryKey({}, { url: `/api/v1/auth/profile` });
+};
 
 
 export const getGetProfileQueryOptions = <TData = Awaited<ReturnType<typeof getProfile>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfile>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}

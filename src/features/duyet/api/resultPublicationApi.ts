@@ -16,7 +16,7 @@ const request = async <T>(config: AxiosRequestConfig) => {
 export interface ResultPublicationLocality {
   wardCode: string;
   wardName: string;
-  status: 'NotSubmitted' | 'RequiresRevision' | 'CouncilApproved' | 'CommitteeFinalized' | 'InProgress';
+  status: 'NotSubmitted' | 'RequiresRevision' | 'ReviewerApproved' | 'SpecialistApproved' | 'CouncilApproved' | 'CommitteeFinalized' | 'InProgress';
   submissionId: string | null;
   currentPoint: number;
   maxPoint: number;
@@ -40,6 +40,8 @@ export interface ResultPublicationCriteriaGroup {
 }
 
 export interface ResultPublicationOverview {
+  periodId: string;
+  periodName: string;
   totalLocalities: number;
   localitiesWithData: number;
   localitiesCompleted: number;
@@ -55,7 +57,16 @@ export interface ResultPublicationOverview {
   criteriaGroups: ResultPublicationCriteriaGroup[];
 }
 
+export interface UnpublishedLocalityGroup {
+  wardCode: string;
+  wardName: string;
+  criteriaGroupId: string;
+  criteriaGroupName: string;
+}
+
 export interface ResultPublicationPreview {
+  periodId: string;
+  periodName: string;
   canPublish: boolean;
   isPublished: boolean;
   totalLocalities: number;
@@ -63,9 +74,12 @@ export interface ResultPublicationPreview {
   localitiesRequiresRevision: number;
   message: string;
   publishedAt: string | null;
+  unpublishedLocalityGroups: UnpublishedLocalityGroup[];
 }
 
 export interface ResultPublicationResult {
+  periodId: string;
+  periodName: string;
   publicationId: string;
   published: boolean;
   publishedBy: string;
@@ -84,6 +98,8 @@ export interface LocalResultPublicationGroup {
 }
 
 export interface LocalResultPublication {
+  periodId: string;
+  periodName: string;
   publicationId: string | null;
   isPublished: boolean;
   publishedAt: string | null;
@@ -96,12 +112,22 @@ export interface LocalResultPublication {
 }
 
 export const resultPublicationApi = {
-  getOverview: () => request<ResultPublicationOverview>({ url: '/api/v1/result-publications/overview', method: 'GET' }),
-  getCriteriaGroups: () => request<ResultPublicationCriteriaGroup[]>({ url: '/api/v1/result-publications/criteria-groups', method: 'GET' }),
-  getCriteriaGroup: (id: string) => request<ResultPublicationCriteriaGroup>({ url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET' }),
-  getPreview: () => request<ResultPublicationPreview>({ url: '/api/v1/result-publications/preview', method: 'GET' }),
-  publish: (note?: string, file?: File | null) => {
+  getOverview: (periodId: string) => request<ResultPublicationOverview>({ url: '/api/v1/result-publications/overview', method: 'GET', params: { periodId } }),
+  getCriteriaGroups: (periodId: string) => request<ResultPublicationCriteriaGroup[]>({ url: '/api/v1/result-publications/criteria-groups', method: 'GET', params: { periodId } }),
+  getCriteriaGroup: (id: string, periodId: string) => request<ResultPublicationCriteriaGroup>({ url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET', params: { periodId } }),
+  getPreview: (periodId: string) => request<ResultPublicationPreview>({ url: '/api/v1/result-publications/preview', method: 'GET', params: { periodId } }),
+  getScoreSummaryExcel: async (periodId?: string) => {
+    const response = await mainInstance<Blob>({
+      url: '/api/v1/result-publications/score-summary-excel',
+      method: 'GET',
+      params: periodId ? { periodId } : undefined,
+      responseType: 'blob',
+    });
+    return response instanceof Blob ? response : new Blob([JSON.stringify(response)], { type: 'application/octet-stream' });
+  },
+  publish: (periodId: string, note?: string, file?: File | null) => {
     const form = new FormData();
+    form.append('periodId', periodId);
     form.append('note', note?.trim() || '');
     if (file) form.append('file', file);
 
@@ -111,5 +137,5 @@ export const resultPublicationApi = {
       data: form,
     });
   },
-  getLocalResult: () => request<LocalResultPublication>({ url: '/api/v1/result-publications/local', method: 'GET' }),
+  getLocalResult: (periodId: string) => request<LocalResultPublication>({ url: '/api/v1/result-publications/local', method: 'GET', params: { periodId } }),
 };

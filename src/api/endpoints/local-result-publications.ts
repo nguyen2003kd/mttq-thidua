@@ -14,7 +14,12 @@ import type {
   UseQueryResult
 } from '@tanstack/react-query';
 
+import type {
+  GetApiV1ResultPublicationsLocalParams
+} from '../models';
+
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -38,13 +43,14 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 export const getApiV1ResultPublicationsLocal = (
-
+    params?: GetApiV1ResultPublicationsLocalParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
       return mainInstance<void>(
-      {url: `/api/v1/result-publications/local`, method: 'GET', signal
+      {url: `/api/v1/result-publications/local`, method: 'GET',
+        params, signal
     },
       options);
     }
@@ -52,23 +58,20 @@ export const getApiV1ResultPublicationsLocal = (
 
 
 
-export const getGetApiV1ResultPublicationsLocalQueryKey = () => {
-    return [
-    `/api/v1/result-publications/local`
-    ] as const;
-    }
+export const getGetApiV1ResultPublicationsLocalQueryKey = (params?: GetApiV1ResultPublicationsLocalParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/result-publications/local` });
 
 
-export const getGetApiV1ResultPublicationsLocalQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1ResultPublicationsLocalQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>(params?: GetApiV1ResultPublicationsLocalParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1ResultPublicationsLocalQueryKey();
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/result-publications/local`, queryOptions });
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>> = ({ signal }) => getApiV1ResultPublicationsLocal(requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>> = ({ signal }) => getApiV1ResultPublicationsLocal(params, requestOptions, signal);
 
 
 
@@ -82,7 +85,7 @@ export type GetApiV1ResultPublicationsLocalQueryError = unknown
 
 
 export function useGetApiV1ResultPublicationsLocal<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>> & Pick<
+ params: undefined |  GetApiV1ResultPublicationsLocalParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>,
           TError,
@@ -92,7 +95,7 @@ export function useGetApiV1ResultPublicationsLocal<TData = Awaited<ReturnType<ty
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsLocal<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>> & Pick<
+ params?: GetApiV1ResultPublicationsLocalParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>,
           TError,
@@ -102,16 +105,16 @@ export function useGetApiV1ResultPublicationsLocal<TData = Awaited<ReturnType<ty
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsLocal<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsLocalParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetApiV1ResultPublicationsLocal<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsLocalParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsLocal>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1ResultPublicationsLocalQueryOptions(options)
+  const queryOptions = useGetApiV1ResultPublicationsLocalQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

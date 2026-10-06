@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, ChevronDown, ChevronRight, FileCheck, ListTree, MapPin, Trophy } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { Button, EmptyState, PageHeader, PageLoading } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { getLocalityApiError, localityApi, type CriteriaApi, type CriteriaGroupApi, type SubmissionApi, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
+import { getLocalityApiError, localityApi, mergeSubmissionCriteria, type CriteriaApi, type CriteriaGroupApi, type SubmissionApi, type SubmissionResultItem } from '@/features/dia-phuong/api/localityApi';
 
 interface ResultGroupRow {
   group: CriteriaGroupApi;
@@ -31,11 +34,12 @@ function ScoreValue({ value, strong = false }: { value: number | null | undefine
 }
 
 function getGroupTotals(submission: SubmissionApi) {
-  const proposedScore = submission.results.reduce((total, result) => total + result.point, 0);
-  const proposedBonus = submission.results.reduce((total, result) => total + result.bonusPoint, 0);
-  const hasProvinceScore = submission.results.some((result) => result.officialPoint !== null || result.officialBonusPoint !== null);
-  const provinceScore = hasProvinceScore ? submission.results.reduce((total, result) => total + (result.officialPoint ?? 0), 0) : null;
-  const provinceBonus = hasProvinceScore ? submission.results.reduce((total, result) => total + (result.officialBonusPoint ?? 0), 0) : null;
+  const activeResults = submission.results.filter((result) => result.criteriaStatus !== 'Deleted');
+  const proposedScore = activeResults.reduce((total, result) => total + result.point, 0);
+  const proposedBonus = activeResults.reduce((total, result) => total + result.bonusPoint, 0);
+  const hasProvinceScore = activeResults.some((result) => result.officialPoint !== null || result.officialBonusPoint !== null);
+  const provinceScore = hasProvinceScore ? activeResults.reduce((total, result) => total + (result.officialPoint ?? 0), 0) : null;
+  const provinceBonus = hasProvinceScore ? activeResults.reduce((total, result) => total + (result.officialBonusPoint ?? 0), 0) : null;
   return { proposedScore, proposedBonus, provinceScore, provinceBonus, proposedTotal: proposedScore + proposedBonus, provinceTotal: provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus };
 }
 
@@ -49,7 +53,7 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
   const provinceTotal = provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus;
 
   return <TableRow className="bg-muted/[0.18] hover:bg-muted/40">
-    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p></div></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><div><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</div></div></TableCell>
     <TableCell className="whitespace-normal border-r border-primary/10 px-4 py-3 align-top text-sm leading-5 text-muted-foreground">{result?.explanation || criterion.note || '—'}</TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-right align-top"><ScoreValue value={criterion.maxPoint} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-right align-top"><ScoreValue value={proposedScore} /></TableCell>
@@ -64,15 +68,15 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
 export default function KetQuaPage() {
   const localityId = useAuthStore((state) => state.user?.localityId);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const submissionsQuery = useQuery({ queryKey: ['locality-result-submissions', localityId], queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), enabled: Boolean(localityId) });
-  const groupsQuery = useQuery({ queryKey: ['locality-result-criteria-groups'], queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }), enabled: Boolean(localityId) });
+  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }), enabled: Boolean(localityId) });
+  const groupsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }), queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }), enabled: Boolean(localityId) });
   const publishedSubmissionIds = useMemo(
     () => (submissionsQuery.data?.items ?? []).filter((submission) => submission.currentStage === 'CommitteeFinalized').map((submission) => submission.id),
     [submissionsQuery.data?.items],
   );
   const submissionDetailsQueries = useQueries({
     queries: publishedSubmissionIds.map((submissionId) => ({
-      queryKey: ['locality-result-submission-detail', submissionId],
+      queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submissionId)),
       queryFn: () => localityApi.getSubmission(submissionId),
       enabled: Boolean(submissionId),
     })),
@@ -83,7 +87,11 @@ export default function KetQuaPage() {
     return submissionDetailsQueries.map((query) => query.data).filter((submission): submission is SubmissionApi => Boolean(submission)).map((submission) => {
       const group = groupsById.get(submission.criteriaGroupId);
       if (!group) return null;
-      return { group, submission, ...getGroupTotals(submission), resultsByCriteriaId: new Map(submission.results.map((result) => [result.criteriaId, result])) };
+      const displayGroup = {
+        ...group,
+        criteria: mergeSubmissionCriteria(group.criteria, submission.results, submission.id),
+      };
+      return { group: displayGroup, submission, ...getGroupTotals(submission), resultsByCriteriaId: new Map(submission.results.map((result) => [result.criteriaId, result])) };
     }).filter((row): row is ResultGroupRow => row !== null).sort((left, right) => left.group.name.localeCompare(right.group.name, 'vi'));
   }, [groupsQuery.data?.items, submissionDetailsQueries]);
 
@@ -97,7 +105,7 @@ export default function KetQuaPage() {
   if (submissionsQuery.isError || groupsQuery.isError || submissionDetailsQueries.some((query) => query.isError)) return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(submissionsQuery.error ?? groupsQuery.error ?? submissionDetailsQueries.find((query) => query.error)?.error)} />;
 
   return <div className="mx-auto w-full max-w-[1600px] space-y-6 pb-8">
-    <PageHeader title={`Kết quả thi đua`} description="Điểm chính thức đã công bố theo nhóm tiêu chí và tiêu chí con." actions={<Button variant="outline" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title={`Kết quả thi đua`} description="Điểm chính thức đã công bố theo nhóm tiêu chí và tiêu chí con." actions={<Button variant="back" render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     {resultGroups.length === 0 ? <EmptyState title="Kết quả chưa được công bố" description="Điểm chính thức sẽ hiển thị tại đây sau khi Ban Thường trực công bố kết quả." icon={<FileCheck className="size-8" />} /> : <>
       <section className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-[1.15fr_1fr_1fr]" aria-label="Tổng quan kết quả">
         <div className="bg-card px-5 py-4"><p className="text-xs font-medium text-muted-foreground">Điểm tỉnh chấm</p><p className="mt-1 text-2xl font-semibold tabular-nums text-primary">{hasProvinceScore ? formatScore(totalProvinceScore) : '—'}</p></div>
@@ -107,7 +115,7 @@ export default function KetQuaPage() {
       <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Bảng chi tiết kết quả">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4"><div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary"><ListTree className="size-5" /></span><div><h2 className="text-base font-semibold text-foreground">Chi tiết điểm theo nhóm tiêu chí</h2><p className="mt-0.5 text-sm text-muted-foreground">Bấm vào một nhóm để xem các tiêu chí con.</p></div></div><Badge variant="secondary">{resultGroups.length} nhóm</Badge></div>
         <Table className="min-w-[1580px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[19%]" /><col className="w-[17%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
-          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Xã chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm thưởng đề xuất</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm thưởng tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Xã chấm + điểm thưởng đề xuất</TableHead><TableHead className="whitespace-normal px-4 py-3 text-right leading-5 text-primary-foreground">Tỉnh chấm + điểm thưởng tỉnh</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Địa phương đề xuất</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm thưởng đề xuất</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Điểm thưởng tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right leading-5 text-primary-foreground">Địa phương đề xuất + điểm thưởng đề xuất</TableHead><TableHead className="whitespace-normal px-4 py-3 text-right leading-5 text-primary-foreground">Tỉnh chấm + điểm thưởng tỉnh</TableHead></TableRow></TableHeader>
           <TableBody>{resultGroups.flatMap((resultGroup) => { const expanded = expandedGroupIds.has(resultGroup.group.id); return [
             <TableRow key={resultGroup.group.id} className="cursor-pointer bg-primary/[0.035] hover:bg-primary/[0.07]" onClick={() => toggleGroup(resultGroup.group.id)}><TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4"><div className="flex items-start gap-2"><span className="mt-0.5 text-primary">{expanded ? <ChevronDown className="size-5" /> : <ChevronRight className="size-5" />}</span><div><p className="font-semibold leading-5 text-foreground">{resultGroup.group.name}</p><p className="mt-1 text-xs text-muted-foreground">{resultGroup.group.criteria.length} tiêu chí con</p></div></div></TableCell><TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 text-sm leading-5 text-muted-foreground">{resultGroup.group.content || '—'}</TableCell><TableCell className="border-r border-primary/15 px-4 py-4 text-right"><ScoreValue value={resultGroup.group.maxPoint} strong /></TableCell><TableCell className="border-r border-primary/15 px-4 py-4 text-right"><ScoreValue value={resultGroup.proposedScore} strong /></TableCell><TableCell className="border-r border-primary/15 px-4 py-4 text-right"><ScoreValue value={resultGroup.proposedBonus} strong /></TableCell><TableCell className="border-r border-primary/15 px-4 py-4 text-right"><ScoreValue value={resultGroup.provinceScore} strong /></TableCell><TableCell className="border-r border-primary/15 px-4 py-4 text-right"><ScoreValue value={resultGroup.provinceBonus} strong /></TableCell><TableCell className="border-r border-primary/15 px-4 py-4 text-right"><ScoreValue value={resultGroup.proposedTotal} strong /></TableCell><TableCell className="px-4 py-4 text-right"><ScoreValue value={resultGroup.provinceTotal} strong /></TableCell></TableRow>,
             ...(expanded ? resultGroup.group.criteria.map((criterion) => <ChildResultRow key={`${resultGroup.group.id}-${criterion.id}`} criterion={criterion} result={resultGroup.resultsByCriteriaId.get(criterion.id)} />) : []),

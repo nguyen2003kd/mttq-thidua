@@ -1,5 +1,6 @@
-import { Children, Fragment, cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Children, Fragment, cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from './Button';
 import { cn } from '@/lib/utils';
 
@@ -13,10 +14,21 @@ export interface FilterDropdownProps {
   label?: string;
   /** Gọi khi bấm Xóa lọc — ẩn nút nếu không truyền */
   onClear?: () => void;
+  /** Giữ bảng lọc mở bên dưới nút để không bị thanh điều hướng cố định che phần đầu. */
+  openBelow?: boolean;
   className?: string;
 }
 
 type FilterControlElement = ReactElement<{ value: string; onChange: (value: string) => void }>;
+
+export interface FilterTextInputProps extends Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export function FilterTextInput({ value, onChange, ...props }: FilterTextInputProps) {
+  return <Input {...props} value={value} onChange={(event) => onChange(event.target.value)} />;
+}
 
 const isFilterControl = (node: ReactNode): node is FilterControlElement =>
   isValidElement(node)
@@ -41,11 +53,15 @@ function flattenFilterChildren(nodes: ReactNode): ReactNode[] {
  * Giá trị chọn trong dropdown là bản nháp — chỉ áp dụng khi bấm "Xác nhận" (dropdown tự đóng).
  * "Xóa lọc" đặt lại toàn bộ filter. Đóng khi bấm ra ngoài hoặc nhấn Escape (bỏ thay đổi chưa xác nhận).
  */
-export function FilterDropdown({ children, activeCount = 0, activeFilters, label = 'Bộ lọc', onClear, className }: FilterDropdownProps) {
+export function FilterDropdown({ children, activeCount = 0, activeFilters, label = 'Bộ lọc', onClear, openBelow = false, className }: FilterDropdownProps) {
   const [open, setOpen] = useState(false);
+  const [panelMaxHeight, setPanelMaxHeight] = useState<number | null>(null);
+  const [placement, setPlacement] = useState<'above' | 'below'>('below');
   /** Giá trị nháp theo chỉ số child — chưa áp dụng lên filter thật */
   const [draft, setDraft] = useState<Record<string, string>>({});
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +81,27 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 12);
+      const spaceAbove = Math.max(0, rect.top - 12);
+      const nextPlacement = !openBelow && spaceBelow < 320 && spaceAbove > spaceBelow ? 'above' : 'below';
+      setPlacement(nextPlacement);
+      setPanelMaxHeight(Math.floor(nextPlacement === 'above' ? spaceAbove : spaceBelow));
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, openBelow]);
 
   const toggle = () => {
     if (!open) {
@@ -108,14 +145,13 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
   return (
     <div ref={rootRef} className={cn('relative', className)}>
       <Button
+        ref={triggerRef}
         type="button"
-        variant="outline"
+        variant="info"
         size="sm"
         className={cn(
           '!h-9 gap-1.5 rounded-lg border px-2.5 text-[13px] font-normal',
-          activeCount > 0
-            ? 'border-primary/50 bg-primary/[0.06] text-primary'
-            : 'border-input bg-card hover:border-muted-foreground/55',
+          activeCount > 0 && 'border-white/40',
         )}
         onClick={toggle}
         aria-expanded={open}
@@ -123,15 +159,23 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
         <SlidersHorizontal className="h-4 w-4" />
         {label}
         {activeCount > 0 && (
-          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-primary-foreground">
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/20 px-1 text-[11px] font-semibold text-white">
             {activeCount}
           </span>
         )}
       </Button>
       {open && (
-        <div className={cn('absolute left-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-border bg-card p-3 shadow-md', className)}>
+        <div
+          ref={panelRef}
+          style={panelMaxHeight === null ? undefined : { maxHeight: panelMaxHeight }}
+          className={cn(
+            'absolute left-0 z-30 flex w-64 flex-col overflow-hidden rounded-lg border border-border bg-card p-3 shadow-md',
+            placement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+            className,
+          )}
+        >
           {activeFilters && activeFilters.length > 0 && (
-            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 border-b border-border pb-2.5">
+            <div className="mb-2.5 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border pb-2.5">
               {activeFilters.map((f) => (
                 <span
                   key={f.label}
@@ -151,17 +195,20 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
               ))}
             </div>
           )}
-          <div className="flex flex-col items-stretch gap-2.5 [&>*]:w-full">
-            {flattenFilterChildren(children).map((child, index) => {
-              if (!isFilterControl(child)) return child;
-              const key = String(index);
-              return cloneElement(child, {
-                value: draft[key] ?? child.props.value,
-                onChange: (value: string) => setDraft((prev) => ({ ...prev, [key]: value })),
-              });
-            })}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="flex flex-col items-stretch gap-2.5 [&>*]:w-full">
+              {flattenFilterChildren(children).map((child, index) => {
+                if (!isFilterControl(child)) return child;
+                const key = String(index);
+                return cloneElement(child, {
+                  key: child.key ?? key,
+                  value: draft[key] ?? child.props.value,
+                  onChange: (value: string) => setDraft((prev) => ({ ...prev, [key]: value })),
+                });
+              })}
+            </div>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2.5">
+          <div className="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-border pt-2.5">
             <Button
               type="button"
               variant="outline"

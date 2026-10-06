@@ -1,9 +1,15 @@
-import { useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownToLine, ArrowLeft, Eye, FileText, History, Save, Send, Trash2 } from 'lucide-react';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1FilesQueryKey, getGetApiV1FilesBatchQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
+import { ArrowDownToLine, ArrowLeft, Check, Eye, FileText, History, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FormDialog, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, FilterSelect, FormDialog, PageHeader, PageLoading, PeriodSelect, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
@@ -11,21 +17,43 @@ import type { SpecialistRevisionFile } from '@/features/workflow/components/Loca
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { CriteriaTable } from '@/types/domain';
 import type { ColumnDef } from '@tanstack/react-table';
+import type { CriteriaGroupSortBy, SortOrder } from '@/features/admin/api/criteriaGroupsApi';
 import {
   localityApi,
   mapCriteriaGroupToTable,
   mapSubmissionToRecord,
+  mergeSubmissionCriteria,
   getLocalityApiError,
   type SubmissionApi,
   type SubmissionStage,
 } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFilesApiError } from '@/features/files/api/filesApi';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 
 interface SelectedRow { entry: ScoreEntry; criterion?: CriteriaItem }
+
+const SUBMISSION_STATUS_FILTER_OPTIONS = [
+  { value: 'NOT_SUBMITTED', label: 'Chưa nộp' },
+  { value: 'SUBMITTED', label: 'Đã nộp' },
+  { value: 'REVISION', label: 'Yêu cầu chỉnh sửa' },
+] as const;
+
+type SubmissionStatusFilter = (typeof SUBMISSION_STATUS_FILTER_OPTIONS)[number]['value'] | '';
+
+const GROUP_SORT_OPTIONS = [
+  { value: 'createdAt-desc', label: 'Mới nhất' },
+  { value: 'name-asc', label: 'Tên A–Z' },
+  { value: 'name-desc', label: 'Tên Z–A' },
+  { value: 'deadline-asc', label: 'Hạn nộp gần nhất' },
+  { value: 'maxPoint-desc', label: 'Điểm cao nhất' },
+] as const;
+
+const DEFAULT_GROUP_SORT = 'createdAt-desc';
 
 function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }: { open: boolean; onOpenChange: (open: boolean) => void; item: SelectedRow | null; evidence: Evidence[]; onPreview: (file: Evidence) => void }) {
   if (!item) return null;
@@ -37,7 +65,7 @@ function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }
     ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${criterion?.bonusScore ?? 0}`],
   ];
 
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p></section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p>{criterion?.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
 }
 
 interface LocalityCriteriaListRow extends CriteriaTable {
@@ -46,18 +74,27 @@ interface LocalityCriteriaListRow extends CriteriaTable {
   submissionStage: SubmissionStage | null;
 }
 
-function getSubmissionStageLabel(stage: SubmissionStage | null) {
+/** Nhãn + màu badge trạng thái hồ sơ (1 nguồn duy nhất để label và màu không lệch nhau):
+ *  xám = chưa nộp/nháp · xanh dương = đã nộp · cam = cần chỉnh sửa. */
+type SubmissionStageBadge = { label: string; variant: 'outline' | 'success' | 'warning' };
+function getSubmissionStageBadge(stage: SubmissionStage | null): SubmissionStageBadge {
   switch (stage) {
-    case 'LocalSubmitted': return 'Đã nộp';
-    case 'RequiresRevision': return 'Yêu cầu chỉnh sửa';
-    // Địa phương chỉ cần biết hồ sơ đã rời bước nộp hay đang cần xử lý lại;
-    // không hiển thị chi tiết các cấp duyệt nội bộ.
-    case 'SpecialistApproved':
-    case 'LeaderApproved':
-    case 'CouncilApproved':
-    case 'CommitteeFinalized': return 'Đã nộp';
-    default: return 'Chưa nộp';
+    case null:
+    case 'Draft':
+      return { label: 'Chưa nộp', variant: 'outline' };
+    case 'LocalSubmitted':
+    case 'ScorerRevisionRequested':
+    case 'ReviewerRevisionRequested':
+      return { label: 'Đã nộp', variant: 'success' };
+    case 'RequiresRevision':
+      return { label: 'Yêu cầu chỉnh sửa', variant: 'warning' };
+    default:
+      return { label: 'Đã nộp', variant: 'success' };
   }
+}
+
+function getSubmissionStageLabel(stage: SubmissionStage | null) {
+  return getSubmissionStageBadge(stage).label;
 }
 
 function parseSubmissionResultIds(changedData?: string | null) {
@@ -66,6 +103,18 @@ function parseSubmissionResultIds(changedData?: string | null) {
     const parsed = JSON.parse(changedData) as { submissionResultIds?: unknown };
     return Array.isArray(parsed.submissionResultIds)
       ? parsed.submissionResultIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseRevisionCriteriaIds(changedData?: string | null) {
+  if (!changedData) return [] as string[];
+  try {
+    const parsed = JSON.parse(changedData) as { criteriaIds?: unknown };
+    return Array.isArray(parsed.criteriaIds)
+      ? parsed.criteriaIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
       : [];
   } catch {
     return [];
@@ -85,12 +134,68 @@ function extractRevisionReason(reason?: string | null) {
 export default function LocalityCriteriaPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const localityId = user?.localityId;
   const { nowMs: trustedNowMs, isReady: isTrustedTimeReady } = useTrustedTime();
 
   const [selectedListTable, setSelectedListTable] = useState<LocalityCriteriaListRow | null>(null);
+  const [groupSearch, setGroupSearch] = useState(() => searchParams.get('search') ?? '');
+  const [statusFilter, setStatusFilter] = useState<SubmissionStatusFilter>(() => (
+    SUBMISSION_STATUS_FILTER_OPTIONS.find((option) => option.value === searchParams.get('status'))?.value ?? ''
+  ));
+  const [sortFilter, setSortFilter] = useState<string>(() => (
+    GROUP_SORT_OPTIONS.find((option) => option.value === searchParams.get('sort'))?.value ?? DEFAULT_GROUP_SORT
+  ));
+  const [yearFilter, setYearFilter] = useState(() => searchParams.get('year') ?? '');
+  const [periodFilter, setPeriodFilter] = useState(() => searchParams.get('periodId') ?? usePeriodStore.getState().selectedPeriodId ?? '');
+  const [sortBy, sortOrder] = sortFilter.split('-') as [CriteriaGroupSortBy, SortOrder];
+  const updateSearchParam = useCallback((key: string, value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+  const updateGroupSearch = useCallback((value: string) => {
+    setGroupSearch(value);
+    updateSearchParam('search', value);
+  }, [updateSearchParam]);
+  const updatePeriodFilter = useCallback((value: string) => {
+    setPeriodFilter(value);
+    usePeriodStore.getState().setSelectedPeriod(value || null);
+    setSelectedListTable(null);
+    updateSearchParam('periodId', value);
+  }, [updateSearchParam]);
+  const updateStatusFilter = useCallback((value: string) => {
+    setStatusFilter(value as SubmissionStatusFilter);
+    setSelectedListTable(null);
+    updateSearchParam('status', value);
+  }, [updateSearchParam]);
+  const updateSortFilter = useCallback((value: string) => {
+    setSortFilter(value);
+    setSelectedListTable(null);
+    updateSearchParam('sort', value === DEFAULT_GROUP_SORT ? '' : value);
+  }, [updateSearchParam]);
+  const updateYearFilter = useCallback((value: string) => {
+    setYearFilter(value);
+    setSelectedListTable(null);
+    updateSearchParam('year', value);
+  }, [updateSearchParam]);
+  const clearFilters = useCallback(() => {
+    setStatusFilter('');
+    setSortFilter(DEFAULT_GROUP_SORT);
+    setYearFilter('');
+    setPeriodFilter('');
+    setSelectedListTable(null);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      ['status', 'sort', 'year', 'periodId'].forEach((key) => next.delete(key));
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [selected, setSelected] = useState<SelectedRow | null>(null);
   const [viewing, setViewing] = useState<SelectedRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -101,18 +206,43 @@ export default function LocalityCriteriaPage() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [draftResults, setDraftResults] = useState<Map<string, EvidenceFormValue>>(new Map());
+  const [criteriaCompletion, setCriteriaCompletion] = useState<{ groupId: string | null; completeIds: ReadonlySet<string> }>({ groupId: null, completeIds: new Set() });
   const draftResultsRef = useRef<Map<string, EvidenceFormValue>>(draftResults);
   const scoreTableRef = useRef<LocalityScoreTableHandle>(null);
+  const reportCriterionCompletion = useCallback((criteriaId: string, complete: boolean) => {
+    if (!id) return;
+    setCriteriaCompletion((current) => {
+      const currentIds = current.groupId === id ? current.completeIds : new Set<string>();
+      if (current.groupId === id && currentIds.has(criteriaId) === complete) return current;
+      const completeIds = new Set(currentIds);
+      if (complete) completeIds.add(criteriaId);
+      else completeIds.delete(criteriaId);
+      return { groupId: id, completeIds };
+    });
+  }, [id]);
 
   // Danh sách nhóm tiêu chí được giao (backend trả về tất cả, lọc theo submission của locality)
+  const periodsQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
+    queryFn: () => periodsApi.listAll(),
+  });
+  const periods = periodsQuery.data ?? [];
+
   const groupsQuery = useQuery({
-    queryKey: ['locality-criteria-groups', localityId],
-    queryFn: () => localityApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', localityId, search: groupSearch || undefined, periodId: periodFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
+    queryFn: () => localityApi.listCriteriaGroups({
+      search: groupSearch || undefined,
+      periodId: periodFilter || undefined,
+      sortBy,
+      sortOrder,
+      page: 1,
+      pageSize: 100,
+    }),
     enabled: Boolean(localityId),
   });
 
   const mySubmissionsQuery = useQuery({
-    queryKey: ['locality-my-submissions', localityId],
+    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
     enabled: Boolean(localityId),
   });
@@ -137,7 +267,7 @@ export default function LocalityCriteriaPage() {
   // API danh sách nhóm không trả tiêu chí con, nên cần lấy chi tiết để tính đúng tổng điểm thưởng.
   const assignedGroupDetailQueries = useQueries({
     queries: assignedTables.map((assignedTable) => ({
-      queryKey: ['locality-criteria-group', assignedTable.id],
+      queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(assignedTable.id)),
       queryFn: () => localityApi.getCriteriaGroup(assignedTable.id),
       enabled: !id && Boolean(localityId),
     })),
@@ -165,6 +295,27 @@ export default function LocalityCriteriaPage() {
     [assignedTables, bonusScoreByGroupId, submissionByGroup],
   );
 
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    for (const row of localityListRows) {
+      for (const date of [row.openDate, row.closeDate]) {
+        if (!date) continue;
+        const timestamp = new Date(date).getTime();
+        if (Number.isFinite(timestamp)) years.add(new Date(timestamp).getFullYear().toString());
+      }
+    }
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [localityListRows]);
+
+  const filteredLocalityListRows = useMemo(() => localityListRows.filter((row) => {
+    const matchesYear = !yearFilter || [row.openDate, row.closeDate].some((date) => (
+      Boolean(date) && new Date(date).getFullYear().toString() === yearFilter
+    ));
+    const selectedStatusLabel = SUBMISSION_STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label;
+    const matchesStatus = !statusFilter || getSubmissionStageLabel(row.submissionStage) === selectedStatusLabel;
+    return matchesYear && matchesStatus;
+  }), [localityListRows, statusFilter, yearFilter]);
+
   const localityListColumns = useMemo<ColumnDef<LocalityCriteriaListRow>[]>(
     () => [
       {
@@ -184,33 +335,47 @@ export default function LocalityCriteriaPage() {
         id: 'submissionStage',
         accessorFn: (row) => getSubmissionStageLabel(row.submissionStage),
         header: 'Trạng thái hồ sơ',
-        cell: ({ row }) => (
-          <Badge variant={row.original.submissionStage === 'RequiresRevision' ? 'warning' : row.original.submissionStage ? 'secondary' : 'outline'}>
-            {getSubmissionStageLabel(row.original.submissionStage)}
-          </Badge>
-        ),
-        meta: { list: { label: 'Trạng thái hồ sơ', width: 'minmax(170px, 1fr)' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        cell: ({ row }) => {
+          const badge = getSubmissionStageBadge(row.original.submissionStage);
+          return (
+            <Badge variant={badge.variant}>
+              {badge.variant !== 'outline' && badge.variant !== 'warning' && <Check className="size-3" />}
+              {badge.label}
+            </Badge>
+          );
+        },
+        meta: { sortable: true, list: { label: 'Trạng thái hồ sơ', width: 'minmax(170px, 1fr)' } },
       },
       {
         accessorKey: 'closeDate',
         header: 'Hạn nộp',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
-        meta: { list: { label: 'Hạn nộp', width: 'minmax(115px, .72fr)' } },
+        meta: { sortable: true, list: { label: 'Hạn nộp', width: 'minmax(115px, .72fr)' } },
       },
       {
         accessorKey: 'totalScore',
         header: 'Điểm tổng',
-        meta: { align: 'right', list: { label: 'Điểm tổng', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        meta: { align: 'right', sortable: true, list: { label: 'Điểm tổng', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
       },
       {
         accessorKey: 'totalBonusScore',
         header: 'Tổng điểm thưởng',
-        meta: { align: 'right', list: { label: 'Tổng điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
       {
         accessorKey: 'totalWithBonus',
         header: 'Tổng điểm + thưởng',
-        meta: { align: 'right', list: { label: 'Tổng điểm + thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        enableSorting: true,
+        sortDescFirst: false,
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm + thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
     ],
     [],
@@ -221,13 +386,13 @@ export default function LocalityCriteriaPage() {
 
   // Detail: chi tiết group + submission
   const groupDetailQuery = useQuery({
-    queryKey: ['locality-criteria-group', id],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(id ?? '')),
     queryFn: () => localityApi.getCriteriaGroup(id!),
     enabled: Boolean(id),
   });
 
   const submissionDetailQuery = useQuery({
-    queryKey: ['locality-submission', submission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submission?.id ?? '')),
     queryFn: () => localityApi.getSubmission(submission!.id),
     enabled: Boolean(submission?.id),
   });
@@ -239,7 +404,7 @@ export default function LocalityCriteriaPage() {
     [submissionDetailQuery.data],
   );
   const evidenceFilesQuery = useQuery({
-    queryKey: ['locality-evidence', submissionResultIds],
+    queryKey: dataQueryKey(getGetApiV1FilesBatchQueryKey(), { entityType: 'SubmissionResult', entityIds: submissionResultIds }),
     queryFn: () => filesApi.listByEntities('SubmissionResult', submissionResultIds),
     enabled: submissionResultIds.length > 0,
   });
@@ -247,7 +412,11 @@ export default function LocalityCriteriaPage() {
   const detailCriteria = useMemo(() => {
     const group = groupDetailQuery.data;
     if (!group) return [];
-    return group.criteria.map((c, idx): CriteriaItem => ({
+    return mergeSubmissionCriteria(
+      group.criteria,
+      submissionDetailQuery.data?.results,
+      submissionDetailQuery.data?.id,
+    ).map((c, idx): CriteriaItem => ({
       id: c.id,
       type: c.type as 'Standard' | 'Supplementary',
       name: c.content,
@@ -256,9 +425,10 @@ export default function LocalityCriteriaPage() {
       deadline: c.deadline ?? undefined,
       note: c.note ?? undefined,
       order: idx + 1,
+      status: c.status,
       updatedAt: c.updatedAt ?? undefined,
     }));
-  }, [groupDetailQuery.data]);
+  }, [groupDetailQuery.data, submissionDetailQuery.data]);
 
   const record: ScoreRecord = useMemo(() => {
     if (submissionDetailQuery.data) return mapSubmissionToRecord(submissionDetailQuery.data);
@@ -307,26 +477,39 @@ export default function LocalityCriteriaPage() {
     });
   }, [evidenceFilesQuery.data, submissionDetailQuery.data, localityId]);
 
-  // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và riêng phản hồi từ Chuyên viên.
+  // Lấy lịch sử yêu cầu chỉnh sửa để hiện phản hồi chung và theo từng tiêu chí.
   const currentSubmissionStage = submissionDetailQuery.data?.currentStage ?? submission?.currentStage;
   const isRevisionStage = currentSubmissionStage === 'RequiresRevision';
   const revisionHistoriesQuery = useQuery({
-    queryKey: ['locality-revision-histories', submission?.id],
-    queryFn: () => localityApi.listApprovalHistories(submission!.id, { action: 'RequestRevision', page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission?.id ?? ''), { page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }),
     enabled: Boolean(submission?.id),
   });
 
-  const latestRevisionReason = useMemo(() => {
-    const items = revisionHistoriesQuery.data?.items ?? [];
-    const revisionItem = items.find((item) => item.action?.toLowerCase() === 'requestrevision');
-    return extractRevisionReason(revisionItem?.reason);
-  }, [revisionHistoriesQuery.data]);
-
-  const latestSpecialistRevision = useMemo(() => (
-    (revisionHistoriesQuery.data?.items ?? []).find((item) => (
-      item.action?.toLowerCase() === 'requestrevision' && item.stageLevel === 'LocalSubmitted'
-    )) ?? null
+  // Sự kiện mở lại hồ sơ gần nhất: yêu cầu chỉnh sửa hoặc thêm tiêu chí bổ sung.
+  const latestReopenHistory = useMemo(() => (
+    (revisionHistoriesQuery.data?.items ?? []).find((item) => {
+      const action = item.action?.toLowerCase();
+      return action === 'requestrevision' || action === 'addsupplementarycriteria';
+    }) ?? null
   ), [revisionHistoriesQuery.data]);
+
+  // Khi lần mở lại gần nhất chỉ là thêm tiêu chí bổ sung thì không mở lại các tiêu chí
+  // đã được yêu cầu chỉnh sửa ở vòng trước.
+  const latestReopenIsSupplementaryAdd = latestReopenHistory?.action?.toLowerCase() === 'addsupplementarycriteria';
+
+  const latestRevisionReason = useMemo(
+    () => extractRevisionReason(latestReopenHistory?.reason),
+    [latestReopenHistory],
+  );
+
+  const latestSpecialistRevision = useMemo(() => {
+    if (latestReopenIsSupplementaryAdd) return null;
+    return (revisionHistoriesQuery.data?.items ?? []).find((item) => (
+      item.action?.toLowerCase() === 'requestrevision'
+      && (item.stageLevel === 'LocalSubmitted' || item.stageLevel === 'ScorerRevisionRequested')
+    )) ?? null;
+  }, [revisionHistoriesQuery.data, latestReopenIsSupplementaryAdd]);
 
   const specialistRevisionReason = useMemo(
     () => extractRevisionReason(latestSpecialistRevision?.reason),
@@ -335,6 +518,8 @@ export default function LocalityCriteriaPage() {
 
   const specialistRevisionCriteriaIds = useMemo(() => {
     if (!latestSpecialistRevision) return null;
+    const requestedCriteriaIds = parseRevisionCriteriaIds(latestSpecialistRevision.changedData);
+    if (requestedCriteriaIds.length > 0) return new Set(requestedCriteriaIds);
     const resultIds = parseSubmissionResultIds(latestSpecialistRevision.changedData);
     if (resultIds.length === 0) return null;
     const resultIdSet = new Set(resultIds);
@@ -356,17 +541,31 @@ export default function LocalityCriteriaPage() {
     );
   }, [groupDetailQuery.data, submissionDetailQuery.data, submission?.id]);
 
-  // Khi hồ sơ ở RequiresRevision: chỉ cho nhập tiêu chí bổ sung + tiêu chí được yêu cầu chỉnh sửa.
+  // Chỉ tiêu chí bổ sung vừa được thêm ở lần mở lại gần nhất mới được nhập —
+  // tiêu chí bổ sung đã nộp ở vòng trước vẫn khóa.
+  const latestSupplementaryCriteriaId = useMemo(() => {
+    if (!latestReopenIsSupplementaryAdd) return null;
+    const latestResult = (submissionDetailQuery.data?.results ?? [])
+      .filter((result) => supplementaryCriteriaIds.has(result.criteriaId))
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0];
+    return latestResult?.criteriaId ?? null;
+  }, [latestReopenIsSupplementaryAdd, submissionDetailQuery.data, supplementaryCriteriaIds]);
+
+  // Khi hồ sơ ở RequiresRevision: chỉ cho sửa tiêu chí được yêu cầu chỉnh sửa,
+  // hoặc riêng tiêu chí bổ sung vừa thêm nếu lần mở lại gần nhất là thêm tiêu chí bổ sung.
   const revisionEditableCriteriaIds = useMemo<ReadonlySet<string> | null>(() => {
     if (!isRevisionStage) return null;
     // Yêu cầu chỉnh sửa không chỉ định tiêu chí (dữ liệu cũ) → cho phép sửa toàn bộ.
     if (latestSpecialistRevision && !specialistRevisionCriteriaIds) return null;
     const editableIds = new Set(specialistRevisionCriteriaIds ?? []);
-    supplementaryCriteriaIds.forEach((id) => editableIds.add(id));
+    if (latestReopenIsSupplementaryAdd) {
+      if (latestSupplementaryCriteriaId) editableIds.add(latestSupplementaryCriteriaId);
+      else supplementaryCriteriaIds.forEach((id) => editableIds.add(id));
+    }
     // Không có yêu cầu nào xác định phạm vi → giữ hành vi cũ (sửa tất cả).
     if (editableIds.size === 0) return null;
     return editableIds;
-  }, [isRevisionStage, latestSpecialistRevision, specialistRevisionCriteriaIds, supplementaryCriteriaIds]);
+  }, [isRevisionStage, latestSpecialistRevision, specialistRevisionCriteriaIds, supplementaryCriteriaIds, latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId]);
 
   const specialistRevisionReasons = useMemo(() => {
     const map = new Map<string, string>();
@@ -399,35 +598,36 @@ export default function LocalityCriteriaPage() {
     const nameByCriteriaId = new Map(detailCriteria.map((criterion) => [criterion.id, criterion.name]));
     return (evidenceFilesQuery.data ?? [])
       .filter((file) => file.category?.toLowerCase() === 'supplementary')
+      // Chỉ hiện file của tiêu chí bổ sung vừa được thêm ở lần mở lại gần nhất.
+      .filter((file) => !latestReopenIsSupplementaryAdd || !latestSupplementaryCriteriaId
+        || criteriaIdByResultId.get(file.entityId ?? '') === latestSupplementaryCriteriaId)
       .map((file) => {
         const criteriaId = file.entityId ? criteriaIdByResultId.get(file.entityId) : undefined;
         return { file, criteriaName: criteriaId ? nameByCriteriaId.get(criteriaId) : undefined };
       });
-  }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria]);
+  }, [evidenceFilesQuery.data, submissionDetailQuery.data, detailCriteria, latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId]);
 
   // Mutations
   const submitPointsMutation = useMutation({
     mutationFn: localityApi.submitPoints,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
-      queryClient.invalidateQueries({ queryKey: ['locality-my-submissions'] });
-    },
     onError: (e) => toast.error('Lỗi khi lưu', { description: getLocalityApiError(e) }),
   });
 
   const createSubmissionMutation = useMutation({
     mutationFn: localityApi.createSubmission,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
-      queryClient.invalidateQueries({ queryKey: ['locality-my-submissions'] });
-    },
     onError: (e) => toast.error('Lỗi khi nộp', { description: getLocalityApiError(e) }),
   });
 
+  const refreshSubmissionData = () => invalidateQueryResources(queryClient, [
+    getGetApiV1SubmissionsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/submission-results' }),
+    getGetApiV1FilesQueryKey(),
+  ]);
+
   const deleteFileMutation = useMutation({
     mutationFn: filesApi.remove,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+    onSuccess: async () => {
+      await refreshSubmissionData();
       toast.success('Đã xóa minh chứng');
       setDeleteTarget(null);
     },
@@ -436,32 +636,100 @@ export default function LocalityCriteriaPage() {
 
   if (!localityId) return <EmptyState title="Chưa gán địa phương" description="Tài khoản hiện tại chưa được gán địa phương." />;
 
+  const periodSelector = (
+    <PeriodSelect
+      value={periodFilter}
+      onChange={updatePeriodFilter}
+      allLabel="Tất cả kỳ thi đua"
+      options={periods.map((period) => ({ value: period.id, label: period.name }))}
+    />
+  );
+
   // ── List view ──────────────────────────────────────────────────────────────
   if (!id) {
-    if (groupsQuery.isLoading || mySubmissionsQuery.isLoading) {
-      return <div className="space-y-5"><PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" /><PageLoading label="Đang tải danh sách tiêu chí…" /></div>;
-    }
-    if (groupsQuery.isError || mySubmissionsQuery.isError) {
-      return <EmptyState title="Không tải được dữ liệu" description={getLocalityApiError(groupsQuery.error ?? mySubmissionsQuery.error)} />;
+    if ((groupsQuery.isError && !groupSearch) || mySubmissionsQuery.isError) {
+      const loadError = groupsQuery.error ?? mySubmissionsQuery.error;
+      return (
+        <div className="space-y-5">
+          <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} />
+          <section className="rounded-lg border border-border bg-card">
+            <EmptyState
+              variant="error"
+              title="Không tải được dữ liệu"
+              description="Hệ thống tạm thời gặp sự cố khi tải danh sách tiêu chí. Bạn vui lòng thử lại sau ít phút; nếu lỗi tiếp diễn, hãy liên hệ quản trị viên để được hỗ trợ."
+              action={(
+                <Button variant="outline" onClick={() => { groupsQuery.refetch(); mySubmissionsQuery.refetch(); }}>
+                  <RotateCcw className="size-4" />Thử lại
+                </Button>
+              )}
+            />
+            <p className="pb-6 text-center text-xs text-muted-foreground/70">Chi tiết kỹ thuật: {getLocalityApiError(loadError)}</p>
+          </section>
+        </div>
+      );
     }
     return (
       <div className="space-y-5">
-        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" />
+        <PageHeader title="Quản lý tiêu chí thi đua" description="COL.01.02 · Danh sách nhóm tiêu chí được giao" actions={periodSelector} />
+        {groupsQuery.isError && <p role="alert" className="text-sm text-destructive">Không tìm được nhóm tiêu chí. Vui lòng thử từ khóa khác.</p>}
         <DataTable
-          data={localityListRows}
+          data={filteredLocalityListRows}
           columns={localityListColumns}
           variant="list"
+          loading={groupsQuery.isFetching || mySubmissionsQuery.isLoading}
           getRowId={(row) => row.id}
           selectedRowId={selectedListTable?.id}
           searchable
-          searchKey="name"
           searchPlaceholder="Tìm theo tên nhóm tiêu chí..."
+          onSearchChange={updateGroupSearch}
+          filters={(
+            <>
+              <FilterSelect
+                label="Trạng thái"
+                value={statusFilter}
+                onChange={updateStatusFilter}
+                options={SUBMISSION_STATUS_FILTER_OPTIONS.map((option) => ({ ...option }))}
+              />
+              <FilterSelect
+                label="Sắp xếp"
+                value={sortFilter}
+                onChange={updateSortFilter}
+                allLabel="Mặc định"
+                options={GROUP_SORT_OPTIONS.map((option) => ({ ...option }))}
+              />
+              <FilterSelect
+                label="Năm"
+                value={yearFilter}
+                onChange={updateYearFilter}
+                options={availableYears.map((year) => ({ value: year, label: year }))}
+              />
+            </>
+          )}
+          activeFilters={[
+            ...(statusFilter ? [{
+              label: 'Trạng thái',
+              value: SUBMISSION_STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label ?? statusFilter,
+              onClear: () => updateStatusFilter(''),
+            }] : []),
+            ...(yearFilter ? [{ label: 'Năm', value: yearFilter, onClear: () => updateYearFilter('') }] : []),
+            ...(periodFilter ? [{
+              label: 'Kỳ',
+              value: periods.find((period) => period.id === periodFilter)?.name ?? periodFilter,
+              onClear: () => updatePeriodFilter(''),
+            }] : []),
+            ...(sortFilter !== DEFAULT_GROUP_SORT ? [{
+              label: 'Sắp xếp',
+              value: GROUP_SORT_OPTIONS.find((option) => option.value === sortFilter)?.label ?? sortFilter,
+              onClear: () => updateSortFilter(DEFAULT_GROUP_SORT),
+            }] : []),
+          ]}
+          onClearFilters={statusFilter || yearFilter || periodFilter || sortFilter !== DEFAULT_GROUP_SORT ? clearFilters : undefined}
           pageSize={10}
           onRowClick={setSelectedListTable}
-          onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}`)}
-          emptyState={{ title: 'Chưa có nhóm tiêu chí được giao.' }}
+          onRowDoubleClick={(row) => navigate(`/dia-phuong/tieu-chi/${row.id}?periodId=${encodeURIComponent(periodFilter)}`)}
+          emptyState={{ title: groupSearch || statusFilter || yearFilter || periodFilter ? 'Không tìm thấy nhóm tiêu chí' : 'Chưa có nhóm tiêu chí được giao.' }}
           toolbar={
-            <Button variant="info" disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}`)}>
+            <Button variant="info" hideWhen={!selectedListTable} disabled={!selectedListTable} onClick={() => selectedListTable && navigate(`/dia-phuong/tieu-chi/${selectedListTable.id}?periodId=${encodeURIComponent(periodFilter)}`)}>
               <Eye className="size-4" />Xem
             </Button>
           }
@@ -472,7 +740,26 @@ export default function LocalityCriteriaPage() {
 
   // ── Detail view ────────────────────────────────────────────────────────────
   if (groupDetailQuery.isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
-  if (groupDetailQuery.isError) return <EmptyState title="Không tải được nhóm tiêu chí" description={getLocalityApiError(groupDetailQuery.error)} />;
+  if (groupDetailQuery.isError) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Chi tiết nhóm tiêu chí" description="Không thể hiển thị nội dung nhóm tiêu chí này." />
+        <section className="rounded-lg border border-border bg-card">
+          <EmptyState
+            variant="error"
+            title="Không tải được nhóm tiêu chí"
+            description="Hệ thống tạm thời gặp sự cố khi tải chi tiết nhóm tiêu chí. Bạn vui lòng thử lại sau ít phút; nếu lỗi tiếp diễn, hãy liên hệ quản trị viên để được hỗ trợ."
+            action={(
+              <Button variant="outline" onClick={() => { groupDetailQuery.refetch(); }}>
+                <RotateCcw className="size-4" />Thử lại
+              </Button>
+            )}
+          />
+          <p className="pb-6 text-center text-xs text-muted-foreground/70">Chi tiết kỹ thuật: {getLocalityApiError(groupDetailQuery.error)}</p>
+        </section>
+      </div>
+    );
+  }
 
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
@@ -489,9 +776,34 @@ export default function LocalityCriteriaPage() {
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;
   const editable = isTrustedTimeReady && submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineExpired;
+  const editDisabledReason = !isTrustedTimeReady
+    ? 'Đang đồng bộ thời gian chuẩn.'
+    : !submissionAllowsEditing
+      ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
+      : parentDeadlineExpired
+        ? 'Nhóm tiêu chí đã quá hạn nộp.'
+        : record.state !== 'DRAFT'
+          ? 'Hồ sơ hiện không cho phép chỉnh sửa.'
+          : undefined;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const decisionFiles = groupDetailQuery.data?.files ?? [];
   const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineExpired;
+  const allCriteriaComplete = detailTable.criteria.length > 0
+    && criteriaCompletion.groupId === id
+    && detailTable.criteria.every((criterion) => criteriaCompletion.completeIds.has(criterion.id));
+  const submitDisabledReason = savingAll
+    ? 'Đang lưu dữ liệu.'
+    : !isTrustedTimeReady
+      ? 'Đang đồng bộ thời gian chuẩn.'
+      : submissionLockedReason ?? (parentDeadlineExpired
+        ? 'Nhóm tiêu chí đã quá hạn nộp.'
+        : !submissionAllowsEditing
+          ? 'Hồ sơ đã được gửi xử lý, không thể gửi lại.'
+          : !allCriteriaComplete
+            ? detailTable.criteria.length === 0
+              ? 'Nhóm tiêu chí chưa có tiêu chí con để gửi.'
+              : 'Hoàn thiện điểm đề xuất, nội dung diễn giải và ít nhất một file minh chứng ở tất cả tiêu chí con trước khi gửi.'
+            : undefined);
 
   const ensureParentDeadlineActive = () => {
     if (!isTrustedTimeReady) {
@@ -541,6 +853,7 @@ export default function LocalityCriteriaPage() {
   };
 
   const clearLocalDrafts = () => {
+    scoreTableRef.current?.markAllSaved();
     draftResultsRef.current = new Map();
     setDraftResults(new Map());
   };
@@ -548,32 +861,35 @@ export default function LocalityCriteriaPage() {
   const handleSubmitResults = async () => {
     if (!id || !user) return;
     if (!ensureSubmissionIsEditable()) return;
+    let serverChanged = false;
     try {
       const collected = scoreTableRef.current?.collectAll() ?? new Map<string, EvidenceFormValue>();
       if (!submission) {
         // Gộp giá trị đang nhập vào draft local rồi tạo submission 1 lần
         const merged = new Map(draftResultsRef.current);
         collected.forEach((v, k) => merged.set(k, v));
-        const items = detailTable.criteria.map((c) => {
+        const items = detailTable.criteria.flatMap((c) => {
+          if (c.status === 'Deleted') return [];
           const draft = merged.get(c.id);
-          return {
+          return [{
             criteriaId: c.id,
             point: draft?.proposedScore ?? 0,
             bonusPoint: draft?.proposedBonusScore ?? 0,
             explanation: draft?.explanation ?? '',
-          };
+          }];
         });
         const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
+        serverChanged = true;
         // Sau khi BE tạo SubmissionResult mới có thể gắn file đúng entityId.
-        await Promise.all(detailTable.criteria.map((c) => {
+        const uploads = await Promise.allSettled(detailTable.criteria.map((c) => {
           const resultItem = result.results.find((item) => item.criteriaId === c.id);
           return resultItem ? uploadDraftFiles(resultItem, merged.get(c.id)) : Promise.resolve([]);
         }));
-        await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+        const failedUpload = uploads.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+        if (failedUpload) throw failedUpload.reason;
       } else {
         // Có bản nháp trên server: upload file bulk song song + submitPoints 1 lần
         const results = submissionDetailQuery.data?.results ?? [];
-        const uploadJobs = collectUploadJobs(collected);
         const items = results.flatMap((r) => {
           const v = collected.get(r.criteriaId);
           return v ? [{
@@ -587,33 +903,41 @@ export default function LocalityCriteriaPage() {
           toast.error('Không có tiêu chí nào cần chỉnh sửa để gửi.');
           return;
         }
+        const uploadJobs = collectUploadJobs(collected);
         const settled = await Promise.allSettled(uploadJobs);
+        serverChanged = uploadJobs.length > 0;
         const failedUploads = settled.filter((s) => s.status === 'rejected').length;
         if (failedUploads > 0) {
           toast.warning(`${failedUploads} nhóm file tải lên thất bại — vẫn tiếp tục nộp điểm.`);
         }
-        await localityApi.submitPoints({ submissionId: submission.id, isDraft: false, items });
-        await queryClient.invalidateQueries({ queryKey: ['locality-submission'] });
-        await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+        await submitPointsMutation.mutateAsync({ submissionId: submission.id, isDraft: false, items });
+        serverChanged = true;
         scoreTableRef.current?.markAllSaved();
       }
+      await refreshSubmissionData();
+      serverChanged = false;
       clearLocalDrafts();
       toast.success('Đã nộp kết quả lên Chuyên viên');
       setSubmitOpen(false);
-    } catch {
-      // error handled by mutation onError
+    } catch (error) {
+      if (serverChanged) {
+        await refreshSubmissionData();
+        toast.error('Chưa thể hoàn tất nộp hồ sơ.', { description: getFilesApiError(error) });
+      }
     }
   };
 
   const requireSelection = (callback: () => void) => { if (!selected) { toast.info('Vui lòng chọn một dòng tiêu chí trước.'); return; } callback(); };
   const selectedCriterionDeadlineMs = selected?.criterion?.deadline ? Date.parse(selected.criterion.deadline) : Number.NaN;
   const selectedCriterionDeadlineExpired = isTrustedTimeReady && Number.isFinite(selectedCriterionDeadlineMs) && selectedCriterionDeadlineMs <= currentTimeMs;
-  const currentSelfScore = record.entries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
-  const currentBonusScore = record.entries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
+  const activeScoreEntries = record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted');
+  const currentSelfScore = activeScoreEntries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
+  const currentBonusScore = activeScoreEntries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
   const handleSaveAll = async () => {
     if (!scoreTableRef.current || !user) return;
     if (!ensureSubmissionIsEditable()) return;
     setSavingAll(true);
+    let serverChanged = false;
     try {
       const collected = scoreTableRef.current.collectAll();
       if (!submission) {
@@ -624,21 +948,26 @@ export default function LocalityCriteriaPage() {
         setDraftResults(merged);
         // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
         if (merged.size > 0) {
-          const items = detailTable.criteria.map((c) => {
+          const items = detailTable.criteria.flatMap((c) => {
+            if (c.status === 'Deleted') return [];
             const draft = merged.get(c.id);
-            return {
+            return [{
               criteriaId: c.id,
               point: draft?.proposedScore ?? 0,
               bonusPoint: draft?.proposedBonusScore ?? 0,
               explanation: draft?.explanation ?? '',
-            };
+            }];
           });
           const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id!, isDraft: true, items });
-          await Promise.all(detailTable.criteria.map((c) => {
+          serverChanged = true;
+          const uploads = await Promise.allSettled(detailTable.criteria.map((c) => {
             const resultItem = result.results.find((item) => item.criteriaId === c.id);
             return resultItem ? uploadDraftFiles(resultItem, merged.get(c.id)) : Promise.resolve([]);
           }));
-          await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+          const failedUpload = uploads.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+          if (failedUpload) throw failedUpload.reason;
+          await refreshSubmissionData();
+          serverChanged = false;
           clearLocalDrafts();
         }
         toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
@@ -654,10 +983,14 @@ export default function LocalityCriteriaPage() {
         : [];
       if (items.length > 0) {
         await submitPointsMutation.mutateAsync({ submissionId: submission.id, isDraft: true, items });
+        serverChanged = true;
       }
-      const settled = await Promise.allSettled(collectUploadJobs(collected));
+      const uploadJobs = collectUploadJobs(collected);
+      const settled = await Promise.allSettled(uploadJobs);
+      serverChanged ||= uploadJobs.length > 0;
       const failedUploads = settled.filter((s) => s.status === 'rejected').length;
-      await queryClient.invalidateQueries({ queryKey: ['locality-evidence'] });
+      if (serverChanged) await refreshSubmissionData();
+      serverChanged = false;
       scoreTableRef.current.markAllSaved();
       if (failedUploads > 0) {
         toast.warning(`Đã lưu điểm — ${failedUploads} nhóm file tải lên thất bại.`);
@@ -665,6 +998,7 @@ export default function LocalityCriteriaPage() {
         toast.success('Đã lưu bản nháp. Bạn có thể tiếp tục hoàn thiện trước khi gửi yêu cầu.');
       }
     } catch (e) {
+      if (serverChanged) await refreshSubmissionData();
       toast.error('Không thể lưu bản nháp. Vui lòng thử lại.', { description: getLocalityApiError(e) });
     } finally {
       setSavingAll(false);
@@ -685,21 +1019,24 @@ export default function LocalityCriteriaPage() {
         title="Tự đánh giá và gửi minh chứng"
         description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatDate(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`}
         summary={(
-          <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-4 py-2.5">
-            <div className="pr-4">
-              <p className="text-xs text-muted-foreground">Điểm tự đánh giá hiện tại</p>
-              <p className="text-xl font-semibold tabular-nums">
-                {currentSelfScore}
-                <span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span>
-              </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-4 py-2.5">
+              <div className="pr-4">
+                <p className="text-xs text-muted-foreground">Điểm tự đánh giá hiện tại</p>
+                <p className="text-xl font-semibold tabular-nums">
+                  {currentSelfScore}
+                  <span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span>
+                </p>
+              </div>
+              <div className="pl-4">
+                <p className="text-xs text-muted-foreground">Điểm thưởng hiện tại</p>
+                <p className="text-xl font-semibold tabular-nums">{currentBonusScore}</p>
+              </div>
             </div>
-            <div className="pl-4">
-              <p className="text-xs text-muted-foreground">Điểm thưởng hiện tại</p>
-              <p className="text-xl font-semibold tabular-nums">{currentBonusScore}</p>
-            </div>
+            <ScoreStateBadge state={record.state} size="lg" />
           </div>
         )}
-        actions={<div className="flex flex-wrap items-center gap-2"><ScoreStateBadge state={record.state} size="lg" />{decisionFiles.length > 0 && <Button onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="outline" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button render={<Link to="/dia-phuong/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
+        actions={<div className="flex flex-wrap items-center gap-2">{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
@@ -712,14 +1049,14 @@ export default function LocalityCriteriaPage() {
           )}
         </div>
       )}
-      {supplementaryFiles.length > 0 && (
+      {isRevisionStage && latestReopenIsSupplementaryAdd && supplementaryFiles.length > 0 && (
         <div className="max-w-2xl space-y-2 rounded-md border border-info/40 bg-info/10 px-4 py-3 text-sm">
           <p className="font-medium text-info">Chuyên viên đã thêm tiêu chí bổ sung. Vui lòng nhập minh chứng cho tiêu chí bổ sung.</p>
           <div className="space-y-1">
             <span className="text-muted-foreground">File đính kèm yêu cầu bổ sung:</span>
             <div className="flex flex-wrap gap-2">
               {supplementaryFiles.map(({ file, criteriaName }) => (
-                <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted">
+                <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-info/30 bg-info/5 px-2 py-1 text-xs text-info-foreground hover:bg-info/10 dark:text-info">
                   <FileText className="h-3 w-3 text-muted-foreground" />
                   {file.displayName ?? file.originalName}
                   {criteriaName && <span className="text-muted-foreground">· {criteriaName}</span>}
@@ -736,6 +1073,8 @@ export default function LocalityCriteriaPage() {
         evidence={evidence}
         localityId={localityId}
         editable={editable}
+        scoreFieldsLocked={isRevisionStage}
+        editDisabledReason={editDisabledReason}
         nowMs={currentTimeMs}
         draftValues={draftResults}
         selectedCriterionId={selected?.criterion?.id}
@@ -743,6 +1082,8 @@ export default function LocalityCriteriaPage() {
         specialistRevisionFiles={specialistRevisionFiles}
         onPreviewRevisionFile={(file) => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })}
         editableCriteriaIds={revisionEditableCriteriaIds}
+        scoreUnlockForNewCriteria={latestReopenIsSupplementaryAdd}
+        onCompletionChange={reportCriterionCompletion}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {
@@ -752,12 +1093,12 @@ export default function LocalityCriteriaPage() {
         }}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
-            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
+            <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu tất cả'}</Button>
-              <Button disabled={savingAll || !canSubmit} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện chưa sẵn sàng để gửi.')} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
+              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
+              <Button disabled={savingAll || !canSubmit || !allCriteriaComplete} disabledReason={submitDisabledReason} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
             </div>
           </div>
         )}
@@ -772,7 +1113,7 @@ export default function LocalityCriteriaPage() {
                 <TruncatedText as="p" value={file.displayName || file.originalName} className="text-sm font-medium" />
                 <p className="text-xs text-muted-foreground">{file.sizeBytes ? `${Math.ceil(file.sizeBytes / 1024)} KB` : 'Tệp đính kèm'} · {formatDate(file.createdAt)}</p>
               </div>
-              <Button variant="ghost" size="icon-xs" title="Xem file" onClick={() => { setDecisionOpen(false); setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName }); }}>
+              <Button variant="ghost" size="icon-xs" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" title="Xem file" onClick={() => { setDecisionOpen(false); setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName }); }}>
                 <Eye className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="icon-xs" title="Tải file về máy" onClick={() => void downloadFile(file.id, file.displayName || file.originalName)}>

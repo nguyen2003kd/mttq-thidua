@@ -3,7 +3,6 @@ export const ROUTES = {
   SPECIALIST_CRITERIA: '/chuyen-vien/tieu-chi',
   SPECIALIST_REVIEW: '/chuyen-vien/duyet',
   SPECIALIST_SCORE_SUMMARY: '/chuyen-vien/tong-hop-cham-diem',
-  SPECIALIST_HISTORY: '/chuyen-vien/lich-su',
   LOCALITY_CRITERIA: '/dia-phuong/tieu-chi',
   LOCALITY_RESULTS: '/dia-phuong/ket-qua',
 
@@ -15,7 +14,11 @@ export const ROUTES = {
   // NOTE: ADMIN_CRITERIA_NEW trỏ tới route `bang-tieu-chi/:id` với id="new";
   // CriteriaFormPage tự nhận biết qua `id === 'new'`. Không có route literal riêng.
   ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
+  ADMIN_MANAGEMENT: '/thi-dua/admin/quan-ly',
   ADMIN_USERS: '/thi-dua/admin/tai-khoan',
+  ADMIN_DEPARTMENTS: '/thi-dua/admin/ban',
+  ADMIN_CLUSTERS: '/thi-dua/admin/cum',
+  ADMIN_PERIODS: '/thi-dua/admin/ky',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
   ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 
@@ -31,7 +34,9 @@ export const ROUTES = {
   // Duyệt
   DUYET_BAN_LEADER: '/thi-dua/duyet/lanh-dao-ban/:banId',
   DUYET_COUNCIL: '/thi-dua/duyet/hoi-dong-tdkt',
+  COUNCIL_SCORE_SUMMARY: '/hoi-dong/tong-hop-cham-diem',
   DUYET_STANDING: '/thi-dua/duyet/ban-thuong-truc',
+  COMMITTEE_SCORE_SUMMARY: '/uy-ban/tong-hop-cham-diem',
   DUYET_STANDING_REVIEW: '/thi-dua/duyet/ban-thuong-truc/duyet',
 
   // Audit log

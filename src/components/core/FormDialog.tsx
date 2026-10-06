@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from './Button';
+import { Button, type ButtonProps } from './Button';
 import { cn } from '@/lib/utils';
 import type { Action } from '@/lib/rbac';
 
@@ -22,9 +22,12 @@ export interface FormDialogProps {
   cancelLabel?: string;
   /** Ẩn nút cancel (dùng khi chỉ cần 1 nút Đóng). */
   hideCancel?: boolean;
+  /** Ẩn nút submit (dialog chỉ xem / thao tác qua nút riêng). */
+  hideSubmit?: boolean;
   submitDisabled?: boolean;
   /** RBAC cho nút submit. */
   submitAction?: Action;
+  submitVariant?: ButtonProps['variant'];
   /** Lớp max-w-* cho DialogContent. */
   size?: string;
   children: ReactNode;
@@ -39,8 +42,10 @@ export function FormDialog({
   submitLabel = 'Lưu',
   cancelLabel = 'Hủy',
   hideCancel = false,
+  hideSubmit = false,
   submitDisabled,
   submitAction,
+  submitVariant,
   size = 'max-w-lg sm:max-w-lg',
   children,
 }: FormDialogProps) {
@@ -61,9 +66,11 @@ export function FormDialog({
                 {cancelLabel}
               </Button>
             )}
-            <Button type="submit" action={submitAction} disabled={submitDisabled}>
-              {submitLabel}
-            </Button>
+            {!hideSubmit && (
+              <Button type="submit" action={submitAction} variant={submitVariant ?? (submitAction === 'edit' ? 'default' : undefined)} disabled={submitDisabled}>
+                {submitLabel}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

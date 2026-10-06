@@ -56,6 +56,7 @@ print(html.unescape(re.sub(r'<[^>]+>', '', xml)))
 - Spacing bội 4px (4/8/12/16/24/32). Radius: Button/Input 6px — Card/Modal 10px — Badge 999px.
 - Shadow chỉ cho Modal/Dropdown. Ngày giờ: `dd/mm/yyyy hh:mm`.
 - Cột bảng: Text trái · Number/Điểm phải · Trạng thái giữa (Badge) · Hành động luôn cuối, bên phải.
+- Nội dung hướng tới người dùng phải dùng tiếng Việt; không hiển thị nhãn tiếng Anh, ID/UUID, role key, tên biến/property hoặc enum API. Với giá trị nội bộ trong Select, luôn ánh xạ sang nhãn nghiệp vụ dễ hiểu; fallback cũng phải thân thiện, không trả về mã thô.
 
 ### 3. Archetype — 5 mẫu layout (Mục A7)
 
@@ -88,3 +89,17 @@ React 18 + Vite + TypeScript · Tailwind CSS v4 · react-router-dom · TanStack 
 ### 7. Khi hoàn thành task
 
 Chạy kiểm tra: `pnpm lint` → `pnpm typecheck` → `pnpm build`. UI phải khớp đúng Archetype + tokens của docx.
+# Tool usage
+
+When working with this repository:
+
+- Use Serena for symbol lookup, references, code navigation and refactoring.
+- Use CodeGraph for dependency analysis, callers/callees and change impact analysis.
+- Use AgentMemory when useful for persistent project decisions and conventions.
+- Use Chrome DevTools for browser/runtime/frontend debugging.
+- Use Headroom to compress very large tool outputs or context before reasoning over them.
+- Use Sequential Thinking for complex multi-step problems when useful.
+
+Prefer Serena and CodeGraph before doing broad text searches across the repository.
+
+Do not commit or push unless explicitly requested.

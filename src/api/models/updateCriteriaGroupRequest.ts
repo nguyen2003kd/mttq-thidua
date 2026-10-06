@@ -8,4 +8,8 @@ export interface UpdateCriteriaGroupRequest {
   maxPoint?: number;
   /** @nullable */
   deadline?: string | null;
+  /** @nullable */
+  departmentId?: string | null;
+  /** @nullable */
+  periodId?: string | null;
 }

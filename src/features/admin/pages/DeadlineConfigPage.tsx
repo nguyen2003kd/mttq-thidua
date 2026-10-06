@@ -40,7 +40,7 @@ export default function DeadlineConfigPage() {
             <Label htmlFor="deadline">Ngày hết hạn</Label>
             <Input id="deadline" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <Button onClick={handleSave} action="edit">Lưu thời hạn</Button>
+          <Button onClick={handleSave} action="edit" variant="default">Lưu thời hạn</Button>
         </CardContent>
       </Card>
     </div>

@@ -10,6 +10,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { downloadFile, filesApi, getFilesApiError, type FileEntityTypeApi, type FileItemApi } from '@/features/files/api/filesApi';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { useState, type FormEvent } from 'react';
 
 export interface FileAttachmentListProps {
@@ -63,11 +67,18 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
   const { uploading, uploadProgress, uploadFiles } = useFileUpload();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['files', entityType, entityId],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType, entityId, page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType, entityId, page: 1, pageSize: 50 }),
     enabled: Boolean(entityId),
   });
   const files = data?.items ?? [];
+
+  const invalidateAttachments = () => invalidateQueryResources(queryClient, [
+    getGetApiV1FilesQueryKey(),
+    ...(entityType === 'CriteriaGroup' ? [getGetApiV1CriteriaGroupsQueryKey()] : []),
+    ...(entityType === 'Submission' || entityType === 'SubmissionResult' ? [getGetApiV1SubmissionsQueryKey()] : []),
+    ...(entityType === 'SubmissionResult' ? [apiQueryKey({}, { url: '/api/v1/submission-results' })] : []),
+  ]);
 
   const handleDownload = async (file: FileItemApi) => {
     try {
@@ -81,7 +92,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
     if (!deleting) return;
     try {
       await filesApi.remove(deleting.id);
-      await queryClient.invalidateQueries({ queryKey: ['files', entityType, entityId] });
+      await invalidateAttachments();
       toast.success('Đã xóa file.');
     } catch (error) {
       toast.error(getFilesApiError(error));
@@ -94,8 +105,8 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
     event.preventDefault();
     if (pendingFiles.length === 0) return;
     try {
-      await uploadFiles(pendingFiles, { entityType, entityId, category: uploadCategory });
-      await queryClient.invalidateQueries({ queryKey: ['files', entityType, entityId] });
+      const uploaded = await uploadFiles(pendingFiles, { entityType, entityId, category: uploadCategory });
+      if (uploaded.length > 0) await invalidateAttachments();
       setUploadOpen(false);
       setPendingFiles([]);
     } catch {
@@ -150,7 +161,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
                       aria-label={`Xem file ${file.displayName || file.originalName}`}
                       title="Xem file"
                       onClick={() => setViewing(file)}
-                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
@@ -169,7 +180,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
                         aria-label={`Xóa file ${file.displayName || file.originalName}`}
                         title="Xóa file"
                         onClick={() => setDeleting(file)}
-                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -186,7 +197,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
         <button
           type="button"
           onClick={() => setUploadOpen(true)}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
+          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-button-create bg-button-create px-3 py-2.5 text-xs font-medium text-white transition-colors hover:bg-button-create/90"
         >
           <Plus className="h-4 w-4" />
           {addLabel}
@@ -200,6 +211,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
           title={addLabel}
           description="Chọn file để tải lên và gắn vào nhóm này. Có thể chọn nhiều file cùng lúc."
           submitLabel="Tải lên"
+          submitVariant="success"
           cancelLabel="Đóng"
           submitDisabled={uploading || pendingFiles.length === 0}
           onSubmit={handleUploadSubmit}

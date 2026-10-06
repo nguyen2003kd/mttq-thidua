@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
+import { ALLOWED_UPLOAD_ACCEPT, isAllowedUploadFileName, UPLOAD_FILE_TYPE_ERROR } from '@/lib/fileTypes';
 import type { CriteriaTableAttachment } from '@/types/domain';
 import { Button, EmptyState, PageHeader, TruncatedText } from '@/components/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,7 +60,9 @@ export default function AssignLocalityPage() {
   const selectAll = () => setSelectedIds(localities.map((locality) => locality.id));
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const files = selectedFiles.filter((file) => isAllowedUploadFileName(file.name));
+    if (files.length < selectedFiles.length) toast.error(UPLOAD_FILE_TYPE_ERROR);
     setAttachments((current) => {
       const existing = new Set(current.map((file) => file.id));
       const newFiles = files
@@ -92,7 +95,7 @@ export default function AssignLocalityPage() {
         title={`Gán địa phương — ${table.name}`}
         description="Chọn từng địa phương hoặc áp dụng đồng loạt cho toàn bộ địa phương. Tệp đính kèm là không bắt buộc."
         actions={
-          <Button variant="outline" onClick={() => navigate(-1)}>
+          <Button variant="back" onClick={() => navigate(-1)}>
             <ArrowLeft /> Quay lại
           </Button>
         }
@@ -181,6 +184,7 @@ export default function AssignLocalityPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
+                accept={ALLOWED_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={handleFiles}
               />
@@ -200,6 +204,7 @@ export default function AssignLocalityPage() {
                       <Button
                         variant="ghost"
                         size="icon-xs"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         aria-label={`Bỏ tệp ${file.fileName}`}
                         onClick={() => setAttachments((current) => current.filter((item) => item.id !== file.id))}
                       >

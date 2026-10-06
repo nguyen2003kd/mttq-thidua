@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
+import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle, ArrowLeft, Eye, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+import { Button, ConfirmDialog, DataTable, EmptyState, FileAttachmentList, FileUpload, FilterSelect, FormDialog, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useDebounce } from '@/hooks/useDebounce';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { formatDate } from '@/lib/utils';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/features/admin/api/criteriaGroupsApi';
+import { useAuthStore } from '@/store/authStore';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 import type { CriteriaItem } from '@/types/domain';
 
@@ -70,21 +76,41 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parent
 
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
-  const [search, setSearch] = useState(''); const [sort, setSort] = useState('createdAt-desc'); const [selected, setSelected] = useState<CriteriaItem | null>(null);
-  const debouncedSearch = useDebounce(search, 300);
+  const { filters: { search: initialSearch, sort }, setters: { sort: setSort } } = useQueryFilters({ search: '', sort: 'createdAt-desc' });
+  const [search, setSearch] = useState(initialSearch);
+  const [selected, setSelected] = useState<CriteriaItem | null>(null);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
   const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
   const [applyValidationMessage, setApplyValidationMessage] = useState('');
   const { uploading, uploadProgress, uploadFiles } = useFileUpload();
-  const { data: group, isLoading, error } = useQuery({ queryKey: ['criteria-group', id], queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
+  const { data: group, isLoading, error } = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(id ?? '')), queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
   const { data: criteriaPage, isLoading: isLoadingCriteria } = useQuery({
-    queryKey: ['criteria', id, { search: debouncedSearch, type: 'Standard', sortBy, sortOrder }],
-    queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: debouncedSearch || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey([...getGetApiV1CriteriaGroupsIdQueryKey(id ?? ''), 'criteria'], { search, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
+    queryFn: () => criteriaGroupsApi.listCriteria(id!, { search: search || undefined, type: 'Standard', sortBy, sortOrder, page: 1, pageSize: 100 }),
     enabled: Boolean(id),
   });
-  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard').map(toItem) ?? [], [group]);
+  const canDeleteCriteria = useAuthStore((state) => state.user?.role === 'SPECIALIST');
+  const invalidateCriteria = () => invalidateQueryResources(queryClient, [
+    getGetApiV1CriteriaGroupsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/criteria' }),
+    getGetApiV1SubmissionsQueryKey(),
+    apiQueryKey({}, { url: '/api/v1/submission-results' }),
+    getGetApiV1AuditLogsQueryKey(),
+  ]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: (criteriaId: string) => criteriaGroupsApi.deleteCriteria(criteriaId),
+    onSuccess: async (updatedGroup) => {
+      await invalidateCriteria();
+      setDeleteOpen(false);
+      setSelected(null);
+      toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm vẫn giữ nguyên ${updatedGroup.maxPoint} điểm.`);
+    },
+    onError: (apiError) => toast.error(getCriteriaApiError(apiError)),
+  });
+  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard' && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
   const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
   const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
@@ -98,13 +124,13 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'maxScore',
       header: 'Điểm chuẩn',
-      meta: { align: 'right', list: { width: 'minmax(110px,0.7fr)' } },
+      meta: { align: 'center', list: { width: 'minmax(110px,0.7fr)' } },
     },
     {
       accessorKey: 'bonusScore',
       header: 'Điểm thưởng tối đa',
       cell: ({ row }) => row.original.bonusScore ?? 0,
-      meta: { align: 'right', list: { width: 'minmax(145px,0.85fr)' } },
+      meta: { align: 'center', list: { width: 'minmax(145px,0.85fr)' } },
     },
     {
       accessorKey: 'deadline',
@@ -115,9 +141,11 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'status',
       header: 'Trạng thái',
-      cell: ({ row }) => row.original.status === 'Applied'
-        ? <Badge variant="success">Đã áp dụng</Badge>
-        : <Badge variant="secondary">Nháp</Badge>,
+      cell: ({ row }) => row.original.status === 'Deleted'
+        ? <Badge variant="secondary">Vô hiệu</Badge>
+        : row.original.status === 'Applied'
+          ? <Badge variant="success">Đã áp dụng</Badge>
+          : <Badge variant="secondary">Nháp</Badge>,
       meta: { align: 'center', list: { width: 'minmax(120px,0.75fr)' } },
     },
     {
@@ -149,17 +177,18 @@ export default function CriteriaChildrenPage() {
       const payload = { content: value.name, maxPoint: value.maxScore, maxBonusPoint: value.bonusScore ?? 0, deadline: value.deadline || null, note: value.note };
       if (current) await criteriaGroupsApi.updateCriteria(current.id, { ...payload, changeReason: 'Cập nhật tiêu chí từ giao diện quản lý.' });
       else await criteriaGroupsApi.createBulk(group.id, [{ type: 'Standard', ...payload }]);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['criteria-group', id] }),
-        queryClient.invalidateQueries({ queryKey: ['criteria', id] }),
-      ]);
+      await invalidateCriteria();
       toast.success(current ? 'Đã cập nhật tiêu chí.' : 'Đã thêm tiêu chí.'); setEditor(null); setSelected(null); setApplyValidationMessage('');
     } catch (apiError) { toast.error(getCriteriaApiError(apiError)); } finally { setSaving(false); }
   };
   const apply = async () => {
     setSaving(true);
     try {
-      const latestGroup = await criteriaGroupsApi.get(group.id);
+      const latestGroup = await queryClient.fetchQuery({
+        queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(group.id)),
+        queryFn: () => criteriaGroupsApi.get(group.id),
+        staleTime: 0,
+      });
       const validation = validateCriteriaApplication(
         latestGroup.maxPoint,
         latestGroup.criteria.filter((item) => item.status === 'Applied').map((item) => item.maxPoint),
@@ -179,8 +208,12 @@ export default function CriteriaChildrenPage() {
           toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['criteria-group', id] });
-      await queryClient.invalidateQueries({ queryKey: ['criteria-groups'] });
+      await invalidateQueryResources(queryClient, [
+        getGetApiV1CriteriaGroupsQueryKey(),
+        getGetApiV1SubmissionsQueryKey(),
+        getGetApiV1FilesQueryKey(),
+        getGetApiV1AuditLogsQueryKey(),
+      ]);
       toast.success('Đã áp dụng nhóm tiêu chí cho các đơn vị địa phương.');
       setApplyOpen(false);
       setApplyFiles([]);
@@ -201,7 +234,7 @@ export default function CriteriaChildrenPage() {
   };
   return <div className="flex min-h-full flex-col gap-5">
     <div className="flex items-center gap-2 text-sm text-muted-foreground"><Link to="/chuyen-vien/tieu-chi" className="hover:text-primary">Quản lý tiêu chí</Link><span>/</span><span className="font-medium text-foreground">{group.name}</span></div>
-    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${pointValidation.childTotal}/${group.maxPoint} điểm`} actions={<Button variant="outline" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
+    <PageHeader title="Danh sách tiêu chí con" description={`${group.name} · Tổng ${pointValidation.childTotal}/${group.maxPoint} điểm`} actions={<Button variant="back" render={<Link to="/chuyen-vien/tieu-chi" />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button>} />
     <div className="flex-1 space-y-4">
       {applyValidationMessage && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/[0.06] px-4 py-3 text-sm text-danger">
@@ -215,7 +248,7 @@ export default function CriteriaChildrenPage() {
           <Badge className="shrink-0 border border-danger/25 bg-background text-danger">{pointValidation.childTotal}/{group.maxPoint} điểm</Badge>
         </div>
       )}
-      {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : group.status === 'Published' ? 'công bố' : 'đóng'} — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử.</div>}
+      {group.status !== 'Draft' && <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">Nhóm đã {group.status === 'Applied' ? 'áp dụng' : group.status === 'Published' ? 'công bố — chỉ có thể xem tiêu chí, không thể chỉnh sửa' : 'đóng'}{group.status !== 'Published' ? ' — vẫn có thể sửa tiêu chí, mọi thay đổi được ghi nhận lịch sử' : ''}.</div>}
       <section className="overflow-hidden rounded-lg border border-primary bg-card shadow-[0_2px_12px_-4px_rgba(31,27,26,0.07)]">
         <div className="bg-primary px-4 py-3 text-primary-foreground">
           <p className="text-sm font-semibold">Quyết định</p>
@@ -231,7 +264,6 @@ export default function CriteriaChildrenPage() {
         getRowId={(item) => item.id}
         selectedRowId={selected?.id}
         searchable
-        searchKey="name"
         onSearchChange={setSearch}
         searchPlaceholder="Tìm nội dung hoặc ghi chú tiêu chí..."
         pageSize={10}
@@ -247,10 +279,21 @@ export default function CriteriaChildrenPage() {
         onClearFilters={sort !== 'createdAt-desc' ? () => setSort('createdAt-desc') : undefined}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="info" disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" disabled={!selected} disabledReason="Chọn một tiêu chí con để chỉnh sửa." onClick={() => selected && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
-            <Button variant="outline" disabled={!selected} disabledReason="Chọn một tiêu chí con để xóa." className="border-danger text-danger hover:bg-danger/5" onClick={() => toast.error('API hiện chưa hỗ trợ xóa tiêu chí.')}><Trash2 className="size-4" />Xóa</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
+            <Button variant="edit" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted' || group.status === 'Published'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa tiêu chí con.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && group.status !== 'Published' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button
+              variant="destructive"
+              hideWhen={!selected}
+              disabled={!selected || selected.status === 'Deleted' || !canDeleteCriteria || (group.status !== 'Draft' && group.status !== 'Applied') || groupCriteria.length <= 1 || deleteMutation.isPending}
+              disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên trưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
+              onClick={() => { if (selected && selected.status !== 'Deleted' && canDeleteCriteria) setDeleteOpen(true); }}
+            >
+              <Trash2 className="size-4" />Xóa
+            </Button>
+            <Button
+              variant="success"
+              disabled={group.status === 'Published'}
+              disabledReason={group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể thêm tiêu chí con mới.' : undefined}
               onClick={openCreateEditor}
             ><Plus className="size-4" />Thêm mới</Button>
             <Button
@@ -266,10 +309,25 @@ export default function CriteriaChildrenPage() {
             </Button>
           </div>
         )}
-        emptyState={{ title: 'Chưa có tiêu chí con', description: 'Thêm tiêu chí con đầu tiên cho nhóm tiêu chí này.' }}
+        emptyState={search
+          ? { title: 'Không tìm thấy tiêu chí con', description: 'Thử từ khóa khác.' }
+          : { title: 'Chưa có tiêu chí con', description: 'Thêm tiêu chí con đầu tiên cho nhóm tiêu chí này.' }}
       />
     </div>
     <CriteriaItemDialog open={!!editor} onOpenChange={(open) => { if (!open) setEditor(null); }} item={editor?.item ?? null} readonly={editor?.readonly} parentDeadline={group.deadline} onSave={saveItem} saving={saving} />
+    <ConfirmDialog
+      open={deleteOpen}
+      onOpenChange={setDeleteOpen}
+      title="Xóa tiêu chí con"
+      description={selected ? (group.status === 'Draft'
+        ? 'Bạn có chắc muốn xóa tiêu chí? Tiêu chí sẽ bị xóa hoàn toàn.'
+        : `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tiêu chí sẽ chuyển sang trạng thái Vô hiệu, dữ liệu điểm và lịch sử vẫn được giữ lại. Tổng điểm tối đa của nhóm vẫn giữ nguyên ${group.maxPoint} điểm.`)
+        : 'Chọn tiêu chí cần xóa.'}
+      confirmLabel={deleteMutation.isPending ? 'Đang xóa…' : 'Xóa tiêu chí'}
+      cancelLabel="Hủy"
+      variant="destructive"
+      onConfirm={() => { if (selected && canDeleteCriteria) deleteMutation.mutate(selected.id); }}
+    />
     <FormDialog
       open={applyOpen}
       onOpenChange={(open) => { setApplyOpen(open); if (!open) { setApplyFiles([]); setApplyError(''); } }}

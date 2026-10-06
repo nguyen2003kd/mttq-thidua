@@ -1,3 +1,8 @@
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
+import { getGetApiV1UsersQueryKey } from '@/api/endpoints/users';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -5,7 +10,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { ShieldCheck, UserRound, Phone } from 'lucide-react';
-import { Button } from '@/components/core';
+import { Button, PageLoading } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ROUTES } from '@/constants/routes';
@@ -34,30 +39,58 @@ function extractError(error: unknown) {
  */
 export default function ProfileCompletionPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const requiresCompletion = useAuthStore((s) => s.requires_profile_completion);
   const fullName = useAuthStore((s) => s.full_name);
   const phone = useAuthStore((s) => s.phone);
   const setStore = useAuthStore((s) => s.setStore);
-
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { fullName: fullName ?? '', phone: phone ?? '' },
+  const profileQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey(), user?.id ?? ''),
+    queryFn: () => profileApi.get(),
+    enabled: Boolean(user) && requiresCompletion !== false,
   });
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { fullName: profileQuery.data?.fullName ?? fullName ?? '', phone: profileQuery.data?.phone ?? phone ?? '' },
+  });
+
+  useEffect(() => {
+    const profile = profileQuery.data;
+    const currentUser = useAuthStore.getState().user;
+    if (!profile || !currentUser) return;
+    const needsCompletion = profileNeedsCompletion(profile);
+    setStore({
+      first_name: profile.firstName,
+      last_name: profile.lastName,
+      full_name: profile.fullName,
+      phone: profile.phone,
+      ward_code: profile.wardCode,
+      requires_profile_completion: needsCompletion,
+      user: { ...currentUser, name: profileDisplayName(profile), banId: profile.departmentId ?? undefined },
+    });
+    if (!isDirty) reset({ fullName: profile.fullName ?? '', phone: profile.phone ?? '' });
+  }, [profileQuery.data, reset, setStore, isDirty]);
 
   if (!user) return <Navigate to={ROUTES.LOGIN} replace />;
   // Đã đủ thông tin (hoặc session cũ chưa check — ProfileGate sẽ đẩy lại nếu thiếu).
   if (requiresCompletion === false) return <Navigate to={defaultRouteForRole(user.role)} replace />;
+  if (profileQuery.isLoading || (profileQuery.data && !profileNeedsCompletion(profileQuery.data))) {
+    return <PageLoading label="Đang kiểm tra thông tin hồ sơ…" />;
+  }
 
   const onSubmit = async (values: FormValues) => {
     try {
       const profile = await profileApi.update({ fullName: values.fullName, phone: values.phone });
+      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey(), user.id), profile);
       setStore({
         full_name: profile.fullName,
         phone: profile.phone,
         requires_profile_completion: profileNeedsCompletion(profile),
         user: { ...user, name: profileDisplayName(profile) },
       });
+      await queryClient.invalidateQueries({ queryKey: getGetApiV1UsersQueryKey() });
       toast.success('Đã lưu thông tin người đại diện');
       navigate(defaultRouteForRole(user.role), { replace: true });
     } catch (error) {
@@ -67,7 +100,7 @@ export default function ProfileCompletionPage() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-surface-muted px-4 py-10">
-      <div className="w-full max-w-110 rounded-lg border border-border bg-card p-8 shadow-[0_18px_45px_rgba(41,20,20,0.12)] sm:p-10">
+      <div className="w-full max-w-110 rounded-lg border border-border bg-card p-8 shadow-[0_18px_45px_hsl(var(--foreground)/0.12)] sm:p-10">
         <div className="space-y-3 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5">
             <ShieldCheck className="h-7 w-7 text-primary" />

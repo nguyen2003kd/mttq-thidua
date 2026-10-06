@@ -1,7 +1,6 @@
 import axios, { type AxiosRequestConfig } from "axios";
 import baseConfig from "../../configs/base";
 import { installAuthInterceptors } from "./auth-interceptors";
-import { invalidateApiQueries } from "./query-client";
 import { beginActionProgress, completeActionProgress } from "@/lib/action-progress";
 
 const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"]);
@@ -11,7 +10,7 @@ type ProgressRequestConfig = AxiosRequestConfig & { __actionProgressId?: string 
 function getMutationProgressLabel(config: AxiosRequestConfig) {
   const method = config.method?.toLowerCase();
   const url = String(config.url ?? '');
-  if (url.includes('/files/') || config.data instanceof FormData) return 'Đang tải tệp lên…';
+  if (url.includes('/files/') || config.data instanceof FormData) return 'Đang tải dữ liệu…';
   if (url.includes('/finalize')) return 'Đang gửi hồ sơ…';
   if (url.includes('/submit-points')) return 'Đang lưu điểm tự đánh giá…';
   if (url.includes('/approve')) return 'Đang gửi yêu cầu xét duyệt…';
@@ -67,14 +66,5 @@ export function mainInstance<T>(
       ...options,
       headers: mergedHeaders,
     })
-    .then((response) => {
-      // Most feature APIs call `mainInstance` directly instead of a generated
-      // useMutation hook. Invalidate here so both styles refresh active
-      // TanStack Query screens after a successful write.
-      if (MUTATION_METHODS.has(response.config.method?.toLowerCase() ?? "")) {
-        void invalidateApiQueries();
-      }
-
-      return response.data;
-    });
+    .then((response) => response.data);
 }

@@ -92,7 +92,7 @@ export default function ChangePasswordPage() {
       <PageHeader
         title="Đổi mật khẩu"
         description="Cập nhật mật khẩu đăng nhập của tài khoản."
-        actions={<Button variant="outline" onClick={() => navigate(-1)}>Quay lại</Button>}
+        actions={<Button variant="back" onClick={() => navigate(-1)}>Quay lại</Button>}
       />
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-[10px] border bg-card p-6 shadow-sm">

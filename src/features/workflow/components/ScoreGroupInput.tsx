@@ -65,8 +65,9 @@ export function ScoreGroupInput({
             {rows.map(({ criterion, entry }) => {
               const criteriaId = criterion?.id ?? entry?.criteriaId ?? '';
               const files = evidence.filter((item) => item.localityId === localityId && item.criteriaId === criteriaId);
-              const locked = Boolean(entry?.locked || lockedCriteriaIds.includes(criteriaId));
-              const placeholder: ScoreEntry = entry ?? { id: `empty-${criteriaId}`, criteriaId, criteriaName: criterion?.name ?? '', value: 0, state: record.state, scoredBy: '', scoredAt: '', evidenceCount: files.length };
+              const criterionDisabled = criterion?.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';
+              const locked = Boolean(criterionDisabled || entry?.locked || lockedCriteriaIds.includes(criteriaId));
+              const placeholder: ScoreEntry = entry ?? { id: `empty-${criteriaId}`, criteriaId, criteriaName: criterion?.name ?? '', criteriaStatus: criterion?.status, value: 0, state: record.state, scoredBy: '', scoredAt: '', evidenceCount: files.length };
               const specialistScore = entry?.stageScores?.SPECIALIST;
 
               return (
@@ -83,7 +84,7 @@ export function ScoreGroupInput({
                         <p className="font-medium leading-5">{criterion?.name ?? entry?.criteriaName}</p>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {entry?.isSupplementary && <Badge variant="secondary">Tiêu chí bổ sung</Badge>}
-                          {locked && <Badge variant="outline">Đã khóa ◎</Badge>}
+                          {criterionDisabled ? <Badge variant="secondary">Vô hiệu</Badge> : locked && <Badge variant="outline">Đã khóa ◎</Badge>}
                           {entry?.revisionRequest && <Badge className="bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
                         </div>
                       </div>
@@ -107,8 +108,8 @@ export function ScoreGroupInput({
                   {mode !== 'result' && (
                     <TableCell className="text-right align-top">
                       <div className="flex justify-end gap-1">
-                        <Button size="icon-xs" variant="ghost" title="Xem minh chứng" onClick={(event) => { event.stopPropagation(); onEvidence?.(placeholder, criterion); }}><Eye className="size-4" /></Button>
-                        {onEdit && <Button size="icon-xs" variant="ghost" title={locked ? 'Tiêu chí đã khóa' : 'Sửa điểm'} disabled={locked || record.state === 'DA_CONG_BO'} onClick={(event) => { event.stopPropagation(); onEdit(placeholder, criterion); }}><Pencil className="size-4" /></Button>}
+                        <Button size="icon-xs" variant="ghost" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" title="Xem minh chứng" onClick={(event) => { event.stopPropagation(); onEvidence?.(placeholder, criterion); }}><Eye className="size-4" /></Button>
+                        {onEdit && <Button size="icon-xs" variant="ghost" className="text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground dark:text-warning" title={locked ? 'Tiêu chí đã khóa' : 'Sửa điểm'} disabled={locked || record.state === 'DA_CONG_BO'} onClick={(event) => { event.stopPropagation(); onEdit(placeholder, criterion); }}><Pencil className="size-4" /></Button>}
                       </div>
                     </TableCell>
                   )}

@@ -19,10 +19,16 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  GetApiV1ResultPublicationsCriteriaGroupsIdParams,
+  GetApiV1ResultPublicationsCriteriaGroupsParams,
+  GetApiV1ResultPublicationsOverviewParams,
+  GetApiV1ResultPublicationsPreviewParams,
+  GetApiV1ResultPublicationsScoreSummaryExcelParams,
   PostApiV1ResultPublicationsPublishBody
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -46,13 +52,14 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 export const getApiV1ResultPublicationsOverview = (
-
+    params?: GetApiV1ResultPublicationsOverviewParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
       return mainInstance<void>(
-      {url: `/api/v1/result-publications/overview`, method: 'GET', signal
+      {url: `/api/v1/result-publications/overview`, method: 'GET',
+        params, signal
     },
       options);
     }
@@ -60,23 +67,20 @@ export const getApiV1ResultPublicationsOverview = (
 
 
 
-export const getGetApiV1ResultPublicationsOverviewQueryKey = () => {
-    return [
-    `/api/v1/result-publications/overview`
-    ] as const;
-    }
+export const getGetApiV1ResultPublicationsOverviewQueryKey = (params?: GetApiV1ResultPublicationsOverviewParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/result-publications/overview` });
 
 
-export const getGetApiV1ResultPublicationsOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1ResultPublicationsOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>(params?: GetApiV1ResultPublicationsOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1ResultPublicationsOverviewQueryKey();
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/result-publications/overview`, queryOptions });
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>> = ({ signal }) => getApiV1ResultPublicationsOverview(requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>> = ({ signal }) => getApiV1ResultPublicationsOverview(params, requestOptions, signal);
 
 
 
@@ -90,7 +94,7 @@ export type GetApiV1ResultPublicationsOverviewQueryError = unknown
 
 
 export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>> & Pick<
+ params: undefined |  GetApiV1ResultPublicationsOverviewParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>,
           TError,
@@ -100,7 +104,7 @@ export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>> & Pick<
+ params?: GetApiV1ResultPublicationsOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>,
           TError,
@@ -110,16 +114,16 @@ export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsOverviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsOverview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1ResultPublicationsOverviewQueryOptions(options)
+  const queryOptions = useGetApiV1ResultPublicationsOverviewQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -132,13 +136,14 @@ export function useGetApiV1ResultPublicationsOverview<TData = Awaited<ReturnType
 
 
 export const getApiV1ResultPublicationsCriteriaGroups = (
-
+    params?: GetApiV1ResultPublicationsCriteriaGroupsParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
       return mainInstance<void>(
-      {url: `/api/v1/result-publications/criteria-groups`, method: 'GET', signal
+      {url: `/api/v1/result-publications/criteria-groups`, method: 'GET',
+        params, signal
     },
       options);
     }
@@ -146,23 +151,20 @@ export const getApiV1ResultPublicationsCriteriaGroups = (
 
 
 
-export const getGetApiV1ResultPublicationsCriteriaGroupsQueryKey = () => {
-    return [
-    `/api/v1/result-publications/criteria-groups`
-    ] as const;
-    }
+export const getGetApiV1ResultPublicationsCriteriaGroupsQueryKey = (params?: GetApiV1ResultPublicationsCriteriaGroupsParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/result-publications/criteria-groups` });
 
 
-export const getGetApiV1ResultPublicationsCriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1ResultPublicationsCriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>(params?: GetApiV1ResultPublicationsCriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1ResultPublicationsCriteriaGroupsQueryKey();
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/result-publications/criteria-groups`, queryOptions });
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>> = ({ signal }) => getApiV1ResultPublicationsCriteriaGroups(requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>> = ({ signal }) => getApiV1ResultPublicationsCriteriaGroups(params, requestOptions, signal);
 
 
 
@@ -176,7 +178,7 @@ export type GetApiV1ResultPublicationsCriteriaGroupsQueryError = unknown
 
 
 export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>> & Pick<
+ params: undefined |  GetApiV1ResultPublicationsCriteriaGroupsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>,
           TError,
@@ -186,7 +188,7 @@ export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<Retu
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>> & Pick<
+ params?: GetApiV1ResultPublicationsCriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>,
           TError,
@@ -196,16 +198,16 @@ export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<Retu
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsCriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsCriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1ResultPublicationsCriteriaGroupsQueryOptions(options)
+  const queryOptions = useGetApiV1ResultPublicationsCriteriaGroupsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -219,12 +221,14 @@ export function useGetApiV1ResultPublicationsCriteriaGroups<TData = Awaited<Retu
 
 export const getApiV1ResultPublicationsCriteriaGroupsId = (
     id: string,
+    params?: GetApiV1ResultPublicationsCriteriaGroupsIdParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
       return mainInstance<void>(
-      {url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET', signal
+      {url: `/api/v1/result-publications/criteria-groups/${id}`, method: 'GET',
+        params, signal
     },
       options);
     }
@@ -232,23 +236,22 @@ export const getApiV1ResultPublicationsCriteriaGroupsId = (
 
 
 
-export const getGetApiV1ResultPublicationsCriteriaGroupsIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/result-publications/criteria-groups/${id}`
-    ] as const;
-    }
+export const getGetApiV1ResultPublicationsCriteriaGroupsIdQueryKey = (id: string,
+    params?: GetApiV1ResultPublicationsCriteriaGroupsIdParams,) =>
+    apiQueryKey({ id,params }, { url: `/api/v1/result-publications/criteria-groups/${id}` });
 
 
-export const getGetApiV1ResultPublicationsCriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1ResultPublicationsCriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(id: string,
+    params?: GetApiV1ResultPublicationsCriteriaGroupsIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1ResultPublicationsCriteriaGroupsIdQueryKey(id);
+  const queryKey =  apiQueryKey({ id,params }, { url: `/api/v1/result-publications/criteria-groups/${id}`, queryOptions });
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>> = ({ signal }) => getApiV1ResultPublicationsCriteriaGroupsId(id, requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>> = ({ signal }) => getApiV1ResultPublicationsCriteriaGroupsId(id,params, requestOptions, signal);
 
 
 
@@ -262,7 +265,8 @@ export type GetApiV1ResultPublicationsCriteriaGroupsIdQueryError = unknown
 
 
 export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(
- id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>> & Pick<
+ id: string,
+    params: undefined |  GetApiV1ResultPublicationsCriteriaGroupsIdParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>,
           TError,
@@ -272,7 +276,8 @@ export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<Re
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>> & Pick<
+ id: string,
+    params?: GetApiV1ResultPublicationsCriteriaGroupsIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>,
           TError,
@@ -282,16 +287,18 @@ export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<Re
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ id: string,
+    params?: GetApiV1ResultPublicationsCriteriaGroupsIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError = unknown>(
- id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ id: string,
+    params?: GetApiV1ResultPublicationsCriteriaGroupsIdParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsCriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1ResultPublicationsCriteriaGroupsIdQueryOptions(id,options)
+  const queryOptions = useGetApiV1ResultPublicationsCriteriaGroupsIdQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -304,13 +311,14 @@ export function useGetApiV1ResultPublicationsCriteriaGroupsId<TData = Awaited<Re
 
 
 export const getApiV1ResultPublicationsPreview = (
-
+    params?: GetApiV1ResultPublicationsPreviewParams,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
 
       return mainInstance<void>(
-      {url: `/api/v1/result-publications/preview`, method: 'GET', signal
+      {url: `/api/v1/result-publications/preview`, method: 'GET',
+        params, signal
     },
       options);
     }
@@ -318,23 +326,20 @@ export const getApiV1ResultPublicationsPreview = (
 
 
 
-export const getGetApiV1ResultPublicationsPreviewQueryKey = () => {
-    return [
-    `/api/v1/result-publications/preview`
-    ] as const;
-    }
+export const getGetApiV1ResultPublicationsPreviewQueryKey = (params?: GetApiV1ResultPublicationsPreviewParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/result-publications/preview` });
 
 
-export const getGetApiV1ResultPublicationsPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1ResultPublicationsPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>(params?: GetApiV1ResultPublicationsPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1ResultPublicationsPreviewQueryKey();
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/result-publications/preview`, queryOptions });
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>> = ({ signal }) => getApiV1ResultPublicationsPreview(requestOptions, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>> = ({ signal }) => getApiV1ResultPublicationsPreview(params, requestOptions, signal);
 
 
 
@@ -348,7 +353,7 @@ export type GetApiV1ResultPublicationsPreviewQueryError = unknown
 
 
 export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>> & Pick<
+ params: undefined |  GetApiV1ResultPublicationsPreviewParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>,
           TError,
@@ -358,7 +363,7 @@ export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>> & Pick<
+ params?: GetApiV1ResultPublicationsPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>,
           TError,
@@ -368,16 +373,16 @@ export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
 export function useGetApiV1ResultPublicationsPreview<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError = unknown>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ params?: GetApiV1ResultPublicationsPreviewParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsPreview>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1ResultPublicationsPreviewQueryOptions(options)
+  const queryOptions = useGetApiV1ResultPublicationsPreviewQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -395,6 +400,9 @@ export const postApiV1ResultPublicationsPublish = (
 ) => {
 
       const formData = new FormData();
+if(postApiV1ResultPublicationsPublishBody?.PeriodId !== undefined) {
+ formData.append(`PeriodId`, postApiV1ResultPublicationsPublishBody.PeriodId);
+ }
 if(postApiV1ResultPublicationsPublishBody?.Note !== undefined) {
  formData.append(`Note`, postApiV1ResultPublicationsPublishBody.Note);
  }
@@ -457,3 +465,87 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiV1ResultPublicationsPublishMutationOptions(options), queryClient);
     }
+    export const getApiV1ResultPublicationsScoreSummaryExcel = (
+    params?: GetApiV1ResultPublicationsScoreSummaryExcelParams,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/result-publications/score-summary-excel`, method: 'GET',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getGetApiV1ResultPublicationsScoreSummaryExcelQueryKey = (params?: GetApiV1ResultPublicationsScoreSummaryExcelParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/result-publications/score-summary-excel` });
+
+
+export const useGetApiV1ResultPublicationsScoreSummaryExcelQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError = unknown>(params?: GetApiV1ResultPublicationsScoreSummaryExcelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/result-publications/score-summary-excel`, queryOptions });
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>> = ({ signal }) => getApiV1ResultPublicationsScoreSummaryExcel(params, requestOptions, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetApiV1ResultPublicationsScoreSummaryExcelQueryResult = NonNullable<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>>
+export type GetApiV1ResultPublicationsScoreSummaryExcelQueryError = unknown
+
+
+export function useGetApiV1ResultPublicationsScoreSummaryExcel<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError = unknown>(
+ params: undefined |  GetApiV1ResultPublicationsScoreSummaryExcelParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>,
+          TError,
+          Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiV1ResultPublicationsScoreSummaryExcel<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError = unknown>(
+ params?: GetApiV1ResultPublicationsScoreSummaryExcelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>,
+          TError,
+          Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetApiV1ResultPublicationsScoreSummaryExcel<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError = unknown>(
+ params?: GetApiV1ResultPublicationsScoreSummaryExcelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useGetApiV1ResultPublicationsScoreSummaryExcel<TData = Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError = unknown>(
+ params?: GetApiV1ResultPublicationsScoreSummaryExcelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ResultPublicationsScoreSummaryExcel>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = useGetApiV1ResultPublicationsScoreSummaryExcelQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+

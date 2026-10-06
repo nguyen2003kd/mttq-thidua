@@ -26,6 +26,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -242,19 +243,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1FilesQueryKey = (params?: GetApiV1FilesParams,) => {
-    return [
-    `/api/v1/files`, ...(params ? [params] : [])
-    ] as const;
-    }
+export const getGetApiV1FilesQueryKey = (params?: GetApiV1FilesParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/files` });
 
 
-export const getGetApiV1FilesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Files>>, TError = unknown>(params?: GetApiV1FilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Files>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1FilesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Files>>, TError = unknown>(params?: GetApiV1FilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Files>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1FilesQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/files`, queryOptions });
 
 
 
@@ -301,7 +299,7 @@ export function useGetApiV1Files<TData = Awaited<ReturnType<typeof getApiV1Files
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1FilesQueryOptions(params,options)
+  const queryOptions = useGetApiV1FilesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -329,19 +327,16 @@ export const getApiV1FilesBatch = (
 
 
 
-export const getGetApiV1FilesBatchQueryKey = (params?: GetApiV1FilesBatchParams,) => {
-    return [
-    `/api/v1/files/batch`, ...(params ? [params] : [])
-    ] as const;
-    }
+export const getGetApiV1FilesBatchQueryKey = (params?: GetApiV1FilesBatchParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/files/batch` });
 
 
-export const getGetApiV1FilesBatchQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1FilesBatchQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError = unknown>(params?: GetApiV1FilesBatchParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesBatch>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1FilesBatchQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/files/batch`, queryOptions });
 
 
 
@@ -388,7 +383,7 @@ export function useGetApiV1FilesBatch<TData = Awaited<ReturnType<typeof getApiV1
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1FilesBatchQueryOptions(params,options)
+  const queryOptions = useGetApiV1FilesBatchQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -415,19 +410,16 @@ export const getApiV1FilesId = (
 
 
 
-export const getGetApiV1FilesIdQueryKey = (id: string,) => {
-    return [
-    `/api/v1/files/${id}`
-    ] as const;
-    }
+export const getGetApiV1FilesIdQueryKey = (id: string,) =>
+    apiQueryKey({ id }, { url: `/api/v1/files/${id}` });
 
 
-export const getGetApiV1FilesIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1FilesIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1FilesIdQueryKey(id);
+  const queryKey =  apiQueryKey({ id }, { url: `/api/v1/files/${id}`, queryOptions });
 
 
 
@@ -474,7 +466,7 @@ export function useGetApiV1FilesId<TData = Awaited<ReturnType<typeof getApiV1Fil
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1FilesIdQueryOptions(id,options)
+  const queryOptions = useGetApiV1FilesIdQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -560,19 +552,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1FilesIdDownloadQueryKey = (id: string,) => {
-    return [
-    `/api/v1/files/${id}/download`
-    ] as const;
-    }
+export const getGetApiV1FilesIdDownloadQueryKey = (id: string,) =>
+    apiQueryKey({ id }, { url: `/api/v1/files/${id}/download` });
 
 
-export const getGetApiV1FilesIdDownloadQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesIdDownload>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesIdDownload>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1FilesIdDownloadQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1FilesIdDownload>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1FilesIdDownload>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1FilesIdDownloadQueryKey(id);
+  const queryKey =  apiQueryKey({ id }, { url: `/api/v1/files/${id}/download`, queryOptions });
 
 
 
@@ -619,7 +608,7 @@ export function useGetApiV1FilesIdDownload<TData = Awaited<ReturnType<typeof get
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1FilesIdDownloadQueryOptions(id,options)
+  const queryOptions = useGetApiV1FilesIdDownloadQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

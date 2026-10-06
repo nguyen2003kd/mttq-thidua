@@ -25,10 +25,12 @@ import type {
   GetApiV1SubmissionResultsResultIdHistoriesParams,
   GetApiV1SubmissionsScoreHistoriesParams,
   GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams,
-  PostApiV1SubmissionsForwardBody
+  PostApiV1SubmissionsForwardBody,
+  PostApiV1SubmissionsRequestRevisionBody
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -183,6 +185,83 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPostApiV1SubmissionsForwardMutationOptions(options), queryClient);
     }
+    export const postApiV1SubmissionsRequestRevision = (
+    postApiV1SubmissionsRequestRevisionBody?: PostApiV1SubmissionsRequestRevisionBody,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+      const formData = new FormData();
+if(postApiV1SubmissionsRequestRevisionBody?.SubmissionId !== undefined) {
+ formData.append(`SubmissionId`, postApiV1SubmissionsRequestRevisionBody.SubmissionId);
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.Reason !== undefined) {
+ formData.append(`Reason`, postApiV1SubmissionsRequestRevisionBody.Reason);
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.CriteriaIds !== undefined) {
+ postApiV1SubmissionsRequestRevisionBody?.CriteriaIds.forEach(value => formData.append(`CriteriaIds`, value));
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.SubmissionResultIds !== undefined) {
+ postApiV1SubmissionsRequestRevisionBody?.SubmissionResultIds.forEach(value => formData.append(`SubmissionResultIds`, value));
+ }
+if(postApiV1SubmissionsRequestRevisionBody?.Files !== undefined) {
+ postApiV1SubmissionsRequestRevisionBody?.Files.forEach(value => formData.append(`Files`, value));
+ }
+
+      return mainInstance<void>(
+      {url: `/api/v1/submissions/request-revision`, method: 'POST',
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData, signal
+    },
+      options);
+    }
+
+
+
+
+export const getPostApiV1SubmissionsRequestRevisionMutationKey = () => ['postApiV1SubmissionsRequestRevision'] as const;
+
+export const getPostApiV1SubmissionsRequestRevisionMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, TError,PostApiV1SubmissionsRequestRevisionMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, TError,PostApiV1SubmissionsRequestRevisionMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1SubmissionsRequestRevisionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, PostApiV1SubmissionsRequestRevisionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postApiV1SubmissionsRequestRevision(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1SubmissionsRequestRevisionMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>>
+    export type PostApiV1SubmissionsRequestRevisionMutationBody = PostApiV1SubmissionsRequestRevisionBody | undefined
+    export type PostApiV1SubmissionsRequestRevisionMutationError = unknown
+    export type PostApiV1SubmissionsRequestRevisionMutationVariables = {data?: PostApiV1SubmissionsRequestRevisionBody}
+
+    export const usePostApiV1SubmissionsRequestRevision = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>, TError,PostApiV1SubmissionsRequestRevisionMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1SubmissionsRequestRevision>>,
+        TError,
+        PostApiV1SubmissionsRequestRevisionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1SubmissionsRequestRevisionMutationOptions(options), queryClient);
+    }
     export const postApiV1SubmissionsSupplementaryCriteria = (
     addSupplementaryCriteriaRequest?: AddSupplementaryCriteriaRequest,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
@@ -323,20 +402,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 export const getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey = (submissionId: string,
-    params?: GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams,) => {
-    return [
-    `/api/v1/submissions/${submissionId}/approval-histories`, ...(params ? [params] : [])
-    ] as const;
-    }
+    params?: GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams,) =>
+    apiQueryKey({ submissionId,params }, { url: `/api/v1/submissions/${submissionId}/approval-histories` });
 
 
-export const getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsSubmissionIdApprovalHistories>>, TError = unknown>(submissionId: string,
+export const useGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsSubmissionIdApprovalHistories>>, TError = unknown>(submissionId: string,
     params?: GetApiV1SubmissionsSubmissionIdApprovalHistoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsSubmissionIdApprovalHistories>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submissionId,params);
+  const queryKey =  apiQueryKey({ submissionId,params }, { url: `/api/v1/submissions/${submissionId}/approval-histories`, queryOptions });
 
 
 
@@ -387,7 +463,7 @@ export function useGetApiV1SubmissionsSubmissionIdApprovalHistories<TData = Awai
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryOptions(submissionId,params,options)
+  const queryOptions = useGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryOptions(submissionId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -417,20 +493,17 @@ export const getApiV1SubmissionResultsResultIdHistories = (
 
 
 export const getGetApiV1SubmissionResultsResultIdHistoriesQueryKey = (resultId: string,
-    params?: GetApiV1SubmissionResultsResultIdHistoriesParams,) => {
-    return [
-    `/api/v1/submission-results/${resultId}/histories`, ...(params ? [params] : [])
-    ] as const;
-    }
+    params?: GetApiV1SubmissionResultsResultIdHistoriesParams,) =>
+    apiQueryKey({ resultId,params }, { url: `/api/v1/submission-results/${resultId}/histories` });
 
 
-export const getGetApiV1SubmissionResultsResultIdHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionResultsResultIdHistories>>, TError = unknown>(resultId: string,
+export const useGetApiV1SubmissionResultsResultIdHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionResultsResultIdHistories>>, TError = unknown>(resultId: string,
     params?: GetApiV1SubmissionResultsResultIdHistoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionResultsResultIdHistories>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(resultId,params);
+  const queryKey =  apiQueryKey({ resultId,params }, { url: `/api/v1/submission-results/${resultId}/histories`, queryOptions });
 
 
 
@@ -481,7 +554,7 @@ export function useGetApiV1SubmissionResultsResultIdHistories<TData = Awaited<Re
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1SubmissionResultsResultIdHistoriesQueryOptions(resultId,params,options)
+  const queryOptions = useGetApiV1SubmissionResultsResultIdHistoriesQueryOptions(resultId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -509,19 +582,16 @@ export const getApiV1SubmissionsScoreHistories = (
 
 
 
-export const getGetApiV1SubmissionsScoreHistoriesQueryKey = (params?: GetApiV1SubmissionsScoreHistoriesParams,) => {
-    return [
-    `/api/v1/submissions/score-histories`, ...(params ? [params] : [])
-    ] as const;
-    }
+export const getGetApiV1SubmissionsScoreHistoriesQueryKey = (params?: GetApiV1SubmissionsScoreHistoriesParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/submissions/score-histories` });
 
 
-export const getGetApiV1SubmissionsScoreHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsScoreHistories>>, TError = unknown>(params?: GetApiV1SubmissionsScoreHistoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsScoreHistories>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1SubmissionsScoreHistoriesQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1SubmissionsScoreHistories>>, TError = unknown>(params?: GetApiV1SubmissionsScoreHistoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1SubmissionsScoreHistories>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1SubmissionsScoreHistoriesQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/submissions/score-histories`, queryOptions });
 
 
 
@@ -568,7 +638,7 @@ export function useGetApiV1SubmissionsScoreHistories<TData = Awaited<ReturnType<
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1SubmissionsScoreHistoriesQueryOptions(params,options)
+  const queryOptions = useGetApiV1SubmissionsScoreHistoriesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

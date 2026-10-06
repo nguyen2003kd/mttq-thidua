@@ -1,14 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Edit3, Eye, FileText, History, MessageSquareWarning, Save, Send } from 'lucide-react';
+import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
+// getGetApiV1SubmissionsQueryKey tạm ẩn — chỉ dùng trong các block duyệt/sửa điểm đang comment
+import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
+import { ArrowLeft, Download, Eye, FileText, MessageSquare } from 'lucide-react';
+// import { Edit3, MessageSquareWarning, Save } from 'lucide-react'; // tạm ẩn cùng các nút sửa điểm/duyệt của Lãnh đạo ban
+// import { Send } from 'lucide-react'; // tạm ẩn cùng nút "Duyệt & trình Hội đồng" của Lãnh đạo ban
 import { toast } from 'sonner';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, TableColumnVisibility } from '@/components/core';
+import { Link, useParams } from 'react-router-dom';
+import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, RejectDialog, TableColumnVisibility } from '@/components/core';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ForwardingDocumentsDialog, ForwardSubmissionDialog, OfficialScoreRevisionDialog, ReviewScoreModal, RevisionRequestDialog } from '@/features/workflow/components';
+import { ForwardingDocumentsDialog, OfficialScoreRevisionDialog } from '@/features/workflow/components';
+// import { RevisionRequestDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
+// import { ReviewScoreModal } from '@/features/workflow/components'; // tạm ẩn cùng tính năng sửa điểm của Lãnh đạo ban
+// import { ForwardSubmissionDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 import { isRealSubmission, specialistApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, filesApi } from '@/features/files/api/filesApi';
+import { mergeSubmissionCriteria } from '@/features/dia-phuong/api/localityApi';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
 const LEADER_VISIBLE_STAGES = [LEADER_STAGE, 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'] as const;
@@ -36,15 +49,11 @@ function LeaderCriterionDetailDialog({
   open,
   onOpenChange,
   item,
-  onEdit,
-  editDisabled,
   onPreview,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: { criterion: { content: string; maxPoint: number; maxBonusPoint: number; type: string }; result?: SubmissionResultItem; leader?: LeaderScoreDraft } | undefined;
-  onEdit: () => void;
-  editDisabled: boolean;
   onPreview: (file: PreviewableFile) => void;
 }) {
   if (!item) return null;
@@ -70,38 +79,40 @@ function LeaderCriterionDetailDialog({
         <div><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{result?.explanation || 'Chưa có diễn giải.'}</p></div>
         {result?.officialReason && <div><p className="text-xs font-medium text-muted-foreground">Lý do sửa điểm của Chuyên viên</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{result.officialReason}</p></div>}
         {leader?.reason && <div><p className="text-xs font-medium text-muted-foreground">Lý do Lãnh đạo sửa điểm</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{leader.reason}</p></div>}
-        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3"><p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p><p className="mt-0.5 text-xs text-muted-foreground">{result?.files.length ?? 0} file đính kèm</p>{result?.files.length ? <div className="mt-3 space-y-2">{result.files.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex items-center gap-2 text-sm text-primary hover:underline"><FileText className="size-4 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : null}</div>
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3"><p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p><p className="mt-0.5 text-xs text-muted-foreground">{result?.files.length ?? 0} file đính kèm</p>{result?.files.length ? <div className="mt-3 space-y-2">{result.files.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex items-center gap-2 text-sm text-info-foreground hover:underline dark:text-info"><FileText className="size-4 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : null}</div>
       </div>
-      <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>{criterion.type !== 'Supplementary' && <Button type="button" disabled={editDisabled} disabledReason={editDisabled ? 'Hồ sơ đã chuyển bước nên không thể cập nhật điểm.' : undefined} onClick={onEdit}><Edit3 className="size-4" />Sửa điểm</Button>}</DialogFooter>
+      <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>{/* Tạm ẩn nút Sửa điểm — Lãnh đạo ban chỉ xem hồ sơ. */}</DialogFooter>
     </DialogContent>
   </Dialog>;
 }
 
 export default function BanLeaderReviewDetailPage() {
   const { banId = 'ban1', tableId, localityId } = useParams<{ banId?: string; tableId?: string; localityId?: string }>();
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // tạm ẩn cùng các thao tác duyệt của Lãnh đạo ban
   const queryClient = useQueryClient();
-  const [revisionOpen, setRevisionOpen] = useState(false);
-  const [forwardOpen, setForwardOpen] = useState(false);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentPending, setCommentPending] = useState(false);
+  // const [revisionOpen, setRevisionOpen] = useState(false); // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
+  // const [forwardOpen, setForwardOpen] = useState(false); // tạm ẩn nút duyệt của Lãnh đạo ban
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
-  const [scoreEditOpen, setScoreEditOpen] = useState(false);
+  // const [scoreEditOpen, setScoreEditOpen] = useState(false); // tạm ẩn cùng tính năng sửa điểm của Lãnh đạo ban
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [evidenceDialog, setEvidenceDialog] = useState<{ criterionName: string; files: SubmissionResultFile[] } | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, LeaderScoreDraft>>({});
-  const [pendingAttachments, setPendingAttachments] = useState<Record<string, File>>({});
-  const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(() => new Set());
-  const [savingAll, setSavingAll] = useState(false);
+  const [drafts] = useState<Record<string, LeaderScoreDraft>>({});
+  // const [pendingAttachments, setPendingAttachments] = useState<Record<string, File>>({}); // tạm ẩn cùng tính năng sửa điểm
+  // const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(() => new Set()); // tạm ẩn cùng tính năng sửa điểm
+  // const [savingAll, setSavingAll] = useState(false); // tạm ẩn cùng tính năng sửa điểm
   const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
 
   const localityCode = localityId ? getLocalityCode(localityId) : '';
   const groupQuery = useQuery({
-    queryKey: ['leader-criteria-group-detail', tableId],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(tableId ?? '')),
     queryFn: () => specialistApi.getCriteriaGroup(tableId!),
     enabled: Boolean(tableId),
   });
   const submissionsQuery = useQuery({
-    queryKey: ['leader-submissions-by-group', tableId, localityCode],
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(tableId ?? ''), { view: 'leader-submission', localityCode, stages: LEADER_VISIBLE_STAGES }),
     queryFn: async () => {
       const pages = await Promise.all(LEADER_VISIBLE_STAGES.map((stage) => specialistApi.listSubmissionsByGroup(tableId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
       return pages.flatMap((page) => page.items).filter(isRealSubmission).find((submission) => (submission.createdByWardCode ?? submission.createdBy ?? '') === localityCode) ?? null;
@@ -109,28 +120,27 @@ export default function BanLeaderReviewDetailPage() {
     enabled: Boolean(tableId && localityCode),
   });
   const submissionDetailQuery = useQuery({
-    queryKey: ['leader-submission-detail', submissionsQuery.data?.id],
-    queryFn: async () => {
-      const data = await specialistApi.getSubmission(submissionsQuery.data!.id);
-      return isRealSubmission(data) ? data : null;
-    },
+    queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submissionsQuery.data?.id ?? '')),
+    queryFn: () => specialistApi.getSubmission(submissionsQuery.data!.id),
+    select: (data) => isRealSubmission(data) ? data : null,
     enabled: Boolean(submissionsQuery.data?.id),
   });
   const approvalHistoriesQuery = useQuery({
-    queryKey: ['leader-approval-histories', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submissionsQuery.data?.id ?? ''), { action: 'Approve', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listApprovalHistories(submissionsQuery.data!.id, { action: 'Approve', page: 1, pageSize: 100 }),
     enabled: Boolean(submissionsQuery.data?.id),
   });
   const legacySpecialistForwardingFilesQuery = useQuery({
-    queryKey: ['leader-legacy-specialist-forwarding-files', submissionsQuery.data?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: submissionsQuery.data?.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submissionsQuery.data!.id, category: 'SpecialistForwarding', page: 1, pageSize: 50 }),
-    enabled: Boolean(submissionsQuery.data?.id),
+    enabled: Boolean(submissionsQuery.data?.id)
+      && (approvalHistoriesQuery.isSuccess || approvalHistoriesQuery.isError)
+      && !approvalHistoriesQuery.data?.items.find((history) => history.stageLevel === 'LocalSubmitted')?.files?.length,
   });
 
   const submission = submissionDetailQuery.data ?? submissionsQuery.data;
   const resultsByCriteria = useMemo(() => new Map((submission?.results ?? []).map((result) => [result.criteriaId, result])), [submission]);
-  const criteria = useMemo(() => (groupQuery.data?.criteria ?? [])
-    .filter((criterion) => criterion.type !== 'Supplementary' || criterion.targetSubmissionId === submission?.id), [groupQuery.data, submission?.id]);
+  const criteria = useMemo(() => mergeSubmissionCriteria(groupQuery.data?.criteria, submission?.results, submission?.id), [groupQuery.data, submission]);
   const backToGroups = `/thi-dua/duyet/lanh-dao-ban/${banId}/${localityId}`;
   const backToList = `/thi-dua/duyet/lanh-dao-ban/${banId}`;
   const isLoading = groupQuery.isLoading || submissionsQuery.isLoading || submissionDetailQuery.isLoading;
@@ -142,31 +152,52 @@ export default function BanLeaderReviewDetailPage() {
   if (!groupQuery.data || !submission) return <EmptyState title="Không tìm thấy hồ sơ" description="Submission không tồn tại hoặc không còn ở trạng thái SpecialistApproved." />;
 
   const resultItems = criteria.map((criterion) => ({ criterion, result: resultsByCriteria.get(criterion.id) }));
-  const proposedScore = sumResults(submission.results, (result) => result.point);
-  const specialistScore = sumResults(submission.results, (result) => result.officialPoint ?? result.point);
-  const specialistBonus = sumResults(submission.results, (result) => result.officialBonusPoint ?? result.bonusPoint);
-  const maximumScore = criteria.reduce((total, criterion) => total + criterion.maxPoint, 0);
-  const maximumBonus = criteria.reduce((total, criterion) => total + criterion.maxBonusPoint, 0);
+  const activeResultItems = resultItems.filter(({ criterion, result }) => criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted');
+  const activeResults = activeResultItems.flatMap(({ result }) => result ? [result] : []);
+  const proposedScore = sumResults(activeResults, (result) => result.point);
+  const specialistScore = sumResults(activeResults, (result) => result.officialPoint ?? result.point);
+  const specialistBonus = sumResults(activeResults, (result) => result.officialBonusPoint ?? result.bonusPoint);
+  const maximumScore = activeResultItems.reduce((total, { criterion }) => total + criterion.maxPoint, 0);
+  const maximumBonus = activeResultItems.reduce((total, { criterion }) => total + criterion.maxBonusPoint, 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? localityCode;
   const specialistForwarding = (approvalHistoriesQuery.data?.items ?? [])
     .find((history) => history.stageLevel === 'LocalSubmitted');
   const specialistForwardingFiles = specialistForwarding?.files?.length
     ? specialistForwarding.files
     : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
-  const canProcess = submission.currentStage === LEADER_STAGE;
+  // const canProcess = submission.currentStage === LEADER_STAGE; // tạm ẩn cùng các thao tác duyệt của Lãnh đạo ban
+  // Cũ: chỉ kiểm tra stage — submission.currentStage === LEADER_STAGE.
+  // Nhóm tiêu chí đã công bố (Published) → hồ sơ khóa, không nhận xét thêm.
+  const canComment = submission.currentStage === LEADER_STAGE && groupQuery.data?.status !== 'Published';
+  const saveComment = async (comment: string) => {
+    setCommentPending(true);
+    try {
+      await specialistApi.comment({ submissionId: submission.id, reason: comment });
+      await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission.id)]);
+      toast.success('Đã lưu nhận xét của Lãnh đạo ban vào lịch sử hồ sơ.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể lưu nhận xét. Vui lòng thử lại.');
+    } finally {
+      setCommentPending(false);
+    }
+  };
   const selectedResultItem = resultItems.find(({ criterion }) => criterion.id === selectedCriteriaId);
-  const revisionCriteria = resultItems
-    .filter(({ criterion, result }) => criterion.type !== 'Supplementary' && Boolean(result))
-    .map(({ criterion }) => ({ id: criterion.id, title: criterion.content }));
-  const defaultSelectedCriteriaIds = selectedCriteriaId ? [selectedCriteriaId] : [];
+  // const selectedResultDisabled = selectedResultItem?.criterion.status === 'Deleted' || selectedResultItem?.result?.criteriaStatus === 'Deleted'; // tạm ẩn cùng tính năng sửa điểm
+  // const revisionCriteria = resultItems // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
+  //   .filter(({ criterion, result }) => criterion.type !== 'Supplementary' && criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted' && Boolean(result))
+  //   .map(({ criterion }) => ({ id: criterion.id, title: criterion.content }));
+  // const defaultSelectedCriteriaIds = selectedCriteriaId ? [selectedCriteriaId] : [];
 
   // API hiện chỉ trả officialPoint của Chuyên viên. Không dùng nó làm điểm Lãnh đạo.
   // Điểm Lãnh đạo chỉ hiển thị khi người dùng đã nhập ở phiên làm việc này.
   const leaderScoreFor = (result?: SubmissionResultItem) => (result ? drafts[result.id] : undefined);
 
+  /* Tạm ẩn tính năng sửa điểm của Lãnh đạo ban — chỉ xem hồ sơ và nhận xét.
+   * Khôi phục: mở các block comment này + nút Sửa điểm/Lưu nháp/ReviewScoreModal
+   * + state drafts/pendingAttachments/savedDraftIds/savingAll/scoreEditOpen.
   const validateLeaderDrafts = () => {
     for (const { criterion, result } of resultItems) {
-      if (criterion.type === 'Supplementary' || !result) continue;
+      if (criterion.type === 'Supplementary' || criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted' || !result) continue;
       const draft = drafts[result.id];
       if (!draft) continue;
       if (!Number.isFinite(draft.point) || draft.point < 0 || draft.point > criterion.maxPoint) {
@@ -193,7 +224,7 @@ export default function BanLeaderReviewDetailPage() {
 
   const uploadPendingLeaderAttachments = async () => {
     const pending = Object.entries(pendingAttachments);
-    if (pending.length === 0) return;
+    if (pending.length === 0) return false;
 
     const uploadedIds: string[] = [];
     const failedFiles: string[] = [];
@@ -219,12 +250,13 @@ export default function BanLeaderReviewDetailPage() {
       });
     }
     if (failedFiles.length > 0) toast.warning(`Điểm đã được lưu nhưng ${failedFiles.length} tệp Lãnh đạo chưa tải lên được.`);
+    return uploadedIds.length > 0;
   };
 
   const saveAllScores = async (notifyWhenEmpty = true) => {
     if (!validateLeaderDrafts()) return false;
-    const dirtyItems = resultItems.flatMap(({ result }) => {
-      if (!result || !drafts[result.id] || savedDraftIds.has(result.id)) return [];
+    const dirtyItems = resultItems.flatMap(({ criterion, result }) => {
+      if (criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted' || !result || !drafts[result.id] || savedDraftIds.has(result.id)) return [];
       const draft = drafts[result.id];
       return [{ submissionResultId: result.id, point: draft.point, bonusPoint: draft.bonusPoint, reason: draft.reason || null }];
     });
@@ -232,13 +264,16 @@ export default function BanLeaderReviewDetailPage() {
       if (Object.keys(pendingAttachments).length > 0) {
         setSavingAll(true);
         try {
-          await uploadPendingLeaderAttachments();
+          const uploaded = await uploadPendingLeaderAttachments();
+          if (uploaded) {
+            await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsQueryKey(), getGetApiV1FilesQueryKey()]);
+          }
           return true;
         } finally {
           setSavingAll(false);
         }
       }
-      const requiredItems = resultItems.filter(({ criterion }) => criterion.type !== 'Supplementary');
+      const requiredItems = resultItems.filter(({ criterion, result }) => criterion.type !== 'Supplementary' && criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted');
       const alreadySaved = requiredItems.length > 0 && requiredItems.every(({ result }) => result && savedDraftIds.has(result.id));
       if (alreadySaved) return true;
       if (notifyWhenEmpty) toast.info('Chưa có điểm Lãnh đạo mới để lưu.');
@@ -253,11 +288,14 @@ export default function BanLeaderReviewDetailPage() {
         scoreItems: dirtyItems,
       });
       if (!response.processed) throw new Error('API chưa xử lý lưu điểm.');
-      await uploadPendingLeaderAttachments();
+      const uploaded = await uploadPendingLeaderAttachments();
       setSavedDraftIds((current) => new Set([...current, ...dirtyItems.map((item) => item.submissionResultId)]));
-      await queryClient.invalidateQueries({ queryKey: ['leader-submission-detail', submission.id] });
-      await queryClient.invalidateQueries({ queryKey: ['leader-submissions'] });
-      toast.success('Đã lưu tất cả điểm Lãnh đạo.');
+      await invalidateQueryResources(queryClient, [
+        getGetApiV1SubmissionsQueryKey(),
+        ['submission-results'],
+        ...(uploaded ? [getGetApiV1FilesQueryKey()] : []),
+      ]);
+      toast.success('Đã Lưu nháp điểm Lãnh đạo.');
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể lưu điểm Lãnh đạo.');
@@ -266,7 +304,9 @@ export default function BanLeaderReviewDetailPage() {
       setSavingAll(false);
     }
   };
+  */
 
+  /* Tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban — chỉ xem hồ sơ và nhận xét.
   const requestRevision = async ({ criteriaIds, reason, file }: { criteriaIds: string[]; reason: string; file: File | null }) => {
     const selectedResultIds = criteriaIds
       .map((criteriaId) => resultsByCriteria.get(criteriaId)?.id)
@@ -277,10 +317,10 @@ export default function BanLeaderReviewDetailPage() {
     }
     try {
       await specialistApi.requestRevision({ submissionId: submission.id, reason, submissionResultIds: selectedResultIds, file });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['leader-submissions'] }),
-        queryClient.invalidateQueries({ queryKey: ['leader-submissions-by-group'] }),
-        queryClient.invalidateQueries({ queryKey: ['leader-submission-detail', submission.id] }),
+      await invalidateQueryResources(queryClient, [
+        getGetApiV1SubmissionsQueryKey(),
+        ['submission-results'],
+        ...(file ? [getGetApiV1FilesQueryKey()] : []),
       ]);
       toast.success('Đã gửi yêu cầu Chuyên viên chấm lại hồ sơ.');
       navigate(backToList);
@@ -290,7 +330,11 @@ export default function BanLeaderReviewDetailPage() {
       return false;
     }
   };
+  */
 
+  /* Tạm ẩn hành động duyệt của Lãnh đạo ban — hiện chỉ xem hồ sơ.
+   * Khôi phục: mở comment này, nút bấm + ForwardSubmissionDialog ở JSX,
+   * state `forwardOpen` và import Send/ForwardSubmissionDialog.
   const forwardToCouncil = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
     try {
       if (Object.keys(drafts).length > 0 && !await saveAllScores(false)) {
@@ -310,14 +354,16 @@ export default function BanLeaderReviewDetailPage() {
       throw error;
     }
   };
+  */
 
   return <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-5 pb-6">
     <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb"><Link to={backToList} className="hover:text-primary">Danh sách địa phương</Link><span>/</span><Link to={backToGroups} className="hover:text-primary">{localityName}</Link><span>/</span><span className="font-medium text-foreground">{groupQuery.data.name}</span></nav>
-    <PageHeader title="Chi tiết chấm điểm kết quả tiêu chí" description={`${localityName} · ${groupQuery.data.name}`} actions={<div className="flex flex-wrap gap-2"><Button variant="outline" render={<Link to={`${backToList}/lich-su`} />} nativeButton={false}><History className="mr-1.5 size-4" />Lịch sử</Button><Button variant="outline" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button></div>} />
+    <PageHeader title="Chi tiết chấm điểm kết quả tiêu chí" description={`${localityName} · ${groupQuery.data.name}`} actions={<Button variant="back" render={<Link to={backToGroups} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại nhóm tiêu chí</Button>} />
 
-    <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm"><div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]">
+    <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm"><div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
       <div className="bg-card px-4 py-3.5 sm:col-span-2 xl:col-span-1"><p className="text-xs font-medium text-muted-foreground">Địa phương</p><p className="mt-1 truncate text-sm font-semibold">{localityName}</p></div>
-      <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Trạng thái</p><p className="mt-1 font-semibold text-primary">Chuyên viên đã duyệt</p></div>
+      {/* Tạm ẩn ô Trạng thái — Lãnh đạo ban chỉ xem hồ sơ.
+      <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Trạng thái</p><p className="mt-1 font-semibold text-primary">Chuyên viên đã duyệt</p></div> */}
       <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Đã chấm</p><p className="mt-1 text-base font-semibold tabular-nums">{resultItems.filter(({ result }) => result).length}<span className="text-sm font-normal text-muted-foreground"> / {criteria.length} tiêu chí</span></p></div>
       <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Điểm đề xuất</p><p className="mt-1 text-base font-semibold tabular-nums">{proposedScore}<span className="text-sm font-normal text-success"> / {maximumScore}</span></p></div>
       <div className="bg-card px-4 py-3.5"><p className="text-xs font-medium text-muted-foreground">Điểm chuyên viên</p><p className="mt-1 text-base font-semibold tabular-nums">{specialistScore}<span className="text-sm font-normal text-success"> / {maximumScore}</span></p></div>
@@ -329,20 +375,24 @@ export default function BanLeaderReviewDetailPage() {
       {(specialistForwarding || specialistForwardingFiles.length > 0) && <div className="flex justify-end border-b border-border bg-card/95 px-4 py-3 sm:px-5"><ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={setPreviewFile} /></div>}
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border bg-card/95 px-4 py-3 sm:px-5">
         <TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
-        <Button variant="outline" disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
-        {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
-        <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu tất cả'}</Button>
-        <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>
-        <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>
+        <Button variant="info" hideWhen={!selectedResultItem} disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
+        <Button variant="outline" disabled={!canComment || commentPending} disabledReason={!canComment ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button>
+        {/* Tạm ẩn nút Sửa điểm / Lưu nháp — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
+        {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess || selectedResultDisabled} disabledReason={selectedResultDisabled ? 'Tiêu chí đã vô hiệu nên không thể cập nhật điểm.' : undefined} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
+        <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu nháp'}</Button> */}
+        {/* Tạm ẩn nút Yêu cầu chỉnh sửa — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
+        <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button> */}
+        {/* Tạm ẩn nút duyệt của Lãnh đạo ban — chỉ xem hồ sơ.
+        <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button> */}
       </div>
       <div className="overflow-x-auto"><Table data-column-visibility-table="leader-review-detail" className="min-w-[1440px] table-fixed"><colgroup><col className="w-[23%]" /><col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[19%]" /><col className="w-[23%]" /></colgroup><TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm địa phương đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm chuyên viên chấm</TableHead><TableHead className="bg-primary px-4 py-3 text-primary-foreground">Nội dung diễn giải</TableHead></TableRow></TableHeader><TableBody>
         {resultItems.map(({ criterion, result }) => {
           const revised = leaderScoreFor(result);
-          return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#A8202C] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
-            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
+          return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#009ee3] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>
             <TableCell className="border-r border-primary/15 px-4 py-5">
               {result?.files.length ? (
-                <Button type="button" variant="outline" size="sm" onClick={(event) => {
+                <Button type="button" variant="info" size="sm" onClick={(event) => {
                   event.stopPropagation();
                   setEvidenceDialog({ criterionName: criterion.content, files: result.files });
                 }}>
@@ -363,15 +413,15 @@ export default function BanLeaderReviewDetailPage() {
       open={criterionDetailOpen}
       onOpenChange={setCriterionDetailOpen}
       item={selectedResultItem ? { criterion: selectedResultItem.criterion, result: selectedResultItem.result, leader: leaderScoreFor(selectedResultItem.result) } : undefined}
-      editDisabled={!canProcess}
-      onEdit={() => { setCriterionDetailOpen(false); setScoreEditOpen(true); }}
       onPreview={setPreviewFile}
     />
     <OfficialScoreRevisionDialog open={Boolean(scoreRevisionResult)} onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }} result={scoreRevisionResult} criterionLabel={scoreRevisionResult?.criteriaContent ?? selectedResultItem?.criterion.content ?? 'Tiêu chí con'} />
 
+    {/* Tạm ẩn modal sửa điểm — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
     <ReviewScoreModal
       open={scoreEditOpen}
       onOpenChange={setScoreEditOpen}
+      criterionId={selectedResultItem?.criterion.id}
       criterionName={selectedResultItem?.criterion.content}
       maxScoreOverride={selectedResultItem?.criterion.maxPoint}
       maxBonusOverride={selectedResultItem?.criterion.maxBonusPoint}
@@ -386,7 +436,7 @@ export default function BanLeaderReviewDetailPage() {
       title="Sửa điểm Chuyên viên chấm"
       onSave={({ score, bonusScore, reason, attachment }) => {
         const result = selectedResultItem?.result;
-        if (!result) return false;
+        if (!result || selectedResultDisabled) return false;
         setDrafts((current) => ({ ...current, [result.id]: { point: score, bonusPoint: bonusScore, reason: reason ?? '' } }));
         setPendingAttachments((current) => {
           const next = { ...current };
@@ -401,7 +451,8 @@ export default function BanLeaderReviewDetailPage() {
         });
         return true;
       }}
-    />
+    /> */}
+    {/* Tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban.
     <RevisionRequestDialog
       open={revisionOpen}
       onOpenChange={setRevisionOpen}
@@ -411,8 +462,10 @@ export default function BanLeaderReviewDetailPage() {
       criteria={revisionCriteria}
       defaultSelectedCriteriaIds={defaultSelectedCriteriaIds}
       onSubmit={requestRevision}
-    />
-    <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={groupQuery.data.name} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} />
+    /> */}
+    {/* Tạm ẩn cùng nút duyệt của Lãnh đạo ban.
+    <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={groupQuery.data.name} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} /> */}
+    <RejectDialog open={commentOpen} onOpenChange={setCommentOpen} localityName={localityName} state="CHO_DUYET_BAN" title="Nhận xét hồ sơ" confirmLabel="Gửi nhận xét" confirmVariant="default" submitAction="approve" description={`Nhận xét của Lãnh đạo ban về hồ sơ của ${localityName}. Nhận xét được lưu vào lịch sử hồ sơ và không làm thay đổi điểm hoặc trạng thái duyệt.`} reasonLabel="Nội dung nhận xét" reasonPlaceholder="Nhập nhận xét của Lãnh đạo ban về hồ sơ địa phương." onConfirm={saveComment} />
     <ListDialog
       open={Boolean(evidenceDialog)}
       onOpenChange={(open) => { if (!open) setEvidenceDialog(null); }}
@@ -436,7 +489,7 @@ export default function BanLeaderReviewDetailPage() {
               <p className="text-xs text-muted-foreground">{item.description}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => { if (file) setPreviewFile(file); }}><Eye className="size-4" />Xem</Button>
+              <Button type="button" variant="info" size="sm" onClick={() => { if (file) setPreviewFile(file); }}><Eye className="size-4" />Xem</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => {
                 if (file) void downloadFile(file.id, file.displayName || file.originalName)
                   .catch(() => toast.error('Không thể tải file. Vui lòng thử lại.'));

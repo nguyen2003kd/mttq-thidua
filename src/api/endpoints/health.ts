@@ -15,6 +15,7 @@ import type {
 } from '@tanstack/react-query';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -52,19 +53,16 @@ export const getHealth = (
 
 
 
-export const getGetHealthQueryKey = () => {
-    return [
-    `/health`
-    ] as const;
-    }
+export const getGetHealthQueryKey = () =>
+    apiQueryKey({  }, { url: `/health` });
 
 
-export const getGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetHealthQueryOptions = <TData = Awaited<ReturnType<typeof getHealth>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHealth>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetHealthQueryKey();
+  const queryKey =  apiQueryKey({  }, { url: `/health`, queryOptions });
 
 
 
@@ -111,7 +109,7 @@ export function useGetHealth<TData = Awaited<ReturnType<typeof getHealth>>, TErr
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetHealthQueryOptions(options)
+  const queryOptions = useGetHealthQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

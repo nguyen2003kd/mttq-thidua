@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getGetApiV1SubmissionResultsResultIdHistoriesQueryKey, getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
+import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
+import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ChevronDown, ChevronRight, FileText, Paperclip } from 'lucide-react';
 import { AppDialog, AuditTimeline, FilePreviewDialog } from '@/components/core';
 import type { AuditEntry } from '@/types/domain';
@@ -27,8 +30,12 @@ const ACTION_MAP: Record<string, ActionType> = {
 // stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
 const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
   Draft: { role: 'LOCAL', label: 'Địa phương' },
-  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên' },
-  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên' },
+  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  ScorerSubmitted: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  ScorerRevisionRequested: { role: 'SCORER', label: 'Chuyên viên cấp 2' },
+  ReviewerRevisionRequested: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
+  ReviewerApproved: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
   SpecialistApproved: { role: 'LEADER', label: 'Lãnh đạo ban' },
   LeaderApproved: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
   CouncilApproved: { role: 'COMMITTEE', label: 'Ban thường trực' },
@@ -40,6 +47,7 @@ const ACTION_LABELS_VI: Record<string, string> = {
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
+  ResubmitAfterRevision: 'Nộp lại sau chỉnh sửa',
 };
 
 // Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
@@ -112,6 +120,7 @@ function SubmissionHistoryEntry({ item }: { item: SubmissionHistoryItem }) {
             item.action === 'RequestRevision' && 'bg-destructive/10 text-destructive',
             item.action === 'UpdateScore' && 'bg-info/10 text-info',
             item.action === 'Approve' && 'bg-success/10 text-success',
+            item.action === 'ResubmitAfterRevision' && 'bg-info/10 text-info',
             !item.action && 'bg-muted text-muted-foreground',
           )}>
             {actionLabel}
@@ -171,7 +180,7 @@ function ResultHistorySection({ resultId, criteriaName, enabled }: { resultId: s
   const [expanded, setExpanded] = useState(false);
 
   const historiesQuery = useQuery({
-    queryKey: ['locality-result-histories', resultId],
+    queryKey: dataQueryKey(getGetApiV1SubmissionResultsResultIdHistoriesQueryKey(resultId), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listResultHistories(resultId, { page: 1, pageSize: 100 }),
     enabled: enabled && expanded,
   });
@@ -224,7 +233,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
 
   const historiesQuery = useQuery({
-    queryKey: ['locality-approval-histories', submission?.id],
+    queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(submission?.id ?? ''), { page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listApprovalHistories(submission!.id, { page: 1, pageSize: 100 }),
     enabled: open && hasSubmission,
   });
@@ -232,7 +241,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
   // File đính kèm của yêu cầu chỉnh sửa: file mới gắn vào ApprovalHistory (history.files),
   // file cũ (legacy) gắn vào Submission với category = revision-attachment.
   const revisionFilesQuery = useQuery({
-    queryKey: ['locality-revision-files-history', submission?.id],
+    queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), { entityType: 'Submission', entityId: submission?.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
     queryFn: () => filesApi.list({ entityType: 'Submission', entityId: submission!.id, category: 'revision-attachment', page: 1, pageSize: 50 }),
     enabled: open && hasSubmission,
   });
@@ -268,7 +277,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
                   </div>
                   <div className="space-y-1">
                     {revisionFiles.map((file) => (
-                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-left text-xs hover:bg-muted">
+                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-info/5 px-2 py-1 text-left text-xs text-info-foreground hover:bg-info/10 dark:text-info">
                         <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{file.displayName ?? file.originalName}</span>
                         <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>

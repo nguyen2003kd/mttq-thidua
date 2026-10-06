@@ -1,6 +1,8 @@
 import { QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { dataQueryKey } from '@/api/mutator/query-keys';
+import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
 import { queryClient } from '@/api/mutator/query-client';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LocalityLayout } from '@/components/layout/LocalityLayout';
@@ -9,10 +11,10 @@ import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
-import { useScoreStore } from '@/store/scoreStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
-import { ActionProgressOverlay, GlobalApiLoading, PageLoading } from '@/components/core';
+import { ActionProgressOverlay, PageLoading } from '@/components/core';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -22,12 +24,13 @@ const ChangePasswordPage = lazy(() => import('@/features/auth/ChangePasswordPage
 const ProfileCompletionPage = lazy(() => import('@/features/auth/ProfileCompletionPage'));
 const AccountPage = lazy(() => import('@/features/auth/AccountPage'));
 const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListPage'));
+const CriteriaPeriodSelectionPage = lazy(() => import('@/features/admin/pages/CriteriaPeriodSelectionPage'));
 const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
 const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
 const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
-const UserManagementPage = lazy(() => import('@/features/admin/pages/UserManagementPage'));
+const AdminManagementPage = lazy(() => import('@/features/admin/pages/AdminManagementPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
 const BanLeaderApprovalPage = lazy(() => import('@/features/duyet/pages/BanLeaderApprovalPage'));
@@ -48,18 +51,86 @@ const AuditLogPage = lazy(() => import('@/features/audit/AuditLogPage'));
 const NotFoundPage = lazy(() => import('@/features/NotFoundPage'));
 const SpecialistReviewPage = lazy(() => import('@/features/cham-diem/pages/SpecialistReviewPage'));
 const SpecialistScoreSummaryPage = lazy(() => import('@/features/cham-diem/pages/SpecialistScoreSummaryPage'));
-const SpecialistHistoryPage = lazy(() => import('@/features/cham-diem/pages/SpecialistHistoryPage'));
 const CriteriaChildrenPage = lazy(() => import('@/features/admin/pages/CriteriaChildrenPage'));
 const LocalityCriteriaPage = lazy(() => import('@/features/dia-phuong/pages/LocalityCriteriaPage'));
 const LocalityResultsPage = lazy(() => import('@/features/dia-phuong/pages/LocalityResultsPage'));
 
-const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'];
+function SpecialistCriteriaEntryPage() {
+  const [searchParams] = useSearchParams();
+  return searchParams.get('view') === 'periods'
+    ? <CriteriaPeriodSelectionPage />
+    : <CriteriaListPage />;
+}
 
-function ScoreRedirect() {
-  const criteriaTables = useScoreStore((s) => s.criteriaTables);
-  const target = criteriaTables.find((t) => t.status === 'ACTIVE') ?? criteriaTables[0];
-  if (!target) return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
-  return <Navigate to={`/thi-dua/cham-diem/theo-tieu-chi/${target.id}`} replace />;
+function SpecialistReviewEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const groupPeriodFilter = searchParams.get('groupPeriodFilter');
+  const showPeriods = searchParams.get('view') === 'periods' || !groupPeriodFilter;
+
+  if (!showPeriods) return <SpecialistReviewPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Chấm và thẩm định',
+        description: 'Chọn kỳ thi đua để xem danh sách hồ sơ địa phương cần thẩm định.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để chấm và thẩm định.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ địa phương.',
+      }}
+      onOpenPeriod={(period) => navigate(`${ROUTES.SPECIALIST_REVIEW}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
+function ScoreEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const groupPeriodFilter = searchParams.get('groupPeriodFilter');
+  const showPeriods = searchParams.get('view') === 'periods' || !groupPeriodFilter;
+  const basePath = '/thi-dua/cham-diem';
+
+  if (!showPeriods) return <SpecialistReviewPage basePath={basePath} />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Chấm điểm',
+        description: 'Chọn kỳ thi đua để xem danh sách địa phương cần chấm điểm.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để chấm điểm.',
+        stickyDescription: 'Chọn một kỳ để xem danh sách địa phương.',
+      }}
+      onOpenPeriod={(period) => navigate(`${basePath}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
+function LocalityCriteriaEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const periodId = searchParams.get('periodId');
+  const showPeriods = searchParams.get('view') === 'periods' || !periodId;
+
+  if (!showPeriods) return <LocalityCriteriaPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      onOpenPeriod={(period) => navigate(`${ROUTES.LOCALITY_CRITERIA}?periodId=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
+const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'];
+
+/** URL cũ /cham-diem/theo-dia-phuong/:id → flow mới /cham-diem/:diaPhuongId. */
+function ScoreLocalityRedirect() {
+  const { id } = useParams<{ id?: string }>();
+  return <Navigate to={`/thi-dua/cham-diem/${id}`} replace />;
 }
 
 /** Trang chủ điều hướng thẳng tới công việc của vai trò, không dùng Dashboard tổng quan. */
@@ -69,6 +140,8 @@ function RoleHomeRedirect() {
 
   switch (user.role) {
     case 'LOCAL': return <Navigate to={ROUTES.LOCALITY_CRITERIA} replace />;
+    case 'SCORER': return <Navigate to="/thi-dua/cham-diem" replace />;
+    case 'REVIEWER': return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
     case 'SPECIALIST': return <Navigate to={ROUTES.SPECIALIST_REVIEW} replace />;
     case 'LEADER': return <Navigate to={`/thi-dua/duyet/lanh-dao-ban/${user.banId ?? 'ban1'}`} replace />;
     case 'COUNCIL': return <Navigate to={ROUTES.DUYET_COUNCIL} replace />;
@@ -84,6 +157,7 @@ function AuthEvents() {
   useEffect(() => {
     const onLogout = () => {
       queryClient.clear();
+      useNotificationStore.getState().clear();
       navigate(ROUTES.LOGIN, { replace: true });
     };
     window.addEventListener('auth:logout', onLogout);
@@ -105,13 +179,14 @@ function ProactiveAuthRefresh() {
  */
 function ProfileGate() {
   const isSignedIn = useAuthStore((s) => s.isSignedIn);
+  const userId = useAuthStore((s) => s.id);
   const requiresCompletion = useAuthStore((s) => s.requires_profile_completion);
   const setStore = useAuthStore((s) => s.setStore);
 
   const profileQuery = useQuery({
-    queryKey: ['auth-profile-gate'],
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey(), userId ?? ''),
     queryFn: () => profileApi.get(),
-    enabled: isSignedIn && requiresCompletion === null,
+    enabled: isSignedIn && Boolean(userId) && requiresCompletion === null,
     staleTime: Infinity,
     retry: 1,
   });
@@ -125,7 +200,7 @@ function ProfileGate() {
       phone: profile.phone,
       ward_code: profile.wardCode,
       requires_profile_completion: profileNeedsCompletion(profile),
-      ...(current ? { user: { ...current, name: profileDisplayName(profile) } } : {}),
+      ...(current ? { user: { ...current, name: profileDisplayName(profile), banId: profile.departmentId ?? undefined } } : {}),
     });
   }, [profileQuery.data, setStore]);
 
@@ -140,7 +215,6 @@ function ProfileGate() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <GlobalApiLoading />
       <ActionProgressOverlay />
       <BrowserRouter>
         <AuthEvents />
@@ -191,20 +265,19 @@ export default function App() {
               path="/chuyen-vien"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST']}>
+                  <RequireRole roles={['SPECIALIST', 'REVIEWER']}>
                     <AppLayout><Outlet /></AppLayout>
                   </RequireRole>
                 </RequireAuth>
               }
             >
               <Route index element={<Navigate to={ROUTES.SPECIALIST_REVIEW} replace />} />
-              <Route path="tieu-chi" element={<CriteriaListPage />} />
+              <Route path="tieu-chi" element={<SpecialistCriteriaEntryPage />} />
               <Route path="tieu-chi/:id/con" element={<CriteriaChildrenPage />} />
-              <Route path="duyet" element={<SpecialistReviewPage />} />
+              <Route path="duyet" element={<SpecialistReviewEntryPage />} />
               <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId/:nhomTieuChiId" element={<SpecialistReviewPage />} />
               <Route path="tong-hop-cham-diem" element={<SpecialistScoreSummaryPage />} />
-              <Route path="lich-su" element={<SpecialistHistoryPage />} />
             </Route>
 
             {/* Route chuẩn FSD — Cấp Địa phương */}
@@ -219,7 +292,7 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={ROUTES.LOCALITY_CRITERIA} replace />} />
-              <Route path="tieu-chi" element={<LocalityCriteriaPage />} />
+              <Route path="tieu-chi" element={<LocalityCriteriaEntryPage />} />
               <Route path="tieu-chi/:id" element={<LocalityCriteriaPage />} />
               <Route path="ket-qua" element={<LocalityResultsPage />} />
               <Route path="ket-qua/:id" element={<LocalityResultsPage />} />
@@ -243,7 +316,11 @@ export default function App() {
               <Route path="bang-tieu-chi/:id/chi-tiet" element={<CriteriaDetailPage />} />
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
               <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
-              <Route path="tai-khoan" element={<UserManagementPage />} />
+              <Route path="quan-ly" element={<AdminManagementPage />} />
+              <Route path="tai-khoan" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=tai-khoan`} replace />} />
+              <Route path="ban" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ban`} replace />} />
+              <Route path="cum" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=cum`} replace />} />
+              <Route path="ky" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ky`} replace />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>
@@ -272,7 +349,7 @@ export default function App() {
               path="/thi-dua/cham-diem"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST']}>
+                  <RequireRole roles={['SPECIALIST', 'SCORER']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>
@@ -280,9 +357,12 @@ export default function App() {
                 </RequireAuth>
               }
             >
-                <Route index element={<ScoreRedirect />} />
+              <Route index element={<ScoreEntryPage />} />
+              <Route path="theo-tieu-chi" element={<ScoreByCriteriaPage />} />
               <Route path="theo-tieu-chi/:id" element={<ScoreByCriteriaPage />} />
-              <Route path="theo-dia-phuong/:id" element={<ScoreByLocalityPage />} />
+              <Route path="theo-dia-phuong/:id" element={<ScoreLocalityRedirect />} />
+              <Route path=":diaPhuongId" element={<ScoreByLocalityPage />} />
+              <Route path=":diaPhuongId/:nhomTieuChiId" element={<ScoreByLocalityPage />} />
             </Route>
 
             {/* Duyệt routes */}
@@ -375,6 +455,10 @@ export default function App() {
               }
             />
             <Route
+              path={ROUTES.COUNCIL_SCORE_SUMMARY}
+              element={<RequireAuth><RequireRole roles={['COUNCIL']}><AppLayout><SpecialistScoreSummaryPage readOnly /></AppLayout></RequireRole></RequireAuth>}
+            />
+            <Route
               path="/thi-dua/duyet/ban-thuong-truc"
               element={
                 <RequireAuth>
@@ -409,6 +493,10 @@ export default function App() {
                   </RequireRole>
                 </RequireAuth>
               }
+            />
+            <Route
+              path={ROUTES.COMMITTEE_SCORE_SUMMARY}
+              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><SpecialistScoreSummaryPage readOnly /></AppLayout></RequireRole></RequireAuth>}
             />
 
             {/* Audit log */}
