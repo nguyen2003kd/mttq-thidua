@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getSpecialistSubmissionPermissions } from '../api/specialistApi';
 import { getSpecialistGroupProgress } from '../utils/specialistGroupProgress';
 
 describe('getSpecialistGroupProgress', () => {
@@ -30,5 +31,20 @@ describe('getSpecialistGroupProgress', () => {
       unsubmittedGroups: 1,
       totalCount: 7,
     });
+  });
+});
+
+describe('getSpecialistSubmissionPermissions', () => {
+  it('uses direct approval without a forwarding dialog for the Specialist role', () => {
+    expect(getSpecialistSubmissionPermissions('ReviewerApproved', 'SPECIALIST')).toMatchObject({
+      canApprove: true,
+      usesForwardingDialog: false,
+      forwardLabel: 'Duyệt hồ sơ',
+    });
+  });
+
+  it('keeps the forwarding dialog for Scorer and Reviewer roles', () => {
+    expect(getSpecialistSubmissionPermissions('LocalSubmitted', 'SCORER').usesForwardingDialog).toBe(true);
+    expect(getSpecialistSubmissionPermissions('ScorerSubmitted', 'REVIEWER').usesForwardingDialog).toBe(true);
   });
 });

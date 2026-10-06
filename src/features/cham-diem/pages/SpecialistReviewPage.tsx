@@ -1506,6 +1506,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -2364,6 +2365,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     //   toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
     //   return;
     // }
+    if (!specialistPermissions.usesForwardingDialog) {
+      setApproving(true);
+      void confirmForward({ explanation: '', files: [], onProgress: () => {} })
+        .catch(() => undefined)
+        .finally(() => setApproving(false));
+      return;
+    }
     setForwardOpen(true);
   };
 
@@ -2486,17 +2494,18 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   };
 
   const confirmForward = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
+    const isDirectApproval = !specialistPermissions.usesForwardingDialog;
     if (specialistApproveLocked) {
       toast.info(specialistLockReason);
       return;
     }
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
-      toast.error('Nhóm này chưa có hồ sơ để chuyển.');
+      toast.error(isDirectApproval ? 'Nhóm này chưa có hồ sơ để duyệt.' : 'Nhóm này chưa có hồ sơ để chuyển.');
       return;
     }
     if (!specialistPermissions.canApprove) {
-      toast.error('Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
+      toast.error(isDirectApproval ? 'Hồ sơ không ở trạng thái bạn có thể duyệt.' : 'Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
       return;
     }
     if (scoredItems.length === 0) {
@@ -2512,21 +2521,25 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       const items = specialistPermissions.canEdit ? buildScoreItems() : [];
       if (specialistPermissions.canEdit) {
         if (items.length > 0) {
-          await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
+          await specialistApi.updateScores({ submissionId: submission.id, reason: isDirectApproval ? 'Lưu điểm chấm trước khi duyệt hồ sơ' : 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
           serverChanged = true;
         }
         serverChanged ||= pendingScoreAttachments.size > 0;
         await uploadPendingScoreAttachments();
       }
-      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      if (isDirectApproval) {
+        await specialistApi.approveSubmission(submission.id);
+      } else {
+        await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      }
       serverChanged = true;
       await refreshSubmissionData();
       serverChanged = false;
       setScoreOverrides(new Map());
-      toast.success(`Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
+      toast.success(isDirectApproval ? 'Đã duyệt hồ sơ.' : `Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
     } catch (error) {
       if (serverChanged) await refreshSubmissionData();
-      toast.error(`Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
+      toast.error(isDirectApproval ? 'Không thể duyệt hồ sơ.' : `Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
       throw error;
     }
   };
@@ -2649,7 +2662,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
             {specialistPermissions.canEdit && (
               <Button variant="default" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={approving || specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}>
+              {scoringRole === 'SPECIALIST' ? <CheckCircle2 className="size-4" /> : <Send className="size-4" />}
+              {approving ? 'Đang duyệt…' : scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}
+            </Button>
           </div>
         </div>
         <div className="hidden overflow-hidden bg-primary xl:block">
@@ -3087,7 +3103,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       />
       <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <ForwardSubmissionDialog
-        open={forwardOpen}
+        open={forwardOpen && specialistPermissions.usesForwardingDialog}
         onOpenChange={setForwardOpen}
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
