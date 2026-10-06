@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, File as FileIcon, FileSpreadsheet, FileText, FileImage, Presentation, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  ALLOWED_UPLOAD_ACCEPT,
+  isAllowedUploadFileName,
+  UPLOAD_FILE_SELECTION_ERROR,
+  UPLOAD_FILE_TYPE_ERROR,
+} from '@/lib/fileTypes';
 import { TruncatedText } from './TruncatedText';
 
 export interface FileUploadProps {
@@ -80,6 +86,8 @@ export function FileUpload({
 }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileTypeError, setFileTypeError] = useState<string | null>(null);
+  const inputAccept = accept?.trim() || ALLOWED_UPLOAD_ACCEPT;
 
   const rows: FileRow[] = value.map((file) => ({
     file,
@@ -89,19 +97,19 @@ export function FileUpload({
 
   const pick = (incoming: FileList | null) => {
     if (!incoming?.length || disabled || uploading) return;
-    const matchesAccept = (file: File) => {
-      if (!accept) return true;
-      return accept.split(',').some((token) => {
-        const rule = token.trim().toLowerCase();
-        if (!rule) return false;
-        if (rule.startsWith('.')) return file.name.toLowerCase().endsWith(rule);
-        if (rule.endsWith('/*')) return file.type.toLowerCase().startsWith(rule.slice(0, -1));
-        return file.type.toLowerCase() === rule;
-      });
-    };
+    const matchesAccept = (file: File) => inputAccept.split(',').some((token) => {
+      const rule = token.trim().toLowerCase();
+      if (!rule) return false;
+      if (rule.startsWith('.')) return file.name.toLowerCase().endsWith(rule);
+      if (rule.endsWith('/*')) return file.type.toLowerCase().startsWith(rule.slice(0, -1));
+      return file.type.toLowerCase() === rule;
+    });
+    const incomingFiles = Array.from(incoming);
+    const allowedFiles = incomingFiles.filter((file) => isAllowedUploadFileName(file.name) && matchesAccept(file));
+    const rejectionMessage = accept?.trim() ? UPLOAD_FILE_SELECTION_ERROR : UPLOAD_FILE_TYPE_ERROR;
+    setFileTypeError(allowedFiles.length < incomingFiles.length ? rejectionMessage : null);
     const room = multiple ? Math.max(0, maxFiles - value.length) : Math.max(0, 1 - value.length);
-    const accepted = Array.from(incoming)
-      .filter(matchesAccept)
+    const accepted = allowedFiles
       .slice(0, room)
       .filter((file) => !value.some((existing) => existing.name === file.name && existing.size === file.size));
     if (accepted.length > 0) onChange?.([...value, ...accepted]);
@@ -109,6 +117,7 @@ export function FileUpload({
 
   const removeAt = (index: number) => {
     if (disabled || uploading) return;
+    setFileTypeError(null);
     onChange?.(value.filter((_, i) => i !== index));
   };
 
@@ -157,7 +166,7 @@ export function FileUpload({
           type="file"
           className="hidden"
           multiple={multiple}
-          accept={accept}
+          accept={inputAccept}
           disabled={disabled || uploading}
           onChange={(event) => {
             pick(event.target.files);
@@ -215,10 +224,10 @@ export function FileUpload({
         </ul>
       )}
 
-      {error && (
+      {(error || fileTypeError) && (
         <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-destructive">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          {error}
+          {error || fileTypeError}
         </p>
       )}
     </div>
