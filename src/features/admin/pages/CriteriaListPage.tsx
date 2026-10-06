@@ -9,6 +9,7 @@ import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
 import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { useScoreStore } from '@/store/scoreStore';
+import { EXCEL_WORKBOOK_ACCEPT, isExcelWorkbookFileName } from '@/lib/fileTypes';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   PageHeader,
@@ -318,6 +319,10 @@ export default function CriteriaListPage() {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    if (!isExcelWorkbookFileName(file.name)) {
+      toast.error('Chỉ hỗ trợ tệp Excel định dạng .xls hoặc .xlsx.');
+      return;
+    }
 
     try {
       const parsed = await parseCriteriaExcelFile(file);
@@ -590,7 +595,7 @@ export default function CriteriaListPage() {
             <input
               ref={excelFileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept={EXCEL_WORKBOOK_ACCEPT}
               className="hidden"
               aria-label="Chọn tệp Excel nhóm tiêu chí"
               onChange={handleExcelFileChange}

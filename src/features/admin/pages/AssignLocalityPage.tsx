@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useScoreStore } from '@/store/scoreStore';
+import { ALLOWED_UPLOAD_ACCEPT, isAllowedUploadFileName, UPLOAD_FILE_TYPE_ERROR } from '@/lib/fileTypes';
 import type { CriteriaTableAttachment } from '@/types/domain';
 import { Button, EmptyState, PageHeader, TruncatedText } from '@/components/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,7 +60,9 @@ export default function AssignLocalityPage() {
   const selectAll = () => setSelectedIds(localities.map((locality) => locality.id));
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const files = selectedFiles.filter((file) => isAllowedUploadFileName(file.name));
+    if (files.length < selectedFiles.length) toast.error(UPLOAD_FILE_TYPE_ERROR);
     setAttachments((current) => {
       const existing = new Set(current.map((file) => file.id));
       const newFiles = files
@@ -181,6 +184,7 @@ export default function AssignLocalityPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
+                accept={ALLOWED_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={handleFiles}
               />
