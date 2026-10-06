@@ -5,7 +5,7 @@ import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutat
 import { Plus, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { PageHeader, DataTable, Button, FilterTextInput, FormDialog, ConfirmDialog } from '@/components/core';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -203,9 +203,9 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
         pageSize={10}
         onRowClick={openEdit}
         filters={
-          <Input
+          <FilterTextInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Tìm tên cụm…"
             className="h-9 w-64"
           />

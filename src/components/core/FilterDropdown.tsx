@@ -1,5 +1,6 @@
-import { Children, Fragment, cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { Children, Fragment, cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { SlidersHorizontal, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Button } from './Button';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,15 @@ export interface FilterDropdownProps {
 }
 
 type FilterControlElement = ReactElement<{ value: string; onChange: (value: string) => void }>;
+
+export interface FilterTextInputProps extends Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export function FilterTextInput({ value, onChange, ...props }: FilterTextInputProps) {
+  return <Input {...props} value={value} onChange={(event) => onChange(event.target.value)} />;
+}
 
 const isFilterControl = (node: ReactNode): node is FilterControlElement =>
   isValidElement(node)
@@ -191,6 +201,7 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
                 if (!isFilterControl(child)) return child;
                 const key = String(index);
                 return cloneElement(child, {
+                  key: child.key ?? key,
                   value: draft[key] ?? child.props.value,
                   onChange: (value: string) => setDraft((prev) => ({ ...prev, [key]: value })),
                 });

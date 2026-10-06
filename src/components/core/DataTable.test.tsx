@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FilterTextInput } from './FilterDropdown';
 import { DataTable } from './DataTable';
 
 class ResizeObserverStub {
@@ -49,5 +50,30 @@ describe('DataTable search', () => {
     await waitFor(() => expect(screen.getByTestId('search-param')).toHaveTextContent('tieu chi'));
     expect(input).toHaveValue('tieu chi');
     expect(onSearchChange).toHaveBeenLastCalledWith('tieu chi');
+  });
+});
+
+describe('DataTable text filters', () => {
+  it('keeps filter text as a string and applies it only after confirmation', () => {
+    const onFilterChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ name: 'Cụm 1' }]}
+          columns={columns}
+          filters={<FilterTextInput value="" onChange={onFilterChange} placeholder="Tìm tên cụm…" />}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bộ lọc' }));
+    const input = screen.getByPlaceholderText('Tìm tên cụm…');
+    fireEvent.change(input, { target: { value: 'Cụm 1' } });
+
+    expect(input).toHaveValue('Cụm 1');
+    expect(onFilterChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
+    expect(onFilterChange).toHaveBeenCalledWith('Cụm 1');
   });
 });

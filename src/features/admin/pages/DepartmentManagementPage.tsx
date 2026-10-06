@@ -9,7 +9,7 @@ import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys
 import { Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { PageHeader, DataTable, Button, FilterTextInput, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -220,9 +220,9 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
         pageSize={10}
         onRowClick={openEdit}
         filters={
-          <Input
+          <FilterTextInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Tìm tên ban…"
             className="h-9 w-64"
           />
