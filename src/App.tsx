@@ -15,6 +15,9 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
 import { ActionProgressOverlay, PageLoading } from '@/components/core';
+import { buildScoreEntryUrl, isScoreEntryView } from '@/features/cham-diem/utils/scoreEntryNavigation';
+import { buildCouncilPeriodUrl, isCouncilApprovalView } from '@/features/duyet/councilPeriodNavigation';
+import { buildCommitteePeriodUrl, isCommitteeApprovalView } from '@/features/duyet/committeePeriodNavigation';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -88,8 +91,7 @@ function SpecialistReviewEntryPage() {
 function ScoreEntryPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const groupPeriodFilter = searchParams.get('groupPeriodFilter');
-  const showPeriods = searchParams.get('view') === 'periods' || !groupPeriodFilter;
+  const showPeriods = !isScoreEntryView(searchParams);
   const basePath = '/thi-dua/cham-diem';
 
   if (!showPeriods) return <SpecialistReviewPage basePath={basePath} />;
@@ -104,7 +106,51 @@ function ScoreEntryPage() {
         emptyDescription: 'Chưa có kỳ thi đua để chấm điểm.',
         stickyDescription: 'Chọn một kỳ để xem danh sách địa phương.',
       }}
-      onOpenPeriod={(period) => navigate(`${basePath}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+      onOpenPeriod={(period) => navigate(buildScoreEntryUrl(basePath, period.id))}
+    />
+  );
+}
+
+function CouncilApprovalEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const basePath = '/thi-dua/duyet/hoi-dong-tdkt';
+
+  if (isCouncilApprovalView(searchParams)) return <CouncilApprovalPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Hội đồng Thi đua - Khen thưởng',
+        description: 'Chọn kỳ thi đua để xem hồ sơ địa phương cần Hội đồng theo dõi.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để Hội đồng theo dõi.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ Hội đồng.',
+      }}
+      onOpenPeriod={(period) => navigate(buildCouncilPeriodUrl(basePath, period.id))}
+    />
+  );
+}
+
+function CommitteeApprovalEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const basePath = '/thi-dua/duyet/ban-thuong-truc';
+
+  if (isCommitteeApprovalView(searchParams)) return <CommitteeApprovalPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Ban Thường trực',
+        description: 'Chọn kỳ thi đua để xem hồ sơ địa phương Ban Thường trực theo dõi.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để Ban Thường trực theo dõi.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ Ban Thường trực.',
+      }}
+      onOpenPeriod={(period) => navigate(buildCommitteePeriodUrl(basePath, period.id))}
     />
   );
 }
@@ -420,7 +466,7 @@ export default function App() {
                 <RequireAuth>
                   <RequireRole roles={['COUNCIL']}>
                     <AppLayout>
-                      <CouncilApprovalPage />
+                      <CouncilApprovalEntryPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>
@@ -464,7 +510,7 @@ export default function App() {
                 <RequireAuth>
                   <RequireRole roles={['COMMITTEE']}>
                     <AppLayout>
-                      <CommitteeApprovalPage />
+                      <CommitteeApprovalEntryPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>
@@ -472,7 +518,7 @@ export default function App() {
             />
             <Route
               path="/thi-dua/duyet/ban-thuong-truc/duyet"
-              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><CommitteeApprovalPage /></AppLayout></RequireRole></RequireAuth>}
+              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><CommitteeApprovalEntryPage /></AppLayout></RequireRole></RequireAuth>}
             />
             <Route
               path="/thi-dua/duyet/ban-thuong-truc/:localityId"

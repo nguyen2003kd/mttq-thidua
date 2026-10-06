@@ -4,11 +4,12 @@ import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-grou
 import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Button, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { buildCommitteePeriodUrl } from '../committeePeriodNavigation';
 
 const COMMITTEE_STAGE = 'CouncilApproved' as const;
 // Ban thường trực xem ngay hồ sơ chuyên viên đã duyệt — các cấp giữa không duyệt/chuyển.
@@ -27,17 +28,28 @@ interface CommitteeCriteriaGroupRow {
   officialBonus: number;
 }
 
-async function listStageSubmissions(stage: string) {
-  const firstPage = await specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
+async function listStageSubmissions(stage: string, periodId?: string) {
+  const firstPage = await specialistApi.listAllSubmissions({ stage, periodId, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' });
   const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
   if (pageCount <= 1) return firstPage.items;
-  const pages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ stage, page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+  const pages = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({ stage, periodId, page: index + 2, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
   return [firstPage.items, ...pages.map((page) => page.items)].flat();
 }
 
-async function listEveryCommitteeSubmission() {
-  const items = await Promise.all(COMMITTEE_VISIBLE_STAGES.map(listStageSubmissions));
+async function listEveryCommitteeSubmission(periodId?: string) {
+  const items = await Promise.all(COMMITTEE_VISIBLE_STAGES.map((stage) => listStageSubmissions(stage, periodId)));
   return { items: items.flat().filter(isRealSubmission) };
+}
+
+async function listEveryCommitteeCriteriaGroup(periodId?: string) {
+  const firstPage = await specialistApi.listCriteriaGroups({ periodId, page: 1, pageSize: 100 });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listCriteriaGroups({ periodId, page: index + 2, pageSize: 100 })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
 }
 
 function getLocalityCode(localityId: string) { return localityId.startsWith('loc-') ? localityId.slice(4) : localityId; }
@@ -55,9 +67,12 @@ function getTotals(submission: SubmissionApi) {
 export default function CommitteeCriteriaGroupsPage() {
   const { localityId } = useParams<{ localityId?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const periodId = searchParams.get('periodId') ?? '';
+  const withCommitteePeriod = (path: string) => periodId ? buildCommitteePeriodUrl(path, periodId) : path;
   const [selectedRow, setSelectedRow] = useState<CommitteeCriteriaGroupRow | null>(null);
-  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'committee-groups', stages: COMMITTEE_VISIBLE_STAGES }), queryFn: listEveryCommitteeSubmission });
-  const groupsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }), queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }) });
+  const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'committee-groups', periodId: periodId || undefined, stages: COMMITTEE_VISIBLE_STAGES }), queryFn: () => listEveryCommitteeSubmission(periodId || undefined) });
+  const groupsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', periodId: periodId || undefined, page: 1, pageSize: 100 }), queryFn: () => listEveryCommitteeCriteriaGroup(periodId || undefined) });
   const localityCode = localityId ? getLocalityCode(localityId) : '';
   const submissions = useMemo(() => (submissionsQuery.data?.items ?? []).filter((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode), [localityCode, submissionsQuery.data]);
   const groups = useMemo(() => new Map((groupsQuery.data?.items ?? []).map((group) => [group.id, group])), [groupsQuery.data]);
@@ -78,9 +93,9 @@ export default function CommitteeCriteriaGroupsPage() {
   if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải các nhóm tiêu chí…" />;
   if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được dữ liệu" description="Vui lòng thử lại sau." />;
   if (!submissions.length) return <EmptyState title="Không tìm thấy hồ sơ" description="Địa phương này chưa có nhóm tiêu chí để Ban Thường trực theo dõi." />;
-  const openDetail = (row: CommitteeCriteriaGroupRow) => navigate(`/thi-dua/duyet/ban-thuong-truc/${localityId}/${row.groupId}`);
+  const openDetail = (row: CommitteeCriteriaGroupRow) => navigate(withCommitteePeriod(`/thi-dua/duyet/ban-thuong-truc/${localityId}/${row.groupId}`));
   return <div className="space-y-6">
-    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Chọn một nhóm để đối chiếu chi tiết các tiêu chí con trước khi công bố." actions={<Button variant="back" render={<Link to="/thi-dua/duyet/ban-thuong-truc" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
+    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Chọn một nhóm để đối chiếu chi tiết các tiêu chí con trước khi công bố." actions={<Button variant="back" render={<Link to={withCommitteePeriod('/thi-dua/duyet/ban-thuong-truc')} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
     <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={openDetail} toolbar={<Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedRow && openDetail(selectedRow)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Ban Thường trực theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Download, Eye, FileText, History } from 'lucide-react';
 // import { MessageSquareWarning, Send } from 'lucide-react'; // tạm ẩn cùng nút duyệt của Hội đồng
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 // import { useNavigate } from 'react-router-dom'; // tạm ẩn cùng nút duyệt của Hội đồng
 import { useQuery } from '@tanstack/react-query';
 import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
@@ -21,6 +21,8 @@ import { downloadFile, filesApi } from '@/features/files/api/filesApi';
 import { ForwardingDocumentsDialog, OfficialScoreRevisionDialog } from '@/features/workflow/components';
 // import { RevisionRequestDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút duyệt của Hội đồng
 import { mergeSubmissionCriteria } from '@/features/dia-phuong/api/localityApi';
+import { buildCouncilPeriodUrl } from '../councilPeriodNavigation';
+import { buildCommitteePeriodUrl } from '../committeePeriodNavigation';
 import type { ScoreState } from '@/types/rbac';
 
 type Reviewer = 'council' | 'committee';
@@ -72,6 +74,14 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
   // const [actionPending, setActionPending] = useState(false); // tạm ẩn cùng nút duyệt của Hội đồng
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const config = REVIEWER_CONFIG[reviewer];
+  const [searchParams] = useSearchParams();
+  const periodId = searchParams.get('periodId');
+  const withReviewerPeriod = (path: string) => {
+    if (!periodId) return path;
+    return reviewer === 'council'
+      ? buildCouncilPeriodUrl(path, periodId)
+      : buildCommitteePeriodUrl(path, periodId);
+  };
   const localityCode = localityId?.startsWith('loc-') ? localityId.slice(4) : localityId ?? '';
   const groupQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(groupId ?? '')), queryFn: () => specialistApi.getCriteriaGroup(groupId!), enabled: Boolean(groupId) });
   const submissionsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey(groupId ?? ''), { view: 'approval-submission', reviewer, localityCode, stages: config.visibleStages }), queryFn: async () => { const pages = await Promise.all(config.visibleStages.map((stage) => specialistApi.listSubmissionsByGroup(groupId!, { stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' }))); return pages.flatMap((page) => page.items).filter(isRealSubmission).find((item) => (item.createdByWardCode ?? item.createdBy ?? '') === localityCode) ?? null; }, enabled: Boolean(groupId && localityCode) });
@@ -117,7 +127,9 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
   const leaderForwarding = forwardingHistories.find((history) => history.stageLevel === 'SpecialistApproved');
   const specialistForwardingFiles = specialistForwarding?.files?.length ? specialistForwarding.files : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
   const leaderForwardingFiles = leaderForwarding?.files?.length ? leaderForwarding.files : (legacyLeaderForwardingFilesQuery.data?.items ?? []);
-  const groupPath = config.groupPath(localityId);
+  const baseGroupPath = config.groupPath(localityId);
+  const groupPath = baseGroupPath ? withReviewerPeriod(baseGroupPath) : null;
+  const listPath = withReviewerPeriod(config.listPath);
   const activeResults = submission.results.filter((item) => item.criteriaStatus !== 'Deleted');
   const proposed = activeResults.reduce((total, item) => total + item.point, 0);
   const proposedBonus = activeResults.reduce((total, item) => total + item.bonusPoint, 0);
@@ -175,8 +187,8 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
   */
 
   return <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 pb-6">
-    <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb"><Link to={config.listPath} className="hover:text-primary">Danh sách địa phương</Link><span>/</span>{groupPath ? <Link to={groupPath} className="hover:text-primary">{localityName}</Link> : <span>{localityName}</span>}<span>/</span><span className="font-medium text-foreground">{groupQuery.data.name}</span></nav>
-    <PageHeader title="Chi tiết kết quả tiêu chí" description={`${localityName} · ${config.label}`} actions={<div className="flex flex-wrap gap-2">{/* Tạm ẩn nút Lịch sử của Hội đồng — chỉ giữ cho Ban thường trực; khôi phục bằng cách bỏ điều kiện reviewer. */}{reviewer === 'committee' && <Button variant="info" render={<Link to={config.historyPath} />} nativeButton={false}><History className="size-4" />Lịch sử</Button>}<Button variant="back" render={<Link to={groupPath ?? config.listPath} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
+    <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Breadcrumb"><Link to={listPath} className="hover:text-primary">Danh sách địa phương</Link><span>/</span>{groupPath ? <Link to={groupPath} className="hover:text-primary">{localityName}</Link> : <span>{localityName}</span>}<span>/</span><span className="font-medium text-foreground">{groupQuery.data.name}</span></nav>
+    <PageHeader title="Chi tiết kết quả tiêu chí" description={`${localityName} · ${config.label}`} actions={<div className="flex flex-wrap gap-2">{/* Tạm ẩn nút Lịch sử của Hội đồng — chỉ giữ cho Ban thường trực; khôi phục bằng cách bỏ điều kiện reviewer. */}{reviewer === 'committee' && <Button variant="info" render={<Link to={config.historyPath} />} nativeButton={false}><History className="size-4" />Lịch sử</Button>}<Button variant="back" render={<Link to={groupPath ?? listPath} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>} />
     <section className="overflow-hidden rounded-lg border border-border bg-card"><div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4"><div className="bg-card px-4 py-3.5"><p className="text-xs text-muted-foreground">Địa phương</p><p className="mt-1 truncate font-semibold">{localityName}</p></div>{/* Tạm ẩn ô Trạng thái — Hội đồng/Ban thường trực chỉ xem hồ sơ; khôi phục cùng import Badge và biến canProcess.<div className="bg-card px-4 py-3.5"><p className="text-xs text-muted-foreground">Trạng thái</p><Badge variant={canProcess ? 'warning' : 'success'} className="mt-1">{canProcess ? `Chờ ${config.label} xử lý` : 'Đã duyệt'}</Badge></div> */}<div className="bg-card px-4 py-3.5"><p className="text-xs text-muted-foreground">Điểm địa phương đề xuất</p><p className="mt-1 text-lg font-semibold tabular-nums">{proposed}</p></div><div className="bg-card px-4 py-3.5"><p className="text-xs text-muted-foreground">Điểm thưởng đề xuất</p><p className="mt-1 text-lg font-semibold tabular-nums">{proposedBonus}</p></div><div className="bg-card px-4 py-3.5"><p className="text-xs text-muted-foreground">Điểm đã thẩm định</p><p className="mt-1 text-lg font-semibold tabular-nums">{official + officialBonus}</p></div></div></section>
     <div className="flex justify-end"><ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }, { label: 'Hồ sơ Lãnh đạo ban chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ lãnh đạo ban', explanation: leaderForwarding?.reason, files: leaderForwardingFiles }]} onPreview={setPreviewFile} /></div>
     <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />

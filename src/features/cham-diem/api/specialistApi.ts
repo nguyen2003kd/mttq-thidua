@@ -189,7 +189,7 @@ export interface SpecialistScoreHistoryApi {
 
 export const specialistApi = {
   // Criteria groups
-  listCriteriaGroups: (params?: { search?: string; status?: string; page?: number; pageSize?: number }) =>
+  listCriteriaGroups: (params?: { search?: string; status?: string; periodId?: string; page?: number; pageSize?: number }) =>
     request<PagedResult<CriteriaGroupApi>>({ url: '/api/v1/criteria-groups', method: 'GET', params }),
   getCriteriaGroup: (id: string) =>
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
