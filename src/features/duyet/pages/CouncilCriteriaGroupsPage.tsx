@@ -4,13 +4,14 @@ import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-grou
 import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable, EmptyState, PageHeader, PageLoading, TruncatedText } from '@/components/core';
 // import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái
 import { Button } from '@/components/core';
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { buildCouncilPeriodUrl } from '../councilPeriodNavigation';
 
 const COUNCIL_STAGE = 'LeaderApproved' as const;
 // Hội đồng xem/nhận xét ngay hồ sơ chuyên viên đã duyệt, không chờ Lãnh đạo ban chuyển.
@@ -30,9 +31,20 @@ interface CouncilCriteriaGroupRow {
   leaderBonus: number;
 }
 
-async function listEveryCouncilSubmission() {
-  const pages = await Promise.all(COUNCIL_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+async function listEveryCouncilSubmission(periodId?: string) {
+  const pages = await Promise.all(COUNCIL_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, periodId, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
   return { items: pages.flatMap((page) => page.items).filter(isRealSubmission) };
+}
+
+async function listEveryCouncilCriteriaGroup(periodId?: string) {
+  const firstPage = await specialistApi.listCriteriaGroups({ periodId, page: 1, pageSize: 100 });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listCriteriaGroups({ periodId, page: index + 2, pageSize: 100 })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
 }
 
 function getLocalityCode(localityId: string) {
@@ -52,15 +64,18 @@ function getRowTotals(submission: SubmissionApi) {
 export default function CouncilCriteriaGroupsPage() {
   const { localityId } = useParams<{ localityId?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const periodId = searchParams.get('periodId') ?? '';
+  const withCouncilPeriod = (path: string) => periodId ? buildCouncilPeriodUrl(path, periodId) : path;
   const [selectedRow, setSelectedRow] = useState<CouncilCriteriaGroupRow | null>(null);
 
   const submissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'council-groups', stages: COUNCIL_VISIBLE_STAGES }),
-    queryFn: listEveryCouncilSubmission,
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'council-groups', periodId: periodId || undefined, stages: COUNCIL_VISIBLE_STAGES }),
+    queryFn: () => listEveryCouncilSubmission(periodId || undefined),
   });
   const groupsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
-    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', periodId: periodId || undefined, page: 1, pageSize: 100 }),
+    queryFn: () => listEveryCouncilCriteriaGroup(periodId || undefined),
   });
 
   const localityCode = localityId ? getLocalityCode(localityId) : '';
@@ -99,7 +114,7 @@ export default function CouncilCriteriaGroupsPage() {
   if (!localitySubmissions.length) return <EmptyState title="Không có hồ sơ" description="Địa phương này chưa có nhóm tiêu chí để Hội đồng theo dõi." />;
 
   return <div className="space-y-6">
-    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua." actions={<Button variant="back" render={<Link to="/thi-dua/duyet/hoi-dong-tdkt" />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
-    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`)} toolbar={<Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Hội đồng theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
+    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua." actions={<Button variant="back" render={<Link to={withCouncilPeriod('/thi-dua/duyet/hoi-dong-tdkt')} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
+    <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} onRowDoubleClick={(row) => navigate(withCouncilPeriod(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${row.groupId}`))} toolbar={<Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem thông tin." onClick={() => selectedRow && navigate(withCouncilPeriod(`/thi-dua/duyet/hoi-dong-tdkt/${localityId}/${selectedRow.groupId}`))}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương này hiện chưa có nhóm tiêu chí để Hội đồng theo dõi.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách nhóm tiêu chí" stickyDescription={localityName} />
   </div>;
 }

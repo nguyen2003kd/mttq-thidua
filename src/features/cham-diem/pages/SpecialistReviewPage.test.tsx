@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getSpecialistSubmissionPermissions } from '../api/specialistApi';
 import { getSpecialistGroupProgress } from '../utils/specialistGroupProgress';
+import { filterSubmissionsByStage } from '../utils/submissionStageFilter';
 
 describe('getSpecialistGroupProgress', () => {
   const groups = [
@@ -46,5 +47,21 @@ describe('getSpecialistSubmissionPermissions', () => {
   it('keeps the forwarding dialog for Scorer and Reviewer roles', () => {
     expect(getSpecialistSubmissionPermissions('LocalSubmitted', 'SCORER').usesForwardingDialog).toBe(true);
     expect(getSpecialistSubmissionPermissions('ScorerSubmitted', 'REVIEWER').usesForwardingDialog).toBe(true);
+  });
+});
+
+describe('filterSubmissionsByStage', () => {
+  const submissions = [
+    { id: 'waiting', currentStage: 'LocalSubmitted', hasSubmission: true },
+    { id: 'approved', currentStage: 'SpecialistApproved', hasSubmission: true },
+    { id: 'not-submitted', currentStage: 'LocalSubmitted', hasSubmission: false },
+  ];
+
+  it('filters submitted records by the selected stage', () => {
+    expect(filterSubmissionsByStage(submissions, 'LocalSubmitted')).toEqual([submissions[0]]);
+  });
+
+  it('keeps every record visible for the all tab', () => {
+    expect(filterSubmissionsByStage(submissions, '')).toEqual(submissions);
   });
 });

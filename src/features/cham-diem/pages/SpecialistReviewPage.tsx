@@ -48,6 +48,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
+import { buildScoreEntryUrl } from '@/features/cham-diem/utils/scoreEntryNavigation';
+import { filterSubmissionsByStage } from '@/features/cham-diem/utils/submissionStageFilter';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
@@ -1492,9 +1494,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     groupYearFilter: '',
     groupPeriodFilter: usePeriodStore.getState().selectedPeriodId ?? '',
   });
-  const withGroupPeriodFilter = (path: string) => groupPeriodFilter
-    ? `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`
-    : path;
+  const withGroupPeriodFilter = (path: string) => {
+    if (!groupPeriodFilter) return path;
+    return basePath === '/thi-dua/cham-diem'
+      ? buildScoreEntryUrl(path, groupPeriodFilter)
+      : `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`;
+  };
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -1561,12 +1566,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
     enabled: isDetailRoute,
   });
-  const visibleSubmissionItems = useMemo(
-    () => isDetailRoute
+  const visibleSubmissionItems = useMemo(() => {
+    const items = isDetailRoute
       ? (detailGroupSubmissionsQuery.data?.items ?? [])
-      : (allSubmissionsQuery.data?.items ?? []),
-    [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
-  );
+      : (allSubmissionsQuery.data?.items ?? []);
+    return !isDetailRoute && !diaPhuongId
+      ? filterSubmissionsByStage(items, submissionStageFilter)
+      : items;
+  }, [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, diaPhuongId, isDetailRoute, submissionStageFilter]);
   const groupsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
