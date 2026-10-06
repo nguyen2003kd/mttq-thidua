@@ -46,7 +46,7 @@ export default function ProfileCompletionPage() {
   const phone = useAuthStore((s) => s.phone);
   const setStore = useAuthStore((s) => s.setStore);
   const profileQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey()),
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey(), user?.id ?? ''),
     queryFn: () => profileApi.get(),
     enabled: Boolean(user) && requiresCompletion !== false,
   });
@@ -83,7 +83,7 @@ export default function ProfileCompletionPage() {
   const onSubmit = async (values: FormValues) => {
     try {
       const profile = await profileApi.update({ fullName: values.fullName, phone: values.phone });
-      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey()), profile);
+      queryClient.setQueryData(dataQueryKey(getGetApiV1AuthProfileQueryKey(), user.id), profile);
       setStore({
         full_name: profile.fullName,
         phone: profile.phone,

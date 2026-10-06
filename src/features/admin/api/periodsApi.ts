@@ -49,7 +49,7 @@ export const periodsApi = {
   list: (params?: { search?: string; status?: PeriodStatusApi; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) =>
     request<PagedResult<PeriodApi>>({ url: '/api/v1/periods', method: 'GET', params }),
   listAll: async () => {
-    const page = await request<PagedResult<PeriodApi>>({ url: '/api/v1/periods', method: 'GET', params: { page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' } });
+    const page = await request<PagedResult<PeriodApi>>({ url: '/api/v1/periods', method: 'GET', params: { page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' } });
     return page.items;
   },
   get: (id: string) => request<PeriodApi>({ url: `/api/v1/periods/${id}`, method: 'GET' }),
