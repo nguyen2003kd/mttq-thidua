@@ -290,6 +290,7 @@ export function mapSubmissionToRecord(submission: SubmissionApi): ScoreRecord {
       criteriaId: r.criteriaId,
       criteriaName: r.criteriaContent ?? '',
       criteriaStatus: r.criteriaStatus ?? undefined,
+      reviewStatus: r.reviewStatus,
       value: r.point ?? 0,
       state,
       scoredBy: '',

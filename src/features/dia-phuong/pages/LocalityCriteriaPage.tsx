@@ -1072,6 +1072,7 @@ export default function LocalityCriteriaPage() {
         specialistRevisionFiles={specialistRevisionFiles}
         onPreviewRevisionFile={(file) => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })}
         editableCriteriaIds={revisionEditableCriteriaIds}
+        scoreUnlockForNewCriteria={latestReopenIsSupplementaryAdd}
         onCompletionChange={reportCriterionCompletion}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
