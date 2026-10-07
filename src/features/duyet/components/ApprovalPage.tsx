@@ -14,6 +14,7 @@ import {
 } from '@/components/core';
 import { Button } from '@/components/core';
 import { toast } from 'sonner';
+import { SCORE_STATE_LABELS } from '@/constants/enums';
 import { X, History, Eye, FilePlus2, MessageSquare } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaItem, CriteriaTable, Locality, ScoreEntry, ScoringStage } from '@/types/domain';
@@ -280,13 +281,13 @@ export function ApprovalPage(config: ApprovalPageConfig) {
             ]
           : [{ accessorFn: (row: ApprovalRow) => row.record.totalScore, header: 'Tổng điểm', meta: { align: 'right' } }]),
       {
-        accessorFn: (row) => row.record.state,
+        accessorFn: (row) => SCORE_STATE_LABELS[row.record.state],
         header: 'Trạng thái',
         cell: ({ row }) => <ScoreStateBadge state={row.original.record.state} />,
         meta: { align: 'center' },
       },
       ...(config.view === 'leader'
-        ? [{ accessorFn: (row: ApprovalRow) => row.record.submittedAt ?? '', header: 'Cập nhật lần cuối', cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="text-xs text-muted-foreground">{row.original.record.submittedAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.original.record.submittedAt)) : '—'}</span> }]
+        ? [{ accessorFn: (row: ApprovalRow) => row.record.submittedAt ?? '', header: 'Cập nhật lần cuối', sortDescFirst: true, cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="text-xs text-muted-foreground">{row.original.record.submittedAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.original.record.submittedAt)) : '—'}</span> }]
         : []),
       ...(config.view === 'leader' || config.view === 'council'
         ? []

@@ -3,6 +3,7 @@ import { Eye, History, Send, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
+import { SCORE_STATE_LABELS } from '@/constants/enums';
 import { DataTable, EmptyState, PageHeader, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -179,7 +180,7 @@ export default function StandingCommitteePage() {
         meta: { align: 'right', className: 'min-w-[190px]' },
       },
       {
-        accessorFn: (row) => row.record.state,
+        accessorFn: (row) => SCORE_STATE_LABELS[row.record.state],
         header: 'Trạng thái',
         cell: ({ row }) => <ScoreStateBadge state={row.original.record.state} />,
         meta: { align: 'center', className: 'min-w-[135px]' },

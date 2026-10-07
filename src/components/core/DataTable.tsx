@@ -494,40 +494,41 @@ export function DataTable<TData, TValue = unknown>({
             {visibleHeaders.map((header, idx) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const canSort = meta?.sortable !== false && header.column.getCanSort();
+              const sortDirection = header.column.getIsSorted();
               const headerContent = flexRender(header.column.columnDef.header, header.getContext());
               const headerText = extractCellText(headerContent).trim();
+              const headerNode = headerText ? (
+                <Tooltip>
+                  <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                  <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
+                </Tooltip>
+              ) : headerContent;
 
               return (
-                <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', meta?.className)}>
-                  {header.isPlaceholder ? null : (
-                    <div
+                <TableHead
+                  key={header.id}
+                  aria-sort={sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : undefined}
+                  className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', canSort && 'p-0', meta?.className)}
+                >
+                  {header.isPlaceholder ? null : canSort ? (
+                    <button
+                      type="button"
+                      onClick={header.column.getToggleSortingHandler()}
                       className={cn(
-                        'flex items-center gap-1.5',
-                        header.column.getCanSort() && 'cursor-pointer select-none hover:text-primary-foreground/75',
-                        alignClass === 'text-right' && 'justify-end',
+                        'flex min-h-11 w-full cursor-pointer items-center gap-1.5 px-4 py-3 text-inherit transition-colors hover:text-primary-foreground/75',
+                        alignClass === 'text-right' && 'flex-row-reverse justify-start',
                         alignClass === 'text-center' && 'justify-center',
                       )}
-                      onClick={header.column.getToggleSortingHandler()}
                     >
-                      {headerText ? (
-                        <Tooltip>
-                          <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
-                          <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
-                        </Tooltip>
-                      ) : headerContent}
-                      {header.column.getCanSort() && (
-                        <span className="text-primary-foreground/50">
-                          {header.column.getIsSorted() === 'asc' ? (
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          ) : header.column.getIsSorted() === 'desc' ? (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronsUpDown className="h-3.5 w-3.5" />
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                      {headerNode}
+                      <span className={cn('shrink-0', sortDirection ? 'text-primary-foreground' : 'text-primary-foreground/50')}>
+                        {sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" />
+                          : sortDirection === 'desc' ? <ChevronDown className="h-3.5 w-3.5" />
+                            : <ChevronsUpDown className="h-3.5 w-3.5" />}
+                      </span>
+                    </button>
+                  ) : headerNode}
                 </TableHead>
               );
             })}
@@ -561,46 +562,56 @@ export function DataTable<TData, TValue = unknown>({
             return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
-              const canSort = meta?.sortable === true && header.column.getCanSort();
+              const canSort = meta?.sortable !== false && header.column.getCanSort();
               const sortDirection = header.column.getIsSorted();
 
               return (
                 <div
                   key={header.id}
-                  onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-                  className={cn(
-                    'relative flex items-center min-w-0 h-12 px-4 box-border',
-                    idx === 0 && 'pl-5',
-                    idx === arr.length - 1 && 'pr-5',
-                    alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
-                    canSort && 'cursor-pointer select-none hover:text-primary-foreground/75',
-                    meta?.className,
-                  )}
+                  role="columnheader"
+                  aria-sort={sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : undefined}
+                  className={cn('relative min-w-0 h-12 box-border', meta?.className)}
                 >
                   {header.isPlaceholder ? null : (() => {
                     const headerContent = flexRender(header.column.columnDef.header, header.getContext());
                     const headerText = extractCellText(headerContent).trim();
-                    return headerText ? (
+                    const headerNode = headerText ? (
                       <Tooltip>
-                      <TooltipTrigger render={<span className={cn('block min-w-0 truncate', meta?.headerClassName)} />}>{headerContent}</TooltipTrigger>
+                        <TooltipTrigger render={<span className={cn('block min-w-0 truncate', meta?.headerClassName)} />}>{headerContent}</TooltipTrigger>
                         <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
                       </Tooltip>
                     ) : headerContent;
+
+                    return canSort ? (
+                      <button
+                        type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                        className={cn(
+                          'flex h-full w-full cursor-pointer items-center gap-1.5 px-4 box-border text-primary-foreground transition-colors hover:text-primary-foreground/75',
+                          idx === 0 && 'pl-5',
+                          idx === arr.length - 1 && 'pr-5',
+                          alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'flex-row-reverse justify-start' : 'justify-start',
+                        )}
+                      >
+                        {headerNode}
+                        <span className={cn('shrink-0', sortDirection ? 'text-primary-foreground' : 'text-primary-foreground/50')}>
+                          {sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" />
+                            : sortDirection === 'desc' ? <ChevronDown className="h-3.5 w-3.5" />
+                              : <ChevronsUpDown className="h-3.5 w-3.5" />}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className={cn(
+                        'flex h-full w-full items-center gap-1.5 px-4 box-border',
+                        idx === 0 && 'pl-5',
+                        idx === arr.length - 1 && 'pr-5',
+                        alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
+                      )}>
+                        {headerNode}
+                      </div>
+                    );
                   })()}
-                  {canSort && (
-                    <span className="shrink-0 text-primary-foreground/50">
-                      {sortDirection === 'asc' ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : sortDirection === 'desc' ? (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronsUpDown className="h-3.5 w-3.5" />
-                      )}
-                    </span>
-                  )}
-                  {idx < arr.length - 1 && (
-                    <span className="absolute right-0 top-0 h-full border-r border-white/30" />
-                  )}
+                  {idx < arr.length - 1 && <span className="absolute right-0 top-0 h-full border-r border-white/30" />}
                 </div>
               );
             });

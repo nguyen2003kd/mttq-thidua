@@ -99,7 +99,7 @@ export default function ScoreByCriteriaPage() {
     { accessorFn: (row) => row.name, header: 'Địa phương', cell: ({ row }) => <span className="font-medium">{row.original.name}</span>, meta: { list: { width: 'minmax(240px,1.4fr)' } } },
     { accessorFn: (row) => row.code, header: 'Mã', meta: { list: { width: 'minmax(120px,.7fr)' } } },
     { accessorFn: (row) => row.totalScore, header: 'Tổng điểm hiện tại', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.totalScore}</span>, meta: { align: 'right', list: { width: 'minmax(150px,.8fr)' } } },
-    { id: 'stage', accessorFn: (row) => row.submission.currentStage, header: 'Trạng thái', cell: ({ row }) => { const badge = STAGE_BADGE[row.original.submission.currentStage]; return <Badge variant={badge.variant}>{badge.label}</Badge>; }, meta: { align: 'center', list: { width: 'minmax(190px,1fr)' } } },
+    { id: 'stage', accessorFn: (row) => STAGE_BADGE[row.submission.currentStage].label, header: 'Trạng thái', cell: ({ row }) => { const badge = STAGE_BADGE[row.original.submission.currentStage]; return <Badge variant={badge.variant}>{badge.label}</Badge>; }, meta: { align: 'center', list: { width: 'minmax(190px,1fr)' } } },
   ], []);
 
   if (groupId ? groupQuery.isLoading : groupsQuery.isLoading && !groupSearch) return <PageLoading label="Đang tải dữ liệu…" />;

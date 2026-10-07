@@ -15,6 +15,9 @@ import {
   Trophy,
 } from "lucide-react";
 import { Button, EmptyState, FilterSelect, PageHeader, PageLoading } from "@/components/core";
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { useQueryFilters } from "@/hooks/useQueryFilters";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -74,6 +77,24 @@ interface LocalityScoreSummary extends ScoreTotals {
 }
 
 const UNASSIGNED_CLUSTER_ID = "__unassigned__";
+
+const SCORE_SUMMARY_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposedScore-desc', label: 'Điểm địa phương cao nhất', sort: { column: 'proposedScore', direction: 'desc' } },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
+  { value: 'provinceScore-desc', label: 'Điểm tỉnh cao nhất', sort: { column: 'provinceScore', direction: 'desc' } },
+  { value: 'provinceBonus-desc', label: 'Điểm thưởng tỉnh cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
+  { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
+  { value: 'provinceTotal-desc', label: 'Tổng điểm tỉnh cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
+];
+
+const SCORE_DETAIL_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposed-desc', label: 'Điểm địa phương cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
+  { value: 'province-desc', label: 'Điểm tỉnh cao nhất', sort: { column: 'province', direction: 'desc' } },
+  { value: 'provinceBonus-desc', label: 'Điểm thưởng tỉnh cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
+  { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
+  { value: 'provinceTotal-desc', label: 'Tổng điểm tỉnh cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
+];
 
 function normalizeWardCode(code: string) {
   return code.trim().replace(/^loc-/i, "").toLowerCase();
@@ -202,6 +223,7 @@ function LocalityCriteriaDialog({
   canReview: boolean;
 }) {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [detailSort, setDetailSort] = useState<TableSortState>(null);
   const selectedSubmission = locality?.submissions.find(
     (submission) => submission.id === selectedSubmissionId,
   );
@@ -215,6 +237,14 @@ function LocalityCriteriaDialog({
     queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(locality && selectedSubmission && !canReview),
+  });
+  const sortedDetailResults = sortTableRows(detailQuery.data?.results ?? [], detailSort, {
+    proposed: (result) => result.point,
+    proposedBonus: (result) => result.bonusPoint,
+    province: (result) => result.officialPoint,
+    provinceBonus: (result) => result.officialBonusPoint,
+    proposedTotal: (result) => result.point + result.bonusPoint,
+    provinceTotal: (result) => result.officialPoint === null && result.officialBonusPoint === null ? null : (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0),
   });
   const comparisonContent = detailQuery.isLoading ? (
     <div className="space-y-3" aria-label="Đang tải tiêu chí con">
@@ -234,6 +264,9 @@ function LocalityCriteriaDialog({
     </p>
   ) : (
     <div className="overflow-hidden rounded-md border border-border">
+      <div className="flex justify-end border-b border-border p-2">
+        <TableSortSelect sort={detailSort} options={SCORE_DETAIL_SORT_OPTIONS} onChange={setDetailSort} />
+      </div>
       <Table className="min-w-[1080px] table-fixed">
         <colgroup>
           <col className="w-[28%]" />
@@ -247,16 +280,16 @@ function LocalityCriteriaDialog({
         <TableHeader>
           <TableRow className="bg-primary hover:bg-primary">
             <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
-            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Địa phương đề xuất</TableHead>
-            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">điểm thưởng địa phương</TableHead>
-            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của tỉnh </TableHead>
-            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của tỉnh</TableHead>
-            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng điểm địa phương</TableHead>
-            <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm tỉnh</TableHead>
+            <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
+            <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
+            <SortableTableHead column="province" label="Điểm của tỉnh" ariaLabel="Điểm của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
+            <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
+            <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
+            <SortableTableHead column="provinceTotal" label="Tổng điểm tỉnh" ariaLabel="Tổng điểm tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="bg-primary text-right" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {detailQuery.data?.results.map((result, index) => (
+          {sortedDetailResults.map((result, index) => (
             <TableRow key={result.id} className="border-b border-border hover:bg-muted/40">
               <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
                 <p className="font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || "Tiêu chí con " + (index + 1)}</p>
@@ -464,6 +497,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const periodDefaultingRef = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
+  const [summarySort, setSummarySort] = useState<TableSortState>(null);
   const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER'));
   const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
   const periodListParams = { page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' } as const;
@@ -635,6 +669,17 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
           left.cluster.localeCompare(right.cluster, "vi"),
       );
   }, [clusters, rows]);
+  const sortedGroupedRows = useMemo(() => groupedRows.map((group) => ({
+    ...group,
+    rows: sortTableRows(group.rows, summarySort, {
+      proposedScore: (row) => row.proposedScore,
+      proposedBonus: (row) => row.proposedBonus,
+      provinceScore: (row) => row.hasProvinceScore ? row.provinceScore : null,
+      provinceBonus: (row) => row.hasProvinceScore ? row.provinceBonus : null,
+      proposedTotal: (row) => row.proposedTotal,
+      provinceTotal: (row) => row.provinceTotal,
+    }),
+  })), [groupedRows, summarySort]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -876,6 +921,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
         aria-label="Bảng tổng hợp chấm điểm toàn tỉnh"
       >
         <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border px-5 py-4">
+          <TableSortSelect sort={summarySort} options={SCORE_SUMMARY_SORT_OPTIONS} onChange={setSummarySort} />
           <Badge variant="secondary">{rows.length} đơn vị</Badge>
         </div>
         {groupedRows.length === 0 ? (
@@ -907,32 +953,16 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground sm:top-[-24px]">
                   Tên xã, phường
                 </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Địa phương chấm
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Điểm điểm thưởng địa phương
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Tỉnh chấm
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Điểm thưởng của tỉnh
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Địa phương chấm
-                  <br />
-                  (điểm tự chấm + điểm thưởng)
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Tỉnh chấm
-                  <br />
-                  (điểm chấm + điểm thưởng)
-                </TableHead>
+                <SortableTableHead column="proposedScore" label="Địa phương chấm" ariaLabel="Điểm địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceScore" label="Tỉnh chấm" ariaLabel="Điểm tỉnh chấm" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng tỉnh" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="proposedTotal" label={<>Địa phương chấm<br />(điểm tự chấm + điểm thưởng)</>} ariaLabel="Tổng điểm địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceTotal" label={<>Tỉnh chấm<br />(điểm chấm + điểm thưởng)</>} ariaLabel="Tổng điểm tỉnh" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal bg-primary sm:top-[-24px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {groupedRows.flatMap((group) =>
+              {sortedGroupedRows.flatMap((group) =>
                 group.rows.length === 0 ? [
                   <TableRow key={group.id} className="border-b-2 border-border">
                     <TableCell className="whitespace-normal border-r border-primary/15 bg-muted/30 px-3 text-center font-semibold">

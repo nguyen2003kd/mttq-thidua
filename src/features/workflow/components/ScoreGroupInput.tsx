@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { Eye, FileText, LockKeyhole, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, TableColumnVisibility } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { cn } from '@/lib/utils';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 
@@ -27,6 +31,21 @@ export function ScoreGroupInput({
       .filter((entry) => entry.isSupplementary || !criteria.some((criterion) => criterion.id === entry.criteriaId))
       .map((entry) => ({ criterion: undefined, entry })),
   ];
+  const [sort, setSort] = useState<TableSortState>(null);
+  const sortedRows = sortTableRows(rows, sort, {
+    proposed: (row) => row.entry?.isSupplementary ? null : row.entry?.proposedScore ?? null,
+    bonus: (row) => row.entry?.isSupplementary ? null : row.entry?.proposedBonusScore ?? 0,
+    maximum: (row) => row.criterion?.maxScore ?? row.entry?.supplementaryMaxScore ?? null,
+    maximumBonus: (row) => row.criterion?.bonusScore ?? 0,
+    official: (row) => row.entry?.value ?? null,
+  });
+  const sortOptions: TableSortOption[] = [
+    { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+    { value: 'bonus-desc', label: 'Điểm thưởng đề xuất cao nhất', sort: { column: 'bonus', direction: 'desc' } },
+    { value: 'maximum-desc', label: 'Điểm tối đa cao nhất', sort: { column: 'maximum', direction: 'desc' } },
+    { value: 'maximumBonus-desc', label: 'Điểm thưởng tối đa cao nhất', sort: { column: 'maximumBonus', direction: 'desc' } },
+    ...(mode !== 'locality' ? [{ value: 'official-desc', label: 'Điểm chính thức cao nhất', sort: { column: 'official', direction: 'desc' as const } }] : []),
+  ];
   const columnOptions = [
     { id: 'criterion', label: 'Nội dung tiêu chí' },
     { id: 'evidence', label: 'Minh chứng' },
@@ -42,7 +61,8 @@ export function ScoreGroupInput({
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="flex justify-end border-b p-2">
+      <div className="flex flex-wrap justify-end gap-2 border-b p-2">
+        <TableSortSelect sort={sort} options={sortOptions} onChange={setSort} />
         <TableColumnVisibility storageKey={`score-group-input-${mode}`} columns={columnOptions} />
       </div>
       <div className="overflow-x-auto">
@@ -51,18 +71,18 @@ export function ScoreGroupInput({
             <TableRow className="bg-muted/70">
               <TableHead className="min-w-[230px]">Nội dung tiêu chí</TableHead>
               <TableHead className="min-w-[120px]">Minh chứng</TableHead>
-              <TableHead className="text-right">Điểm đề xuất</TableHead>
-              <TableHead className="text-right">Điểm thưởng đề xuất</TableHead>
-              <TableHead className="text-right text-muted-foreground">Điểm tối đa ◎</TableHead>
-              <TableHead className="text-right text-muted-foreground">Điểm thưởng tối đa ◎</TableHead>
+              <SortableTableHead column="proposed" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />
+              <SortableTableHead column="bonus" label="Điểm thưởng đề xuất" ariaLabel="Điểm thưởng đề xuất" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'bonus', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />
+              <SortableTableHead column="maximum" label="Điểm tối đa ◎" ariaLabel="Điểm tối đa" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'maximum', 'desc'))} align="right" className="text-right" buttonClassName="text-muted-foreground hover:text-foreground" />
+              <SortableTableHead column="maximumBonus" label="Điểm thưởng tối đa ◎" ariaLabel="Điểm thưởng tối đa" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'maximumBonus', 'desc'))} align="right" className="text-right" buttonClassName="text-muted-foreground hover:text-foreground" />
               <TableHead className="min-w-[220px]">Nội dung diễn giải</TableHead>
-              {mode !== 'locality' && <TableHead className="text-right">Điểm chính thức</TableHead>}
+              {mode !== 'locality' && <SortableTableHead column="official" label="Điểm chính thức" ariaLabel="Điểm chính thức" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'official', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />}
               {mode === 'specialist' && <TableHead className="min-w-[180px]">Lý do</TableHead>}
               {mode !== 'result' && <TableHead className="text-right">Thao tác</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(({ criterion, entry }) => {
+            {sortedRows.map(({ criterion, entry }) => {
               const criteriaId = criterion?.id ?? entry?.criteriaId ?? '';
               const files = evidence.filter((item) => item.localityId === localityId && item.criteriaId === criteriaId);
               const criterionDisabled = criterion?.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';

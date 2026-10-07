@@ -135,11 +135,13 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
+      sortDescFirst: true,
       cell: ({ row }) => row.original.deadline ? formatDate(row.original.deadline) : '—',
       meta: { list: { width: 'minmax(145px,0.9fr)' } },
     },
     {
-      accessorKey: 'status',
+      accessorFn: (row) => row.status === 'Deleted' ? 'Vô hiệu' : row.status === 'Applied' ? 'Đã áp dụng' : 'Nháp',
+      id: 'status',
       header: 'Trạng thái',
       cell: ({ row }) => row.original.status === 'Deleted'
         ? <Badge variant="secondary">Vô hiệu</Badge>

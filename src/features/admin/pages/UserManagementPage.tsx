@@ -297,7 +297,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       cell: ({ row }) => row.original.departmentName ?? '—',
     },
     {
-      accessorKey: 'status',
+      accessorFn: (row) => statusLabels[row.status] ?? row.status,
+      id: 'status',
       header: 'Trạng thái',
       meta: { align: 'center', list: { width: '130px' } },
       cell: ({ row }) => (
@@ -307,6 +308,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
+      sortDescFirst: true,
       meta: { align: 'right', list: { width: '130px', valueClassName: 'text-xs' } },
       cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },

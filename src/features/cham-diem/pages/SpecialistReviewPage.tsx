@@ -45,6 +45,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
@@ -228,10 +231,21 @@ const GROUP_SORT_OPTIONS = [
   { value: 'name-asc', label: 'Tên A–Z' },
   { value: 'name-desc', label: 'Tên Z–A' },
   { value: 'deadline-asc', label: 'Hạn nộp gần nhất' },
-  { value: 'maxPoint-desc', label: 'Điểm cao nhất' },
+  { value: 'maxPoint-desc', label: 'Điểm tối đa cao nhất' },
+  { value: 'proposedScore-desc', label: 'Điểm đề xuất cao nhất' },
+  { value: 'proposedScore-asc', label: 'Điểm đề xuất thấp nhất' },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng cao nhất' },
+  { value: 'proposedBonus-asc', label: 'Điểm thưởng thấp nhất' },
+  { value: 'status-asc', label: 'Trạng thái A–Z' },
+  { value: 'status-desc', label: 'Trạng thái Z–A' },
 ] as const;
 
 const DEFAULT_GROUP_SORT = 'createdAt-desc';
+
+const SPECIALIST_DETAIL_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+  { value: 'official-desc', label: 'Điểm Chuyên viên cao nhất', sort: { column: 'official', direction: 'desc' } },
+];
 
 const SPECIALIST_GROUP_COLUMNS = [
   { id: 'group', label: 'Nhóm tiêu chí' },
@@ -1130,18 +1144,29 @@ function LocalitySortIcon({ direction }: { direction: LocalitySortDirection | un
   return <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-primary-foreground/60" />;
 }
 
+function getGroupStatusLabel(status: SpecialistCriteriaGroup['status'], role: ScoringRole, stage?: SubmissionStage | null) {
+  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return 'Chờ Chuyên viên cấp 2';
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ScorerSubmitted') return 'Chờ Lãnh đạo ban';
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ReviewerRevisionRequested') return 'Yêu cầu chỉnh sửa';
+  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return 'Chờ duyệt';
+  if (status === 'DA_CHAM') return 'Đã chấm';
+  if (status === 'CHO_DUYET') return 'Chờ duyệt';
+  if (status === 'CHO_CHAM') return 'Chờ chấm';
+  if (status === 'YEU_CAU_SUA') return 'Yêu cầu chỉnh sửa';
+  return 'Chưa nộp';
+}
+
 function GroupStatusBadge({ status, role, stage }: { status: SpecialistCriteriaGroup['status']; role: ScoringRole; stage?: SubmissionStage | null }) {
-  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ Chuyên viên cấp 2</Badge>;
-  if (role === 'REVIEWER' && stage === 'ScorerSubmitted') return <Badge variant="warning">Chờ Lãnh đạo ban</Badge>;
-  if (role === 'REVIEWER' && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  if (role === 'SPECIALIST' && stage === 'ScorerSubmitted') return <Badge variant="warning">Chờ Lãnh đạo ban</Badge>;
-  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return <Badge variant="warning">Chờ duyệt</Badge>;
-  if (role === 'SPECIALIST' && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  if (status === 'DA_CHAM') return <Badge variant="success"><CheckCircle2 className="size-3" />Đã chấm</Badge>;
-  if (status === 'CHO_DUYET') return <Badge variant="warning">Chờ duyệt</Badge>;
-  if (status === 'CHO_CHAM') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ chấm</Badge>;
-  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  return <Badge variant="secondary">Chưa nộp</Badge>;
+  const label = getGroupStatusLabel(status, role, stage);
+  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{label}</Badge>;
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ScorerSubmitted') return <Badge variant="warning">{label}</Badge>;
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">{label}</Badge>;
+  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return <Badge variant="warning">{label}</Badge>;
+  if (status === 'DA_CHAM') return <Badge variant="success"><CheckCircle2 className="size-3" />{label}</Badge>;
+  if (status === 'CHO_DUYET') return <Badge variant="warning">{label}</Badge>;
+  if (status === 'CHO_CHAM') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{label}</Badge>;
+  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">{label}</Badge>;
+  return <Badge variant="secondary">{label}</Badge>;
 }
 
 function TableSectionHeader({ title, countLabel, actions }: { title: string; countLabel: string; actions?: ReactNode }) {
@@ -1534,6 +1559,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [localitySort, setLocalitySort] = useState<LocalitySortValue>('');
+  const [criterionSort, setCriterionSort] = useState<TableSortState>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
   const defaultSelectedCriteriaIds = useMemo(() => (selectedCriterionId ? [selectedCriterionId] : []), [selectedCriterionId]);
@@ -1844,10 +1870,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       ));
       return matchesStatus && matchesPeriod && matchesYear;
     });
-    const [sortBy, sortOrder] = groupSortFilter.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
+    const [sortBy, sortOrder] = groupSortFilter.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint' | 'proposedScore' | 'proposedBonus' | 'status', 'asc' | 'desc'];
     return filtered.sort((a, b) => {
       if (sortBy === 'name') return a.groupName.localeCompare(b.groupName, 'vi') * (sortOrder === 'asc' ? 1 : -1);
       if (sortBy === 'maxPoint') return (b.maxPoint - a.maxPoint) * (sortOrder === 'asc' ? -1 : 1);
+      if (sortBy === 'proposedScore') return (a.totalProposedScore - b.totalProposedScore) * (sortOrder === 'asc' ? 1 : -1);
+      if (sortBy === 'proposedBonus') return (a.totalProposedBonusScore - b.totalProposedBonusScore) * (sortOrder === 'asc' ? 1 : -1);
+      if (sortBy === 'status') {
+        const leftStage = submissionByGroup.get(a.id)?.currentStage;
+        const rightStage = submissionByGroup.get(b.id)?.currentStage;
+        return getGroupStatusLabel(a.status, scoringRole, leftStage).localeCompare(getGroupStatusLabel(b.status, scoringRole, rightStage), 'vi') * (sortOrder === 'asc' ? 1 : -1);
+      }
       const aTime = Date.parse(sortBy === 'deadline' ? a.deadline ?? '' : a.createdAt);
       const bTime = Date.parse(sortBy === 'deadline' ? b.deadline ?? '' : b.createdAt);
       const safeATime = Number.isFinite(aTime) ? aTime : (sortBy === 'deadline' ? Number.POSITIVE_INFINITY : 0);
@@ -2112,6 +2145,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         ? <Badge variant="secondary">Còn {incompleteGroups}/{totalCount} nhóm chưa hoàn thành</Badge>
         : <Badge variant="success">Đã hoàn thành {totalCount}/{totalCount} nhóm</Badge>;
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
+    const [groupSortBy, groupSortOrder] = groupSortFilter.split('-') as [string, 'asc' | 'desc'];
+    const groupTableSort: TableSortState = ['proposedScore', 'proposedBonus', 'status'].includes(groupSortBy)
+      ? { column: groupSortBy, direction: groupSortOrder }
+      : null;
+    const sortGroupTable = (column: string, firstDirection: 'asc' | 'desc') => {
+      const next = toggleTableSort(groupTableSort, column, firstDirection);
+      setGroupSortFilter(next ? `${next.column}-${next.direction}` : DEFAULT_GROUP_SORT);
+    };
     const activeGroupFilters = [
       ...(groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : []),
       ...(groupSortFilter !== DEFAULT_GROUP_SORT ? [{ label: 'Sắp xếp', value: GROUP_SORT_OPTIONS.find((option) => option.value === groupSortFilter)?.label ?? 'Tùy chọn', onClear: () => setGroupSortFilter(DEFAULT_GROUP_SORT) }] : []),
@@ -2265,9 +2306,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                 <TableRow className="sticky top-[57px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[49px]">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng</TableHead>
-                  <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái</TableHead>
+                  <SortableTableHead column="proposedScore" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={groupTableSort} onSort={() => sortGroupTable('proposedScore', 'desc')} align="center" className="border-r border-white/30 bg-primary text-center" />
+                  <SortableTableHead column="proposedBonus" label="Điểm thưởng" ariaLabel="Điểm thưởng" sort={groupTableSort} onSort={() => sortGroupTable('proposedBonus', 'desc')} align="center" className="border-r border-white/30 bg-primary text-center" />
+                  <SortableTableHead column="status" label="Trạng thái" ariaLabel="Trạng thái" sort={groupTableSort} onSort={() => sortGroupTable('status', 'asc')} className="bg-primary text-center" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2347,6 +2388,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
   );
+  const sortedDetailItems = sortTableRows(displayGroup.items, criterionSort, {
+    proposed: (item) => item.isAddedBySpecialist ? null : item.proposedScore + item.proposedBonusScore,
+    official: (item) => item.isAddedBySpecialist || (item.officialScore === null && item.officialBonusScore === null)
+      ? null
+      : (item.officialScore ?? 0) + (item.officialBonusScore ?? 0),
+  });
   const scorerRevisionNote = isScorerRevisionStage ? selectedRevisionNotes.reviewer : null;
   const isScoringCriterionEditable = (item: SpecialistCriteriaItem) => {
     if (item.isDisabled) return false;
@@ -2692,6 +2739,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         <div className="sticky top-[-16px] z-30 isolate sm:top-[-24px]">
         <div className="flex flex-col gap-3 border-b border-border bg-card px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+            <TableSortSelect sort={criterionSort} options={SPECIALIST_DETAIL_SORT_OPTIONS} onChange={setCriterionSort} />
             <TableColumnVisibility
               storageKey="specialist-review-criteria"
               columns={[
@@ -2755,9 +2803,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
               <TableRow className="bg-primary hover:bg-primary">
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={criterionSort} onSort={() => setCriterionSort((current) => toggleTableSort(current, 'proposed', 'desc'))} className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary" />
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
+                <SortableTableHead column="official" label="Chuyên viên chấm" ariaLabel="Chuyên viên chấm" sort={criterionSort} onSort={() => setCriterionSort((current) => toggleTableSort(current, 'official', 'desc'))} className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary" />
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa chuyên viên</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa lãnh đạo ban</TableHead>
               </TableRow>
@@ -2786,7 +2834,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
               <col className="w-[13%]" />
             </colgroup>
             <TableBody>
-              {displayGroup.items.map((item) => {
+              {sortedDetailItems.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
                 const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
                 const specialistRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.scorerRequest, result?.id, result?.criteriaId);
@@ -2898,7 +2946,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         </div>
 
         <div className="divide-y divide-border xl:hidden">
-          {displayGroup.items.map((item) => {
+          {sortedDetailItems.map((item) => {
             const result = resultByCriteriaId.get(item.id);
             const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
             const specialistRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.scorerRequest, result?.id, result?.criteriaId);
