@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
 import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey } from '@/api/mutator/query-keys';
 // import { useQueryClient } from '@tanstack/react-query'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
@@ -9,11 +10,13 @@ import { ArrowLeft, Eye, Search } from 'lucide-react';
 // import { toast } from 'sonner'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { DataTable, EmptyState, PageHeader, PageLoading } from '@/components/core';
+import { DataTable, EmptyState, PageHeader, PageLoading, PeriodSelect } from '@/components/core';
 // import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái
 import { Button } from '@/components/core';
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { periodsApi } from '@/features/admin/api/periodsApi';
+import { usePeriodStore } from '@/store/periodStore';
 // import { ForwardSubmissionDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
@@ -30,8 +33,8 @@ interface LeaderCriteriaGroupRow {
   specialistBonus: number;
 }
 
-async function listEveryLeaderSubmission() {
-  const pages = await Promise.all(LEADER_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
+async function listEveryLeaderSubmission(periodId?: string) {
+  const pages = await Promise.all(LEADER_VISIBLE_STAGES.map((stage) => specialistApi.listAllSubmissions({ stage, periodId: periodId || undefined, page: 1, pageSize: 100, sortBy: 'createdAt', sortOrder: 'desc' })));
   return { items: pages.flatMap((page) => page.items).filter(isRealSubmission) };
 }
 
@@ -54,14 +57,21 @@ export default function BanLeaderCriteriaGroupsPage() {
   // const queryClient = useQueryClient(); // tạm ẩn cùng nút duyệt của Lãnh đạo ban
   const [selectedRow, setSelectedRow] = useState<LeaderCriteriaGroupRow | null>(null);
   // const [forwardOpen, setForwardOpen] = useState(false); // tạm ẩn cùng nút duyệt của Lãnh đạo ban
+  // Filter kỳ thi đua — dùng chung store kỳ với trang danh sách; BE lọc server-side qua periodId.
+  const selectedPeriodId = usePeriodStore((state) => state.selectedPeriodId);
+  const setSelectedPeriod = usePeriodStore((state) => state.setSelectedPeriod);
+  const periodsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'), queryFn: periodsApi.listAll });
+  const periodOptions = (periodsQuery.data ?? [])
+    .filter((period) => period.status !== 'Draft')
+    .map((period) => ({ value: period.id, label: period.name }));
 
   const submissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'leader-groups', stages: LEADER_VISIBLE_STAGES }),
-    queryFn: listEveryLeaderSubmission,
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'leader-groups', stages: LEADER_VISIBLE_STAGES, periodId: selectedPeriodId || undefined }),
+    queryFn: () => listEveryLeaderSubmission(selectedPeriodId || undefined),
   });
   const groupsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
-    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100, periodId: selectedPeriodId || undefined }),
+    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100, periodId: selectedPeriodId || undefined }),
   });
 
   const localityCode = localityId ? getLocalityCode(localityId) : '';
@@ -127,7 +137,7 @@ export default function BanLeaderCriteriaGroupsPage() {
   */
 
   return <div className="space-y-6">
-    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả chấm điểm đã được chuyên viên chuyển lên lãnh đạo ban." actions={<Button variant="back" render={<Link to={backToList} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button>} />
+    <PageHeader title={`Nhóm tiêu chí của ${localityName}`} description="Xem kết quả chấm điểm đã được chuyên viên chuyển lên lãnh đạo ban." actions={<div className="flex flex-wrap items-center gap-2"><PeriodSelect value={selectedPeriodId ?? ''} onChange={(value) => setSelectedPeriod(value || null)} options={periodOptions} /><Button variant="back" render={<Link to={backToList} />} nativeButton={false}><ArrowLeft className="mr-1.5 size-4" />Quay lại</Button></div>} />
     <DataTable data={rows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm tên nhóm tiêu chí..." getRowId={(row) => row.groupId} selectedRowId={selectedRow?.groupId} onRowClick={setSelectedRow} toolbar={<div className="flex flex-wrap items-center gap-2"><Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={openDetail}><Eye className="mr-1.5 size-4" />Xem chi tiết chấm điểm</Button>{/* Tạm ẩn nút duyệt của Lãnh đạo ban.
 {selectedRow && <Button disabled={!canForwardSelected} disabledReason="Hồ sơ đã chuyển cấp nên không thể duyệt lại." onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button>} */}</div>} emptyState={{ title: 'Không có nhóm tiêu chí', description: 'Địa phương chưa có hồ sơ để hiển thị.', icon: <Search className="size-8" /> }} stickyTitle="Nhóm tiêu chí thi đua" stickyDescription={localityName} />
     {/* Tạm ẩn cùng nút duyệt của Lãnh đạo ban.

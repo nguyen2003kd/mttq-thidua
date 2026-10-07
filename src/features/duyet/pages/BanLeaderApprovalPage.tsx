@@ -1,19 +1,22 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGetApiV1CriteriaGroupsQueryKey } from '@/api/endpoints/criteria-groups';
+import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
 import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Eye, MessageSquare, Search } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { DataTable, EmptyState, PageHeader, PageLoading, RejectDialog } from '@/components/core';
+import { DataTable, EmptyState, PageHeader, PageLoading, PeriodSelect, RejectDialog } from '@/components/core';
 // import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột Trạng thái duyệt
 import { Button } from '@/components/core';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Input } from '@/components/ui/input';
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái duyệt
 import { isRealSubmission, specialistApi, type SubmissionApi, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
+import { periodsApi } from '@/features/admin/api/periodsApi';
+import { usePeriodStore } from '@/store/periodStore';
 
 const LEADER_STAGE = 'SpecialistApproved' as const;
 const LEADER_VISIBLE_STAGES = [LEADER_STAGE, 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized'] as const;
@@ -38,9 +41,10 @@ interface LocalityReviewRow {
 
 // Gọi API y hệt trang /chuyen-vien/duyet: một endpoint /api/v1/submissions,
 // includeUnsubmitted=true để địa phương chưa nộp vẫn xuất hiện, gộp tất cả trang.
-async function listEveryLeaderSubmission() {
+async function listEveryLeaderSubmission(periodId?: string) {
   const firstPage = await specialistApi.listAllSubmissions({
     includeUnsubmitted: true,
+    periodId: periodId || undefined,
     page: 1,
     pageSize: 100,
     sortBy: 'createdAt',
@@ -52,6 +56,7 @@ async function listEveryLeaderSubmission() {
   const remainingPages = await Promise.all(
     Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
       includeUnsubmitted: true,
+      periodId: periodId || undefined,
       page: index + 2,
       pageSize: 100,
       sortBy: 'createdAt',
@@ -94,10 +99,17 @@ export default function BanLeaderApprovalPage() {
   const [commentOpen, setCommentOpen] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const queryClient = useQueryClient();
+  // Filter kỳ thi đua — dùng chung store kỳ với các trang khác; BE lọc server-side qua periodId.
+  const selectedPeriodId = usePeriodStore((state) => state.selectedPeriodId);
+  const setSelectedPeriod = usePeriodStore((state) => state.setSelectedPeriod);
+  const periodsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'), queryFn: periodsApi.listAll });
+  const periodOptions = (periodsQuery.data ?? [])
+    .filter((period) => period.status !== 'Draft')
+    .map((period) => ({ value: period.id, label: period.name }));
 
   const submissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
-    queryFn: listEveryLeaderSubmission,
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: selectedPeriodId || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryFn: () => listEveryLeaderSubmission(selectedPeriodId || undefined),
   });
 
   const groupsQuery = useQuery({
@@ -106,8 +118,10 @@ export default function BanLeaderApprovalPage() {
   });
 
   const totalAppliedGroups = useMemo(
-    () => (groupsQuery.data?.items ?? []).filter((g) => g.status === 'Applied' || g.status === 'Published').length,
-    [groupsQuery.data],
+    () => (groupsQuery.data?.items ?? [])
+      .filter((g) => (g.status === 'Applied' || g.status === 'Published') && (!selectedPeriodId || g.periodId === selectedPeriodId))
+      .length,
+    [groupsQuery.data, selectedPeriodId],
   );
 
   const rows = useMemo<LocalityReviewRow[]>(() => {
@@ -189,15 +203,24 @@ export default function BanLeaderApprovalPage() {
     }
   };
   const activeFilters = [
+    ...(selectedPeriodId ? [{ label: 'Kỳ thi đua', value: periodsQuery.data?.find((period) => period.id === selectedPeriodId)?.name ?? selectedPeriodId, onClear: () => setSelectedPeriod(null) }] : []),
     fromDate ? { label: 'Từ ngày', value: fromDate, onClear: () => setFromDate('') } : null,
     toDate ? { label: 'Đến ngày', value: toDate, onClear: () => setToDate('') } : null,
   ].filter((item): item is { label: string; value: string; onClear: () => void } => Boolean(item));
+
+  const periodSelector = (
+    <PeriodSelect
+      value={selectedPeriodId ?? ''}
+      onChange={(value) => setSelectedPeriod(value || null)}
+      options={periodOptions}
+    />
+  );
 
   if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải danh sách địa phương…" />;
   if (submissionsQuery.isError || groupsQuery.isError) return <EmptyState variant="error" title="Không tải được hồ sơ" description={submissionsQuery.error instanceof Error ? submissionsQuery.error.message : 'Vui lòng thử lại sau.'} />;
 
   return <div className="space-y-6">
-    <PageHeader title="Danh sách địa phương" description="Hồ sơ do chuyên viên chuyển lãnh đạo ban thẩm định." />
+    <PageHeader title="Danh sách địa phương" description="Hồ sơ do chuyên viên chuyển lãnh đạo ban thẩm định." actions={periodSelector} />
     <DataTable data={visibleRows} columns={columns} pageSize={10} variant="list" searchable searchPlaceholder="Tìm theo tên địa phương..." getRowId={(row) => row.locality.id} selectedRowId={selectedRow?.locality.id} onRowClick={setSelectedRow} filters={<div className="grid gap-2 sm:grid-cols-2"><Input type="date" aria-label="Từ ngày cập nhật" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /><Input type="date" aria-label="Đến ngày cập nhật" value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>} activeFilters={activeFilters} onClearFilters={() => setQueryFilters({ fromDate: '', toDate: '' })} toolbar={<div className="flex flex-wrap items-center gap-2"><Button variant="info" hideWhen={!selectedRow} disabled={!selectedRow} disabledReason="Chọn một địa phương để xem các nhóm tiêu chí." onClick={openGroups}><Eye className="mr-1.5 size-4" />Xem nhóm tiêu chí</Button><Button variant="outline" hideWhen={!selectedRow} disabled={!selectedRow || !canCommentSelected || actionPending} disabledReason={!selectedRow ? 'Chọn một địa phương để nhận xét.' : !canCommentSelected ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button></div>} emptyState={{ title: 'Không có địa phương', description: 'Chưa có địa phương nào trong dữ liệu.', icon: <Search className="size-8" /> }} stickyTitle="Danh sách địa phương" stickyDescription="Hồ sơ SpecialistApproved chờ lãnh đạo ban thẩm định" />
     <RejectDialog open={commentOpen} onOpenChange={setCommentOpen} localityName={selectedRow?.locality.name} state="CHO_DUYET_BAN" title="Nhận xét địa phương" confirmLabel="Gửi nhận xét" confirmVariant="default" submitAction="approve" description="Nhận xét được lưu vào lịch sử hồ sơ và không làm thay đổi điểm hoặc trạng thái duyệt." reasonLabel="Nội dung nhận xét" reasonPlaceholder="Nhập nhận xét của Lãnh đạo ban về hồ sơ địa phương." onConfirm={saveComment} />
   </div>;

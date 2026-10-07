@@ -175,22 +175,22 @@ interface SpecialistReviewPageProps {
   embeddedDetail?: SpecialistReviewEmbeddedDetail;
 }
 
-type SubmissionStageFilter = '' | SubmissionStage;
+type SubmissionStageFilter = '' | SubmissionStage | string;
 type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 
-const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | SubmissionStage; label: string }>> = {
+const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: SubmissionStageFilter; label: string }>> = {
   SCORER: [
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
     { value: 'ScorerRevisionRequested', label: 'Chờ Chuyên viên cấp 2 chỉnh sửa' },
     { value: 'RequiresRevision', label: 'Chờ Địa phương chỉnh sửa' },
-    { value: 'ScorerSubmitted', label: 'Đã gửi Lãnh đạo ban' },
+    { value: 'ScorerSubmitted,ReviewerApproved,SpecialistApproved', label: 'Đã gửi Lãnh đạo ban' },
   ],
   REVIEWER: [
     { value: '', label: 'Tất cả' },
     { value: 'ScorerSubmitted', label: 'Đang chờ duyệt' },
     { value: 'ReviewerRevisionRequested', label: 'Chờ Lãnh đạo ban chỉnh sửa' },
-    { value: 'ReviewerApproved', label: 'Đã duyệt' },
+    { value: 'ReviewerApproved,SpecialistApproved', label: 'Đã duyệt' },
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
