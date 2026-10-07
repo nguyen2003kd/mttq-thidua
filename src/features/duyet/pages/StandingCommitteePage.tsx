@@ -3,6 +3,7 @@ import { Eye, History, Send, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
+import { SCORE_STATE_LABELS } from '@/constants/enums';
 import { DataTable, EmptyState, PageHeader, ScoreStateBadge } from '@/components/core';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -155,34 +156,34 @@ export default function StandingCommitteePage() {
         accessorFn: (row) => getScoreTotals(row.record).score,
         header: 'Tổng điểm',
         cell: ({ row }) => <span className="font-semibold tabular-nums">{getScoreTotals(row.original.record).score}</span>,
-        meta: { align: 'right', className: 'min-w-[120px]' },
+        meta: { align: 'right', sortable: true, className: 'min-w-[120px]' },
       },
       {
         id: 'proposedScore',
         accessorFn: (row) => getScoreTotals(row.record).proposed,
         header: 'Tổng điểm đề xuất',
         cell: ({ row }) => <span className="tabular-nums">{getScoreTotals(row.original.record).proposed}</span>,
-        meta: { align: 'right', className: 'min-w-[155px]' },
+        meta: { align: 'right', sortable: true, className: 'min-w-[155px]' },
       },
       {
         id: 'totalBonus',
         accessorFn: (row) => getScoreTotals(row.record).bonus,
         header: 'Tổng điểm thưởng',
         cell: ({ row }) => <span className="tabular-nums">{getScoreTotals(row.original.record).bonus}</span>,
-        meta: { align: 'right', className: 'min-w-[150px]' },
+        meta: { align: 'right', sortable: true, className: 'min-w-[150px]' },
       },
       {
         id: 'proposedBonus',
         accessorFn: (row) => getScoreTotals(row.record).proposedBonus,
         header: 'Tổng điểm thưởng đề xuất',
         cell: ({ row }) => <span className="tabular-nums">{getScoreTotals(row.original.record).proposedBonus}</span>,
-        meta: { align: 'right', className: 'min-w-[190px]' },
+        meta: { align: 'right', sortable: true, className: 'min-w-[190px]' },
       },
       {
-        accessorFn: (row) => row.record.state,
+        accessorFn: (row) => SCORE_STATE_LABELS[row.record.state],
         header: 'Trạng thái',
         cell: ({ row }) => <ScoreStateBadge state={row.original.record.state} />,
-        meta: { align: 'center', className: 'min-w-[135px]' },
+        meta: { align: 'center', sortable: true, className: 'min-w-[135px]' },
       },
     ],
     [],

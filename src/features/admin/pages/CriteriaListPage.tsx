@@ -194,15 +194,14 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'name',
         header: LABELS.CRITERIA_TABLE_NAME,
-        enableSorting: true,
-        sortDescFirst: false,
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.name} className="w-full max-w-full font-medium" />
         ),
         meta: {
           className: 'font-medium',
           disableTooltip: true,
-          sortable: true,
+          sortable: false,
           list: { width: 'minmax(220px, 1.5fr)' },
         },
       },
@@ -210,34 +209,31 @@ export default function CriteriaListPage() {
         id: 'departmentName',
         accessorFn: (row) => row.departmentName ?? '',
         header: 'Ban xử lý',
-        enableSorting: true,
-        sortDescFirst: false,
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.departmentName} className="w-full max-w-full" />
         ),
-        meta: { disableTooltip: true, sortable: true, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
       {
         id: 'periodName',
         accessorFn: (row) => row.periodName ?? '',
         header: 'Kỳ',
-        enableSorting: true,
-        sortDescFirst: false,
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.periodName} className="w-full max-w-full" />
         ),
-        meta: { disableTooltip: true, sortable: true, list: { label: 'Kỳ', width: '110px' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Kỳ', width: '110px' } },
       },
       {
         id: 'content',
         accessorFn: (row) => row.content ?? row.criteria.map((criteria) => criteria.name).join(' '),
         header: 'Nội dung tiêu chí',
-        enableSorting: true,
-        sortDescFirst: false,
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.content} className="w-full max-w-[280px] text-sm text-muted-foreground" />
         ),
-        meta: { disableTooltip: true, sortable: true, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
       {
         accessorKey: 'closeDate',
@@ -263,12 +259,11 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'note',
         header: 'Ghi chú',
-        enableSorting: true,
-        sortDescFirst: false,
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
         ),
-        meta: { disableTooltip: true, sortable: true, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
       {
         accessorKey: 'status',

@@ -613,19 +613,19 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
       accessorKey: 'deadline',
       header: 'Hạn nộp',
       size: 130,
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', sortable: true, disableTooltip: true },
     },
     {
       id: 'proposedScore',
       header: 'Điểm đề xuất ★',
       size: 130,
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', sortable: true, disableTooltip: true },
     },
     {
       id: 'bonusScore',
       header: 'Điểm thưởng',
       size: 130,
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', sortable: true, disableTooltip: true },
     },
     {
       id: 'explanation',

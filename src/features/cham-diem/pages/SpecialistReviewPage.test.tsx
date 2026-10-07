@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getSpecialistSubmissionPermissions } from '../api/specialistApi';
 import { getSpecialistGroupProgress } from '../utils/specialistGroupProgress';
 import { filterSubmissionsByStage } from '../utils/submissionStageFilter';
+import { LOCALITY_STATUS_LABELS, sortLocalityRows, toggleLocalitySort } from '../utils/localitySorting';
 
 describe('getSpecialistGroupProgress', () => {
   const groups = [
@@ -63,5 +64,35 @@ describe('filterSubmissionsByStage', () => {
 
   it('keeps every record visible for the all tab', () => {
     expect(filterSubmissionsByStage(submissions, '')).toEqual(submissions);
+  });
+});
+
+describe('locality sorting', () => {
+  const rows = [
+    { localityId: 'two', completedGroupCount: 2, overallStatus: 'CHO_DUYET' },
+    { localityId: 'ten', completedGroupCount: 10, overallStatus: 'DA_DUYET' },
+    { localityId: 'one', completedGroupCount: 1, overallStatus: 'CHUA_NOP' },
+    { localityId: 'three', completedGroupCount: 3, overallStatus: 'YEU_CAU_SUA' },
+  ] as const;
+
+  it('sorts completed group counts numerically in both directions', () => {
+    expect(sortLocalityRows(rows, 'completion-desc').map((row) => row.localityId)).toEqual(['ten', 'three', 'two', 'one']);
+    expect(sortLocalityRows(rows, 'completion-asc').map((row) => row.localityId)).toEqual(['one', 'two', 'three', 'ten']);
+  });
+
+  it('sorts status using its displayed Vietnamese label', () => {
+    expect(sortLocalityRows(rows, 'status-asc').map((row) => row.localityId)).toEqual(['one', 'ten', 'two', 'three']);
+    expect(sortLocalityRows(rows, 'status-desc').map((row) => row.localityId)).toEqual(['three', 'two', 'ten', 'one']);
+    expect(LOCALITY_STATUS_LABELS.CHUA_NOP).toBe('Chưa nộp');
+  });
+
+  it('cycles a sortable column through default direction, reverse direction, and original order', () => {
+    expect(toggleLocalitySort('', 'completion')).toBe('completion-desc');
+    expect(toggleLocalitySort('completion-desc', 'completion')).toBe('completion-asc');
+    expect(toggleLocalitySort('completion-asc', 'completion')).toBe('');
+    expect(toggleLocalitySort('status-desc', 'completion')).toBe('completion-desc');
+    expect(toggleLocalitySort('', 'status')).toBe('status-asc');
+    expect(toggleLocalitySort('status-asc', 'status')).toBe('status-desc');
+    expect(toggleLocalitySort('status-desc', 'status')).toBe('');
   });
 });

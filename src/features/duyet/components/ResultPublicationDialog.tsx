@@ -18,6 +18,7 @@ import { resultPublicationApi } from '../api/resultPublicationApi';
 interface ResultPublicationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  selectedPeriodId?: string;
 }
 
 interface UnsubmittedCriteriaGroup {
@@ -49,7 +50,7 @@ function groupUnsubmittedByLocality(groups: UnsubmittedCriteriaGroup[]): Unsubmi
     .sort((a, b) => a.wardName.localeCompare(b.wardName, 'vi'));
 }
 
-export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicationDialogProps) {
+export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }: ResultPublicationDialogProps) {
   const queryClient = useQueryClient();
   const [periodId, setPeriodId] = useState('');
   const [publicationNote, setPublicationNote] = useState('');
@@ -64,22 +65,24 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
   const periods = periodsQuery.data ?? [];
   const selectablePeriods = periods.filter((period) => period.status !== 'Draft');
   const defaultPeriodId = selectablePeriods.find((period) => period.status === 'Active')?.id ?? selectablePeriods[0]?.id ?? '';
-  const selectedPeriod = selectablePeriods.find((period) => period.id === periodId);
+  const periodToPublish = selectedPeriodId || periodId;
+  const selectedPeriod = selectablePeriods.find((period) => period.id === periodToPublish);
 
   useEffect(() => {
+    if (selectedPeriodId) return;
     if (open && !selectablePeriods.some((period) => period.id === periodId))
       setPeriodId(defaultPeriodId);
-  }, [defaultPeriodId, open, periodId, selectablePeriods]);
+  }, [defaultPeriodId, open, periodId, selectablePeriods, selectedPeriodId]);
 
   const previewQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1ResultPublicationsPreviewQueryKey(), periodId),
-    queryFn: () => resultPublicationApi.getPreview(periodId),
-    enabled: open && Boolean(periodId),
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsPreviewQueryKey(), periodToPublish),
+    queryFn: () => resultPublicationApi.getPreview(periodToPublish),
+    enabled: open && Boolean(periodToPublish),
   });
   const criteriaGroupsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1ResultPublicationsCriteriaGroupsQueryKey(), periodId),
-    queryFn: () => resultPublicationApi.getCriteriaGroups(periodId),
-    enabled: open && Boolean(periodId),
+    queryKey: dataQueryKey(getGetApiV1ResultPublicationsCriteriaGroupsQueryKey(), periodToPublish),
+    queryFn: () => resultPublicationApi.getCriteriaGroups(periodToPublish),
+    enabled: open && Boolean(periodToPublish),
   });
   const unsubmittedGroups = criteriaGroupsQuery.data?.flatMap((group) =>
     group.localities
@@ -126,7 +129,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
 
   const submitPublication = () => {
     const note = publicationNote.trim();
-    if (!periodId) {
+    if (!periodToPublish) {
       setPublicationError('Vui lòng chọn kỳ thi đua cần công bố.');
       return;
     }
@@ -139,7 +142,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
       return;
     }
     setPublicationError(null);
-    publishMutation.mutate({ periodId, note, file: publicationFile[0] ?? null });
+    publishMutation.mutate({ periodId: periodToPublish, note, file: publicationFile[0] ?? null });
   };
 
   return (
@@ -160,10 +163,10 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
               <div className="space-y-2">
                 <Label htmlFor="publication-period">Kỳ thi đua <span className="text-destructive">★</span></Label>
                 <Select
-                  value={periodId}
+                  value={periodToPublish}
                   onValueChange={(value) => { setPeriodId(value ?? ''); setPublicationError(null); }}
                   itemToStringLabel={(id) => selectablePeriods.find((period) => period.id === id)?.name ?? 'Kỳ thi đua'}
-                  disabled={publishMutation.isPending}
+                  disabled={Boolean(selectedPeriodId) || publishMutation.isPending}
                 >
                   <SelectTrigger id="publication-period"><SelectValue placeholder="Chọn kỳ thi đua" /></SelectTrigger>
                   <SelectContent>
@@ -175,7 +178,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
               <p className="rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">Chưa có kỳ thi đua đang hoạt động hoặc đã kết thúc để công bố.</p>
             )}
 
-            {periodId && (previewQuery.isLoading ? (
+            {periodToPublish && (previewQuery.isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Đang chuẩn bị dữ liệu xem trước…</div>
             ) : previewQuery.isError ? (
               <p className="text-sm text-destructive">Không tải được điều kiện công bố cho kỳ thi đua này.</p>
@@ -266,7 +269,7 @@ export function ResultPublicationDialog({ open, onOpenChange }: ResultPublicatio
           <Button variant="outline" onClick={close} disabled={publishMutation.isPending}>Hủy</Button>
           <Button
            
-            disabled={!periodId || !previewQuery.data?.canPublish || publishMutation.isPending}
+            disabled={!periodToPublish || !previewQuery.data?.canPublish || publishMutation.isPending}
             onClick={submitPublication}
           >
             <Send className="mr-1.5 size-4" />{publishMutation.isPending ? 'Đang lưu và gửi…' : 'Lưu và gửi'}

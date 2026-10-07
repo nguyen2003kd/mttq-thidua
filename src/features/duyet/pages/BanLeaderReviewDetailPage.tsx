@@ -12,6 +12,9 @@ import { ArrowLeft, Download, Eye, FileText, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner';
 import { Link, useParams } from 'react-router-dom';
 import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, RejectDialog, TableColumnVisibility } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -95,6 +98,7 @@ export default function BanLeaderReviewDetailPage() {
   // const [revisionOpen, setRevisionOpen] = useState(false); // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
   // const [forwardOpen, setForwardOpen] = useState(false); // tạm ẩn nút duyệt của Lãnh đạo ban
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
+  const [detailSort, setDetailSort] = useState<TableSortState>(null);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
   // const [scoreEditOpen, setScoreEditOpen] = useState(false); // tạm ẩn cùng tính năng sửa điểm của Lãnh đạo ban
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
@@ -152,6 +156,14 @@ export default function BanLeaderReviewDetailPage() {
   if (!groupQuery.data || !submission) return <EmptyState title="Không tìm thấy hồ sơ" description="Submission không tồn tại hoặc không còn ở trạng thái SpecialistApproved." />;
 
   const resultItems = criteria.map((criterion) => ({ criterion, result: resultsByCriteria.get(criterion.id) }));
+  const sortedResultItems = sortTableRows(resultItems, detailSort, {
+    proposed: (item) => item.result ? item.result.point + item.result.bonusPoint : null,
+    specialist: (item) => item.result ? (item.result.officialPoint ?? item.result.point) + (item.result.officialBonusPoint ?? item.result.bonusPoint) : null,
+  });
+  const detailSortOptions: TableSortOption[] = [
+    { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+    { value: 'specialist-desc', label: 'Điểm Chuyên viên cao nhất', sort: { column: 'specialist', direction: 'desc' } },
+  ];
   const activeResultItems = resultItems.filter(({ criterion, result }) => criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted');
   const activeResults = activeResultItems.flatMap(({ result }) => result ? [result] : []);
   const proposedScore = sumResults(activeResults, (result) => result.point);
@@ -374,7 +386,7 @@ export default function BanLeaderReviewDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background px-4 py-4 sm:px-5"><div><p className="flex items-center gap-2 text-base font-semibold"><FileText className="size-4 text-primary" />Chi tiết tiêu chí con</p><p className="mt-1 text-sm text-muted-foreground">Đối chiếu bằng chứng, điểm địa phương đề xuất, điểm chuyên viên chấm và nội dung diễn giải trước khi phê duyệt.</p></div><span className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-xs font-medium tabular-nums text-primary">{criteria.length} tiêu chí</span></div>
       {(specialistForwarding || specialistForwardingFiles.length > 0) && <div className="flex justify-end border-b border-border bg-card/95 px-4 py-3 sm:px-5"><ForwardingDocumentsDialog documents={[{ label: 'Hồ sơ Chuyên viên chuyển lên', explanationLabel: 'Diễn giải hồ sơ từ chuyên viên', explanation: specialistForwarding?.reason, files: specialistForwardingFiles }]} onPreview={setPreviewFile} /></div>}
       <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border bg-card/95 px-4 py-3 sm:px-5">
-        <TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
+        <TableSortSelect sort={detailSort} options={detailSortOptions} onChange={setDetailSort} /><TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
         <Button variant="info" hideWhen={!selectedResultItem} disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
         <Button variant="outline" disabled={!canComment || commentPending} disabledReason={!canComment ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button>
         {/* Tạm ẩn nút Sửa điểm / Lưu nháp — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
@@ -385,8 +397,8 @@ export default function BanLeaderReviewDetailPage() {
         {/* Tạm ẩn nút duyệt của Lãnh đạo ban — chỉ xem hồ sơ.
         <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button> */}
       </div>
-      <div className="overflow-x-auto"><Table data-column-visibility-table="leader-review-detail" className="min-w-[1440px] table-fixed"><colgroup><col className="w-[23%]" /><col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[19%]" /><col className="w-[23%]" /></colgroup><TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm địa phương đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Điểm chuyên viên chấm</TableHead><TableHead className="bg-primary px-4 py-3 text-primary-foreground">Nội dung diễn giải</TableHead></TableRow></TableHeader><TableBody>
-        {resultItems.map(({ criterion, result }) => {
+      <div className="overflow-x-auto"><Table data-column-visibility-table="leader-review-detail" className="min-w-[1440px] table-fixed"><colgroup><col className="w-[23%]" /><col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[19%]" /><col className="w-[23%]" /></colgroup><TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><SortableTableHead column="proposed" label="Điểm địa phương đề xuất" ariaLabel="Điểm địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="specialist" label="Điểm chuyên viên chấm" ariaLabel="Điểm chuyên viên chấm" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'specialist', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><TableHead className="bg-primary px-4 py-3 text-primary-foreground">Nội dung diễn giải</TableHead></TableRow></TableHeader><TableBody>
+        {sortedResultItems.map(({ criterion, result }) => {
           const revised = leaderScoreFor(result);
           return <TableRow key={criterion.id} aria-selected={selectedCriteriaId === criterion.id} onClick={() => setSelectedCriteriaId(criterion.id)} className={selectedCriteriaId === criterion.id ? 'cursor-pointer align-top bg-primary/[0.055] shadow-[inset_3px_0_0_#009ee3] hover:bg-primary/[0.07]' : 'cursor-pointer align-top hover:bg-muted/60'}>
             <TableCell className="border-r border-primary/15 px-4 py-5"><p title={criterion.content} className="line-clamp-4 font-semibold leading-5">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}{result && result.officialReason !== null && <Button type="button" variant="ghost" size="sm" className="mt-3 -ml-2 h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" onClick={(event) => { event.stopPropagation(); setScoreRevisionResult(result); }}><Eye className="size-4" />Xem điểm đã sửa</Button>}</TableCell>

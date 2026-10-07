@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clustersApi } from '@/features/admin/api/clustersApi';
 import { periodsApi, type PeriodApi } from '@/features/admin/api/periodsApi';
+import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { useAuthStore } from '@/store/authStore';
 import { specialistApi, type SubmissionApi, type SubmissionResultItem } from '../api/specialistApi';
 import SpecialistScoreSummaryPage from './SpecialistScoreSummaryPage';
@@ -171,6 +172,39 @@ describe('SpecialistScoreSummaryPage period filter', () => {
       expect.objectContaining({ periodId: 'period-active' }),
     ));
     expect(specialistApi.listAllSubmissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the selected period to the publication dialog and locks its period selector', async () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+    const periods = [
+      makePeriod('period-active', 2025, 2026, 'Active'),
+      makePeriod('period-latest', 2027, 2028, 'Closed'),
+    ];
+    prepareQueries(periods);
+    vi.spyOn(periodsApi, 'listAll').mockResolvedValue(periods);
+    vi.spyOn(resultPublicationApi, 'getPreview').mockResolvedValue({
+      periodId: 'period-active',
+      periodName: '2025-2026',
+      canPublish: false,
+      isPublished: false,
+      totalLocalities: 1,
+      localitiesNotSubmitted: 0,
+      localitiesRequiresRevision: 0,
+      message: 'Chưa đủ điều kiện công bố.',
+      publishedAt: null,
+      unpublishedLocalityGroups: [],
+    });
+    vi.spyOn(resultPublicationApi, 'getCriteriaGroups').mockResolvedValue([]);
+    useAuthStore.setState({ user: { id: 'specialist-1', name: 'Chuyên viên', role: 'SPECIALIST' } });
+    renderPage(false, '/chuyen-vien/tong-hop-cham-diem?periodFilter=period-active');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Công bố kết quả' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Xác nhận công bố kết quả' });
+    const periodSelector = await within(dialog).findByRole('combobox');
+    await waitFor(() => expect(periodSelector).toHaveTextContent('2025-2026'));
+    expect(periodSelector).toBeDisabled();
+    await waitFor(() => expect(resultPublicationApi.getPreview).toHaveBeenCalledWith('period-active'));
+    expect(resultPublicationApi.getCriteriaGroups).toHaveBeenCalledWith('period-active');
   });
 });
 

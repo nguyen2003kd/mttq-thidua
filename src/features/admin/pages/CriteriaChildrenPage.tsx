@@ -124,29 +124,31 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'maxScore',
       header: 'Điểm chuẩn',
-      meta: { align: 'center', list: { width: 'minmax(110px,0.7fr)' } },
+      meta: { align: 'center', sortable: true, list: { width: 'minmax(110px,0.7fr)' } },
     },
     {
       accessorKey: 'bonusScore',
       header: 'Điểm thưởng tối đa',
       cell: ({ row }) => row.original.bonusScore ?? 0,
-      meta: { align: 'center', list: { width: 'minmax(145px,0.85fr)' } },
+      meta: { align: 'center', sortable: true, list: { width: 'minmax(145px,0.85fr)' } },
     },
     {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
+      sortDescFirst: true,
       cell: ({ row }) => row.original.deadline ? formatDate(row.original.deadline) : '—',
-      meta: { list: { width: 'minmax(145px,0.9fr)' } },
+      meta: { sortable: true, list: { width: 'minmax(145px,0.9fr)' } },
     },
     {
-      accessorKey: 'status',
+      accessorFn: (row) => row.status === 'Deleted' ? 'Vô hiệu' : row.status === 'Applied' ? 'Đã áp dụng' : 'Nháp',
+      id: 'status',
       header: 'Trạng thái',
       cell: ({ row }) => row.original.status === 'Deleted'
         ? <Badge variant="secondary">Vô hiệu</Badge>
         : row.original.status === 'Applied'
           ? <Badge variant="success">Đã áp dụng</Badge>
           : <Badge variant="secondary">Nháp</Badge>,
-      meta: { align: 'center', list: { width: 'minmax(120px,0.75fr)' } },
+      meta: { align: 'center', sortable: true, list: { width: 'minmax(120px,0.75fr)' } },
     },
     {
       accessorKey: 'note',
