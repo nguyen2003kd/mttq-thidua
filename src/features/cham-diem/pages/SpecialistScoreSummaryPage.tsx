@@ -863,7 +863,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
               <div className="flex items-baseline justify-between gap-2 px-4 py-2">
                 <dt className="text-xs font-semibold text-info">Khá</dt>
                 <dd className="text-xs text-foreground">
-                  Dưới 85 điểm
+                  Thấp hơn 85 điểm
                 </dd>
               </div>
             </dl>
