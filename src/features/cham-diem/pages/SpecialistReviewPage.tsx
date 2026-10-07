@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   Download,
   Edit3,
   Eye,
@@ -48,6 +50,16 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
+import {
+  getLocalitySortDirection,
+  LOCALITY_SORT_OPTIONS,
+  LOCALITY_STATUS_LABELS,
+  sortLocalityRows,
+  toggleLocalitySort,
+  type LocalityOverallStatus,
+  type LocalitySortDirection,
+  type LocalitySortValue,
+} from '@/features/cham-diem/utils/localitySorting';
 import { buildScoreEntryUrl } from '@/features/cham-diem/utils/scoreEntryNavigation';
 import { filterSubmissionsByStage } from '@/features/cham-diem/utils/submissionStageFilter';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -158,8 +170,9 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
 interface LocalityRow {
   localityId: string;
   localityName: string;
+  completedGroupCount: number;
   completionRate: string;
-  overallStatus: 'CHUA_NOP' | 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
+  overallStatus: LocalityOverallStatus;
   hasNewSubmissions: boolean;
   hasModificationRequest: boolean;
   submissionIds: string[];
@@ -1105,10 +1118,16 @@ function SupplementaryDialog({
 // }
 
 function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
-  if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge>;
-  if (status === 'DA_DUYET') return <Badge variant="success">Đã duyệt</Badge>;
-  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Đang chờ duyệt</Badge>;
+  if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  if (status === 'DA_DUYET') return <Badge variant="success">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+}
+
+function LocalitySortIcon({ direction }: { direction: LocalitySortDirection | undefined }) {
+  if (direction === 'asc') return <ChevronUp aria-hidden="true" className="size-3.5 shrink-0" />;
+  if (direction === 'desc') return <ChevronDown aria-hidden="true" className="size-3.5 shrink-0" />;
+  return <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-primary-foreground/60" />;
 }
 
 function GroupStatusBadge({ status, role, stage }: { status: SpecialistCriteriaGroup['status']; role: ScoringRole; stage?: SubmissionStage | null }) {
@@ -1514,6 +1533,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const [approving, setApproving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
+  const [localitySort, setLocalitySort] = useState<LocalitySortValue>('');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
   const defaultSelectedCriteriaIds = useMemo(() => (selectedCriterionId ? [selectedCriterionId] : []), [selectedCriterionId]);
@@ -1614,10 +1634,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           : statuses.includes('CHO_DUYET')
             ? 'CHO_DUYET'
             : 'DA_DUYET';
+      const completedGroupCount = realSubs.filter((s) => STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][s.currentStage] === 'DA_CHAM').length;
       return {
         localityId: wardCode,
         localityName: subs[0]?.localityFullName ?? subs[0]?.createdByUsername ?? wardCode,
-        completionRate: `${realSubs.filter((s) => STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][s.currentStage] === 'DA_CHAM').length}/${totalAppliedGroups}`,
+        completedGroupCount,
+        completionRate: `${completedGroupCount}/${totalAppliedGroups}`,
         overallStatus,
         hasNewSubmissions: statuses.includes('CHO_DUYET'),
         hasModificationRequest: statuses.includes('YEU_CAU_SUA'),
@@ -1846,10 +1868,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       return matchesSearch;
     });
   }, [localityRows, debouncedLocalitySearch]);
+  const sortedLocalityRows = useMemo(
+    () => sortLocalityRows(filteredLocalityRows, localitySort),
+    [filteredLocalityRows, localitySort],
+  );
 
   if (!diaPhuongId) {
     const visibleRows = filteredLocalityRows;
+    const sortedRows = sortedLocalityRows;
     const selectedLocality = visibleRows.find((row) => row.localityId === selectedLocalityId);
+    const completionSortDirection = getLocalitySortDirection(localitySort, 'completion');
+    const statusSortDirection = getLocalitySortDirection(localitySort, 'status');
     if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
       return <div className="space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
     }
@@ -1900,6 +1929,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
                 }}
                 options={groupPeriodOptions}
               />
+              <div className="xl:hidden">
+                <FilterSelect
+                  label="Sắp xếp"
+                  value={localitySort}
+                  onChange={(value) => setLocalitySort(value as LocalitySortValue)}
+                  options={LOCALITY_SORT_OPTIONS}
+                  allLabel="Mặc định"
+                />
+              </div>
               <TableColumnVisibility
                 storageKey="specialist-localities"
                 columns={[
@@ -1939,15 +1977,41 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
               <TableHeader>
                 <TableRow className="bg-primary hover:bg-primary">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tên địa phương</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nhóm tiêu chí đã hoàn thành</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái hồ sơ</TableHead>
+                  <TableHead
+                    aria-sort={completionSortDirection === 'asc' ? 'ascending' : completionSortDirection === 'desc' ? 'descending' : undefined}
+                    className="whitespace-normal border-r border-white/30 bg-primary p-0 text-center leading-5 text-primary-foreground"
+                  >
+                    <button
+                      type="button"
+                      aria-label={`Sắp xếp theo Nhóm tiêu chí đã hoàn thành${completionSortDirection ? (completionSortDirection === 'asc' ? ' tăng dần' : ' giảm dần') : ''}`}
+                      onClick={() => setLocalitySort((current) => toggleLocalitySort(current, 'completion'))}
+                      className="flex w-full cursor-pointer items-center justify-center gap-1 px-4 py-3 text-center leading-5 transition-colors hover:text-primary-foreground/75"
+                    >
+                      <span>Nhóm tiêu chí đã hoàn thành</span>
+                      <LocalitySortIcon direction={completionSortDirection} />
+                    </button>
+                  </TableHead>
+                  <TableHead
+                    aria-sort={statusSortDirection === 'asc' ? 'ascending' : statusSortDirection === 'desc' ? 'descending' : undefined}
+                    className="whitespace-normal border-r border-white/30 bg-primary p-0 text-center leading-5 text-primary-foreground"
+                  >
+                    <button
+                      type="button"
+                      aria-label={`Sắp xếp theo Trạng thái hồ sơ${statusSortDirection ? (statusSortDirection === 'asc' ? ' tăng dần' : ' giảm dần') : ''}`}
+                      onClick={() => setLocalitySort((current) => toggleLocalitySort(current, 'status'))}
+                      className="flex w-full cursor-pointer items-center justify-center gap-1 px-4 py-3 text-center leading-5 transition-colors hover:text-primary-foreground/75"
+                    >
+                      <span>Trạng thái hồ sơ</span>
+                      <LocalitySortIcon direction={statusSortDirection} />
+                    </button>
+                  </TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Tiêu chí mới được nộp</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa</TableHead>
                   <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Cập nhật thông tin mới</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleRows.map((row) => {
+                {sortedRows.map((row) => {
                   const newGroups = row.hasNewSubmissions ? 1 : 0;
                   return (
                   <TableRow
@@ -1986,7 +2050,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           </div>
 
           <div className="xl:hidden">
-            {visibleRows.length > 0 ? visibleRows.map((row) => (
+            {sortedRows.length > 0 ? sortedRows.map((row) => (
               <article
                 key={row.localityId}
                 className={cn(
