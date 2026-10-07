@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading, PeriodSelect } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -651,6 +652,7 @@ function DateRangeFilter({ label, value, onChange }: { label?: string; value: st
 /** Nội dung trang lịch sử audit: filter + bảng + modal chi tiết. Backend tự scope — role thường chỉ thấy log của mình, ADMIN thấy tất cả. Dùng lại cho trang lịch sử của từng role. */
 export function AuditLogView({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   const [page, setPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const {
     filters: { module, action, entityName, searchInput, from, to, periodFilter },
     setters: {
@@ -674,7 +676,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     page,
     pageSize: PAGE_SIZE,
     sortBy: 'createdAt',
-    sortOrder: 'desc',
+    sortOrder,
     // Lọc theo kỳ thi đua: BE giải mã chuỗi entity thuộc kỳ (chính xác hơn lọc theo khoảng năm).
     ...(effectivePeriodFilter ? { periodId: effectivePeriodFilter } : {}),
     ...(from ? { from: new Date(`${from}T00:00:00`).toISOString() } : {}),
@@ -683,7 +685,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     ...(action ? { action } : {}),
     ...(entityName ? { entityName } : {}),
     ...(search ? { search } : {}),
-  }), [page, from, to, module, action, entityName, search, effectivePeriodFilter]);
+  }), [page, from, to, module, action, entityName, search, effectivePeriodFilter, sortOrder]);
 
   const logsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuditLogsQueryKey(), query), queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;
@@ -773,7 +775,14 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
-                <TableHead className="w-[120px] border-r border-white/15 text-sm font-semibold text-primary-foreground">Thời gian</TableHead>
+                <SortableTableHead
+                  column="createdAt"
+                  label="Thời gian"
+                  ariaLabel="Thời gian"
+                  sort={{ column: 'createdAt', direction: sortOrder }}
+                  onSort={() => setSortOrder((current) => current === 'desc' ? 'asc' : 'desc')}
+                  className="w-[120px] border-r border-white/15 bg-primary text-sm font-semibold text-primary-foreground"
+                />
                 <TableHead className="border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
                 <TableHead className="w-[130px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
                 <TableHead className="w-[150px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>

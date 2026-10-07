@@ -11,6 +11,8 @@ import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Eye, FileT
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, PeriodSelect, TruncatedText } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -24,6 +26,7 @@ import { usePeriodStore } from '@/store/periodStore';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { cn, formatDate } from '@/lib/utils';
 import type { AuditEntry } from '@/types/domain';
 import type { ActionType, Role } from '@/types/rbac';
@@ -143,6 +146,21 @@ interface ResultRow {
   officialBonus: number | null;
 }
 
+const RESULT_GROUP_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'maxPoint-desc', label: 'Điểm chuẩn cao nhất', sort: { column: 'maxPoint', direction: 'desc' } },
+  { value: 'proposedPoint-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposedPoint', direction: 'desc' } },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng đề xuất cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
+  { value: 'officialPoint-desc', label: 'Điểm tỉnh cao nhất', sort: { column: 'officialPoint', direction: 'desc' } },
+  { value: 'officialBonus-desc', label: 'Điểm thưởng tỉnh cao nhất', sort: { column: 'officialBonus', direction: 'desc' } },
+  { value: 'proposedTotal-desc', label: 'Tổng điểm đề xuất cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
+  { value: 'currentPoint-desc', label: 'Tổng điểm tỉnh cao nhất', sort: { column: 'currentPoint', direction: 'desc' } },
+];
+
+const RESULT_DETAIL_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+  { value: 'actual-desc', label: 'Điểm thực tế cao nhất', sort: { column: 'actual', direction: 'desc' } },
+];
+
 
 function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   return <div className={label === 'Nội dung' ? 'sm:col-span-2' : ''}><dt className="text-xs font-medium text-muted-foreground">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-sm leading-6">{value}</dd></div>;
@@ -249,6 +267,8 @@ export default function LocalityResultsPage() {
   const [publicationPreviewFile, setPublicationPreviewFile] = useState<{ id: string; displayName?: string | null; originalName?: string | null } | null>(null);
   const [mobilePage, setMobilePage] = useState(1);
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const [groupSort, setGroupSort] = useState<TableSortState>(null);
+  const [detailSort, setDetailSort] = useState<TableSortState>(null);
   const { filters: { search }, setters: { search: setSearch } } = useQueryFilters({ search: '' });
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -392,6 +412,17 @@ export default function LocalityResultsPage() {
     if (!keyword) return rows;
     return rows.filter((row) => row.groupName.toLowerCase().includes(keyword) || row.groupContent.toLowerCase().includes(keyword));
   }, [rows, search]);
+  const groupSortAccessors = {
+    maxPoint: (row: ResultRow) => row.maxPoint,
+    proposedPoint: (row: ResultRow) => row.proposedPoint,
+    proposedBonus: (row: ResultRow) => row.proposedBonus,
+    officialPoint: (row: ResultRow) => row.officialPoint,
+    officialBonus: (row: ResultRow) => row.officialBonus,
+    proposedTotal: (row: ResultRow) => row.proposedPoint === null || row.proposedBonus === null ? null : row.proposedPoint + row.proposedBonus,
+    currentPoint: (row: ResultRow) => row.currentPoint,
+  };
+  const sortedFilteredRows = sortTableRows(filteredRows, groupSort, groupSortAccessors);
+  const sortedResultRows = sortTableRows(rows, groupSort, groupSortAccessors);
 
   const toggleGroup = (groupId: string) => setExpandedGroupIds((current) => {
     const next = new Set(current);
@@ -475,18 +506,28 @@ export default function LocalityResultsPage() {
       <section className="hidden overflow-hidden rounded-lg border border-border bg-card md:block" aria-label="Bảng chi tiết kết quả">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary"><ListTree className="size-5" /></span><div><h2 className="text-base font-semibold text-foreground">Chi tiết điểm theo nhóm tiêu chí</h2><p className="mt-0.5 text-sm text-muted-foreground">Bấm vào một nhóm để xem các tiêu chí con.</p></div></div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm tên nhóm tiêu chí..." className="w-64 pl-9" /></div>
+            <TableSortSelect sort={groupSort} options={RESULT_GROUP_SORT_OPTIONS} onChange={setGroupSort} />
             <Badge variant="secondary">{filteredRows.length} nhóm</Badge>
           </div>
         </div>
         <Table className="min-w-[1660px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[19%]" /><col className="w-[17%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
-          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm chuẩn</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Xã (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm điểm thưởng địa phương (phường) đề nghị</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tỉnh chấm</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng của tỉnh</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tổng điểm địa phương (phường) chấm</TableHead><TableHead className="whitespace-normal px-4 py-3 text-center leading-5 text-primary-foreground">Tổng điểm tỉnh chấm</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><SortableTableHead column="maxPoint" label="Điểm chuẩn" ariaLabel="Điểm chuẩn" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'maxPoint', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="proposedPoint" label="Xã/phường đề nghị" ariaLabel="Điểm đề xuất" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedPoint', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương đề nghị" ariaLabel="Điểm thưởng đề xuất" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="officialPoint" label="Tỉnh chấm" ariaLabel="Điểm tỉnh chấm" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'officialPoint', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="officialBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng tỉnh" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'officialBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="proposedTotal" label="Tổng điểm địa phương chấm" ariaLabel="Tổng điểm địa phương" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="currentPoint" label="Tổng điểm tỉnh chấm" ariaLabel="Tổng điểm tỉnh" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'currentPoint', 'desc'))} align="right" className="bg-primary text-right" /></TableRow></TableHeader>
           <TableBody>
-            {filteredRows.flatMap((row) => {
+            {sortedFilteredRows.flatMap((row) => {
               const expanded = expandedGroupIds.has(row.criteriaGroupId);
               const criteria = mergeSubmissionCriteria(groupById.get(row.criteriaGroupId)?.criteria, row.submission?.results, row.submission?.id);
               const resultsByCriteriaId = new Map((row.submission?.results ?? []).map((result) => [result.criteriaId, result]));
+              const sortedCriteria = sortTableRows(criteria, groupSort, {
+                maxPoint: (criterion) => criterion.maxPoint,
+                proposedPoint: (criterion) => resultsByCriteriaId.get(criterion.id)?.point,
+                proposedBonus: (criterion) => resultsByCriteriaId.get(criterion.id)?.bonusPoint,
+                officialPoint: (criterion) => resultsByCriteriaId.get(criterion.id)?.officialPoint,
+                officialBonus: (criterion) => resultsByCriteriaId.get(criterion.id)?.officialBonusPoint,
+                proposedTotal: (criterion) => { const result = resultsByCriteriaId.get(criterion.id); return result ? result.point + result.bonusPoint : null; },
+                currentPoint: (criterion) => { const result = resultsByCriteriaId.get(criterion.id); return result && (result.officialPoint !== null || result.officialBonusPoint !== null) ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0) : null; },
+              });
               const proposedTotal = row.proposedPoint === null || row.proposedBonus === null ? null : row.proposedPoint + row.proposedBonus;
               return [
                 <TableRow key={row.criteriaGroupId} className="cursor-pointer bg-primary/[0.035] hover:bg-primary/[0.07]" onClick={() => { toggleGroup(row.criteriaGroupId); setSelectedRow(row); }}>
@@ -500,14 +541,14 @@ export default function LocalityResultsPage() {
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={proposedTotal} strong /></TableCell>
                   <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums text-primary">{formatScore(row.currentPoint)}</span></TableCell>
                 </TableRow>,
-                ...(expanded ? criteria.map((criterion) => <ChildResultRow key={`${row.criteriaGroupId}-${criterion.id}`} criterion={criterion} result={resultsByCriteriaId.get(criterion.id)} />) : []),
+                ...(expanded ? sortedCriteria.map((criterion) => <ChildResultRow key={`${row.criteriaGroupId}-${criterion.id}`} criterion={criterion} result={resultsByCriteriaId.get(criterion.id)} />) : []),
               ];
             })}
             {!filteredRows.length && <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Chưa có kết quả được công bố.</TableCell></TableRow>}
           </TableBody>
         </Table>
       </section>
-      <ResultCards rows={rows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}?periodId=${encodeURIComponent(periodId)}`)} />
+      <ResultCards rows={sortedResultRows} page={mobilePage} onPageChange={setMobilePage} onView={(row) => navigate(`/dia-phuong/ket-qua/${row.submissionId ?? row.criteriaGroupId}?periodId=${encodeURIComponent(periodId)}`)} />
     </div>;
   }
 
@@ -554,12 +595,13 @@ export default function LocalityResultsPage() {
     <section className="overflow-clip rounded-lg border border-border border-t-2 border-t-primary bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
         <div><h2 className="flex items-center gap-2 text-base font-semibold"><FileText className="size-4 text-primary" />Chi tiết tiêu chí con</h2><p className="mt-1 text-sm text-muted-foreground">{detailSubmission ? 'Điểm chính thức đã được các cấp thẩm định và công bố.' : 'Địa phương chưa nộp hồ sơ cho nhóm này — điểm công bố được tính là 0.'}</p></div>
+        <TableSortSelect sort={detailSort} options={RESULT_DETAIL_SORT_OPTIONS} onChange={setDetailSort} />
       </div>
       <div className="hidden overflow-x-auto md:block"><Table className="min-w-[1480px] table-fixed">
         <colgroup><col className="w-[29%]" /><col className="w-[16%]" /><col className="w-[16%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[11%]" /><col className="w-[4%]" /></colgroup>
-        <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-center text-primary-foreground">Điểm đề xuất</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-center text-primary-foreground">Điểm thực tế</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Lý do</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Ghi chú</TableHead><TableHead className="bg-primary px-3 py-3 text-center text-primary-foreground"><span className="sr-only">Xem chi tiết</span></TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><SortableTableHead column="proposed" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="actual" label="Điểm thực tế" ariaLabel="Điểm thực tế" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'actual', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Lý do</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Ghi chú</TableHead><TableHead className="bg-primary px-3 py-3 text-center text-primary-foreground"><span className="sr-only">Xem chi tiết</span></TableHead></TableRow></TableHeader>
         <TableBody>
-          {criteria.map((criterion) => {
+          {sortTableRows(criteria, detailSort, { proposed: (criterion) => resultByCriterion.get(criterion.id) ? (resultByCriterion.get(criterion.id)!.point + resultByCriterion.get(criterion.id)!.bonusPoint) : null, actual: (criterion) => { const result = resultByCriterion.get(criterion.id); return result ? (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint) : null; } }).map((criterion) => {
             const result = resultByCriterion.get(criterion.id);
             const files = result?.files ?? [];
             return <TableRow key={criterion.id} className="cursor-pointer align-top" onClick={() => setCriterionDialog({ criterion, result: result ?? null })}>
@@ -575,7 +617,7 @@ export default function LocalityResultsPage() {
           {!criteria.length && <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Chưa có tiêu chí con.</TableCell></TableRow>}
         </TableBody>
       </Table></div>
-      <div className="space-y-3 p-4 md:hidden">{criteria.map((criterion) => {
+      <div className="space-y-3 p-4 md:hidden">{sortTableRows(criteria, detailSort, { proposed: (criterion) => resultByCriterion.get(criterion.id) ? (resultByCriterion.get(criterion.id)!.point + resultByCriterion.get(criterion.id)!.bonusPoint) : null, actual: (criterion) => { const result = resultByCriterion.get(criterion.id); return result ? (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint) : null; } }).map((criterion) => {
         const result = resultByCriterion.get(criterion.id) ?? null;
         const files = result?.files ?? [];
         return <article key={criterion.id} className="rounded-lg border border-border p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-muted-foreground">Tiêu chí con</p><p className="mt-1 text-sm font-semibold">{criterion.content}</p>{criterion.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</div><Button type="button" variant="ghost" size="icon" className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info" aria-label={`Xem chi tiết ${childCriterionName(criterion, result)}`} onClick={() => setCriterionDialog({ criterion, result })}><Eye className="size-4" /></Button></div><p className="mt-3 text-xs text-muted-foreground">Nội dung</p><p className="mt-1 text-sm leading-5">{criterion.content}</p><div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-xs text-muted-foreground">Điểm đề xuất</p><p className="mt-1 font-semibold tabular-nums">{result?.point ?? '—'}</p></div><div><p className="text-xs text-muted-foreground">Điểm thực tế</p><p className="mt-1 font-semibold tabular-nums text-primary">{result?.officialPoint ?? result?.point ?? '—'}</p></div></div><p className="mt-3 text-xs text-muted-foreground">Lý do</p><p className="mt-1 text-sm leading-5">{result?.officialReason || '—'}</p><div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><span className="text-xs text-muted-foreground">Ghi chú: {criterion.note || '—'}</span>{files.length ? <Button type="button" variant="info" size="sm" onClick={() => setEvidenceDialog({ criterionName: criterion.content, files })}><FileText className="size-4" />Xem ({files.length})</Button> : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}</div></article>;

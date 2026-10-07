@@ -3,6 +3,9 @@ import { FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { FilePreviewDialog, TableColumnVisibility } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import type { SubmissionApi } from '@/features/cham-diem/api/specialistApi';
@@ -22,6 +25,7 @@ function displayNumber(value: number) {
 
 export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, group }: CouncilSubmissionDetailDialogProps) {
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const [detailSort, setDetailSort] = useState<TableSortState>(null);
   if (!submission) return null;
 
   const criteriaById = new Map((group?.criteria ?? []).map((criterion) => [criterion.id, criterion]));
@@ -30,6 +34,14 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
   const actualTotal = activeResults.reduce((total, result) => total + (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint), 0);
   const actualBonusTotal = activeResults.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? 'Địa phương';
+  const sortedResults = sortTableRows(submission.results, detailSort, {
+    proposed: (result) => result.point + result.bonusPoint,
+    actual: (result) => (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint),
+  });
+  const detailSortOptions: TableSortOption[] = [
+    { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+    { value: 'actual-desc', label: 'Điểm thực tế cao nhất', sort: { column: 'actual', direction: 'desc' } },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,7 +61,8 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
           </div>
 
           <div className="rounded-lg border">
-            <div className="flex justify-end border-b p-2">
+            <div className="flex flex-wrap justify-end gap-2 border-b p-2">
+              <TableSortSelect sort={detailSort} options={detailSortOptions} onChange={setDetailSort} />
               <TableColumnVisibility
                 storageKey="council-submission-detail"
                 columns={[
@@ -69,15 +82,15 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                 <TableRow>
                   <TableHead>Tên tiêu chí con</TableHead>
                   <TableHead>Nội dung</TableHead>
-                  <TableHead className="text-right">Điểm đề xuất</TableHead>
-                  <TableHead className="text-right">Điểm thực tế</TableHead>
+                  <SortableTableHead column="proposed" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />
+                  <SortableTableHead column="actual" label="Điểm thực tế" ariaLabel="Điểm thực tế" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'actual', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />
                   <TableHead>Lý do</TableHead>
                   <TableHead>Minh chứng</TableHead>
                   <TableHead>Ghi chú</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {submission.results.map((result) => {
+                {sortedResults.map((result) => {
                   const criterion = criteriaById.get(result.criteriaId);
                   return (
                     <TableRow key={result.id}>

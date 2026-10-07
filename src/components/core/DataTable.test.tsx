@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FilterTextInput } from './FilterDropdown';
+import { sortTableRows, toggleTableSort, toTimestamp } from '@/lib/tableSorting';
 import { DataTable } from './DataTable';
 
 class ResizeObserverStub {
@@ -29,6 +30,11 @@ const sortableYearColumn: ColumnDef<PeriodSortRow>[] = [{
   sortDescFirst: false,
   meta: { sortable: true, list: { width: '132px' } },
 }];
+const defaultSortableScoreColumn: ColumnDef<{ score: number }>[] = [{ accessorKey: 'score', header: 'Điểm', meta: { sortable: true } }];
+const unsortableTextColumns: ColumnDef<{ content: string; description: string }>[] = [
+  { accessorKey: 'content', header: 'Nội dung' },
+  { accessorKey: 'description', header: 'Mô tả', meta: { sortable: false } },
+];
 
 function SearchParam() {
   const { search } = useLocation();
@@ -113,7 +119,7 @@ describe('DataTable text filters', () => {
 });
 
 describe('DataTable list sorting', () => {
-  it('sorts opted-in columns when their headers are clicked', () => {
+  it('sorts columns explicitly marked sortable when their headers are clicked', () => {
     render(
       <MemoryRouter>
         <DataTable
@@ -166,5 +172,63 @@ describe('DataTable list sorting', () => {
     await waitFor(() => {
       expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['2024', '1991']);
     });
+  });
+
+  it('sorts list columns explicitly marked sortable', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ score: 2 }, { score: 10 }]}
+          columns={defaultSortableScoreColumn}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Điểm' }));
+
+    expect(screen.getAllByText(/^(2|10)$/).map((item) => item.textContent)).toEqual(['10', '2']);
+  });
+
+  it('omits sorting controls from unmarked and explicitly unsortable text columns', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ content: 'Nội dung', description: 'Mô tả' }]}
+          columns={unsortableTextColumns}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Nội dung' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mô tả' })).not.toBeInTheDocument();
+  });
+});
+
+describe('table sorting helpers', () => {
+  const rows = [
+    { id: 'older', score: 70, status: 'Chưa nộp', date: '2025-04-01T00:00:00Z' },
+    { id: 'newer', score: 95, status: 'Đã duyệt', date: '2026-04-01T00:00:00Z' },
+    { id: 'pending', score: 80, status: 'Đang chờ duyệt', date: null },
+  ];
+  const accessors = {
+    score: (row: typeof rows[number]) => row.score,
+    status: (row: typeof rows[number]) => row.status,
+    date: (row: typeof rows[number]) => toTimestamp(row.date),
+  };
+
+  it('sorts numeric values, Vietnamese labels, and timestamps by their value types', () => {
+    expect(sortTableRows(rows, { column: 'score', direction: 'desc' }, accessors).map((row) => row.id)).toEqual(['newer', 'pending', 'older']);
+    expect(sortTableRows(rows, { column: 'status', direction: 'asc' }, accessors).map((row) => row.id)).toEqual(['older', 'newer', 'pending']);
+    expect(sortTableRows(rows, { column: 'date', direction: 'desc' }, accessors).map((row) => row.id)).toEqual(['newer', 'older', 'pending']);
+  });
+
+  it('cycles a column through both directions and back to original order', () => {
+    expect(toggleTableSort(null, 'score', 'desc')).toEqual({ column: 'score', direction: 'desc' });
+    expect(toggleTableSort({ column: 'score', direction: 'desc' }, 'score', 'desc')).toEqual({ column: 'score', direction: 'asc' });
+    expect(toggleTableSort({ column: 'score', direction: 'asc' }, 'score', 'desc')).toBeNull();
   });
 });

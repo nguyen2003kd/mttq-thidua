@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { Eye, FileText, LockKeyhole, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, TableColumnVisibility } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 
 interface CriterionGridProps {
@@ -32,6 +36,19 @@ export function CriterionGrid({
     .filter((entry) => entry.isSupplementary)
     .map((entry) => ({ criterion: undefined, entry }));
   const rows = [...regularRows, ...supplementaryRows];
+  const [sort, setSort] = useState<TableSortState>(null);
+  const sortedRows = sortTableRows(rows, sort, {
+    proposed: (row) => row.entry?.isSupplementary ? null : row.entry?.proposedScore ?? null,
+    bonus: (row) => row.entry?.isSupplementary ? null : row.entry?.proposedBonusScore ?? 0,
+    maximum: (row) => row.criterion?.maxScore ?? row.entry?.supplementaryMaxScore ?? null,
+    current: (row) => row.entry?.value ?? null,
+  });
+  const sortOptions: TableSortOption[] = [
+    { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+    { value: 'bonus-desc', label: 'Điểm thưởng cao nhất', sort: { column: 'bonus', direction: 'desc' } },
+    { value: 'maximum-desc', label: 'Điểm tối đa cao nhất', sort: { column: 'maximum', direction: 'desc' } },
+    ...(mode !== 'locality' ? [{ value: 'current-desc', label: 'Điểm hiện tại cao nhất', sort: { column: 'current', direction: 'desc' as const } }] : []),
+  ];
   const columnOptions = [
     { id: 'criterion', label: 'Nội dung tiêu chí' },
     { id: 'evidence', label: 'Minh chứng' },
@@ -45,7 +62,8 @@ export function CriterionGrid({
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex justify-end border-b p-2">
+      <div className="flex flex-wrap justify-end gap-2 border-b p-2">
+        <TableSortSelect sort={sort} options={sortOptions} onChange={setSort} />
         <TableColumnVisibility storageKey={`criterion-grid-${mode}`} columns={columnOptions} />
       </div>
       <div className="overflow-x-auto">
@@ -54,16 +72,16 @@ export function CriterionGrid({
             <TableRow className="bg-muted/45">
               <TableHead className="min-w-[260px]">Nội dung tiêu chí</TableHead>
               <TableHead className="min-w-[160px]">Minh chứng</TableHead>
-              <TableHead className="text-center">Điểm đề xuất</TableHead>
-              <TableHead className="text-center">Điểm thưởng</TableHead>
-              <TableHead className="text-center">Điểm tối đa</TableHead>
-              {mode !== 'locality' && <TableHead className="text-center">Điểm hiện tại</TableHead>}
+              <SortableTableHead column="proposed" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="center" className="text-center" buttonClassName="text-foreground hover:text-primary" />
+              <SortableTableHead column="bonus" label="Điểm thưởng" ariaLabel="Điểm thưởng" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'bonus', 'desc'))} align="center" className="text-center" buttonClassName="text-foreground hover:text-primary" />
+              <SortableTableHead column="maximum" label="Điểm tối đa" ariaLabel="Điểm tối đa" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'maximum', 'desc'))} align="center" className="text-center" buttonClassName="text-muted-foreground hover:text-foreground" />
+              {mode !== 'locality' && <SortableTableHead column="current" label="Điểm hiện tại" ariaLabel="Điểm hiện tại" sort={sort} onSort={() => setSort((current) => toggleTableSort(current, 'current', 'desc'))} align="center" className="text-center" buttonClassName="text-foreground hover:text-primary" />}
               <TableHead className="min-w-[220px]">Diễn giải / phản hồi</TableHead>
               {mode !== 'result' && <TableHead className="text-right">Thao tác</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(({ criterion, entry }) => {
+            {sortedRows.map(({ criterion, entry }) => {
               const criteriaId = criterion?.id ?? entry?.criteriaId ?? '';
               const files = evidence.filter(
                 (item) => item.localityId === localityId && item.criteriaId === criteriaId,
