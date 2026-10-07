@@ -140,7 +140,7 @@ function writeScaleBlock(worksheet: XLSX.WorkSheet, row: number): number {
   const scaleRows: Array<[string, string]> = [
     ['Xuất sắc', 'Từ 95 đến 100 điểm'],
     ['Tốt', 'Từ 85 đến dưới 95 điểm'],
-    ['Khá', 'Từ 70 đến dưới 85 điểm'],
+    ['Khá', 'Thấp hơn 85 điểm'],
   ];
   let current = row + 1;
   for (const [label, description] of scaleRows) {
