@@ -66,6 +66,7 @@ export interface AuditLogPage {
 export interface AuditLogQuery {
   from?: string;
   to?: string;
+  periodId?: string;
   module?: string;
   action?: string;
   entityName?: string;

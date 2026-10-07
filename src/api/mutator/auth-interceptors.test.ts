@@ -200,4 +200,37 @@ describe('auth interceptors', () => {
     expect(useAuthStore.getState().token).toBe(newAccessToken);
     stop();
   });
+
+  it('không để refresh của phiên cũ ghi đè phiên vừa đăng nhập', async () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    const oldAccessToken = createJwt(expiresAt);
+    const oldRefreshToken = createJwt(expiresAt + 86400);
+    let resolveRefresh!: (value: { data: { success: boolean; data: { accessToken: string; refreshToken: string } } }) => void;
+    const refreshRequest = new Promise<{ data: { success: boolean; data: { accessToken: string; refreshToken: string } } }>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    vi.spyOn(axios, 'post').mockImplementation(() => refreshRequest as never);
+
+    const { responseRejected } = createHarness();
+    const oldSessionRefresh = responseRejected(unauthorizedError('/api/v1/criteria-groups'));
+
+    useAuthStore.getState().setAuth(
+      { id: 'scorer-1', name: 'Chuyên viên cấp 2', role: 'SCORER' },
+      'scorer-access-token',
+      'scorer-refresh-token',
+    );
+    resolveRefresh({
+      data: {
+        success: true,
+        data: { accessToken: oldAccessToken, refreshToken: oldRefreshToken },
+      },
+    });
+
+    await expect(oldSessionRefresh).rejects.toThrow('Session changed during token refresh');
+    expect(useAuthStore.getState()).toMatchObject({
+      user: { id: 'scorer-1', role: 'SCORER' },
+      token: 'scorer-access-token',
+      refreshToken: 'scorer-refresh-token',
+    });
+  });
 });

@@ -5,7 +5,7 @@ import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { Eye, MessageSquare, Search } from 'lucide-react';
 // import { History } from 'lucide-react'; // tạm ẩn cùng nút Lịch sử duyệt
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 // import { Link } from 'react-router-dom'; // tạm ẩn cùng nút Lịch sử duyệt
 import type { ColumnDef } from '@tanstack/react-table';
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // tạm ẩn cùng bộ lọc trạng thái
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột Trạng thái duyệt
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { buildCouncilPeriodUrl } from '../councilPeriodNavigation';
 import { toast } from 'sonner';
 
 // Hội đồng không cần chờ Lãnh đạo ban duyệt — xem và nhận xét ngay hồ sơ chuyên viên đã duyệt
@@ -48,9 +49,10 @@ interface LocalityReviewRow {
 
 // Gọi API y hệt trang /chuyen-vien/duyet: một endpoint /api/v1/submissions,
 // includeUnsubmitted=true để địa phương chưa nộp vẫn xuất hiện, gộp tất cả trang.
-async function listEveryCouncilSubmission() {
+async function listEveryCouncilSubmission(periodId?: string) {
   const firstPage = await specialistApi.listAllSubmissions({
     includeUnsubmitted: true,
+    periodId,
     page: 1,
     pageSize: 100,
     sortBy: 'createdAt',
@@ -62,11 +64,23 @@ async function listEveryCouncilSubmission() {
   const remainingPages = await Promise.all(
     Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
       includeUnsubmitted: true,
+      periodId,
       page: index + 2,
       pageSize: 100,
       sortBy: 'createdAt',
       sortOrder: 'desc',
     })),
+  );
+  return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
+}
+
+async function listEveryCouncilCriteriaGroup(periodId?: string) {
+  const firstPage = await specialistApi.listCriteriaGroups({ periodId, page: 1, pageSize: 100 });
+  const pageCount = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (pageCount <= 1) return firstPage;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listCriteriaGroups({ periodId, page: index + 2, pageSize: 100 })),
   );
   return { ...firstPage, items: [firstPage.items, ...remainingPages.flatMap((page) => page.items)].flat() };
 }
@@ -92,6 +106,9 @@ function getResultTotals(submissions: SubmissionApi[]) {
 /** Danh sách hồ sơ đã được lãnh đạo ban duyệt và chuyển Hội đồng thi đua xem xét. */
 export default function CouncilApprovalPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const periodId = searchParams.get('periodId') ?? '';
+  const withCouncilPeriod = (path: string) => periodId ? buildCouncilPeriodUrl(path, periodId) : path;
   const queryClient = useQueryClient();
   const [selectedRow, setSelectedRow] = useState<LocalityReviewRow | null>(null);
   const {
@@ -104,13 +121,13 @@ export default function CouncilApprovalPage() {
   const [actionPending, setActionPending] = useState(false);
 
   const submissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
-    queryFn: listEveryCouncilSubmission,
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', periodId: periodId || undefined, includeUnsubmitted: true, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryFn: () => listEveryCouncilSubmission(periodId || undefined),
   });
 
   const groupsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
-    queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', periodId: periodId || undefined, page: 1, pageSize: 100 }),
+    queryFn: () => listEveryCouncilCriteriaGroup(periodId || undefined),
   });
 
   const totalAppliedGroups = useMemo(
@@ -171,7 +188,7 @@ export default function CouncilApprovalPage() {
     // { id: 'state', accessorFn: (row) => row.submissions.length === 0 ? 'Chưa nộp' : row.latestStage === COUNCIL_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái duyệt', cell: ({ row }) => row.original.submissions.length === 0 ? <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge> : row.original.latestStage === COUNCIL_STAGE ? <ScoreStateBadge state="CHO_DUYET_HOI_DONG" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', list: { width: 'minmax(170px,.9fr)' } } },
   ], [totalAppliedGroups]);
 
-  const openGroups = () => selectedRow && navigate(`/thi-dua/duyet/hoi-dong-tdkt/${selectedRow.locality.id}`);
+  const openGroups = () => selectedRow && navigate(withCouncilPeriod(`/thi-dua/duyet/hoi-dong-tdkt/${selectedRow.locality.id}`));
   // Nhóm tiêu chí đã công bố (status Published) → hồ sơ khóa, không nhận xét thêm.
   const publishedGroupIds = useMemo(
     () => new Set((groupsQuery.data?.items ?? []).filter((group) => group.status === 'Published').map((group) => group.id)),

@@ -44,6 +44,7 @@ const entityLabels: Record<string, string> = {
   EmulationClassification: 'xếp loại thi đua',
   User: 'tài khoản người dùng',
   UserAuth: 'thông tin xác thực',
+  UserRole: 'gán vai trò người dùng',
   Role: 'vai trò người dùng',
   FileEntity: 'tệp tin',
   FileVariant: 'phiên bản tệp tin',
@@ -63,6 +64,7 @@ const moduleLabels: Record<string, string> = {
   System: 'Hệ thống',
   Entities: 'Kỳ thi đua',
   Periods: 'Kỳ thi đua',
+  Identity: 'Tài khoản',
 };
 
 function getActionLabel(action: string) {
@@ -99,6 +101,9 @@ const fieldLabels: Record<string, string> = {
   ReviewStatus: 'Trạng thái xem xét',
   CriteriaId: 'Tiêu chí',
   CriteriaGroupId: 'Nhóm tiêu chí',
+  UserId: 'Người dùng',
+  RoleId: 'Vai trò',
+  IsPrimary: 'Là vai trò chính',
   Action: 'Hành động',
   Reason: 'Lý do',
   Level: 'Cấp xử lý',
@@ -670,16 +675,15 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     pageSize: PAGE_SIZE,
     sortBy: 'createdAt',
     sortOrder: 'desc',
-    // Kỳ thi đua chỉ có startYear/endYear — lọc log theo khoảng năm tương ứng.
-    ...(selectedPeriod ? { from: new Date(`${selectedPeriod.startYear}-01-01T00:00:00`).toISOString() } : {}),
-    ...(selectedPeriod ? { to: new Date(`${selectedPeriod.endYear}-12-31T23:59:59.999`).toISOString() } : {}),
+    // Lọc theo kỳ thi đua: BE giải mã chuỗi entity thuộc kỳ (chính xác hơn lọc theo khoảng năm).
+    ...(effectivePeriodFilter ? { periodId: effectivePeriodFilter } : {}),
     ...(from ? { from: new Date(`${from}T00:00:00`).toISOString() } : {}),
     ...(to ? { to: new Date(`${to}T23:59:59.999`).toISOString() } : {}),
     ...(module ? { module } : {}),
     ...(action ? { action } : {}),
     ...(entityName ? { entityName } : {}),
     ...(search ? { search } : {}),
-  }), [page, from, to, module, action, entityName, search, selectedPeriod]);
+  }), [page, from, to, module, action, entityName, search, effectivePeriodFilter]);
 
   const logsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuditLogsQueryKey(), query), queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;

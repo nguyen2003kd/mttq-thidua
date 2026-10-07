@@ -48,6 +48,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
+import { buildScoreEntryUrl } from '@/features/cham-diem/utils/scoreEntryNavigation';
+import { filterSubmissionsByStage } from '@/features/cham-diem/utils/submissionStageFilter';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
@@ -173,22 +175,22 @@ interface SpecialistReviewPageProps {
   embeddedDetail?: SpecialistReviewEmbeddedDetail;
 }
 
-type SubmissionStageFilter = '' | SubmissionStage;
+type SubmissionStageFilter = '' | SubmissionStage | string;
 type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 
-const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | SubmissionStage; label: string }>> = {
+const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: SubmissionStageFilter; label: string }>> = {
   SCORER: [
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
     { value: 'ScorerRevisionRequested', label: 'Chờ Chuyên viên cấp 2 chỉnh sửa' },
     { value: 'RequiresRevision', label: 'Chờ Địa phương chỉnh sửa' },
-    { value: 'ScorerSubmitted', label: 'Đã gửi Lãnh đạo ban' },
+    { value: 'ScorerSubmitted,ReviewerApproved,SpecialistApproved', label: 'Đã gửi Lãnh đạo ban' },
   ],
   REVIEWER: [
     { value: '', label: 'Tất cả' },
     { value: 'ScorerSubmitted', label: 'Đang chờ duyệt' },
     { value: 'ReviewerRevisionRequested', label: 'Chờ Lãnh đạo ban chỉnh sửa' },
-    { value: 'ReviewerApproved', label: 'Đã duyệt' },
+    { value: 'ReviewerApproved,SpecialistApproved', label: 'Đã duyệt' },
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
@@ -1492,9 +1494,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     groupYearFilter: '',
     groupPeriodFilter: usePeriodStore.getState().selectedPeriodId ?? '',
   });
-  const withGroupPeriodFilter = (path: string) => groupPeriodFilter
-    ? `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`
-    : path;
+  const withGroupPeriodFilter = (path: string) => {
+    if (!groupPeriodFilter) return path;
+    return basePath === '/thi-dua/cham-diem'
+      ? buildScoreEntryUrl(path, groupPeriodFilter)
+      : `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`;
+  };
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -1506,6 +1511,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -1560,12 +1566,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
     enabled: isDetailRoute,
   });
-  const visibleSubmissionItems = useMemo(
-    () => isDetailRoute
+  const visibleSubmissionItems = useMemo(() => {
+    const items = isDetailRoute
       ? (detailGroupSubmissionsQuery.data?.items ?? [])
-      : (allSubmissionsQuery.data?.items ?? []),
-    [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
-  );
+      : (allSubmissionsQuery.data?.items ?? []);
+    return !isDetailRoute && !diaPhuongId
+      ? filterSubmissionsByStage(items, submissionStageFilter)
+      : items;
+  }, [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, diaPhuongId, isDetailRoute, submissionStageFilter]);
   const groupsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
@@ -2364,6 +2372,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     //   toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
     //   return;
     // }
+    if (!specialistPermissions.usesForwardingDialog) {
+      setApproving(true);
+      void confirmForward({ explanation: '', files: [], onProgress: () => {} })
+        .catch(() => undefined)
+        .finally(() => setApproving(false));
+      return;
+    }
     setForwardOpen(true);
   };
 
@@ -2486,17 +2501,18 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   };
 
   const confirmForward = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
+    const isDirectApproval = !specialistPermissions.usesForwardingDialog;
     if (specialistApproveLocked) {
       toast.info(specialistLockReason);
       return;
     }
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
-      toast.error('Nhóm này chưa có hồ sơ để chuyển.');
+      toast.error(isDirectApproval ? 'Nhóm này chưa có hồ sơ để duyệt.' : 'Nhóm này chưa có hồ sơ để chuyển.');
       return;
     }
     if (!specialistPermissions.canApprove) {
-      toast.error('Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
+      toast.error(isDirectApproval ? 'Hồ sơ không ở trạng thái bạn có thể duyệt.' : 'Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
       return;
     }
     if (scoredItems.length === 0) {
@@ -2512,21 +2528,25 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       const items = specialistPermissions.canEdit ? buildScoreItems() : [];
       if (specialistPermissions.canEdit) {
         if (items.length > 0) {
-          await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
+          await specialistApi.updateScores({ submissionId: submission.id, reason: isDirectApproval ? 'Lưu điểm chấm trước khi duyệt hồ sơ' : 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
           serverChanged = true;
         }
         serverChanged ||= pendingScoreAttachments.size > 0;
         await uploadPendingScoreAttachments();
       }
-      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      if (isDirectApproval) {
+        await specialistApi.approveSubmission(submission.id);
+      } else {
+        await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      }
       serverChanged = true;
       await refreshSubmissionData();
       serverChanged = false;
       setScoreOverrides(new Map());
-      toast.success(`Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
+      toast.success(isDirectApproval ? 'Đã duyệt hồ sơ.' : `Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
     } catch (error) {
       if (serverChanged) await refreshSubmissionData();
-      toast.error(`Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
+      toast.error(isDirectApproval ? 'Không thể duyệt hồ sơ.' : `Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
       throw error;
     }
   };
@@ -2649,7 +2669,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
             {specialistPermissions.canEdit && (
               <Button variant="default" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={approving || specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}>
+              {scoringRole === 'SPECIALIST' ? <CheckCircle2 className="size-4" /> : <Send className="size-4" />}
+              {approving ? 'Đang duyệt…' : scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}
+            </Button>
           </div>
         </div>
         <div className="hidden overflow-hidden bg-primary xl:block">
@@ -3087,7 +3110,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       />
       <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <ForwardSubmissionDialog
-        open={forwardOpen}
+        open={forwardOpen && specialistPermissions.usesForwardingDialog}
         onOpenChange={setForwardOpen}
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
