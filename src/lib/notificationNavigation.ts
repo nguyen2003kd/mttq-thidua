@@ -66,7 +66,10 @@ export function getNotificationTarget(
       return payload.periodId ? { to: `/dia-phuong/ket-qua?periodId=${encodeURIComponent(payload.periodId)}` } : null;
 
     case 'submission_reminder':
-      return { to: '/dia-phuong/tieu-chi' };
+      // Có kỳ trong payload (nhắc nhở khi công bố) → vào đúng kỳ đó; không có → trang tiêu chí chung.
+      return payload.periodId
+        ? { to: `/dia-phuong/tieu-chi?periodId=${encodeURIComponent(payload.periodId)}` }
+        : { to: '/dia-phuong/tieu-chi' };
 
     case 'scorer_revision_requested':
       if (role !== 'SCORER' || !wardCode || !payload.criteriaGroupId) return null;
