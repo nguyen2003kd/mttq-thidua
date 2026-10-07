@@ -63,6 +63,15 @@ describe('getNotificationTarget — thông báo cho địa phương', () => {
     expect(target).toEqual({ to: '/dia-phuong/tieu-chi' });
   });
 
+  it('submission_reminder có kỳ → trang tiêu chí của kỳ đó', () => {
+    const target = getNotificationTarget(
+      parseNotificationPayload('{"eventType":"submission_reminder","wardCode":"25195","periodId":"p9"}'),
+      local,
+      '25195',
+    );
+    expect(target).toEqual({ to: '/dia-phuong/tieu-chi?periodId=p9' });
+  });
+
   it('supplementary_criteria_added → trang nhóm tiêu chí', () => {
     const target = getNotificationTarget(
       parseNotificationPayload('{"eventType":"supplementary_criteria_added","criteriaGroupId":"g3"}'),
