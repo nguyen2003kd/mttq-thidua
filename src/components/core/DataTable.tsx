@@ -494,7 +494,7 @@ export function DataTable<TData, TValue = unknown>({
             {visibleHeaders.map((header, idx) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
-              const canSort = meta?.sortable !== false && header.column.getCanSort();
+              const canSort = meta?.sortable === true && header.column.getCanSort();
               const sortDirection = header.column.getIsSorted();
               const headerContent = flexRender(header.column.columnDef.header, header.getContext());
               const headerText = extractCellText(headerContent).trim();
@@ -562,7 +562,7 @@ export function DataTable<TData, TValue = unknown>({
             return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
-              const canSort = meta?.sortable !== false && header.column.getCanSort();
+              const canSort = meta?.sortable === true && header.column.getCanSort();
               const sortDirection = header.column.getIsSorted();
 
               return (

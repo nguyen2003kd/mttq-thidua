@@ -1034,7 +1034,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
         onClose={() => setSelectedLocalityId(null)}
         canReview={canReview}
       />
-      {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />}
+      {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} selectedPeriodId={periodFilter} />}
     </div>
   );
 }

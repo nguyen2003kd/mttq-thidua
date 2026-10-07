@@ -530,7 +530,7 @@ C7. COL.01.06 — Lịch sử chấm tiêu chí thi đua của Chuyên viên —
 C8. COL.01.07 — Quản lý tiêu chí thi đua của Địa phương cấp Lãnh đạo ban — [Archetype 2, tái dùng từ C6]
 Vai trò: ROLE_LANH_DAO_BAN (Trưởng + Phó Ban dùng chung)
 Màn 1: Danh sách Địa phương
-/lanh-dao-ban/duyet — Cột lưới: Tên địa phương, Tiêu chí mới được cập nhật (Badge), Yêu cầu chỉnh sửa (Có/Không), Điểm địa phương đề xuất (phải), Điểm chuyên viên chấm (phải), Điểm thưởng đề xuất (phải), Điểm thưởng chuyên viên chấm (phải), Tổng điểm chuyên viên chấm (phải), Tổng điểm đề xuất (phải), Cập nhật lần cuối, Trạng thái duyệt (Badge)
+/lanh-dao-ban/duyet — Cột lưới: Tên địa phương, Tiêu chí mới được cập nhật (Badge), Yêu cầu chỉnh sửa (Có/Không), Điểm địa phương đề xuất (phải), Điểm chuyên viên chấm (phải), Điểm thưởng đề xuất (phải), Điểm thưởng chuyên viên (phải), Tổng điểm chuyên viên chấm (phải), Tổng điểm đề xuất (phải), Cập nhật lần cuối, Trạng thái duyệt (Badge)
 Nút: Xem, Tìm kiếm, Duyệt
 Màn 2 & Màn 3: cấu trúc giống hệt C6 Màn 2/3, đổi field prefix “Lãnh đạo” thay “Chuyên viên” khi hiển thị người thực hiện
 Modal Thêm tiêu chí bổ sung / Sửa điểm / Gửi yêu cầu: field giống hệt C6 (dùng chung component) — chỉ khác route gọi và trạng thái tiếp theo (→ ChoDuyetHoiDong).

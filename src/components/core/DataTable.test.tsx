@@ -30,7 +30,11 @@ const sortableYearColumn: ColumnDef<PeriodSortRow>[] = [{
   sortDescFirst: false,
   meta: { sortable: true, list: { width: '132px' } },
 }];
-const defaultSortableScoreColumn: ColumnDef<{ score: number }>[] = [{ accessorKey: 'score', header: 'Điểm' }];
+const defaultSortableScoreColumn: ColumnDef<{ score: number }>[] = [{ accessorKey: 'score', header: 'Điểm', meta: { sortable: true } }];
+const unsortableTextColumns: ColumnDef<{ content: string; description: string }>[] = [
+  { accessorKey: 'content', header: 'Nội dung' },
+  { accessorKey: 'description', header: 'Mô tả', meta: { sortable: false } },
+];
 
 function SearchParam() {
   const { search } = useLocation();
@@ -115,7 +119,7 @@ describe('DataTable text filters', () => {
 });
 
 describe('DataTable list sorting', () => {
-  it('sorts accessor columns by default when their headers are clicked', () => {
+  it('sorts columns explicitly marked sortable when their headers are clicked', () => {
     render(
       <MemoryRouter>
         <DataTable
@@ -170,7 +174,7 @@ describe('DataTable list sorting', () => {
     });
   });
 
-  it('sorts list columns by default when they expose a data accessor', () => {
+  it('sorts list columns explicitly marked sortable', () => {
     render(
       <MemoryRouter>
         <DataTable
@@ -185,6 +189,22 @@ describe('DataTable list sorting', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Điểm' }));
 
     expect(screen.getAllByText(/^(2|10)$/).map((item) => item.textContent)).toEqual(['10', '2']);
+  });
+
+  it('omits sorting controls from unmarked and explicitly unsortable text columns', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ content: 'Nội dung', description: 'Mô tả' }]}
+          columns={unsortableTextColumns}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Nội dung' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mô tả' })).not.toBeInTheDocument();
   });
 });
 

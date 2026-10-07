@@ -821,7 +821,7 @@ function OfficialScoreRevisionDialog({
               {formatOfficialScore(result.officialPoint, result.snapshotMaxPoint)}
             </div>
             <div className="rounded-md border border-border bg-background px-4 py-3">
-              <p className="text-xs font-medium text-muted-foreground">Điểm thưởng chuyên viên chấm</p>
+              <p className="text-xs font-medium text-muted-foreground">Điểm thưởng chuyên viên</p>
               {formatOfficialScore(result.officialBonusPoint, result.snapshotMaxBonusPoint)}
             </div>
           </div>

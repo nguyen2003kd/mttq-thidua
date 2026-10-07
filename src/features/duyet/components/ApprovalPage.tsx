@@ -232,34 +232,34 @@ export function ApprovalPage(config: ApprovalPageConfig) {
               header: 'Điểm địa phương đề xuất',
               accessorFn: (row: ApprovalRow) => getProposedTotal(row.record),
               cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-medium tabular-nums">{getProposedTotal(row.original.record)}</span>,
-              meta: { align: 'right' },
+              meta: { align: 'right', sortable: true },
             },
             {
               id: 'specialistScore',
               header: 'Điểm chuyên viên chấm',
               accessorFn: (row: ApprovalRow) => getStageTotal(row.record, 'SPECIALIST'),
               cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-medium tabular-nums">{getStageTotal(row.original.record, 'SPECIALIST')}</span>,
-              meta: { align: 'right' },
+              meta: { align: 'right', sortable: true },
             },
             {
               id: 'proposedBonus',
               header: 'Điểm thưởng đề xuất',
               accessorFn: (row: ApprovalRow) => getProposedBonusTotal(row.record),
               cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="tabular-nums">{getProposedBonusTotal(row.original.record)}</span>,
-              meta: { align: 'right' },
+              meta: { align: 'right', sortable: true },
             },
             {
               id: 'specialistBonus',
               header: 'Điểm thưởng chuyên viên',
               accessorFn: (row: ApprovalRow) => getStageBonusTotal(row.record, 'SPECIALIST'),
               cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="tabular-nums">{getStageBonusTotal(row.original.record, 'SPECIALIST')}</span>,
-              meta: { align: 'right' },
+              meta: { align: 'right', sortable: true },
             },
             {
               accessorFn: (row: ApprovalRow) => row.record.totalScore,
               header: 'Tổng điểm chuyên viên',
               cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-semibold tabular-nums">{row.original.record.totalScore}</span>,
-              meta: { align: 'right' },
+              meta: { align: 'right', sortable: true },
             },
           ]
         : config.view === 'council'
@@ -269,25 +269,25 @@ export function ApprovalPage(config: ApprovalPageConfig) {
                 header: 'Tổng điểm',
                 accessorFn: (row: ApprovalRow) => getCouncilReviewTotal(row.record),
                 cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="font-semibold tabular-nums">{getCouncilReviewTotal(row.original.record)}</span>,
-                meta: { align: 'right' },
+                meta: { align: 'right', sortable: true },
               },
               {
                 id: 'councilProposedTotal',
                 header: 'Tổng điểm đề xuất',
                 accessorFn: (row: ApprovalRow) => getProposedOverallTotal(row.record),
                 cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="tabular-nums">{getProposedOverallTotal(row.original.record)}</span>,
-                meta: { align: 'right' },
+                meta: { align: 'right', sortable: true },
               },
             ]
-          : [{ accessorFn: (row: ApprovalRow) => row.record.totalScore, header: 'Tổng điểm', meta: { align: 'right' } }]),
+          : [{ accessorFn: (row: ApprovalRow) => row.record.totalScore, header: 'Tổng điểm', meta: { align: 'right', sortable: true } }]),
       {
         accessorFn: (row) => SCORE_STATE_LABELS[row.record.state],
         header: 'Trạng thái',
         cell: ({ row }) => <ScoreStateBadge state={row.original.record.state} />,
-        meta: { align: 'center' },
+        meta: { align: 'center', sortable: true },
       },
       ...(config.view === 'leader'
-        ? [{ accessorFn: (row: ApprovalRow) => row.record.submittedAt ?? '', header: 'Cập nhật lần cuối', sortDescFirst: true, cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="text-xs text-muted-foreground">{row.original.record.submittedAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.original.record.submittedAt)) : '—'}</span> }]
+        ? [{ accessorFn: (row: ApprovalRow) => row.record.submittedAt ?? '', header: 'Cập nhật lần cuối', sortDescFirst: true, meta: { sortable: true }, cell: ({ row }: { row: { original: ApprovalRow } }) => <span className="text-xs text-muted-foreground">{row.original.record.submittedAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(row.original.record.submittedAt)) : '—'}</span> }]
         : []),
       ...(config.view === 'leader' || config.view === 'council'
         ? []

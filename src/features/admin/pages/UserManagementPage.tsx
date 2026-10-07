@@ -300,7 +300,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       accessorFn: (row) => statusLabels[row.status] ?? row.status,
       id: 'status',
       header: 'Trạng thái',
-      meta: { align: 'center', list: { width: '130px' } },
+      meta: { align: 'center', sortable: true, list: { width: '130px' } },
       cell: ({ row }) => (
         <Badge variant={statusVariant(row.original.status)}>{statusLabels[row.original.status] ?? row.original.status}</Badge>
       ),
@@ -309,7 +309,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
       sortDescFirst: true,
-      meta: { align: 'right', list: { width: '130px', valueClassName: 'text-xs' } },
+      meta: { align: 'right', sortable: true, list: { width: '130px', valueClassName: 'text-xs' } },
       cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
   ], []);
