@@ -5,7 +5,7 @@ import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
 import { getGetApiV1ResultPublicationsCriteriaGroupsQueryKey, getGetApiV1ResultPublicationsPreviewQueryKey } from '@/api/endpoints/result-publications';
 import { getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
-import { AlertTriangle, Send } from 'lucide-react';
+import { AlertTriangle, BellRing, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button, FileUpload } from '@/components/core';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -56,6 +56,7 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
   const [publicationNote, setPublicationNote] = useState('');
   const [publicationFile, setPublicationFile] = useState<File[]>([]);
   const [publicationError, setPublicationError] = useState<string | null>(null);
+  const [zeroConfirmOpen, setZeroConfirmOpen] = useState(false);
 
   const periodsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
@@ -105,7 +106,15 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
   const close = () => {
     onOpenChange(false);
     setPublicationError(null);
+    setZeroConfirmOpen(false);
   };
+
+  // Số địa phương chưa nộp/chưa đủ điều kiện — sẽ bị chấm 0 khi công bố.
+  const pendingLocalityCount = new Set([
+    ...unsubmittedByLocality.map((locality) => locality.wardCode),
+    ...unpublishedByLocality.map((locality) => locality.wardCode),
+  ]).size;
+  const hasPendingLocalities = pendingLocalityCount > 0;
 
   const publishMutation = useMutation({
     mutationFn: async ({ periodId: targetPeriodId, note, file }: { periodId: string; note: string; file: File | null }) => {
@@ -124,6 +133,16 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Không thể công bố kết quả. Vui lòng kiểm tra lại trạng thái dữ liệu.');
+    },
+  });
+
+  const remindMutation = useMutation({
+    mutationFn: () => resultPublicationApi.remindUnpublished(periodId),
+    onSuccess: (result) => {
+      toast.success(`Đã gửi thông báo nhắc nhở đến ${result.notifiedWards} địa phương.`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Không thể gửi thông báo nhắc nhở.');
     },
   });
 
@@ -184,6 +203,19 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
               <p className="text-sm text-destructive">Không tải được điều kiện công bố cho kỳ thi đua này.</p>
             ) : previewQuery.data ? (
               <>
+                {(unsubmittedByLocality.length > 0 || unpublishedByLocality.length > 0) && (
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="info"
+                      disabled={remindMutation.isPending || !periodId}
+                      onClick={() => remindMutation.mutate()}
+                    >
+                      <BellRing className="mr-1.5 size-4" />{remindMutation.isPending ? 'Đang gửi…' : 'Gửi thông báo nhắc nhở'}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Gửi thông báo đến các địa phương chưa nộp hoặc chưa đủ điều kiện công bố.</p>
+                  </div>
+                )}
+
                 <div className="flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-destructive">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                   <p>{previewQuery.data.message}</p>
@@ -276,6 +308,29 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Xác nhận chấm 0 cho địa phương chưa hoàn tất — modal giữa màn hình. */}
+      <Dialog open={zeroConfirmOpen} onOpenChange={setZeroConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Chấm 0 điểm cho địa phương chưa hoàn tất?</DialogTitle>
+            <DialogDescription>
+              Còn {pendingLocalityCount} địa phương chưa nộp hoặc chưa đủ điều kiện. Các địa phương này sẽ nhận 0 điểm khi
+              kết quả được công bố. Hành động không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setZeroConfirmOpen(false)} disabled={publishMutation.isPending}>Quay lại</Button>
+            <Button
+              variant="destructive"
+              disabled={publishMutation.isPending}
+              onClick={() => publishMutation.mutate({ periodId, note: publicationNote.trim(), file: publicationFile[0] ?? null })}
+            >
+              {publishMutation.isPending ? 'Đang công bố…' : 'Xác nhận công bố'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
