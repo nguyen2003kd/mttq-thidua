@@ -114,7 +114,6 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
     ...unsubmittedByLocality.map((locality) => locality.wardCode),
     ...unpublishedByLocality.map((locality) => locality.wardCode),
   ]).size;
-  const hasPendingLocalities = pendingLocalityCount > 0;
 
   const publishMutation = useMutation({
     mutationFn: async ({ periodId: targetPeriodId, note, file }: { periodId: string; note: string; file: File | null }) => {
