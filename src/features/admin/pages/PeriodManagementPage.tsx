@@ -63,7 +63,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
 
   const invalidate = () => invalidateQueryResources(queryClient, [getGetApiV1PeriodsQueryKey(), getGetApiV1AuditLogsQueryKey()]);
 
-  const buildPayload = (): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi } | null => {
+  const buildPayload = (excludeId?: string): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi } | null => {
     const startYear = Number(form.startYear);
     const endYear = Number(form.endYear);
     if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear < 1900 || endYear > 2200) {
@@ -74,7 +74,14 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Năm kết thúc phải lớn hơn hoặc bằng năm bắt đầu.');
       return null;
     }
-    return { startYear, endYear, name: form.name.trim() || null, status: form.status };
+    // Tên trống -> tự sinh theo năm (BE cũng vậy); check trùng trên tên đã resolve
+    const name = form.name.trim();
+    const resolvedName = name || `${startYear}-${endYear}`;
+    if (periods.some((p) => p.id !== excludeId && p.name.trim().toLowerCase() === resolvedName.toLowerCase())) {
+      toast.error('Tên kỳ thi đua đã tồn tại, vui lòng chọn tên khác.');
+      return null;
+    }
+    return { startYear, endYear, name: name || null, status: form.status };
   };
 
   const createMutation = useMutation({
@@ -163,7 +170,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const handleEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
-    const payload = buildPayload();
+    const payload = buildPayload(selected?.id);
     if (payload) updateMutation.mutate({ id: selected.id, payload });
   };
 
@@ -181,7 +188,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-name">Tên kỳ <span className="text-xs font-normal text-muted-foreground">Để trống sẽ tự đặt theo năm, VD: 2025-2026</span></Label>
-        <Input id="p-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: 2025-2026" maxLength={20} />
+        <Input id="p-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: Thi đua 2025-2026" maxLength={20} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-status">Trạng thái</Label>
