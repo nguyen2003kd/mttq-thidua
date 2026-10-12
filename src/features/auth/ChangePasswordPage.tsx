@@ -147,7 +147,7 @@ export default function ChangePasswordPage() {
               {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">Tối thiểu {MIN_PASSWORD_LENGTH} ký tự, tối đa {MAX_PASSWORD_LENGTH} ký tự, không chứa email/họ tên và không trùng 5 mật khẩu gần nhất.</p>
+          <p className="text-xs text-muted-foreground">Tối thiểu {MIN_PASSWORD_LENGTH} ký tự, tối đa {MAX_PASSWORD_LENGTH} ký tự, không nên chứa email/họ tên.</p>
         </div>
 
         <div className="space-y-1.5">

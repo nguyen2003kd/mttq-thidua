@@ -206,6 +206,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   }, [draft, entry?.explanation, entry?.proposedBonusScore, entry?.proposedScore, entry?.value, scoreFieldsLocked]);
 
   const maxBonus = criterion.bonusScore ?? 0;
+  const effectiveMaxBonus = maxBonus > 0 ? maxBonus : 1;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
   const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
@@ -255,7 +256,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const isColumnVisible = (columnId: string) => !visibleColumnIds || visibleColumnIds.includes(columnId);
   const rowComplete = locked || (
     (isSupplementary || (!validateScore(score, criterion.maxScore, 'Điểm đề xuất', true)
-      && !validateScore(bonusScore, maxBonus, 'Điểm thưởng')))
+      && !validateScore(bonusScore, effectiveMaxBonus, 'Điểm thưởng')))
     && Boolean(explanation.trim())
     && standardFiles.length + selectedFiles.length > 0
     && standardFiles.length + selectedFiles.length <= MAX_FILES_PER_CRITERION
@@ -330,7 +331,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       return true;
     }
     const nextScoreError = scoreFieldsEditable ? validateScore(score, criterion.maxScore, 'Điểm đề xuất', true) : '';
-    const nextBonusScoreError = scoreFieldsEditable ? validateScore(bonusScore, maxBonus, 'Điểm thưởng') : '';
+    const nextBonusScoreError = scoreFieldsEditable ? validateScore(bonusScore, effectiveMaxBonus, 'Điểm thưởng') : '';
     setScoreError(nextScoreError);
     setBonusScoreError(nextBonusScoreError);
     setExplanationError('');
@@ -404,8 +405,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <ScorePlaceholder label="Điểm thưởng" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
-            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || !scoreFieldsEditable || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
-            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
+            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={effectiveMaxBonus} step="0.25" value={bonusScore} disabled={locked || !scoreFieldsEditable || uploading} onChange={(event) => updateScoreInput(event.target.value, effectiveMaxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
+            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {effectiveMaxBonus}</span>
           </div>
         )}
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}

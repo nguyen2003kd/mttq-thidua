@@ -19,6 +19,7 @@ export interface UserProfile {
   status: string;
   roles: string[];
   permissions: string[];
+  mustChangePassword: boolean;
 }
 
 export interface UpdateProfileRequest {
