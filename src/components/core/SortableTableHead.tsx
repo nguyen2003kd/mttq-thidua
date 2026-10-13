@@ -45,7 +45,7 @@ export function SortableTableHead({
           buttonClassName,
         )}
       >
-        <span>{label}</span>
+        <span className="min-w-0 whitespace-normal leading-5">{label}</span>
         {direction === 'asc' ? <ChevronUp aria-hidden="true" className="size-3.5 shrink-0" />
           : direction === 'desc' ? <ChevronDown aria-hidden="true" className="size-3.5 shrink-0" />
             : <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-primary-foreground/50" />}
