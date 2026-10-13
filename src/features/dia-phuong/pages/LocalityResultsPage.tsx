@@ -24,6 +24,8 @@ import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
+import { useEmulationClassifications } from '@/hooks/useEmulationClassifications';
+import { classifyByConfig, type EmulationClassificationConfig } from '@/lib/emulationClassification';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
@@ -101,16 +103,17 @@ function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
   };
 }
 
-// Xếp loại theo thang điểm tuyệt đối 100 (95 điểm tự chấm + 5 điểm thưởng)
-function classification(score: number) {
-  if (score >= 95) return 'Xuất sắc';
-  if (score >= 85) return 'Tốt';
-  return 'Khá';
+// Xếp loại theo cấu hình bảng emulation_classifications (fallback thang mặc định nếu chưa tải được)
+function classificationLabel(score: number | null | undefined, classifications: readonly EmulationClassificationConfig[]) {
+  return classifyByConfig(score, classifications)?.name ?? 'Chưa xếp loại';
 }
 
-function classificationBadgeClass(score: number) {
-  if (score >= 85) return 'bg-success text-success-foreground';
-  return 'bg-warning text-foreground';
+function classificationBadgeClass(score: number | null | undefined, classifications: readonly EmulationClassificationConfig[]) {
+  const index = classifications.findIndex((row) => row.code === classifyByConfig(score, classifications)?.code);
+  if (index < 0) return 'bg-muted text-muted-foreground';
+  if (index <= 1) return 'bg-success text-success-foreground';
+  if (index === 2) return 'bg-warning text-foreground';
+  return 'bg-muted text-muted-foreground';
 }
 
 function publicationStatusLabel(status: string) {
@@ -259,6 +262,7 @@ function AttachmentButton({ label, files, onPreview }: {
 export default function LocalityResultsPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const { classifications } = useEmulationClassifications();
   const user = useAuthStore((state) => state.user);
   const localityId = user?.localityId;
   const [selectedRow, setSelectedRow] = useState<ResultRow | null>(null);
@@ -471,7 +475,7 @@ export default function LocalityResultsPage() {
               </div>
               <div className="min-w-0 lg:px-4">
                 <dt className="text-xs text-muted-foreground">Kết quả xếp loại</dt>
-                <dd className="mt-1"><Badge className={`max-w-full whitespace-normal px-3 py-1 text-left text-sm font-semibold leading-5 ${classificationBadgeClass(totalCurrentPoint)}`}>{classification(totalCurrentPoint)}</Badge></dd>
+                <dd className="mt-1"><Badge className={`max-w-full whitespace-normal px-3 py-1 text-left text-sm font-semibold leading-5 ${classificationBadgeClass(totalCurrentPoint, classifications)}`}>{classificationLabel(totalCurrentPoint, classifications)}</Badge></dd>
               </div>
               <div className="min-w-0 lg:px-4">
                 <dt className="text-xs text-muted-foreground">Thứ hạng</dt>

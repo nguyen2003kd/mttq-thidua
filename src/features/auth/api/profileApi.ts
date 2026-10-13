@@ -19,7 +19,8 @@ export interface UserProfile {
   status: string;
   roles: string[];
   permissions: string[];
-  mustChangePassword: boolean;
+  /** true khi user chưa từng đổi mật khẩu — bắt buộc đổi ở màn hoàn thiện hồ sơ. Tùy chọn vì profile cache cũ có thể thiếu. */
+  mustChangePassword?: boolean;
 }
 
 export interface UpdateProfileRequest {
