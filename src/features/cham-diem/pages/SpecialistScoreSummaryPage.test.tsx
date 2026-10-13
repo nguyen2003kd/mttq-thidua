@@ -235,7 +235,8 @@ describe('SpecialistScoreSummaryPage detail modal', () => {
     fireEvent.click(await screen.findByRole('button', { name: /An ninh trật tự/ }));
 
     expect(screen.queryByRole('tab', { name: 'Thẩm định' })).not.toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-6xl');
-    expect(await screen.findByText('Địa phương đề xuất')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass('sm:max-w-[1440px]');
+    expect(await within(dialog).findByRole('columnheader', { name: /Địa phương đề xuất/ })).toHaveClass('whitespace-normal');
   });
 });

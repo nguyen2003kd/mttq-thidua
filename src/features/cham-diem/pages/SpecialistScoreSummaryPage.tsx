@@ -280,12 +280,12 @@ function LocalityCriteriaDialog({
         <TableHeader>
           <TableRow className="bg-primary hover:bg-primary">
             <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
-            <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="province" label="Điểm của tỉnh" ariaLabel="Điểm của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="provinceTotal" label="Tổng điểm tỉnh" ariaLabel="Tổng điểm tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="bg-primary text-right" />
+            <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="province" label="Điểm của tỉnh" ariaLabel="Điểm của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceTotal" label="Tổng điểm tỉnh" ariaLabel="Tổng điểm tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="whitespace-normal bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -337,7 +337,7 @@ function LocalityCriteriaDialog({
     <Dialog open={Boolean(locality)} onOpenChange={(open) => { if (!open) closeDialog(); }}>
       <DialogContent className={cn(
         'flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0',
-        selectedSubmission && canReview ? 'h-[calc(100dvh-2rem)] sm:max-w-[1880px]' : 'sm:max-w-6xl',
+        selectedSubmission && canReview ? 'h-[calc(100dvh-2rem)] sm:max-w-[1880px]' : selectedSubmission ? 'sm:max-w-[1440px]' : 'sm:max-w-6xl',
       )}>
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
           <DialogTitle>
