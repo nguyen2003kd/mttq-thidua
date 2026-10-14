@@ -47,6 +47,8 @@ interface LocalityScoreTableProps {
   onCompletionChange?: (criteriaId: string, complete: boolean) => void;
   uploading?: boolean;
   toolbar?: ReactNode;
+  /** Khối nội dung đặt cạnh trái thanh công cụ (trước nhóm nút bên phải). */
+  toolbarLeading?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
   onDeleteEvidence?: (id: string) => void;
   onPreviewEvidenceFile?: (file: Evidence) => void;
@@ -206,7 +208,6 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   }, [draft, entry?.explanation, entry?.proposedBonusScore, entry?.proposedScore, entry?.value, scoreFieldsLocked]);
 
   const maxBonus = criterion.bonusScore ?? 0;
-  const effectiveMaxBonus = maxBonus > 0 ? maxBonus : 1;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
   const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
@@ -256,7 +257,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const isColumnVisible = (columnId: string) => !visibleColumnIds || visibleColumnIds.includes(columnId);
   const rowComplete = locked || (
     (isSupplementary || (!validateScore(score, criterion.maxScore, 'Điểm đề xuất', true)
-      && !validateScore(bonusScore, effectiveMaxBonus, 'Điểm thưởng')))
+      && !validateScore(bonusScore, maxBonus, 'Điểm thưởng')))
     && Boolean(explanation.trim())
     && standardFiles.length + selectedFiles.length > 0
     && standardFiles.length + selectedFiles.length <= MAX_FILES_PER_CRITERION
@@ -331,7 +332,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       return true;
     }
     const nextScoreError = scoreFieldsEditable ? validateScore(score, criterion.maxScore, 'Điểm đề xuất', true) : '';
-    const nextBonusScoreError = scoreFieldsEditable ? validateScore(bonusScore, effectiveMaxBonus, 'Điểm thưởng') : '';
+    const nextBonusScoreError = scoreFieldsEditable ? validateScore(bonusScore, maxBonus, 'Điểm thưởng') : '';
     setScoreError(nextScoreError);
     setBonusScoreError(nextBonusScoreError);
     setExplanationError('');
@@ -405,8 +406,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <ScorePlaceholder label="Điểm thưởng" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
-            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={effectiveMaxBonus} step="0.25" value={bonusScore} disabled={locked || !scoreFieldsEditable || uploading} onChange={(event) => updateScoreInput(event.target.value, effectiveMaxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
-            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {effectiveMaxBonus}</span>
+            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || !scoreFieldsEditable || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
+            <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
           </div>
         )}
         {bonusScoreError && <p role="alert" className="mt-1.5 text-xs font-medium text-destructive">{bonusScoreError}</p>}
@@ -598,6 +599,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   onCompletionChange,
   uploading,
   toolbar,
+  toolbarLeading,
   onSelect,
   onDeleteEvidence,
 }, ref) {
@@ -670,14 +672,16 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
           <h2 className="text-sm font-semibold">Nội dung tự đánh giá</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{scoreFieldsLocked ? 'Đang xử lý yêu cầu chỉnh sửa: điểm đề xuất và điểm thưởng được giữ nguyên; bạn vẫn có thể cập nhật minh chứng và diễn giải.' : 'Nhập điểm trực tiếp; minh chứng và diễn giải được bổ sung qua từng nút trên dòng.'}</p>
         </div>
-        <Badge variant="outline">{criteria.length} tiêu chí</Badge>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="outline">{criteria.length} tiêu chí</Badge>
+        </div>      </div>
       <DataTable
         columns={columns}
         data={criteria}
         pageSize={criteria.length || 10}
         showPagination={false}
         toolbar={toolbar}
+        toolbarLeading={toolbarLeading}
         getRowId={(criterion) => criterion.id}
         selectedRowId={selectedCriterionId}
         className="-mt-px"

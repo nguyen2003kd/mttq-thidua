@@ -175,7 +175,9 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
       type: 'Standard' as const,
       content: name,
       maxPoint: parseScore(cellValue(row, 1), `Điểm chuẩn tại ô B${rowNumber}`, false),
-      maxBonusPoint: parseScore(cellValue(row, 2), `Điểm thưởng tại ô C${rowNumber}`, true),
+      maxBonusPoint: isBlank(cellValue(row, 2))
+        ? 1
+        : parseScore(cellValue(row, 2), `Điểm thưởng tại ô C${rowNumber}`, true),
       note: toText(cellValue(row, 3)) || undefined,
       deadline: parseDeadline(cellValue(row, 4), rowNumber),
     };
