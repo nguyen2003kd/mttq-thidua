@@ -126,6 +126,9 @@ export interface SubmissionApi {
   criteriaGroupName: string | null;
   currentStage: SubmissionStage;
   totalProposedPoint: number;
+  /** Tổng điểm thưởng chính thức của địa phương trong kỳ (mọi hồ sơ) + giới hạn kỳ — chỉ endpoint chi tiết trả về. */
+  periodBonusUsed?: number;
+  periodBonusLimit?: number;
   totalFinalPoint: number;
   submittedAt: string | null;
   createdAt: string;

@@ -86,8 +86,6 @@ export function EvidenceModal({
 
   const maxScore = criterion?.maxScore ?? entry?.supplementaryMaxScore ?? 0;
   const maxBonus = criterion?.bonusScore ?? 0;
-  // Chuyên viên chưa cấu hình điểm thưởng -> địa phương được tự đề xuất, tối đa 1
-  const effectiveMaxBonus = maxBonus > 0 ? maxBonus : 1;
   const title = readonly ? 'Minh chứng địa phương' : entry?.proposedScore === undefined ? 'Thêm mới minh chứng' : 'Sửa minh chứng';
   const description = criterion?.name ?? entry?.criteriaName ?? '';
   const hasEvidence = evidence.length > 0;
@@ -109,8 +107,8 @@ export function EvidenceModal({
       setError(`Điểm đề xuất phải từ 0 đến ${maxScore}.`);
       return;
     }
-    if (!Number.isFinite(proposedBonusScore) || proposedBonusScore < 0 || proposedBonusScore > effectiveMaxBonus) {
-      setError(`Điểm thưởng đề xuất phải từ 0 đến ${effectiveMaxBonus}.`);
+    if (!Number.isFinite(proposedBonusScore) || proposedBonusScore < 0 || proposedBonusScore > maxBonus) {
+      setError(`Điểm thưởng đề xuất phải từ 0 đến ${maxBonus}.`);
       return;
     }
     if (!explanation.trim()) {
@@ -163,8 +161,8 @@ export function EvidenceModal({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="proposed-bonus">Điểm thưởng đề xuất</Label>
-            <Input id="proposed-bonus" type="number" min={0} max={effectiveMaxBonus} step="0.25" value={bonus} onChange={(event) => setBonus(event.target.value)} />
-            <p className="text-xs text-muted-foreground">{maxBonus > 0 ? `Điểm thưởng tối đa: ${maxBonus}` : 'Chuyên viên chưa cấu hình điểm thưởng — tối đa 1'}</p>
+            <Input id="proposed-bonus" type="number" min={0} max={maxBonus} step="0.25" value={bonus} onChange={(event) => setBonus(event.target.value)} disabled={maxBonus === 0} />
+            <p className="text-xs text-muted-foreground">Điểm thưởng tối đa: {maxBonus}</p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="evidence-explanation">Diễn giải <span className="text-destructive">*</span></Label>
@@ -176,7 +174,7 @@ export function EvidenceModal({
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Minh chứng điểm thưởng</Label>
-            <FileUpload value={bonusFiles} onChange={setBonusFiles} multiple disabled={saving} uploading={uploading} uploadProgress={uploadProgress} />
+            <FileUpload value={bonusFiles} onChange={setBonusFiles} multiple disabled={maxBonus === 0 || saving} uploading={uploading} uploadProgress={uploadProgress} />
             <p className="text-xs text-muted-foreground">Không bắt buộc.</p>
           </div>
         </div>

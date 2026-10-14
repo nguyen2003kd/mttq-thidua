@@ -62,7 +62,7 @@ function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }
     ['Loại tiêu chí', entry.isSupplementary ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'],
     ['Hạn nộp', criterion?.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'],
     ['Điểm đề xuất', `${entry.proposedScore ?? entry.value ?? 0} / ${criterion?.maxScore ?? entry.supplementaryMaxScore ?? 0}`],
-    ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${criterion?.bonusScore || 1}`],
+    ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${criterion?.bonusScore ?? 0}`],
   ];
 
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p>{criterion?.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
@@ -242,10 +242,16 @@ export default function LocalityCriteriaPage() {
   });
 
   const mySubmissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, page: 1, pageSize: 100 }),
-    queryFn: () => localityApi.listMySubmissions({ page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, periodId: periodFilter || undefined, page: 1, pageSize: 100 }),
+    queryFn: () => localityApi.listMySubmissions({ periodId: periodFilter || undefined, page: 1, pageSize: 100 }),
     enabled: Boolean(localityId),
   });
+
+  // Tổng điểm thưởng địa phương đã dùng trong kỳ (mọi hồ sơ) — theo dõi quota tối đa 5/kỳ.
+  const periodBonusUsed = useMemo(
+    () => (mySubmissionsQuery.data?.items ?? []).reduce((sum, s) => sum + (s.totalProposedBonusPoint ?? 0), 0),
+    [mySubmissionsQuery.data],
+  );
 
   // Map criteriaGroupId → submission
   const submissionByGroup = useMemo(() => {
@@ -1026,24 +1032,7 @@ export default function LocalityCriteriaPage() {
       <PageHeader
         title="Tự đánh giá và gửi minh chứng"
         description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatDate(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`}
-        summary={(
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-4 py-2.5">
-              <div className="pr-4">
-                <p className="text-xs text-muted-foreground">Điểm tự đánh giá hiện tại</p>
-                <p className="text-xl font-semibold tabular-nums">
-                  {currentSelfScore}
-                  <span className="text-sm font-normal text-muted-foreground"> / {detailTable.totalScore}</span>
-                </p>
-              </div>
-              <div className="pl-4">
-                <p className="text-xs text-muted-foreground">Điểm thưởng hiện tại <span className="whitespace-nowrap">· tối đa 5/kỳ</span></p>
-                <p className="text-xl font-semibold tabular-nums">{currentBonusScore}</p>
-              </div>
-            </div>
-            <ScoreStateBadge state={record.state} size="lg" />
-          </div>
-        )}
+        summary={<ScoreStateBadge state={record.state} size="lg" />}
         actions={<div className="flex flex-wrap items-center gap-2">{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
       {record.revisionRequestedAt && (
@@ -1103,6 +1092,21 @@ export default function LocalityCriteriaPage() {
           const target = evidence.find((item) => item.id === evidenceId);
           if (target) setDeleteTarget(target);
         }}
+        toolbarLeading={(
+          <div className="flex items-center divide-x divide-border rounded-md border bg-muted/30 px-3 py-1.5">
+            <div className="pr-3">
+              <p className="text-xs text-muted-foreground">Điểm tự đánh giá hiện tại</p>
+              <p className="text-sm font-semibold tabular-nums leading-5">
+                {currentSelfScore}
+                <span className="text-xs font-normal text-muted-foreground"> / {detailTable.totalScore}</span>
+              </p>
+            </div>
+            <div className="pl-3">
+              <p className="text-xs text-muted-foreground">Điểm thưởng đã nộp <span className="whitespace-nowrap">· tối đa 5 điểm/kỳ thi đua</span></p>
+              <p className="text-sm font-semibold tabular-nums leading-5">{periodFilter ? periodBonusUsed : currentBonusScore}</p>
+            </div>
+          </div>
+        )}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
