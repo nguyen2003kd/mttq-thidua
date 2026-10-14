@@ -373,7 +373,7 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     ReviewerRevisionRequested: 'DA_DUYET',
   },
   REVIEWER: {
-    LocalSubmitted: 'CHO_DUYET',
+    LocalSubmitted: 'CHUA_DEN_LUOT',
     ScorerSubmitted: 'CHO_DUYET',
     ReviewerApproved: 'DA_DUYET',
     SpecialistApproved: 'DA_DUYET',
@@ -382,7 +382,7 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
     ScorerRevisionRequested: 'YEU_CAU_SUA',
-    ReviewerRevisionRequested: 'CHO_DUYET',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
   SPECIALIST: {
     LocalSubmitted: 'CHO_DUYET',
@@ -453,7 +453,7 @@ type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
 const scoreEditSchema = z.object({
   score: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
-  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.'),
+  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.').max(1, 'Điểm thưởng không được vượt quá 1 điểm.'),
   reason: z.string().trim(),
 });
 
@@ -1132,7 +1132,7 @@ function SupplementaryDialog({
 // }
 
 function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
-  if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  if (status === 'CHUA_NOP' || status === 'CHUA_DEN_LUOT') return <Badge variant="outline" className="text-muted-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
   if (status === 'DA_DUYET') return <Badge variant="success">{LOCALITY_STATUS_LABELS[status]}</Badge>;
   if (status === 'YEU_CAU_SUA') return <Badge variant="warning">{LOCALITY_STATUS_LABELS[status]}</Badge>;
   return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
@@ -1385,12 +1385,16 @@ function ScoreEditDialog({
   onOpenChange,
   onSave,
   initialAttachment = null,
+  periodBonusUsed = null,
+  periodBonusLimit = null,
 }: {
   item: SpecialistCriteriaItem | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (values: ScoreEditForm, attachment: File | null, attachmentChanged: boolean) => void;
   initialAttachment?: File | null;
+  periodBonusUsed?: number | null;
+  periodBonusLimit?: number | null;
 }) {
   const form = useForm<ScoreEditForm>({
     resolver: zodResolver(scoreEditSchema),
@@ -1431,9 +1435,18 @@ function ScoreEditDialog({
       form.setError('score', { message: `Điểm chấm không được vượt quá ${item.maxProposedScore}.` });
       return;
     }
-    if (values.bonusScore > item.maxProposedBonusScore) {
-      form.setError('bonusScore', { message: `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.` });
+    if (values.bonusScore > 1) {
+      form.setError('bonusScore', { message: 'Điểm thưởng không được vượt quá 1 điểm.' });
       return;
+    }
+    // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn (5/kỳ).
+    if (periodBonusUsed != null && periodBonusLimit != null) {
+      const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
+      const projected = periodBonusUsed - currentBonus + values.bonusScore;
+      if (projected > periodBonusLimit) {
+        form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn 5 điểm/kỳ.` });
+        return;
+      }
     }
     if (attachmentError) return;
     onSave(values, attachment, attachmentChanged);
@@ -1455,22 +1468,43 @@ function ScoreEditDialog({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="specialist-score">Điểm chuyên viên <span className="text-danger">★</span></Label>
+                <Label htmlFor="specialist-score">Điểm chuyên viên <span className="text-destructive">★</span></Label>
                 <Input id="specialist-score" type="number" min={0} max={item.maxProposedScore} step="0.25" {...form.register('score')} />
                 <p className="text-xs text-muted-foreground">Tối đa {item.maxProposedScore} điểm</p>
-                {form.formState.errors.score && <p className="text-xs text-danger">{form.formState.errors.score.message}</p>}
+                {form.formState.errors.score && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.score.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-danger">★</span></Label>
-                <Input id="specialist-bonus-score" type="number" min={0} max={item.maxProposedBonusScore} step="0.25" {...form.register('bonusScore')} />
-                <p className="text-xs text-muted-foreground">Tối đa {item.maxProposedBonusScore} điểm</p>
-                {form.formState.errors.bonusScore && <p className="text-xs text-danger">{form.formState.errors.bonusScore.message}</p>}
+                <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-destructive">★</span></Label>
+                <Input
+                  id="specialist-bonus-score"
+                  type="number"
+                  min={0}
+                  max={1}
+                  step="0.25"
+                  {...form.register('bonusScore', {
+                    onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                      const raw = event.target.value;
+                      if (raw === '') return;
+                      const num = Number(raw);
+                      if (!Number.isFinite(num)) return;
+                      if (num > 1) {
+                        event.target.value = '1';
+                        form.setValue('bonusScore', 1, { shouldValidate: true });
+                      } else if (num < 0) {
+                        event.target.value = '0';
+                        form.setValue('bonusScore', 0, { shouldValidate: true });
+                      }
+                    },
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">Tối đa 1 điểm</p>
+                {form.formState.errors.bonusScore && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.bonusScore.message}</p>}
               </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác đề xuất)</span></Label>
               <Textarea id="specialist-score-reason" rows={3} placeholder="Nhập lý do điều chỉnh điểm..." {...form.register('reason')} />
-              {form.formState.errors.reason && <p className="text-xs text-danger">{form.formState.errors.reason.message}</p>}
+              {form.formState.errors.reason && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.reason.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Tệp đính kèm <span className="font-normal text-muted-foreground">(không bắt buộc)</span></Label>
@@ -2441,9 +2475,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
       toast.info(specialistLockReason);
       return;
     }
-    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && isScoringCriterionEditable(item));
+    // Chỉ điền điểm đề xuất cho các tiêu chí CHƯA có điểm chuyên viên —
+    // giữ nguyên tiêu chí đã được chấm/sửa thủ công trước đó.
+    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && isScoringCriterionEditable(item) && item.officialScore === null);
     if (editableItems.length === 0) {
-      toast.info('Không có tiêu chí được yêu cầu chỉnh sửa để sao chép điểm.');
+      toast.info('Tất cả tiêu chí đã có điểm chuyên viên chấm — không ghi đè điểm đã sửa.');
       return;
     }
     const newOverrides = new Map(scoreOverrides);
@@ -2458,7 +2494,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     setScoreOverrides(newOverrides);
     toast.success(isScorerRevisionStage
       ? `Đã sao chép điểm đề xuất cho ${editableItems.length} tiêu chí được yêu cầu chỉnh sửa.`
-      : 'Đã sao chép toàn bộ điểm đề xuất sang điểm Chuyên viên chấm.');
+      : `Đã sao chép điểm đề xuất cho ${editableItems.length} tiêu chí chưa có điểm chuyên viên chấm.`);
   };
 
   const openForwardDialog = () => {
@@ -3128,6 +3164,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         item={selectedCriterion}
         open={scoreEditOpen}
         onOpenChange={setScoreEditOpen}
+        periodBonusUsed={selectedSubmissionDetailQuery.data?.periodBonusUsed ?? null}
+        periodBonusLimit={selectedSubmissionDetailQuery.data?.periodBonusLimit ?? null}
         initialAttachment={selectedCriterion ? pendingScoreAttachments.get(selectedCriterion.id) ?? null : null}
         onSave={(values, attachment, attachmentChanged) => {
           if (!selectedCriterion) return;

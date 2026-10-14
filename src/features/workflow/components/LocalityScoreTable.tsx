@@ -47,6 +47,8 @@ interface LocalityScoreTableProps {
   onCompletionChange?: (criteriaId: string, complete: boolean) => void;
   uploading?: boolean;
   toolbar?: ReactNode;
+  /** Khối nội dung đặt cạnh trái thanh công cụ (trước nhóm nút bên phải). */
+  toolbarLeading?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
   onDeleteEvidence?: (id: string) => void;
   onPreviewEvidenceFile?: (file: Evidence) => void;
@@ -597,6 +599,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   onCompletionChange,
   uploading,
   toolbar,
+  toolbarLeading,
   onSelect,
   onDeleteEvidence,
 }, ref) {
@@ -669,14 +672,16 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
           <h2 className="text-sm font-semibold">Nội dung tự đánh giá</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{scoreFieldsLocked ? 'Đang xử lý yêu cầu chỉnh sửa: điểm đề xuất và điểm thưởng được giữ nguyên; bạn vẫn có thể cập nhật minh chứng và diễn giải.' : 'Nhập điểm trực tiếp; minh chứng và diễn giải được bổ sung qua từng nút trên dòng.'}</p>
         </div>
-        <Badge variant="outline">{criteria.length} tiêu chí</Badge>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="outline">{criteria.length} tiêu chí</Badge>
+        </div>      </div>
       <DataTable
         columns={columns}
         data={criteria}
         pageSize={criteria.length || 10}
         showPagination={false}
         toolbar={toolbar}
+        toolbarLeading={toolbarLeading}
         getRowId={(criterion) => criterion.id}
         selectedRowId={selectedCriterionId}
         className="-mt-px"

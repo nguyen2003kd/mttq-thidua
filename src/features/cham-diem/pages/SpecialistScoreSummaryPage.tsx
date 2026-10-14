@@ -18,6 +18,8 @@ import { Button, EmptyState, FilterSelect, PageHeader, PageLoading } from "@/com
 import { SortableTableHead } from '@/components/core/SortableTableHead';
 import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
 import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
+import { classifyByConfig, formatClassificationRange, type EmulationClassificationConfig } from '@/lib/emulationClassification';
+import { useEmulationClassifications } from '@/hooks/useEmulationClassifications';
 import { useQueryFilters } from "@/hooks/useQueryFilters";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,8 +62,6 @@ interface ScoreTotals {
   hasProvinceScore: boolean;
 }
 
-type Classification = "EXCELLENT" | "GOOD" | "FAIR" | "UNSCORED";
-
 interface LocalityScoreSummary extends ScoreTotals {
   localityId: string;
   localityName: string;
@@ -72,8 +72,8 @@ interface LocalityScoreSummary extends ScoreTotals {
   submissions: SubmissionApi[];
   proposedTotal: number;
   provinceTotal: number | null;
-  proposedClassification: Classification;
-  provinceClassification: Classification;
+  proposedClassification: EmulationClassificationConfig | null;
+  provinceClassification: EmulationClassificationConfig | null;
 }
 
 const UNASSIGNED_CLUSTER_ID = "__unassigned__";
@@ -150,14 +150,6 @@ function getTotals(submissions: SubmissionApi[]): ScoreTotals {
       hasProvinceScore: false,
     },
   );
-}
-
-function classifyScore(score: number | null): Classification {
-  if (score === null) return "UNSCORED";
-  const scoreForClassification = Math.min(score, 100);
-  if (scoreForClassification >= 95) return "EXCELLENT";
-  if (scoreForClassification >= 85) return "GOOD";
-  return "FAIR";
 }
 
 function formatScore(value: number | null) {
@@ -280,12 +272,12 @@ function LocalityCriteriaDialog({
         <TableHeader>
           <TableRow className="bg-primary hover:bg-primary">
             <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
-            <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="province" label="Điểm của tỉnh" ariaLabel="Điểm của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" />
-            <SortableTableHead column="provinceTotal" label="Tổng điểm tỉnh" ariaLabel="Tổng điểm tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="bg-primary text-right" />
+            <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="province" label="Điểm của tỉnh" ariaLabel="Điểm của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceTotal" label="Tổng điểm tỉnh" ariaLabel="Tổng điểm tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="whitespace-normal bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -337,7 +329,7 @@ function LocalityCriteriaDialog({
     <Dialog open={Boolean(locality)} onOpenChange={(open) => { if (!open) closeDialog(); }}>
       <DialogContent className={cn(
         'flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0',
-        selectedSubmission && canReview ? 'h-[calc(100dvh-2rem)] sm:max-w-[1880px]' : 'sm:max-w-6xl',
+        selectedSubmission && canReview ? 'h-[calc(100dvh-2rem)] sm:max-w-[1880px]' : selectedSubmission ? 'sm:max-w-[1440px]' : 'sm:max-w-6xl',
       )}>
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
           <DialogTitle>
@@ -426,17 +418,16 @@ function LocalityCriteriaDialog({
 function getDistribution(
   rows: LocalityScoreSummary[],
   field: "proposedClassification" | "provinceClassification",
+  classifications: readonly EmulationClassificationConfig[],
 ) {
-  return rows.reduce(
-    (distribution, row) => {
-      distribution[row[field]] += 1;
-      return distribution;
-    },
-    { EXCELLENT: 0, GOOD: 0, FAIR: 0, UNSCORED: 0 } satisfies Record<
-      Classification,
-      number
-    >,
+  const counts = new Map<string, number>(
+    classifications.map((config) => [config.code, 0]),
   );
+  for (const row of rows) {
+    const config = row[field];
+    if (config) counts.set(config.code, (counts.get(config.code) ?? 0) + 1);
+  }
+  return classifications.map((config) => ({ config, count: counts.get(config.code) ?? 0 }));
 }
 
 function ResultSummary({
@@ -445,9 +436,10 @@ function ResultSummary({
   emphasized = false,
 }: {
   label: string;
-  distribution: Record<Classification, number>;
+  distribution: { config: EmulationClassificationConfig; count: number }[];
   emphasized?: boolean;
 }) {
+  const borderColors = ["border-success", "border-accent", "border-info", "border-muted-foreground/50"];
   return (
     <div
       className={cn(
@@ -456,32 +448,20 @@ function ResultSummary({
       )}
     >
       <p className="text-xs font-semibold leading-4 text-foreground">{label}</p>
-      <div className="grid grid-cols-3 gap-1">
-        <div className="min-w-0 border-l-2 border-success pl-2">
-          <p
-            className={cn(
-              "text-base font-semibold leading-5 tabular-nums",
-              emphasized ? "text-primary" : "text-foreground",
-            )}
-          >
-            {distribution.EXCELLENT}
-          </p>
-          <p className="text-[11px] leading-4 text-muted-foreground">
-            Xuất sắc
-          </p>
-        </div>
-        <div className="min-w-0 border-l-2 border-accent pl-2">
-          <p className="text-base font-semibold leading-5 tabular-nums text-foreground">
-            {distribution.GOOD}
-          </p>
-          <p className="text-[11px] leading-4 text-muted-foreground">Tốt</p>
-        </div>
-        <div className="min-w-0 border-l-2 border-info pl-2">
-          <p className="text-base font-semibold leading-5 tabular-nums text-foreground">
-            {distribution.FAIR}
-          </p>
-          <p className="text-[11px] leading-4 text-muted-foreground">Khá</p>
-        </div>
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${distribution.length}, minmax(0, 1fr))` }}>
+        {distribution.map(({ config, count }, index) => (
+          <div key={config.code} className={cn("min-w-0 border-l-2 pl-2", borderColors[index % borderColors.length])}>
+            <p
+              className={cn(
+                "text-base font-semibold leading-5 tabular-nums",
+                emphasized ? "text-primary" : "text-foreground",
+              )}
+            >
+              {count}
+            </p>
+            <p className="text-[11px] leading-4 text-muted-foreground">{config.name}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -511,6 +491,8 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
     queryFn: async () => (await periodsApi.list(periodListParams)).items,
   });
   const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
+  const classificationsQuery = useEmulationClassifications();
+  const classifications = classificationsQuery.classifications;
   const sortedPeriods = useMemo(() => [...periods].sort((left, right) => {
     const leftTimestamp = Date.parse(left.updatedAt ?? left.createdAt);
     const rightTimestamp = Date.parse(right.updatedAt ?? right.createdAt);
@@ -608,8 +590,8 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
           proposedTotal,
           provinceTotal,
           proposedClassification:
-            submissions.length > 0 ? classifyScore(proposedTotal) : "UNSCORED",
-          provinceClassification: classifyScore(provinceTotal),
+            submissions.length > 0 ? classifyByConfig(proposedTotal, classifications) : null,
+          provinceClassification: classifyByConfig(provinceTotal, classifications),
         };
       })
       .sort((left, right) => {
@@ -623,16 +605,16 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
           left.localityName.localeCompare(right.localityName, "vi")
         );
       });
-  }, [submissionsQuery.data, clusters]);
+  }, [submissionsQuery.data, clusters, classifications]);
   const selectedLocality = rows.find((row) => row.localityId === selectedLocalityId) ?? null;
 
   const proposedDistribution = useMemo(
-    () => getDistribution(rows, "proposedClassification"),
-    [rows],
+    () => getDistribution(rows, "proposedClassification", classifications),
+    [rows, classifications],
   );
   const provinceDistribution = useMemo(
-    () => getDistribution(rows, "provinceClassification"),
-    [rows],
+    () => getDistribution(rows, "provinceClassification", classifications),
+    [rows, classifications],
   );
 
   const groupedRows = useMemo(() => {
@@ -895,22 +877,19 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
               </p>
             </div>
             <dl className="divide-y divide-border">
-              <div className="flex items-baseline justify-between gap-2 px-4 py-2">
-                <dt className="text-xs font-semibold text-success">Xuất sắc</dt>
-                <dd className="text-xs text-foreground">Từ 95 đến 100 điểm</dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-2 px-4 py-2">
-                <dt className="text-xs font-semibold text-foreground">Tốt</dt>
-                <dd className="text-xs text-foreground">
-                  Từ 85 đến dưới 95 điểm
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-2 px-4 py-2">
-                <dt className="text-xs font-semibold text-info">Khá</dt>
-                <dd className="text-xs text-foreground">
-                  Thấp hơn 85 điểm
-                </dd>
-              </div>
+              {classifications.map((config, index) => (
+                <div key={config.code} className="flex items-baseline justify-between gap-2 px-4 py-2">
+                  <dt
+                    className={cn(
+                      "text-xs font-semibold",
+                      index === 0 ? "text-success" : index === classifications.length - 1 ? "text-muted-foreground" : "text-foreground",
+                    )}
+                  >
+                    {config.name}
+                  </dt>
+                  <dd className="text-xs text-foreground">{formatClassificationRange(config)}</dd>
+                </div>
+              ))}
             </dl>
           </section>
         </div>

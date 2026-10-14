@@ -24,6 +24,8 @@ import { downloadFile } from '@/features/files/api/filesApi';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
+import { useEmulationClassifications } from '@/hooks/useEmulationClassifications';
+import { classifyByConfig, type EmulationClassificationConfig } from '@/lib/emulationClassification';
 import { periodsApi } from '@/features/admin/api/periodsApi';
 import { resultPublicationApi } from '@/features/duyet/api/resultPublicationApi';
 import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
@@ -101,16 +103,17 @@ function mapHistoryToAudit(item: ApprovalHistoryItem): AuditEntry {
   };
 }
 
-// Xếp loại theo thang điểm tuyệt đối 100 (95 điểm tự chấm + 5 điểm thưởng)
-function classification(score: number) {
-  if (score >= 95) return 'Xuất sắc';
-  if (score >= 85) return 'Tốt';
-  return 'Khá';
+// Xếp loại theo cấu hình bảng emulation_classifications (fallback thang mặc định nếu chưa tải được)
+function classificationLabel(score: number | null | undefined, classifications: readonly EmulationClassificationConfig[]) {
+  return classifyByConfig(score, classifications)?.name ?? 'Chưa xếp loại';
 }
 
-function classificationBadgeClass(score: number) {
-  if (score >= 85) return 'bg-success text-success-foreground';
-  return 'bg-warning text-foreground';
+function classificationBadgeClass(score: number | null | undefined, classifications: readonly EmulationClassificationConfig[]) {
+  const index = classifications.findIndex((row) => row.code === classifyByConfig(score, classifications)?.code);
+  if (index < 0) return 'bg-muted text-muted-foreground';
+  if (index <= 1) return 'bg-success text-success-foreground';
+  if (index === 2) return 'bg-warning text-foreground';
+  return 'bg-muted text-muted-foreground';
 }
 
 function publicationStatusLabel(status: string) {
@@ -148,12 +151,12 @@ interface ResultRow {
 
 const RESULT_GROUP_SORT_OPTIONS: TableSortOption[] = [
   { value: 'maxPoint-desc', label: 'Điểm chuẩn cao nhất', sort: { column: 'maxPoint', direction: 'desc' } },
-  { value: 'proposedPoint-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposedPoint', direction: 'desc' } },
-  { value: 'proposedBonus-desc', label: 'Điểm thưởng đề xuất cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
-  { value: 'officialPoint-desc', label: 'Điểm tỉnh cao nhất', sort: { column: 'officialPoint', direction: 'desc' } },
-  { value: 'officialBonus-desc', label: 'Điểm thưởng tỉnh cao nhất', sort: { column: 'officialBonus', direction: 'desc' } },
-  { value: 'proposedTotal-desc', label: 'Tổng điểm đề xuất cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
-  { value: 'currentPoint-desc', label: 'Tổng điểm tỉnh cao nhất', sort: { column: 'currentPoint', direction: 'desc' } },
+  { value: 'proposedPoint-desc', label: 'Điểm địa phương đề nghị cao nhất', sort: { column: 'proposedPoint', direction: 'desc' } },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
+  { value: 'officialPoint-desc', label: 'Điểm TP chấm cao nhất', sort: { column: 'officialPoint', direction: 'desc' } },
+  { value: 'officialBonus-desc', label: 'Điểm thưởng TP cao nhất', sort: { column: 'officialBonus', direction: 'desc' } },
+  { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
+  { value: 'currentPoint-desc', label: 'Tổng điểm TP cao nhất', sort: { column: 'currentPoint', direction: 'desc' } },
 ];
 
 const RESULT_DETAIL_SORT_OPTIONS: TableSortOption[] = [
@@ -214,9 +217,9 @@ function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint + criterion.maxBonusPoint} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedScore} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedBonus} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedTotal} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={provinceScore} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={provinceBonus} /></TableCell>
-    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedTotal} /></TableCell>
     <TableCell className="px-4 py-3 text-center align-top"><ScoreValue value={provinceTotal} /></TableCell>
   </TableRow>;
 }
@@ -259,6 +262,7 @@ function AttachmentButton({ label, files, onPreview }: {
 export default function LocalityResultsPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const { classifications } = useEmulationClassifications();
   const user = useAuthStore((state) => state.user);
   const localityId = user?.localityId;
   const [selectedRow, setSelectedRow] = useState<ResultRow | null>(null);
@@ -471,7 +475,7 @@ export default function LocalityResultsPage() {
               </div>
               <div className="min-w-0 lg:px-4">
                 <dt className="text-xs text-muted-foreground">Kết quả xếp loại</dt>
-                <dd className="mt-1"><Badge className={`max-w-full whitespace-normal px-3 py-1 text-left text-sm font-semibold leading-5 ${classificationBadgeClass(totalCurrentPoint)}`}>{classification(totalCurrentPoint)}</Badge></dd>
+                <dd className="mt-1"><Badge className={`max-w-full whitespace-normal px-3 py-1 text-left text-sm font-semibold leading-5 ${classificationBadgeClass(totalCurrentPoint, classifications)}`}>{classificationLabel(totalCurrentPoint, classifications)}</Badge></dd>
               </div>
               <div className="min-w-0 lg:px-4">
                 <dt className="text-xs text-muted-foreground">Thứ hạng</dt>
@@ -512,8 +516,8 @@ export default function LocalityResultsPage() {
             <Badge variant="secondary">{filteredRows.length} nhóm</Badge>
           </div>
         </div>
-        <Table className="min-w-[1660px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[19%]" /><col className="w-[17%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
-          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><SortableTableHead column="maxPoint" label="Điểm chuẩn" ariaLabel="Điểm chuẩn" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'maxPoint', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="proposedPoint" label="Xã/phường đề nghị" ariaLabel="Điểm đề xuất" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedPoint', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương đề nghị" ariaLabel="Điểm thưởng đề xuất" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="officialPoint" label="Tỉnh chấm" ariaLabel="Điểm tỉnh chấm" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'officialPoint', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="officialBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng tỉnh" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'officialBonus', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="proposedTotal" label="Tổng điểm địa phương chấm" ariaLabel="Tổng điểm địa phương" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="currentPoint" label="Tổng điểm tỉnh chấm" ariaLabel="Tổng điểm tỉnh" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'currentPoint', 'desc'))} align="right" className="bg-primary text-right" /></TableRow></TableHeader>
+        <Table className="min-w-[760px] table-fixed" containerClassName="max-w-full"><colgroup><col className="w-[20%]" /><col className="w-[18%]" /><col className="w-[9%]" /><col className="w-[11%]" /><col className="w-[11%]" /><col className="w-[7%]" /><col className="w-[8%]" /><col className="w-[10%]" /><col className="w-[6%]" /></colgroup>
+          <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Tên tiêu chí</TableHead><TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-center leading-5 text-primary-foreground">Nội dung</TableHead><SortableTableHead column="maxPoint" label="Điểm chuẩn" ariaLabel="Điểm chuẩn" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'maxPoint', 'desc'))} align="center" className="border-r border-white/30 bg-primary" /><SortableTableHead column="proposedPoint" label="Địa phương đề nghị" ariaLabel="Điểm địa phương đề nghị" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedPoint', 'desc'))} align="center" className="border-r border-white/30 bg-primary" /><SortableTableHead column="proposedBonus" label="Điểm thưởng ĐP chấm" ariaLabel="Điểm thưởng địa phương" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="center" className="border-r border-white/30 bg-primary" /><SortableTableHead column="proposedTotal" label="Tổng ĐP" ariaLabel="Tổng điểm địa phương" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="center" className="border-r border-white/30 bg-primary" /><SortableTableHead column="officialPoint" label="TP chấm" ariaLabel="Điểm TP chấm" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'officialPoint', 'desc'))} align="center" className="border-r border-white/30 bg-primary" /><SortableTableHead column="officialBonus" label="Điểm thưởng TP chấm" ariaLabel="Điểm thưởng TP" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'officialBonus', 'desc'))} align="center" className="border-r border-white/30 bg-primary" /><SortableTableHead column="currentPoint" label="Tổng TP" ariaLabel="Tổng điểm TP" sort={groupSort} onSort={() => setGroupSort((current) => toggleTableSort(current, 'currentPoint', 'desc'))} align="center" className="bg-primary" /></TableRow></TableHeader>
           <TableBody>
             {sortedFilteredRows.flatMap((row) => {
               const expanded = expandedGroupIds.has(row.criteriaGroupId);
@@ -536,9 +540,9 @@ export default function LocalityResultsPage() {
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.maxPoint} strong /></TableCell>
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.proposedPoint} strong /></TableCell>
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.proposedBonus} strong /></TableCell>
+                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={proposedTotal} strong /></TableCell>
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.officialPoint} strong /></TableCell>
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.officialBonus} strong /></TableCell>
-                  <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={proposedTotal} strong /></TableCell>
                   <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums text-primary">{formatScore(row.currentPoint)}</span></TableCell>
                 </TableRow>,
                 ...(expanded ? sortedCriteria.map((criterion) => <ChildResultRow key={`${row.criteriaGroupId}-${criterion.id}`} criterion={criterion} result={resultsByCriteriaId.get(criterion.id)} />) : []),
@@ -597,7 +601,7 @@ export default function LocalityResultsPage() {
         <div><h2 className="flex items-center gap-2 text-base font-semibold"><FileText className="size-4 text-primary" />Chi tiết tiêu chí con</h2><p className="mt-1 text-sm text-muted-foreground">{detailSubmission ? 'Điểm chính thức đã được các cấp thẩm định và công bố.' : 'Địa phương chưa nộp hồ sơ cho nhóm này — điểm công bố được tính là 0.'}</p></div>
         <TableSortSelect sort={detailSort} options={RESULT_DETAIL_SORT_OPTIONS} onChange={setDetailSort} />
       </div>
-      <div className="hidden overflow-x-auto md:block"><Table className="min-w-[1480px] table-fixed">
+      <div className="hidden overflow-x-auto md:block"><Table className="min-w-[900px] table-fixed">
         <colgroup><col className="w-[29%]" /><col className="w-[16%]" /><col className="w-[16%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[11%]" /><col className="w-[4%]" /></colgroup>
         <TableHeader><TableRow className="bg-primary hover:bg-primary"><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead><SortableTableHead column="proposed" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><SortableTableHead column="actual" label="Điểm thực tế" ariaLabel="Điểm thực tế" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'actual', 'desc'))} align="right" className="border-r border-white/30 bg-primary text-right" /><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Lý do</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Bằng chứng</TableHead><TableHead className="border-r border-white/30 bg-primary px-4 py-3 text-primary-foreground">Ghi chú</TableHead><TableHead className="bg-primary px-3 py-3 text-center text-primary-foreground"><span className="sr-only">Xem chi tiết</span></TableHead></TableRow></TableHeader>
         <TableBody>

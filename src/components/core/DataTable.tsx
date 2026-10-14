@@ -102,6 +102,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   emptyState?: { title: string; description?: string; icon?: ReactNode };
   toolbar?: ReactNode;
+  /** Khối nội dung đặt TRƯỚC nhóm nút bên phải (cạnh trái thanh công cụ). */
+  toolbarLeading?: ReactNode;
   variant?: 'table' | 'list';
   className?: string;
   /** Tiêu đề hiện khi toolbar dính (sticky) */
@@ -202,6 +204,7 @@ export function DataTable<TData, TValue = unknown>({
   onRowSelectionChange,
   emptyState,
   toolbar,
+  toolbarLeading,
   variant = 'table',
   className,
   onRowClick,
@@ -259,7 +262,7 @@ export function DataTable<TData, TValue = unknown>({
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
   const tableHeaderInnerRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
-  const hasToolbar = Boolean(searchable || filters || inlineFilters || toolbar || enableColumnVisibility);
+  const hasToolbar = Boolean(searchable || filters || inlineFilters || toolbar || toolbarLeading || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
 
@@ -772,6 +775,7 @@ export function DataTable<TData, TValue = unknown>({
         </FilterDropdown>
       )}
       {inlineFilters}
+      {toolbarLeading}
       <div className={cn('ml-auto flex items-center gap-2', inlineFilters && 'flex-wrap justify-end')}>
         {!filters && showColumnVisibility && (
           <DropdownMenu>

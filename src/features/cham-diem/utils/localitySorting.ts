@@ -1,10 +1,11 @@
-export type LocalityOverallStatus = 'CHUA_NOP' | 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
+export type LocalityOverallStatus = 'CHUA_NOP' | 'CHUA_DEN_LUOT' | 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
 export type LocalitySortColumn = 'completion' | 'status';
 export type LocalitySortValue = '' | 'completion-asc' | 'completion-desc' | 'status-asc' | 'status-desc';
 export type LocalitySortDirection = 'asc' | 'desc';
 
 export const LOCALITY_STATUS_LABELS: Record<LocalityOverallStatus, string> = {
   CHUA_NOP: 'Chưa nộp',
+  CHUA_DEN_LUOT: 'Chờ chuyên viên chấm',
   CHO_DUYET: 'Đang chờ duyệt',
   YEU_CAU_SUA: 'Yêu cầu chỉnh sửa',
   DA_DUYET: 'Đã duyệt',
