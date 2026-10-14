@@ -57,7 +57,7 @@ const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
 
 const FORWARD_LABELS: Record<ScoringRole, string> = {
   SCORER: 'Gửi Lãnh đạo ban',
-  REVIEWER: 'Gửi Chuyên viên trưởng',
+  REVIEWER: 'Gửi chuyên viên phụ trách',
   SPECIALIST: 'Duyệt hồ sơ',
 };
 
