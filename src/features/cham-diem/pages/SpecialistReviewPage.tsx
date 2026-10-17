@@ -370,7 +370,7 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
     ScorerRevisionRequested: 'YEU_CAU_SUA',
-    ReviewerRevisionRequested: 'DA_DUYET',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
   REVIEWER: {
     LocalSubmitted: 'CHUA_DEN_LUOT',
@@ -382,19 +382,19 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
     ScorerRevisionRequested: 'YEU_CAU_SUA',
-    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
+    ReviewerRevisionRequested: 'CHO_DUYET',
   },
   SPECIALIST: {
-    LocalSubmitted: 'CHO_DUYET',
-    ScorerSubmitted: 'CHO_DUYET',
+    LocalSubmitted: 'CHUA_DEN_LUOT',
+    ScorerSubmitted: 'CHUA_DEN_LUOT',
     ReviewerApproved: 'CHO_DUYET',
     SpecialistApproved: 'DA_DUYET',
     LeaderApproved: 'DA_DUYET',
     CouncilApproved: 'DA_DUYET',
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
-    ScorerRevisionRequested: 'CHO_DUYET',
-    ReviewerRevisionRequested: 'CHO_DUYET',
+    ScorerRevisionRequested: 'CHUA_DEN_LUOT',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
 };
 
@@ -1693,7 +1693,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           ? 'YEU_CAU_SUA'
           : statuses.includes('CHO_DUYET')
             ? 'CHO_DUYET'
-            : 'DA_DUYET';
+            : statuses.includes('CHUA_DEN_LUOT')
+              ? 'CHUA_DEN_LUOT'
+              : 'DA_DUYET';
       const completedGroupCount = realSubs.filter((s) => STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][s.currentStage] === 'DA_CHAM').length;
       return {
         localityId: wardCode,
