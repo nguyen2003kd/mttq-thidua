@@ -24,11 +24,14 @@ export function notificationQueryKeys(data: string): QueryKey[] {
         return [...keys, ...criteria, resource('files'), resource('audit-logs')];
       case 'criteria_group_applied':
       case 'criteria_group_updated':
+      case 'criteria_group_applied_for_scoring':
         return [...keys, ...criteria, resource('departments'), resource('audit-logs')];
       case 'revision_requested':
       case 'specialist_review_requested':
       case 'reviewer_revision_requested':
       case 'scorer_revision_requested':
+      case 'scorer_submission_received':
+      case 'reviewer_submission_received':
         return [...keys, ...submissions, resource('files'), resource('audit-logs')];
       case 'result_published':
         return [...keys, ...publications, resource('audit-logs')];

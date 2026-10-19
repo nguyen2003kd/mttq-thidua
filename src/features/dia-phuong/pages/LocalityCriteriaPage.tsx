@@ -1050,6 +1050,19 @@ export default function LocalityCriteriaPage() {
               <span className="italic">{latestReopenReasonText}</span>
             </div>
           )}
+          {!latestReopenIsSupplementaryAdd && (latestReopenHistory?.files?.length ?? 0) > 0 && (
+            <div className="space-y-1">
+              <span className="text-muted-foreground">File đính kèm:</span>
+              <div className="flex flex-wrap gap-2">
+                {latestReopenHistory!.files.map((file) => (
+                  <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })} className="inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/5 px-2 py-1 text-xs text-warning-foreground hover:bg-warning/10">
+                    <FileText className="h-3 w-3 text-muted-foreground" />
+                    {file.displayName ?? file.originalName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {latestReopenIsSupplementaryAdd && supplementaryFiles.length > 0 && (
             <div className="space-y-1">
               <span className="text-muted-foreground">File đính kèm tiêu chí mới:</span>
