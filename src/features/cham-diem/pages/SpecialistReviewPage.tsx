@@ -2419,7 +2419,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const specialistLockReason = scorerRevisionScopeLoading
     ? 'Đang tải danh sách tiêu chí cần chỉnh sửa.'
     : specialistPermissions.disabledReason;
-  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : scoringRole === 'SPECIALIST' ? 'người review' : 'địa phương';
+  // Yêu cầu chỉnh sửa của Chuyên viên trưởng giờ gửi thẳng về địa phương (không qua Lãnh đạo ban).
+  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : 'địa phương';
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
