@@ -21,6 +21,7 @@ import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
 import { periodsApi } from '@/features/admin/api/periodsApi';
+import { vnWards } from '@/data/vn-wards';
 import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { downloadFile, getFilePreviewUrl } from '@/features/files/api/filesApi';
@@ -118,7 +119,9 @@ const fieldLabels: Record<string, string> = {
   TotalProposedPoint: 'Tổng điểm đề xuất',
   OfficialPoint: 'Điểm chính thức',
   OfficialBonusPoint: 'Điểm thưởng chính thức',
+  WardCode: 'Phường/xã',
 };
+const wardNameByCode = new Map(vnWards.map(({ code, name }) => [code, name]));
 
 /** Dùng màu thương hiệu cho thao tác thông thường, màu cảnh báo cho sửa/xóa. */
 const actionConfig: Record<string, { label: string; text: string; accent: string }> = {
@@ -271,17 +274,26 @@ function getFieldLabel(key: string): string | null {
   return fieldLabels[key] ?? fieldLabels[key.charAt(0).toUpperCase() + key.slice(1)] ?? null;
 }
 
-function localizeAuditAction(field: string, value: string | null) {
-  return field.toLowerCase() === 'action' && value === 'ResubmitAfterRevision'
-    ? 'Nộp lại sau chỉnh sửa'
-    : value;
+function localizeAuditFieldValue(field: string, value: string | null) {
+  if (!value) return value;
+  if (field.toLowerCase() === 'action' && value === 'ResubmitAfterRevision')
+    return 'Nộp lại sau chỉnh sửa';
+  if (field.toLowerCase() === 'wardcode')
+    return wardNameByCode.get(value.trim()) ?? value;
+  return value;
 }
 
 function formatAuditValue(field: string, value: unknown) {
   if (value === null || value === undefined || value === '') return 'Chưa có';
 
-  if (field.toLowerCase() === 'action' && typeof value === 'string') {
-    return localizeAuditAction(field, value) ?? value;
+  if (field.toLowerCase() === 'wardcode' && typeof value === 'number') {
+    const code = String(value);
+    return wardNameByCode.get(code) ?? code;
+  }
+
+  if (typeof value === 'string') {
+    const localizedValue = localizeAuditFieldValue(field, value);
+    if (localizedValue !== value) return localizedValue ?? value;
   }
 
   if (field === 'Status' && typeof value === 'number') {
@@ -341,8 +353,8 @@ function getDisplayChanges(item: AuditLogItem) {
         .map((change) => ({
           field: change.field,
           label: getFieldLabel(change.field) ?? change.label ?? change.field,
-          before: normDisplay(readableRef(localizeAuditAction(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
-          after: normDisplay(readableRef(localizeAuditAction(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
+          before: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
+          after: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
@@ -578,7 +590,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
             <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{moduleLabels[current.module] ?? current.module}</dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Đối tượng</dt>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Thực hiện</dt>
             <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{getEntityLabel(current.entityName)}</dd>
           </div>
           <div className="min-w-0">

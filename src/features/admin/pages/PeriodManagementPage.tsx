@@ -188,7 +188,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-name">Tên kỳ <span className="text-xs font-normal text-muted-foreground">Để trống sẽ tự đặt theo năm, VD: 2025-2026</span></Label>
-        <Input id="p-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: Thi đua 2025-2026" maxLength={20} />
+        <Input id="p-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: Thi đua 2025-2026" maxLength={200} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-status">Trạng thái</Label>
@@ -199,7 +199,6 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         >
           <SelectTrigger id="p-status"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {editOpen && <SelectItem value="Draft">Nháp</SelectItem>}
             <SelectItem value="Active">Đang áp dụng</SelectItem>
             <SelectItem value="Closed">Đã kết thúc</SelectItem>
             {editOpen && <SelectItem value="Published">Đã công bố</SelectItem>}

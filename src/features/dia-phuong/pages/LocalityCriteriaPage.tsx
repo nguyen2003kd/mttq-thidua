@@ -13,9 +13,11 @@ import { Button, ConfirmDialog, DataTable, EmptyState, FilePreviewDialog, Filter
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EvidenceModal, LocalityScoreTable, type EvidenceFormValue, type LocalityScoreTableHandle } from '@/features/workflow/components';
+import { isDeadlineBlockingLocalityEdit } from '@/features/workflow/deadlineRules';
 import type { SpecialistRevisionFile } from '@/features/workflow/components/LocalityScoreTable';
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
+import { submitAfterSuccessfulUploads } from '@/features/dia-phuong/submissionFlow';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
@@ -635,6 +637,7 @@ export default function LocalityCriteriaPage() {
   });
 
   const refreshSubmissionData = () => invalidateQueryResources(queryClient, [
+    getGetApiV1MySubmissionsQueryKey(),
     getGetApiV1SubmissionsQueryKey(),
     apiQueryKey({}, { url: '/api/v1/submission-results' }),
     getGetApiV1FilesQueryKey(),
@@ -783,27 +786,28 @@ export default function LocalityCriteriaPage() {
   const currentTimeMs = trustedNowMs ?? 0;
   const parentDeadlineMs = detailTable.closeDate ? Date.parse(detailTable.closeDate) : Number.NaN;
   const parentDeadlineExpired = isTrustedTimeReady && Number.isFinite(parentDeadlineMs) && parentDeadlineMs <= currentTimeMs;
+  const parentDeadlineBlocksEdit = isDeadlineBlockingLocalityEdit(parentDeadlineExpired, isRevisionStage);
   // Địa phương được chỉnh sửa bản nháp hoặc hồ sơ bị yêu cầu chỉnh sửa.
   // Các giai đoạn đã chuyển tiếp khác chỉ cho phép xem và tải minh chứng đã có.
   const submissionAllowsEditing = !submission
     || currentSubmissionStage === 'Draft'
     || currentSubmissionStage === 'RequiresRevision';
-  const submissionLockedReason = submission
+  const submissionLockedReason = submission && !submissionAllowsEditing
     ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
     : undefined;
-  const editable = isTrustedTimeReady && submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineExpired;
+  const editable = isTrustedTimeReady && submissionAllowsEditing && record.state === 'DRAFT' && !parentDeadlineBlocksEdit;
   const editDisabledReason = !isTrustedTimeReady
     ? 'Đang đồng bộ thời gian chuẩn.'
     : !submissionAllowsEditing
       ? 'Hồ sơ đã được gửi xử lý, chỉ có thể xem hoặc tải tập tin.'
-      : parentDeadlineExpired
+      : parentDeadlineBlocksEdit
         ? 'Nhóm tiêu chí đã quá hạn nộp.'
         : record.state !== 'DRAFT'
           ? 'Hồ sơ hiện không cho phép chỉnh sửa.'
           : undefined;
   const filesFor = (criteriaId?: string) => evidence.filter((item) => item.criteriaId === criteriaId);
   const decisionFiles = groupDetailQuery.data?.files ?? [];
-  const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineExpired;
+  const canSubmit = isTrustedTimeReady && submissionAllowsEditing && !parentDeadlineBlocksEdit;
   const allCriteriaComplete = detailTable.criteria.length > 0
     && criteriaCompletion.groupId === id
     && detailTable.criteria.every((criterion) => criteriaCompletion.completeIds.has(criterion.id));
@@ -811,7 +815,7 @@ export default function LocalityCriteriaPage() {
     ? 'Đang lưu dữ liệu.'
     : !isTrustedTimeReady
       ? 'Đang đồng bộ thời gian chuẩn.'
-      : submissionLockedReason ?? (parentDeadlineExpired
+      : submissionLockedReason ?? (parentDeadlineBlocksEdit
         ? 'Nhóm tiêu chí đã quá hạn nộp.'
         : !submissionAllowsEditing
           ? 'Hồ sơ đã được gửi xử lý, không thể gửi lại.'
@@ -826,7 +830,7 @@ export default function LocalityCriteriaPage() {
       toast.info('Đang đồng bộ thời gian chuẩn, vui lòng thử lại sau giây lát.');
       return false;
     }
-    if (!parentDeadlineExpired) return true;
+    if (!parentDeadlineBlocksEdit) return true;
     toast.error('Nhóm tiêu chí đã hết hạn nộp. Không thể chỉnh sửa hoặc gửi hồ sơ.');
     return false;
   };
@@ -839,8 +843,8 @@ export default function LocalityCriteriaPage() {
     return ensureParentDeadlineActive();
   };
 
-  const uploadDraftFiles = (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
-    if (!result || !draft) return Promise.resolve([]);
+  const uploadDraftFiles = async (result: SubmissionApi['results'][number], draft?: EvidenceFormValue) => {
+    if (!result || !draft) return;
     const jobs: Promise<unknown>[] = [];
     if (draft.files.length > 0) {
       jobs.push(filesApi.uploadBulk(draft.files, { entityType: 'SubmissionResult', entityId: result.id, category: 'evidence' }));
@@ -848,7 +852,9 @@ export default function LocalityCriteriaPage() {
     if (draft.bonusFiles.length > 0) {
       jobs.push(filesApi.uploadBulk(draft.bonusFiles, { entityType: 'SubmissionResult', entityId: result.id, category: 'bonus' }));
     }
-    return Promise.allSettled(jobs);
+    const settled = await Promise.allSettled(jobs);
+    const failedUpload = settled.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+    if (failedUpload) throw failedUpload.reason;
   };
 
   /** Gom file đang chọn của các dòng vào các bulk-upload job chạy song song. */
@@ -894,15 +900,34 @@ export default function LocalityCriteriaPage() {
             explanation: draft?.explanation ?? '',
           }];
         });
-        const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, items });
+        const result = await createSubmissionMutation.mutateAsync({ criteriaGroupId: id, isDraft: true, items });
         serverChanged = true;
-        // Sau khi BE tạo SubmissionResult mới có thể gắn file đúng entityId.
-        const uploads = await Promise.allSettled(detailTable.criteria.map((c) => {
+        // Create a draft first to get result IDs; only submit after all evidence uploads succeed.
+        const uploadJobs = detailTable.criteria.map((c) => {
           const resultItem = result.results.find((item) => item.criteriaId === c.id);
-          return resultItem ? uploadDraftFiles(resultItem, merged.get(c.id)) : Promise.resolve([]);
-        }));
-        const failedUpload = uploads.find((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
-        if (failedUpload) throw failedUpload.reason;
+          return resultItem ? uploadDraftFiles(resultItem, merged.get(c.id)) : Promise.resolve();
+        });
+        const submitItems = result.results.flatMap((resultItem) => {
+          const item = items.find((createdItem) => createdItem.criteriaId === resultItem.criteriaId);
+          return item ? [{
+            submissionResultId: resultItem.id,
+            point: item.point,
+            bonusPoint: item.bonusPoint,
+            explanation: item.explanation,
+          }] : [];
+        });
+        const submitResult = await submitAfterSuccessfulUploads(uploadJobs, () =>
+          submitPointsMutation.mutateAsync({ submissionId: result.id, isDraft: false, items: submitItems }));
+        if (!submitResult.ok) {
+          await refreshSubmissionData();
+          serverChanged = false;
+          clearLocalDrafts();
+          setSubmitOpen(false);
+          toast.error('Có file minh chứng tải lên thất bại. Hồ sơ vẫn ở Nháp, chưa gửi lên Chuyên viên; hãy đính kèm lại file còn thiếu rồi gửi lại.');
+          return;
+        }
+        serverChanged = true;
+        scoreTableRef.current?.markAllSaved();
       } else {
         // Có bản nháp trên server: upload file bulk song song + submitPoints 1 lần
         const results = submissionDetailQuery.data?.results ?? [];
@@ -920,13 +945,17 @@ export default function LocalityCriteriaPage() {
           return;
         }
         const uploadJobs = collectUploadJobs(collected);
-        const settled = await Promise.allSettled(uploadJobs);
         serverChanged = uploadJobs.length > 0;
-        const failedUploads = settled.filter((s) => s.status === 'rejected').length;
-        if (failedUploads > 0) {
-          toast.warning(`${failedUploads} nhóm file tải lên thất bại — vẫn tiếp tục nộp điểm.`);
+        const submitResult = await submitAfterSuccessfulUploads(uploadJobs, () =>
+          submitPointsMutation.mutateAsync({ submissionId: submission.id, isDraft: false, items }));
+        if (!submitResult.ok) {
+          await refreshSubmissionData();
+          serverChanged = false;
+          scoreTableRef.current?.markAllSaved();
+          setSubmitOpen(false);
+          toast.error('Có file minh chứng tải lên thất bại. Hồ sơ chưa được gửi; hãy kiểm tra file đã lưu và đính kèm lại file còn thiếu rồi gửi lại.');
+          return;
         }
-        await submitPointsMutation.mutateAsync({ submissionId: submission.id, isDraft: false, items });
         serverChanged = true;
         scoreTableRef.current?.markAllSaved();
       }
@@ -946,6 +975,16 @@ export default function LocalityCriteriaPage() {
   const requireSelection = (callback: () => void) => { if (!selected) { toast.info('Vui lòng chọn một dòng tiêu chí trước.'); return; } callback(); };
   const selectedCriterionDeadlineMs = selected?.criterion?.deadline ? Date.parse(selected.criterion.deadline) : Number.NaN;
   const selectedCriterionDeadlineExpired = isTrustedTimeReady && Number.isFinite(selectedCriterionDeadlineMs) && selectedCriterionDeadlineMs <= currentTimeMs;
+  const selectedCriterionRevisionLocked = Boolean(
+    isRevisionStage
+    && revisionEditableCriteriaIds
+    && selected?.criterion
+    && !revisionEditableCriteriaIds.has(selected.criterion.id),
+  );
+  const selectedCriterionDeadlineBlocksEdit = isDeadlineBlockingLocalityEdit(
+    selectedCriterionDeadlineExpired,
+    isRevisionStage && !selectedCriterionRevisionLocked,
+  );
   const activeScoreEntries = record.entries.filter((entry) => entry.criteriaStatus !== 'Deleted');
   const currentSelfScore = activeScoreEntries.reduce((sum, entry) => sum + (entry.proposedScore ?? entry.value ?? 0), 0);
   const currentBonusScore = activeScoreEntries.reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
@@ -1091,6 +1130,8 @@ export default function LocalityCriteriaPage() {
         evidence={evidence}
         localityId={localityId}
         editable={editable}
+        allowRevisionAfterDeadline={isRevisionStage}
+        evidenceDeletionLocked={isRevisionStage}
         scoreFieldsLocked={isRevisionStage}
         editDisabledReason={editDisabledReason}
         nowMs={currentTimeMs}
@@ -1105,6 +1146,10 @@ export default function LocalityCriteriaPage() {
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {
+          if (isRevisionStage) {
+            toast.info('Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.');
+            return;
+          }
           if (!ensureSubmissionIsEditable()) return;
           const target = evidence.find((item) => item.id === evidenceId);
           if (target) setDeleteTarget(target);
@@ -1128,9 +1173,9 @@ export default function LocalityCriteriaPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
             <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || selectedCriterionDeadlineExpired} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired || selectedCriterionDeadlineExpired ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
+            <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || isRevisionStage || selectedCriterionRevisionLocked || selectedCriterionDeadlineBlocksEdit} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : isRevisionStage ? 'Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.' : submissionLockedReason ?? (selectedCriterionRevisionLocked ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.' : parentDeadlineBlocksEdit || selectedCriterionDeadlineBlocksEdit ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineExpired ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
+              <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineBlocksEdit ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
               <Button disabled={savingAll || !canSubmit || !allCriteriaComplete} disabledReason={submitDisabledReason} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
             </div>
           </div>
@@ -1161,6 +1206,11 @@ export default function LocalityCriteriaPage() {
       <CriterionDetailDialog open={detailOpen && Boolean(selected)} onOpenChange={(open) => setDetailOpen(open)} item={selected} evidence={filesFor(selected?.entry.criteriaId)} onPreview={(file) => setPreviewFile({ id: file.id, originalName: file.fileName })} />
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa minh chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
+        if (isRevisionStage) {
+          toast.info('Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.');
+          setDeleteTarget(null);
+          return;
+        }
         if (!deleteTarget || !ensureSubmissionIsEditable()) return;
         deleteFileMutation.mutate(deleteTarget.id);
       }} />
