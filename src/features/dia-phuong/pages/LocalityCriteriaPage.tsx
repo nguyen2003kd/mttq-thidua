@@ -243,9 +243,18 @@ export default function LocalityCriteriaPage() {
     enabled: Boolean(localityId),
   });
 
+  // Detail: chi tiết group — cần trước để xác định kỳ tổng hợp điểm thưởng.
+  const groupDetailQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(id ?? '')),
+    queryFn: () => localityApi.getCriteriaGroup(id!),
+    enabled: Boolean(id),
+  });
+
+  // Kỳ dùng để tổng hợp điểm thưởng: ưu tiên kỳ trên URL, thiếu thì lấy kỳ của nhóm tiêu chí đang mở.
+  const effectivePeriodId = periodFilter || groupDetailQuery.data?.periodId || '';
   const mySubmissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, periodId: periodFilter || undefined, page: 1, pageSize: 100 }),
-    queryFn: () => localityApi.listMySubmissions({ periodId: periodFilter || undefined, page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, periodId: effectivePeriodId || undefined, page: 1, pageSize: 100 }),
+    queryFn: () => localityApi.listMySubmissions({ periodId: effectivePeriodId || undefined, page: 1, pageSize: 100 }),
     enabled: Boolean(localityId),
   });
 
@@ -392,13 +401,6 @@ export default function LocalityCriteriaPage() {
   const table = assignedTables.find((item) => item.id === id);
   const submission = id ? submissionByGroup.get(id) : undefined;
 
-  // Detail: chi tiết group + submission
-  const groupDetailQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(id ?? '')),
-    queryFn: () => localityApi.getCriteriaGroup(id!),
-    enabled: Boolean(id),
-  });
-
   const submissionDetailQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(submission?.id ?? '')),
     queryFn: () => localityApi.getSubmission(submission!.id),
@@ -521,9 +523,11 @@ export default function LocalityCriteriaPage() {
 
   const latestSpecialistRevision = useMemo(() => {
     if (latestReopenIsSupplementaryAdd) return null;
+    // Lấy yêu cầu chỉnh sửa MỚI NHẤT bất kể stageLevel — yêu cầu của Chuyên viên cấp 2
+    // (LocalSubmitted/ScorerRevisionRequested) lẫn Chuyên viên trưởng (ReviewerApproved)
+    // đều xuống thẳng địa phương và cần đánh dấu tiêu chí bị yêu cầu.
     return (revisionHistoriesQuery.data?.items ?? []).find((item) => (
       item.action?.toLowerCase() === 'requestrevision'
-      && (item.stageLevel === 'LocalSubmitted' || item.stageLevel === 'ScorerRevisionRequested')
     )) ?? null;
   }, [revisionHistoriesQuery.data, latestReopenIsSupplementaryAdd]);
 
@@ -1165,7 +1169,7 @@ export default function LocalityCriteriaPage() {
             </div>
             <div className="pl-3">
               <p className="text-xs text-muted-foreground">Điểm thưởng đã nộp <span className="whitespace-nowrap">· tối đa 5 điểm/kỳ thi đua</span></p>
-              <p className="text-sm font-semibold tabular-nums leading-5">{periodFilter ? periodBonusUsed : currentBonusScore}</p>
+              <p className="text-sm font-semibold tabular-nums leading-5">{effectivePeriodId ? periodBonusUsed : currentBonusScore}</p>
             </div>
           </div>
         )}
