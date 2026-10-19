@@ -362,9 +362,11 @@ function getDisplayChanges(item: AuditLogItem) {
   return rows.sort((a, b) => (fieldPriority[a.field] ?? 100) - (fieldPriority[b.field] ?? 100));
 }
 
-function getActorLabel(actor: string, actionLevel: string | null) {
-  if (actionLevel) return actionLevel;
-  return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(actor) ? 'Người dùng hệ thống' : actor || 'Hệ thống tự động';
+/** Nhãn actor: ghép vai trò + tên — "Địa phương Long Bình", "Chuyên viên cấp 2 Nguyễn Văn A"… */
+function getActorLabel(item: { actor: string; actionLevel?: string | null; actorLevel?: string | null }) {
+  const actor = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(item.actor) ? 'Người dùng hệ thống' : item.actor || 'Hệ thống tự động';
+  const level = item.actorLevel ?? item.actionLevel;
+  return level ? `${level} ${actor}` : actor;
 }
 
 /** Tách giờ / ngày để hiển thị 2 dòng, dễ quét hơn chuỗi dài. */
@@ -574,7 +576,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
       open={item !== null}
       onOpenChange={onOpenChange}
       title={title}
-      subtitle={getActorLabel(current.actor, current.actionLevel)}
+      subtitle={getActorLabel(current)}
       size="max-w-4xl sm:max-w-4xl"
       height="h-[80vh] max-h-[80vh]"
     >
@@ -590,8 +592,8 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
             <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{moduleLabels[current.module] ?? current.module}</dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Thực hiện</dt>
-            <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{getEntityLabel(current.entityName)}</dd>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Người thực hiện</dt>
+            <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{current.actorFullName ?? current.actor}</dd>
           </div>
           <div className="min-w-0">
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Thời gian</dt>
@@ -636,7 +638,7 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
       <TableCell className="border-r border-border/60 py-3.5 whitespace-normal">
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
-          <p className="truncate text-[13px] text-foreground/70">{subtitle} · {getActorLabel(item.actor, item.actionLevel)}</p>
+          <p className="truncate text-[13px] text-foreground/70">{subtitle}</p>
         </div>
       </TableCell>
       <TableCell className="border-r border-border/60 py-3.5 text-center">
