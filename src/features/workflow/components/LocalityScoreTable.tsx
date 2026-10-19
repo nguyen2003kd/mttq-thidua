@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ColumnDef } from '@tanstack/react-table';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { formatDate } from '@/lib/utils';
+import { isDeadlineBlockingLocalityEdit } from '@/features/workflow/deadlineRules';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { EvidenceFormValue } from './EvidenceModal';
 
@@ -30,6 +31,8 @@ interface LocalityScoreTableProps {
   evidence: Evidence[];
   localityId: string;
   editable: boolean;
+  allowRevisionAfterDeadline?: boolean;
+  evidenceDeletionLocked?: boolean;
   scoreFieldsLocked?: boolean;
   editDisabledReason?: string;
   nowMs: number;
@@ -146,6 +149,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   draft,
   state,
   editable,
+  allowRevisionAfterDeadline = false,
+  evidenceDeletionLocked = false,
   editDisabledReason,
   nowMs,
   uploading = false,
@@ -210,11 +215,12 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const maxBonus = criterion.bonusScore ?? 0;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
+  const criterionDeadlineBlocksEdit = isDeadlineBlockingLocalityEdit(criterionDeadlineExpired, allowRevisionAfterDeadline);
   const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
   const revisionFiles = specialistRevisionFiles?.get(criterion.id) ?? [];
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
   const criterionDisabled = criterion.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';
-  const locked = Boolean(criterionDisabled || entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
+  const locked = Boolean(criterionDisabled || entry?.locked || !editable || criterionDeadlineBlocksEdit || revisionLocked);
   // Chỉ mở ô điểm khi lần mở lại gần nhất là do Chuyên viên thêm tiêu chí (nhóm đã áp dụng)
   // và result đang chờ địa phương nhập điểm lần đầu — luồng yêu cầu chỉnh sửa thường vẫn giữ nguyên điểm.
   const scoreFieldsEditable = !scoreFieldsLocked
@@ -232,7 +238,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       ? 'Tiêu chí đã bị vô hiệu, không thể chỉnh sửa hoặc nộp thêm.'
       : !editable
         ? editDisabledReason ?? 'Hồ sơ hiện không cho phép chỉnh sửa.'
-      : criterionDeadlineExpired
+      : criterionDeadlineBlocksEdit
         ? 'Tiêu chí đã quá hạn nộp, không thể thêm file minh chứng.'
         : revisionLocked
           ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.'
@@ -487,7 +493,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
                       variant="ghost"
                       size="icon-xs"
                       className="shrink-0 text-destructive"
-                      disabled={locked || uploading}
+                      disabled={locked || uploading || evidenceDeletionLocked}
+                      disabledReason={evidenceDeletionLocked ? 'Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.' : undefined}
                       title="Xóa minh chứng"
                       aria-label={`Xóa minh chứng ${item.fileName}`}
                       onClick={(event) => { event.stopPropagation(); onDeleteEvidence(item.id); }}
@@ -586,6 +593,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   evidence,
   localityId,
   editable,
+  allowRevisionAfterDeadline = false,
+  evidenceDeletionLocked = false,
   scoreFieldsLocked = false,
   editDisabledReason,
   nowMs,
@@ -701,6 +710,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               draft={draftValues?.get(criterion.id)}
               state={record.state}
               editable={editable}
+              allowRevisionAfterDeadline={allowRevisionAfterDeadline}
+              evidenceDeletionLocked={evidenceDeletionLocked}
               scoreFieldsLocked={scoreFieldsLocked}
               editDisabledReason={editDisabledReason}
               nowMs={nowMs}

@@ -197,9 +197,9 @@ type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: SubmissionStageFilter; label: string }>> = {
   SCORER: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
-    { value: 'ScorerRevisionRequested', label: 'Chờ Chuyên viên cấp 2 chỉnh sửa' },
-    { value: 'RequiresRevision', label: 'Chờ Địa phương chỉnh sửa' },
+    { value: 'LocalSubmitted', label: 'Chờ chấm' },
+    { value: 'ScorerRevisionRequested', label: 'Yêu cầu chỉnh sửa từ Lãnh đạo ban' },
+    { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
     { value: 'ScorerSubmitted,ReviewerApproved,SpecialistApproved', label: 'Đã gửi Lãnh đạo ban' },
   ],
   REVIEWER: [
@@ -210,10 +210,10 @@ const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: Submission
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
-    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
+    { value: 'LocalSubmitted', label: 'Chờ chấm' },
+    { value: 'ScorerSubmitted', label: 'Đã gửi Lãnh đạo ban' },
     { value: 'ReviewerApproved', label: 'Chờ Chuyên viên trưởng' },
-    { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
     { value: 'SpecialistApproved', label: 'Đã duyệt' },
   ],
 };

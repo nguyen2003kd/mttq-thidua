@@ -170,7 +170,7 @@ export default function CriteriaPeriodSelectionPage({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="period-name">Tên kỳ <span className="text-xs font-normal text-muted-foreground">Để trống sẽ tự đặt theo năm, VD: 2025-2026</span></Label>
-        <Input id="period-name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="VD: 2025-2026" maxLength={20} />
+        <Input id="period-name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="VD: 2025-2026" maxLength={200} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="period-status">Trạng thái</Label>
@@ -181,7 +181,6 @@ export default function CriteriaPeriodSelectionPage({
         >
           <SelectTrigger id="period-status"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {editOpen && <SelectItem value="Draft">Nháp</SelectItem>}
             <SelectItem value="Active">Đang áp dụng</SelectItem>
             <SelectItem value="Closed">Đã kết thúc</SelectItem>
             {editOpen && <SelectItem value="Published">Đã công bố</SelectItem>}
