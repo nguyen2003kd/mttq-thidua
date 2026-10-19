@@ -498,7 +498,7 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
   RequestRevision: 'Yêu cầu chỉnh sửa',
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
-  ResubmitAfterRevision: 'Nộp lại sau chỉnh sửa',
+  ResubmitAfterRevision: 'Nộp lại sau khi yêu cầu chỉnh sửa',
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
   Finalize: 'Công bố kết quả',
 };

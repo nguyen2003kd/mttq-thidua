@@ -271,8 +271,18 @@ function getFieldLabel(key: string): string | null {
   return fieldLabels[key] ?? fieldLabels[key.charAt(0).toUpperCase() + key.slice(1)] ?? null;
 }
 
+function localizeAuditAction(field: string, value: string | null) {
+  return field.toLowerCase() === 'action' && value === 'ResubmitAfterRevision'
+    ? 'Nộp lại sau khi yêu cầu chỉnh sửa'
+    : value;
+}
+
 function formatAuditValue(field: string, value: unknown) {
   if (value === null || value === undefined || value === '') return 'Chưa có';
+
+  if (field.toLowerCase() === 'action' && typeof value === 'string') {
+    return localizeAuditAction(field, value) ?? value;
+  }
 
   if (field === 'Status' && typeof value === 'number') {
     return ({ 0: 'Nháp', 1: 'Đã áp dụng', 2: 'Đã kết thúc' } as Record<number, string>)[value] ?? String(value);
@@ -331,8 +341,8 @@ function getDisplayChanges(item: AuditLogItem) {
         .map((change) => ({
           field: change.field,
           label: getFieldLabel(change.field) ?? change.label ?? change.field,
-          before: normDisplay(readableRef(normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before)))) ?? 'Chưa có',
-          after: normDisplay(readableRef(normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after)))) ?? 'Chưa có',
+          before: normDisplay(readableRef(localizeAuditAction(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
+          after: normDisplay(readableRef(localizeAuditAction(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
