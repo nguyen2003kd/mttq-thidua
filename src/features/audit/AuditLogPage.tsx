@@ -273,7 +273,7 @@ function getFieldLabel(key: string): string | null {
 
 function localizeAuditAction(field: string, value: string | null) {
   return field.toLowerCase() === 'action' && value === 'ResubmitAfterRevision'
-    ? 'Nộp lại sau khi yêu cầu chỉnh sửa'
+    ? 'Nộp lại sau chỉnh sửa'
     : value;
 }
 

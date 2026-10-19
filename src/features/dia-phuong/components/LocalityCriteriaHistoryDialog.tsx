@@ -47,7 +47,7 @@ const ACTION_LABELS_VI: Record<string, string> = {
   UpdateScore: 'Cập nhật điểm',
   Approve: 'Duyệt hồ sơ',
   AddSupplementaryCriteria: 'Thêm tiêu chí bổ sung',
-  ResubmitAfterRevision: 'Nộp lại sau khi yêu cầu chỉnh sửa',
+  ResubmitAfterRevision: 'Nộp lại sau chỉnh sửa',
 };
 
 // Dữ liệu cũ: action RequestRevision + reason tiếng Anh "Added supplementary criteria: ..."
