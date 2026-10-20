@@ -581,7 +581,7 @@ function AuditContextLine({ item }: { item: AuditLogItem }) {
   if (!groupName && !criteriaName) return null;
 
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+    <div className="space-y-1 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
       {groupName && (
         <p className="min-w-0">
           <span className="text-muted-foreground">Nhóm tiêu chí: </span>
@@ -589,7 +589,7 @@ function AuditContextLine({ item }: { item: AuditLogItem }) {
         </p>
       )}
       {criteriaName && (
-        <p className="min-w-0 flex-1">
+        <p className="min-w-0">
           <span className="text-muted-foreground">Tiêu chí con: </span>
           <span className="font-semibold text-foreground">{criteriaName}</span>
         </p>
