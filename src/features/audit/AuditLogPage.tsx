@@ -346,20 +346,31 @@ function getMeaningfulDiff(item: AuditLogItem) {
 }
 
 // Ưu tiên `changes` BE đã enrich (label + display tiếng Việt), fallback tự parse changedData.
+// Log phê duyệt (ApprovalHistory): ẩn các field kỹ thuật thừa (Action/ChangedData/StageLevel/UserId/UserName) —
+// thông tin hữu ích đã có ở tiêu đề + khối ngữ cảnh; chỉ giữ Lý do.
+const approvalSnapshotNoiseFields = new Set(['Action', 'ChangedData', 'StageLevel', 'UserId', 'UserName']);
 function getDisplayChanges(item: AuditLogItem) {
+  const hideApprovalNoise = item.entityName === 'ApprovalHistory';
   const rows = item.changes?.length
     ? item.changes
-        .filter((change) => !noiseAuditFields.has(change.field))
+        .filter((change) => !noiseAuditFields.has(change.field)
+          && !(hideApprovalNoise && approvalSnapshotNoiseFields.has(change.field)))
         .map((change) => ({
           field: change.field,
           label: getFieldLabel(change.field) ?? change.label ?? change.field,
-          before: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
-          after: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
+          before: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, normalizeIsoDisplay(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay) ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
+          after: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, normalizeIsoDisplay(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay) ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
     : getMeaningfulDiff(item);
   return rows.sort((a, b) => (fieldPriority[a.field] ?? 100) - (fieldPriority[b.field] ?? 100));
+}
+
+/** BE display đôi khi trả chuỗi ISO thô ("2026-10-20T02:30:35+00:00") → format dd/mm/yyyy hh:mm cho dễ đọc. */
+function normalizeIsoDisplay(value: string | null): string | null {
+  if (!value) return value;
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value.trim()) ? formatDateTime(value) : value;
 }
 
 /** Nhãn actor: ghép vai trò + tên — "Địa phương Long Bình", "Chuyên viên cấp 2 Nguyễn Văn A"… */
@@ -561,6 +572,32 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
   );
 }
 
+/** Dòng ngữ cảnh trong modal chi tiết: nhóm tiêu chí + tiêu chí con liên quan (resolve tên từ changes BE). */
+function AuditContextLine({ item }: { item: AuditLogItem }) {
+  const changeMap = new Map((item.changes ?? []).map((change) => [change.field, change]));
+  const contextDisplay = (field: string) => readableRef(normDisplay(changeMap.get(field)?.afterDisplay ?? null));
+  const groupName = contextDisplay('CriteriaGroupId');
+  const criteriaName = contextDisplay('CriteriaId');
+  if (!groupName && !criteriaName) return null;
+
+  return (
+    <div className="flex flex-wrap gap-x-6 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+      {groupName && (
+        <p className="min-w-0">
+          <span className="text-muted-foreground">Nhóm tiêu chí: </span>
+          <span className="font-semibold text-foreground">{groupName}</span>
+        </p>
+      )}
+      {criteriaName && (
+        <p className="min-w-0 flex-1">
+          <span className="text-muted-foreground">Tiêu chí con: </span>
+          <span className="font-semibold text-foreground">{criteriaName}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Modal chi tiết một bản ghi audit — dùng AppDialog, body gồm meta + diff/file. Giữ item cũ khi đóng để animation mượt. */
 function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; onOpenChange: (open: boolean) => void }) {
   const lastItem = useRef<AuditLogItem | null>(null);
@@ -600,6 +637,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
             <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums text-foreground">{time} · {date}</dd>
           </div>
         </dl>
+        <AuditContextLine item={current} />
         <AuditDetail item={current} diff={diff} />
       </div>
     </AppDialog>
