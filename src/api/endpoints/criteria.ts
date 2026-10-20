@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -28,6 +27,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -295,6 +295,65 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getPutApiV1CriteriaIdMutationOptions(options), queryClient);
     }
+    export const deleteApiV1CriteriaId = (
+    id: string,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/criteria/${id}`, method: 'DELETE', signal
+    },
+      options);
+    }
+
+
+
+
+export const getDeleteApiV1CriteriaIdMutationKey = () => ['deleteApiV1CriteriaId'] as const;
+
+export const getDeleteApiV1CriteriaIdMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1CriteriaId>>, TError,DeleteApiV1CriteriaIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1CriteriaId>>, TError,DeleteApiV1CriteriaIdMutationVariables, TContext> => {
+
+const mutationKey = getDeleteApiV1CriteriaIdMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteApiV1CriteriaId>>, DeleteApiV1CriteriaIdMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteApiV1CriteriaId(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteApiV1CriteriaIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteApiV1CriteriaId>>>
+
+    export type DeleteApiV1CriteriaIdMutationError = unknown
+    export type DeleteApiV1CriteriaIdMutationVariables = {id: string}
+
+    export const useDeleteApiV1CriteriaId = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteApiV1CriteriaId>>, TError,DeleteApiV1CriteriaIdMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteApiV1CriteriaId>>,
+        TError,
+        DeleteApiV1CriteriaIdMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteApiV1CriteriaIdMutationOptions(options), queryClient);
+    }
     export const getApiV1CriteriaId = (
     id: string,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
@@ -310,17 +369,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1CriteriaIdQueryKey = (id: string,) => {
-  return apiQueryKey({}, { url: `/api/v1/criteria/${id}` });
-};
+export const getGetApiV1CriteriaIdQueryKey = (id: string,) =>
+    apiQueryKey({ id }, { url: `/api/v1/criteria/${id}` });
 
 
-export const getGetApiV1CriteriaIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1CriteriaIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1CriteriaIdQueryKey(id);
+  const queryKey =  apiQueryKey({ id }, { url: `/api/v1/criteria/${id}`, queryOptions });
 
 
 
@@ -367,7 +425,7 @@ export function useGetApiV1CriteriaId<TData = Awaited<ReturnType<typeof getApiV1
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1CriteriaIdQueryOptions(id,options)
+  const queryOptions = useGetApiV1CriteriaIdQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -397,18 +455,17 @@ export const getApiV1CriteriaGroupsGroupIdCriteria = (
 
 
 export const getGetApiV1CriteriaGroupsGroupIdCriteriaQueryKey = (groupId: string,
-    params?: GetApiV1CriteriaGroupsGroupIdCriteriaParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/criteria-groups/${groupId}/criteria` });
-};
+    params?: GetApiV1CriteriaGroupsGroupIdCriteriaParams,) =>
+    apiQueryKey({ groupId,params }, { url: `/api/v1/criteria-groups/${groupId}/criteria` });
 
 
-export const getGetApiV1CriteriaGroupsGroupIdCriteriaQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroupsGroupIdCriteria>>, TError = unknown>(groupId: string,
+export const useGetApiV1CriteriaGroupsGroupIdCriteriaQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroupsGroupIdCriteria>>, TError = unknown>(groupId: string,
     params?: GetApiV1CriteriaGroupsGroupIdCriteriaParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroupsGroupIdCriteria>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1CriteriaGroupsGroupIdCriteriaQueryKey(groupId,params);
+  const queryKey =  apiQueryKey({ groupId,params }, { url: `/api/v1/criteria-groups/${groupId}/criteria`, queryOptions });
 
 
 
@@ -459,7 +516,7 @@ export function useGetApiV1CriteriaGroupsGroupIdCriteria<TData = Awaited<ReturnT
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1CriteriaGroupsGroupIdCriteriaQueryOptions(groupId,params,options)
+  const queryOptions = useGetApiV1CriteriaGroupsGroupIdCriteriaQueryOptions(groupId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

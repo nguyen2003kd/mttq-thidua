@@ -11,9 +11,13 @@ import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
 import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { startProactiveTokenRefresh } from '@/api/mutator/auth-interceptors';
 import { profileApi, profileDisplayName, profileNeedsCompletion } from '@/features/auth/api/profileApi';
 import { ActionProgressOverlay, PageLoading } from '@/components/core';
+import { buildScoreEntryUrl, isScoreEntryView } from '@/features/cham-diem/utils/scoreEntryNavigation';
+import { buildCouncilPeriodUrl, isCouncilApprovalView } from '@/features/duyet/councilPeriodNavigation';
+import { buildCommitteePeriodUrl, isCommitteeApprovalView } from '@/features/duyet/committeePeriodNavigation';
 
 // Lazy load pages
 import { lazy, Suspense, useEffect } from 'react';
@@ -61,6 +65,112 @@ function SpecialistCriteriaEntryPage() {
     : <CriteriaListPage />;
 }
 
+function SpecialistReviewEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const groupPeriodFilter = searchParams.get('groupPeriodFilter');
+  const showPeriods = searchParams.get('view') === 'periods' || !groupPeriodFilter;
+
+  if (!showPeriods) return <SpecialistReviewPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Chấm và thẩm định',
+        description: 'Chọn kỳ thi đua để xem danh sách hồ sơ địa phương cần thẩm định.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để chấm và thẩm định.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ địa phương.',
+      }}
+      onOpenPeriod={(period) => navigate(`${ROUTES.SPECIALIST_REVIEW}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
+function ScoreEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const showPeriods = !isScoreEntryView(searchParams);
+  const basePath = '/thi-dua/cham-diem';
+
+  if (!showPeriods) return <SpecialistReviewPage basePath={basePath} />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Chấm điểm',
+        description: 'Chọn kỳ thi đua để xem danh sách địa phương cần chấm điểm.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để chấm điểm.',
+        stickyDescription: 'Chọn một kỳ để xem danh sách địa phương.',
+      }}
+      onOpenPeriod={(period) => navigate(buildScoreEntryUrl(basePath, period.id))}
+    />
+  );
+}
+
+function CouncilApprovalEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const basePath = '/thi-dua/duyet/hoi-dong-tdkt';
+
+  if (isCouncilApprovalView(searchParams)) return <CouncilApprovalPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Hội đồng Thi đua - Khen thưởng',
+        description: 'Chọn kỳ thi đua để xem hồ sơ địa phương cần Hội đồng theo dõi.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để Hội đồng theo dõi.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ Hội đồng.',
+      }}
+      onOpenPeriod={(period) => navigate(buildCouncilPeriodUrl(basePath, period.id))}
+    />
+  );
+}
+
+function CommitteeApprovalEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const basePath = '/thi-dua/duyet/ban-thuong-truc';
+
+  if (isCommitteeApprovalView(searchParams)) return <CommitteeApprovalPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      copy={{
+        title: 'Ban Thường trực',
+        description: 'Chọn kỳ thi đua để xem hồ sơ địa phương Ban Thường trực theo dõi.',
+        openPeriodLabel: 'Xem',
+        emptyDescription: 'Chưa có kỳ thi đua để Ban Thường trực theo dõi.',
+        stickyDescription: 'Chọn một kỳ để xem hồ sơ Ban Thường trực.',
+      }}
+      onOpenPeriod={(period) => navigate(buildCommitteePeriodUrl(basePath, period.id))}
+    />
+  );
+}
+
+function LocalityCriteriaEntryPage() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const periodId = searchParams.get('periodId');
+  const showPeriods = searchParams.get('view') === 'periods' || !periodId;
+
+  if (!showPeriods) return <LocalityCriteriaPage />;
+
+  return (
+    <CriteriaPeriodSelectionPage
+      readOnly
+      onOpenPeriod={(period) => navigate(`${ROUTES.LOCALITY_CRITERIA}?periodId=${encodeURIComponent(period.id)}`)}
+    />
+  );
+}
+
 const INTERNAL_ROLES: Role[] = ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'];
 
 /** URL cũ /cham-diem/theo-dia-phuong/:id → flow mới /cham-diem/:diaPhuongId. */
@@ -93,6 +203,7 @@ function AuthEvents() {
   useEffect(() => {
     const onLogout = () => {
       queryClient.clear();
+      useNotificationStore.getState().clear();
       navigate(ROUTES.LOGIN, { replace: true });
     };
     window.addEventListener('auth:logout', onLogout);
@@ -114,13 +225,14 @@ function ProactiveAuthRefresh() {
  */
 function ProfileGate() {
   const isSignedIn = useAuthStore((s) => s.isSignedIn);
+  const userId = useAuthStore((s) => s.id);
   const requiresCompletion = useAuthStore((s) => s.requires_profile_completion);
   const setStore = useAuthStore((s) => s.setStore);
 
   const profileQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey()),
+    queryKey: dataQueryKey(getGetApiV1AuthProfileQueryKey(), userId ?? ''),
     queryFn: () => profileApi.get(),
-    enabled: isSignedIn && requiresCompletion === null,
+    enabled: isSignedIn && Boolean(userId) && requiresCompletion === null,
     staleTime: Infinity,
     retry: 1,
   });
@@ -208,7 +320,7 @@ export default function App() {
               <Route index element={<Navigate to={ROUTES.SPECIALIST_REVIEW} replace />} />
               <Route path="tieu-chi" element={<SpecialistCriteriaEntryPage />} />
               <Route path="tieu-chi/:id/con" element={<CriteriaChildrenPage />} />
-              <Route path="duyet" element={<SpecialistReviewPage />} />
+              <Route path="duyet" element={<SpecialistReviewEntryPage />} />
               <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId/:nhomTieuChiId" element={<SpecialistReviewPage />} />
               <Route path="tong-hop-cham-diem" element={<SpecialistScoreSummaryPage />} />
@@ -226,7 +338,7 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={ROUTES.LOCALITY_CRITERIA} replace />} />
-              <Route path="tieu-chi" element={<LocalityCriteriaPage />} />
+              <Route path="tieu-chi" element={<LocalityCriteriaEntryPage />} />
               <Route path="tieu-chi/:id" element={<LocalityCriteriaPage />} />
               <Route path="ket-qua" element={<LocalityResultsPage />} />
               <Route path="ket-qua/:id" element={<LocalityResultsPage />} />
@@ -291,7 +403,7 @@ export default function App() {
                 </RequireAuth>
               }
             >
-              <Route index element={<SpecialistReviewPage basePath="/thi-dua/cham-diem" />} />
+              <Route index element={<ScoreEntryPage />} />
               <Route path="theo-tieu-chi" element={<ScoreByCriteriaPage />} />
               <Route path="theo-tieu-chi/:id" element={<ScoreByCriteriaPage />} />
               <Route path="theo-dia-phuong/:id" element={<ScoreLocalityRedirect />} />
@@ -354,7 +466,7 @@ export default function App() {
                 <RequireAuth>
                   <RequireRole roles={['COUNCIL']}>
                     <AppLayout>
-                      <CouncilApprovalPage />
+                      <CouncilApprovalEntryPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>
@@ -398,7 +510,7 @@ export default function App() {
                 <RequireAuth>
                   <RequireRole roles={['COMMITTEE']}>
                     <AppLayout>
-                      <CommitteeApprovalPage />
+                      <CommitteeApprovalEntryPage />
                     </AppLayout>
                   </RequireRole>
                 </RequireAuth>
@@ -406,7 +518,7 @@ export default function App() {
             />
             <Route
               path="/thi-dua/duyet/ban-thuong-truc/duyet"
-              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><CommitteeApprovalPage /></AppLayout></RequireRole></RequireAuth>}
+              element={<RequireAuth><RequireRole roles={['COMMITTEE']}><AppLayout><CommitteeApprovalEntryPage /></AppLayout></RequireRole></RequireAuth>}
             />
             <Route
               path="/thi-dua/duyet/ban-thuong-truc/:localityId"

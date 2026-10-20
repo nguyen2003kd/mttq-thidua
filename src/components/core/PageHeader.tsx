@@ -30,7 +30,7 @@ export function PageHeader({ title, description, breadcrumbs, summary, actions, 
 
       <div className={cn(
         'flex flex-col gap-3',
-        summary ? 'xl:flex-row xl:items-center' : 'lg:flex-row lg:items-start lg:justify-between',
+        summary ? 'xl:flex-row xl:items-center xl:justify-between' : 'lg:flex-row lg:items-start lg:justify-between',
       )}>
         <div className={cn('min-w-0 space-y-1', summary && 'flex w-full min-w-0 flex-col gap-4 space-y-0 sm:flex-row sm:items-center xl:w-auto')}>
           <div className="min-w-0 space-y-1">

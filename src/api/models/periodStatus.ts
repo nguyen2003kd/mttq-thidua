@@ -7,4 +7,5 @@ export const PeriodStatus = {
   Draft: 'Draft',
   Active: 'Active',
   Closed: 'Closed',
+  Published: 'Published',
 } as const;

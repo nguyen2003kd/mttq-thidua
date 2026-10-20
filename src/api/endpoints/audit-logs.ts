@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -20,6 +19,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -58,17 +58,16 @@ export const getApiV1AuditLogs = (
 
 
 
-export const getGetApiV1AuditLogsQueryKey = (params?: GetApiV1AuditLogsParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/audit-logs` });
-};
+export const getGetApiV1AuditLogsQueryKey = (params?: GetApiV1AuditLogsParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/audit-logs` });
 
 
-export const getGetApiV1AuditLogsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuditLogs>>, TError = unknown>(params?: GetApiV1AuditLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuditLogs>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1AuditLogsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuditLogs>>, TError = unknown>(params?: GetApiV1AuditLogsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuditLogs>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1AuditLogsQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/audit-logs`, queryOptions });
 
 
 
@@ -115,7 +114,7 @@ export function useGetApiV1AuditLogs<TData = Awaited<ReturnType<typeof getApiV1A
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1AuditLogsQueryOptions(params,options)
+  const queryOptions = useGetApiV1AuditLogsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

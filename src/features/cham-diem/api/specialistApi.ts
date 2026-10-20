@@ -57,14 +57,14 @@ const ACTIONABLE_STAGES: Record<ScoringRole, readonly SubmissionStage[]> = {
 
 const FORWARD_LABELS: Record<ScoringRole, string> = {
   SCORER: 'Gửi Lãnh đạo ban',
-  REVIEWER: 'Gửi Chuyên viên trưởng',
-  SPECIALIST: 'Gửi Lãnh đạo ban',
+  REVIEWER: 'Gửi chuyên viên phụ trách',
+  SPECIALIST: 'Duyệt hồ sơ',
 };
 
 const LOCK_REASONS: Record<ScoringRole, string> = {
   SCORER: 'Hồ sơ đã được gửi lên Lãnh đạo ban hoặc đang chờ cấp trên xử lý. Chuyên viên cấp 2 chỉ có thể xem thông tin.',
   REVIEWER: 'Hồ sơ không ở bước thẩm định của bạn. Lãnh đạo ban chỉ có thể xem thông tin.',
-  SPECIALIST: 'Hồ sơ chưa đến bước xử lý của Chuyên viên trưởng hoặc đã được duyệt. Chuyên viên trưởng chỉ có thể xem thông tin.',
+  SPECIALIST: 'Hồ sơ chưa đến bước xử lý của Chuyên viên phụ trách thi đua khen thưởng hoặc đã được duyệt. Chuyên viên phụ trách thi đua khen thưởng chỉ có thể xem thông tin.',
 };
 
 /**
@@ -83,6 +83,7 @@ export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null
     canRequestRevision: isActionable,
     /** Được thêm tiêu chí bổ sung — reviewer không chấm điểm nhưng vẫn được bổ sung. */
     canAddSupplementary: isActionable,
+    usesForwardingDialog: role !== 'SPECIALIST',
     isForwarded: !isActionable,
     disabledReason: LOCK_REASONS[role],
     forwardLabel: FORWARD_LABELS[role],
@@ -125,6 +126,9 @@ export interface SubmissionApi {
   criteriaGroupName: string | null;
   currentStage: SubmissionStage;
   totalProposedPoint: number;
+  /** Tổng điểm thưởng chính thức của địa phương trong kỳ (mọi hồ sơ) + giới hạn kỳ — chỉ endpoint chi tiết trả về. */
+  periodBonusUsed?: number;
+  periodBonusLimit?: number;
   totalFinalPoint: number;
   submittedAt: string | null;
   createdAt: string;
@@ -188,7 +192,7 @@ export interface SpecialistScoreHistoryApi {
 
 export const specialistApi = {
   // Criteria groups
-  listCriteriaGroups: (params?: { search?: string; status?: string; page?: number; pageSize?: number }) =>
+  listCriteriaGroups: (params?: { search?: string; status?: string; periodId?: string; page?: number; pageSize?: number }) =>
     request<PagedResult<CriteriaGroupApi>>({ url: '/api/v1/criteria-groups', method: 'GET', params }),
   getCriteriaGroup: (id: string) =>
     request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'GET' }),
@@ -207,7 +211,7 @@ export const specialistApi = {
   listScoreHistories: (params?: { search?: string; wardCode?: string; from?: string; to?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SpecialistScoreHistoryApi>>({ url: '/api/v1/submissions/score-histories', method: 'GET', params }),
 
-  // Approvals — chuyên viên chấm xong, chuyển hồ sơ lên Lãnh đạo ban
+  // Approvals — duyệt hồ sơ theo stage và vai trò hiện tại
   approveSubmission: (submissionId: string, reason?: string) =>
     request<{ processed: boolean; submissionId: string; action: string }>({
       url: '/api/v1/submissions/approve',

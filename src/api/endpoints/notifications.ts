@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -24,6 +23,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -61,17 +61,16 @@ export const getApiV1NotificationsStream = (
 
 
 
-export const getGetApiV1NotificationsStreamQueryKey = () => {
-  return apiQueryKey({}, { url: `/api/v1/notifications/stream` });
-};
+export const getGetApiV1NotificationsStreamQueryKey = () =>
+    apiQueryKey({  }, { url: `/api/v1/notifications/stream` });
 
 
-export const getGetApiV1NotificationsStreamQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1NotificationsStream>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1NotificationsStream>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1NotificationsStreamQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1NotificationsStream>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1NotificationsStream>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1NotificationsStreamQueryKey();
+  const queryKey =  apiQueryKey({  }, { url: `/api/v1/notifications/stream`, queryOptions });
 
 
 
@@ -118,7 +117,7 @@ export function useGetApiV1NotificationsStream<TData = Awaited<ReturnType<typeof
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1NotificationsStreamQueryOptions(options)
+  const queryOptions = useGetApiV1NotificationsStreamQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -146,17 +145,16 @@ export const getApiV1Notifications = (
 
 
 
-export const getGetApiV1NotificationsQueryKey = (params?: GetApiV1NotificationsParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/notifications` });
-};
+export const getGetApiV1NotificationsQueryKey = (params?: GetApiV1NotificationsParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/notifications` });
 
 
-export const getGetApiV1NotificationsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Notifications>>, TError = unknown>(params?: GetApiV1NotificationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Notifications>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1NotificationsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1Notifications>>, TError = unknown>(params?: GetApiV1NotificationsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1Notifications>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1NotificationsQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/notifications`, queryOptions });
 
 
 
@@ -203,7 +201,7 @@ export function useGetApiV1Notifications<TData = Awaited<ReturnType<typeof getAp
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1NotificationsQueryOptions(params,options)
+  const queryOptions = useGetApiV1NotificationsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -230,17 +228,16 @@ export const getApiV1NotificationsUnreadCount = (
 
 
 
-export const getGetApiV1NotificationsUnreadCountQueryKey = () => {
-  return apiQueryKey({}, { url: `/api/v1/notifications/unread-count` });
-};
+export const getGetApiV1NotificationsUnreadCountQueryKey = () =>
+    apiQueryKey({  }, { url: `/api/v1/notifications/unread-count` });
 
 
-export const getGetApiV1NotificationsUnreadCountQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1NotificationsUnreadCount>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1NotificationsUnreadCount>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1NotificationsUnreadCountQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1NotificationsUnreadCount>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1NotificationsUnreadCount>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1NotificationsUnreadCountQueryKey();
+  const queryKey =  apiQueryKey({  }, { url: `/api/v1/notifications/unread-count`, queryOptions });
 
 
 
@@ -287,7 +284,7 @@ export function useGetApiV1NotificationsUnreadCount<TData = Awaited<ReturnType<t
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1NotificationsUnreadCountQueryOptions(options)
+  const queryOptions = useGetApiV1NotificationsUnreadCountQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

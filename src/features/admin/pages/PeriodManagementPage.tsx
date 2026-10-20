@@ -6,7 +6,7 @@ import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { PageHeader, DataTable, Button, FilterTextInput, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
+  comparePeriodStatus,
   periodsApi,
   getPeriodApiError,
   type PeriodApi,
@@ -24,12 +25,14 @@ const STATUS_LABELS: Record<PeriodStatusApi, string> = {
   Draft: 'Nháp',
   Active: 'Đang áp dụng',
   Closed: 'Đã kết thúc',
+  Published: 'Đã công bố',
 };
 
 const STATUS_BADGE: Record<PeriodStatusApi, string> = {
   Draft: 'bg-primary/5 text-muted-foreground',
   Active: 'bg-success/15 text-success',
   Closed: 'bg-muted text-muted-foreground',
+  Published: 'bg-primary/10 text-primary',
 };
 
 interface FormState {
@@ -52,15 +55,15 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const periodsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), { search: debouncedSearch, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
-    queryFn: () => periodsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' }),
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), { search: debouncedSearch, page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' }),
+    queryFn: () => periodsApi.list({ search: debouncedSearch || undefined, page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' }),
   });
 
   const periods = periodsQuery.data?.items ?? [];
 
   const invalidate = () => invalidateQueryResources(queryClient, [getGetApiV1PeriodsQueryKey(), getGetApiV1AuditLogsQueryKey()]);
 
-  const buildPayload = (): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi } | null => {
+  const buildPayload = (excludeId?: string): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi } | null => {
     const startYear = Number(form.startYear);
     const endYear = Number(form.endYear);
     if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear < 1900 || endYear > 2200) {
@@ -71,7 +74,14 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Năm kết thúc phải lớn hơn hoặc bằng năm bắt đầu.');
       return null;
     }
-    return { startYear, endYear, name: form.name.trim() || null, status: form.status };
+    // Tên trống -> tự sinh theo năm (BE cũng vậy); check trùng trên tên đã resolve
+    const name = form.name.trim();
+    const resolvedName = name || `${startYear}-${endYear}`;
+    if (periods.some((p) => p.id !== excludeId && p.name.trim().toLowerCase() === resolvedName.toLowerCase())) {
+      toast.error('Tên kỳ thi đua đã tồn tại, vui lòng chọn tên khác.');
+      return null;
+    }
+    return { startYear, endYear, name: name || null, status: form.status };
   };
 
   const createMutation = useMutation({
@@ -116,20 +126,27 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
     {
       accessorKey: 'startYear',
       header: 'Năm bắt đầu',
-      meta: { align: 'center', list: { width: '110px' } },
+      enableSorting: true,
+      sortDescFirst: false,
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
       accessorKey: 'endYear',
       header: 'Năm kết thúc',
-      meta: { align: 'center', list: { width: '110px' } },
+      enableSorting: true,
+      sortDescFirst: false,
+      meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
       accessorKey: 'status',
       header: 'Trạng thái',
+      enableSorting: true,
+      sortDescFirst: false,
+      sortingFn: (rowA, rowB) => comparePeriodStatus(rowA.original.status, rowB.original.status),
       cell: ({ row }) => (
         <Badge className={STATUS_BADGE[row.original.status]}>{STATUS_LABELS[row.original.status]}</Badge>
       ),
-      meta: { list: { width: '130px' } },
+      meta: { sortable: true, list: { width: '150px' } },
     },
   ], []);
 
@@ -153,7 +170,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
   const handleEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
-    const payload = buildPayload();
+    const payload = buildPayload(selected?.id);
     if (payload) updateMutation.mutate({ id: selected.id, payload });
   };
 
@@ -171,7 +188,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-name">Tên kỳ <span className="text-xs font-normal text-muted-foreground">Để trống sẽ tự đặt theo năm, VD: 2025-2026</span></Label>
-        <Input id="p-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: 2025-2026" maxLength={20} />
+        <Input id="p-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="VD: Thi đua 2025-2026" maxLength={200} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="p-status">Trạng thái</Label>
@@ -182,9 +199,9 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         >
           <SelectTrigger id="p-status"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {editOpen && <SelectItem value="Draft">Nháp</SelectItem>}
             <SelectItem value="Active">Đang áp dụng</SelectItem>
             <SelectItem value="Closed">Đã kết thúc</SelectItem>
+            {editOpen && <SelectItem value="Published">Đã công bố</SelectItem>}
           </SelectContent>
         </Select>
       </div>
@@ -204,24 +221,45 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         columns={columns}
         variant="list"
         getRowId={(row) => row.id}
+        selectedRowId={selected?.id}
         loading={periodsQuery.isLoading}
         pageSize={10}
-        onRowClick={openEdit}
+        onRowClick={setSelected}
+        onRowDoubleClick={openEdit}
         filters={
-          <Input
+          <FilterTextInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Tìm tên kỳ…"
             className="h-9 w-64"
           />
         }
+        onClearFilters={() => setSearch('')}
         emptyState={search.trim()
           ? { title: 'Không tìm thấy kỳ thi đua', description: 'Thử từ khóa khác.' }
           : { title: 'Chưa có kỳ thi đua', description: 'Tạo kỳ đầu tiên để gắn nhóm tiêu chí.' }}
         toolbar={
-          <Button size="sm" className="h-9!" onClick={() => { setForm(emptyForm); setCreateOpen(true); }} action="create">
-            <Plus className="h-4 w-4 ml-2" /> Thêm kỳ
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {selected && !editOpen && !deleteOpen && !createOpen && (
+              <>
+                <Button variant="edit" size="sm" onClick={() => openEdit(selected)}>
+                  Chỉnh sửa
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={selected.status !== 'Draft'}
+                  disabledReason={selected.status !== 'Draft' ? 'Chỉ có thể xóa kỳ thi đua ở trạng thái Nháp.' : undefined}
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Xóa
+                </Button>
+              </>
+            )}
+            <Button size="sm" className="h-9!" onClick={() => { setSelected(null); setForm(emptyForm); setCreateOpen(true); }} action="create">
+              <Plus className="h-4 w-4 ml-2" /> Thêm kỳ
+            </Button>
+          </div>
         }
       />
 
@@ -253,22 +291,12 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Xóa kỳ thi đua?"
-        description={`Xóa kỳ ${selected?.name ?? ''}? Chỉ nên xóa kỳ chưa gắn nhóm tiêu chí nào.`}
+        description={`Xóa kỳ ${selected?.name ?? ''}? Kỳ ở trạng thái Nháp sẽ bị xóa vĩnh viễn cùng các nhóm tiêu chí nháp bên trong (nếu có).`}
         confirmLabel="Xóa kỳ"
         variant="destructive"
         onConfirm={() => selected && deleteMutation.mutate(selected.id)}
       />
 
-      {selected && !editOpen && !deleteOpen && (
-        <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => selected && openEdit(selected)}>
-            Chỉnh sửa
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="h-3.5 w-3.5" /> Xóa
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

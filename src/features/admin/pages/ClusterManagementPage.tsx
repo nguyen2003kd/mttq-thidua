@@ -5,7 +5,7 @@ import { apiQueryKey, dataQueryKey, invalidateQueryResources } from '@/api/mutat
 import { Plus, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { PageHeader, DataTable, Button, FilterTextInput, FormDialog, ConfirmDialog } from '@/components/core';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -203,13 +203,14 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
         pageSize={10}
         onRowClick={openEdit}
         filters={
-          <Input
+          <FilterTextInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Tìm tên cụm…"
             className="h-9 w-64"
           />
         }
+        onClearFilters={() => setSearch('')}
         emptyState={{ title: 'Chưa có cụm', description: 'Tạo cụm đầu tiên để bắt đầu nhóm phường/xã.' }}
         toolbar={
           <Button size="sm" className="h-9!" onClick={() => { setFName(''); setFDescription(''); setFWardCodes([]); setFWardSearch(''); setCreateOpen(true); }} action="create">
@@ -329,6 +330,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
             </div>
             <Button
               type="button"
+              variant="success"
               size="sm"
               disabled={!assignWardCode || assignMutation.isPending}
               disabledReason="Chọn một phường/xã để thêm vào cụm."
@@ -352,7 +354,7 @@ export default function ClusterManagementPage({ embedded = false }: { embedded?:
 
       {selected && !editOpen && !deleteOpen && (
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => selected && openEdit(selected)}>
+          <Button variant="edit" size="sm" onClick={() => selected && openEdit(selected)}>
             Chỉnh sửa
           </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>

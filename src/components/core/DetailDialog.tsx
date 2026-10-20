@@ -60,13 +60,13 @@ export function DetailDialog({
         footerActions={(
           <>
             {onDelete && (
-              <button type="button" onClick={handleDeleteClick} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-destructive bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80">
+              <button type="button" onClick={handleDeleteClick} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-button-delete bg-button-delete px-4 text-sm font-medium text-white transition-colors hover:bg-button-delete/90">
                 <Trash2 className="h-3.5 w-3.5" />
                 {deleteLabel}
               </button>
             )}
             {onEdit && (
-              <button type="button" onClick={onEdit} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+              <button type="button" onClick={onEdit} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-button-edit bg-button-edit px-4 text-sm font-medium text-button-edit-foreground transition-colors hover:bg-button-edit/90">
                 <Pencil className="h-3.5 w-3.5" />
                 {editLabel}
               </button>

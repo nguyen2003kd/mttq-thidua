@@ -9,6 +9,7 @@ import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
 import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { useScoreStore } from '@/store/scoreStore';
+import { EXCEL_WORKBOOK_ACCEPT, isExcelWorkbookFileName } from '@/lib/fileTypes';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
   PageHeader,
@@ -193,12 +194,14 @@ export default function CriteriaListPage() {
       {
         accessorKey: 'name',
         header: LABELS.CRITERIA_TABLE_NAME,
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.name} className="w-full max-w-full font-medium" />
         ),
         meta: {
           className: 'font-medium',
           disableTooltip: true,
+          sortable: false,
           list: { width: 'minmax(220px, 1.5fr)' },
         },
       },
@@ -206,55 +209,68 @@ export default function CriteriaListPage() {
         id: 'departmentName',
         accessorFn: (row) => row.departmentName ?? '',
         header: 'Ban xử lý',
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.departmentName} className="w-full max-w-full" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
       {
         id: 'periodName',
         accessorFn: (row) => row.periodName ?? '',
         header: 'Kỳ',
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.periodName} className="w-full max-w-full" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Kỳ', width: '110px' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Kỳ', width: '110px' } },
       },
       {
         id: 'content',
         accessorFn: (row) => row.content ?? row.criteria.map((criteria) => criteria.name).join(' '),
         header: 'Nội dung tiêu chí',
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.content} className="w-full max-w-[280px] text-sm text-muted-foreground" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
       {
         accessorKey: 'closeDate',
         header: 'Hạn nộp',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
         meta: {
+          sortable: true,
           list: { label: 'Hạn nộp', width: '1fr' },
         },
       },
       {
         accessorKey: 'totalScore',
         header: LABELS.CRITERIA_TOTAL_SCORE,
+        enableSorting: true,
+        sortDescFirst: false,
         meta: {
+          sortable: true,
           list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '1fr', valueClassName: 'text-primary' },
         },
       },
       {
         accessorKey: 'note',
         header: 'Ghi chú',
+        enableSorting: false,
         cell: ({ row }) => (
           <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
         ),
-        meta: { disableTooltip: true, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
       {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
+        enableSorting: true,
+        sortDescFirst: false,
+        sortingFn: (rowA, rowB) => CRITERIA_STATUS_LABELS[rowA.original.status].localeCompare(CRITERIA_STATUS_LABELS[rowB.original.status], 'vi'),
         cell: ({ row }) =>
           row.original.status === 'ACTIVE'
             ? <Badge className="bg-success/15 text-success">Đã áp dụng</Badge>
@@ -264,12 +280,15 @@ export default function CriteriaListPage() {
               ? <Badge className="bg-primary/5 text-muted-foreground">Đã kết thúc</Badge>
               : <Badge className="bg-primary/5 text-muted-foreground">Nháp</Badge>,
         meta: {
+          sortable: true,
           list: { label: LABELS.CRITERIA_STATUS, width: '1fr' },
         },
       },
       {
         accessorKey: 'updatedAt',
         header: 'Cập nhật lần cuối',
+        enableSorting: true,
+        sortDescFirst: false,
         cell: ({ row }) => (
           <TruncatedText
             value={row.original.updatedAt ? formatDateTime(row.original.updatedAt) : 'Chưa cập nhật'}
@@ -278,6 +297,7 @@ export default function CriteriaListPage() {
         ),
         meta: {
           disableTooltip: true,
+          sortable: true,
           list: { label: 'Cập nhật lần cuối', width: 'minmax(168px, 1fr)', valueClassName: 'text-muted-foreground tabular-nums' },
         },
       },
@@ -318,10 +338,16 @@ export default function CriteriaListPage() {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    if (!isExcelWorkbookFileName(file.name)) {
+      toast.error('Chỉ hỗ trợ tệp Excel định dạng .xls hoặc .xlsx.');
+      return;
+    }
 
     try {
       const parsed = await parseCriteriaExcelFile(file);
       resetEditor();
+      // Kỳ thi đua đang hiển thị trên màn hình → chọn sẵn trong cửa sổ import.
+      if (activePeriods.some((period) => period.id === periodFilter)) setPeriodId(periodFilter);
       setName(parsed.name);
       setTotalScore(String(parsed.maxPoint));
       setContent(parsed.content);
@@ -404,6 +430,18 @@ export default function CriteriaListPage() {
       return;
     }
 
+    // Hạn nộp của tiêu chí con (nhập từ Excel) không được vượt quá hạn nộp của nhóm.
+    const groupDeadlineMs = closeDate ? new Date(closeDate).getTime() : 0;
+    if (groupDeadlineMs && importedCriteria) {
+      const violating = importedCriteria.find(
+        (item) => item.deadline && new Date(item.deadline).getTime() > groupDeadlineMs,
+      );
+      if (violating) {
+        toast.error(`Hạn nộp của tiêu chí con "${violating.content}" không được vượt quá hạn nộp của nhóm tiêu chí.`);
+        return;
+      }
+    }
+
     setSaving(true);
     let createdGroupId: string | null = null;
     let importedChildrenCreated = false;
@@ -417,6 +455,17 @@ export default function CriteriaListPage() {
             `Không thể giảm tổng điểm xuống ${parsedTotalScore}. Tổng điểm của các tiêu chí con hiện là ${childrenTotal}.`,
           );
           return;
+        }
+        // Hạn nộp mới của nhóm không được sớm hơn hạn nộp của tiêu chí con hiện có.
+        if (closeDate) {
+          const newDeadlineMs = new Date(closeDate).getTime();
+          const violating = latestGroup.criteria.find(
+            (criterion) => criterion.deadline && new Date(criterion.deadline).getTime() > newDeadlineMs,
+          );
+          if (violating) {
+            toast.error(`Hạn nộp của tiêu chí con "${violating.content}" không được vượt quá hạn nộp mới của nhóm tiêu chí.`);
+            return;
+          }
         }
         await criteriaGroupsApi.update(editingTable.id, payload);
         toast.success('Đã cập nhật nhóm tiêu chí');
@@ -500,6 +549,7 @@ export default function CriteriaListPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên bảng tiêu chí..."
         pageSize={10}
+        sortingResetKey={sort}
         onRowClick={(row) => { setSelectedTable(row); setApplyValidationError(null); }}
         onRowDoubleClick={(row) => navigate(`/chuyen-vien/tieu-chi/${row.id}/con`)}
         filters={
@@ -565,19 +615,19 @@ export default function CriteriaListPage() {
             <input
               ref={excelFileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept={EXCEL_WORKBOOK_ACCEPT}
               className="hidden"
               aria-label="Chọn tệp Excel nhóm tiêu chí"
               onChange={handleExcelFileChange}
             />
               <>
-                <Button hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="info" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để xem chi tiết." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Eye className="mr-1.5 h-4 w-4" /> Xem
                 </Button>
-                <Button variant="warning" hideWhen={!selectedTable} disabled={!selectedTable || selectedTable.status === 'PUBLISHED'} disabledReason={!selectedTable ? 'Chọn một nhóm tiêu chí để chỉnh sửa.' : selectedTable.status === 'PUBLISHED' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa.' : undefined} onClick={() => selectedTable && selectedTable.status !== 'PUBLISHED' && openEditDialog(selectedTable)}>
+                <Button variant="edit" hideWhen={!selectedTable} disabled={!selectedTable || selectedTable.status === 'PUBLISHED'} disabledReason={!selectedTable ? 'Chọn một nhóm tiêu chí để chỉnh sửa.' : selectedTable.status === 'PUBLISHED' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa.' : undefined} onClick={() => selectedTable && selectedTable.status !== 'PUBLISHED' && openEditDialog(selectedTable)}>
                   <Pencil className="mr-1.5 h-4 w-4" /> Sửa
                 </Button>
-                <Button variant="outline" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
+                <Button variant="info" hideWhen={!selectedTable} disabled={!selectedTable} disabledReason="Chọn một nhóm tiêu chí để quản lý tiêu chí con." onClick={() => selectedTable && navigate(`/chuyen-vien/tieu-chi/${selectedTable.id}/con`)}>
                   <Plus className="mr-1.5 h-4 w-4" /> Tiêu chí con
                 </Button>
                 <Button
@@ -598,7 +648,7 @@ export default function CriteriaListPage() {
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="destructive"
                   hideWhen={!selectedTable}
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT' || deleteMutation.isPending}
                   disabledReason={
@@ -608,7 +658,6 @@ export default function CriteriaListPage() {
                         ? 'Chỉ có thể xóa nhóm tiêu chí ở trạng thái Nháp.'
                         : undefined
                   }
-                  className="border-danger text-danger hover:bg-danger/5"
                   onClick={() => {
                     if (selectedTable?.status === 'DRAFT') setDeleteOpen(true);
                   }}
@@ -616,13 +665,13 @@ export default function CriteriaListPage() {
                   <Trash2 className="mr-1.5 h-4 w-4" /> Xóa
                 </Button>
               </>
-            <Button variant="outline" onClick={downloadCriteriaExcelTemplate}>
+            <Button variant="info" onClick={downloadCriteriaExcelTemplate}>
               <Download className="mr-1.5 h-4 w-4" /> Tải mẫu Excel
             </Button>
-            <Button variant="outline" onClick={() => excelFileInputRef.current?.click()}>
+            <Button variant="success" onClick={() => excelFileInputRef.current?.click()}>
               <FileUp className="mr-1.5 h-4 w-4" /> Nhập từ Excel
             </Button>
-            <Button variant="outline" onClick={() => { setDeadlineValue(toDateTimeInput(deadline)); setDeadlineOpen(true); }}>Đặt thời gian gợi ý công bố kết quả</Button>
+            <Button variant="edit" onClick={() => { setDeadlineValue(toDateTimeInput(deadline)); setDeadlineOpen(true); }}>Đặt thời gian gợi ý công bố kết quả</Button>
             <Button onClick={openCreateDialog} action="create">
               <Plus className="mr-1.5 h-4 w-4" /> {LABELS.CREATE}
             </Button>

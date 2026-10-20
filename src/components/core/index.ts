@@ -18,7 +18,7 @@ export { DataTable, type DataTableColumnMeta, type DataTableProps } from './Data
 export { TableColumnVisibility, type TableColumnOption } from './TableColumnVisibility';
 export { EmptyState } from './EmptyState';
 export { FilterSelect, type FilterOption, type FilterSelectProps } from './FilterSelect';
-export { FilterDropdown, type FilterDropdownProps } from './FilterDropdown';
+export { FilterDropdown, FilterTextInput, type FilterDropdownProps, type FilterTextInputProps } from './FilterDropdown';
 export { ListDialog, type ListDialogItem, type ListDialogProps } from './ListDialog';
 export { StatCard } from './StatCard';
 export { AuditTimeline } from './AuditTimeline';
@@ -27,4 +27,5 @@ export { FileUpload, type FileUploadProps } from './FileUpload';
 export { FileAttachmentList, type FileAttachmentListProps } from './FileAttachmentList';
 export { FilePreviewDialog, type FilePreviewDialogProps } from './FilePreviewDialog';
 export { PageLoading, type PageLoadingProps } from './PageLoading';
+export { PeriodSelect, type PeriodSelectProps } from './PeriodSelect';
 export { ActionProgressOverlay } from './ActionProgressOverlay';

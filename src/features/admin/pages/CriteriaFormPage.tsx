@@ -158,7 +158,7 @@ export default function CriteriaFormPage() {
         <Card>
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold">Danh sách tiêu chí con</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addItem}>
+            <Button type="button" variant="success" size="sm" onClick={addItem}>
               <Plus className="h-4 w-4 ml-1.5" /> Thêm
             </Button>
           </CardHeader>
@@ -187,9 +187,9 @@ export default function CriteriaFormPage() {
                 </div>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="icon-sm"
-                  className="text-destructive hover:bg-destructive/10"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => removeItem(idx)}
                   disabled={items.length === 1}
                 >
@@ -201,7 +201,7 @@ export default function CriteriaFormPage() {
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" action={isNew ? 'create' : 'edit'}>
+          <Button type="submit" action={isNew ? 'create' : 'edit'} variant="default">
             <Save className="h-4 w-4 ml-2" /> Lưu bảng tiêu chí
           </Button>
         </div>

@@ -164,7 +164,7 @@ export function RevisionRequestDialog({
               <p className="truncate font-medium text-foreground">{inheritedFile.name}</p>
               <p className="text-xs text-muted-foreground">Tệp từ yêu cầu trước · {inheritedFile.sizeBytes > 0 ? `${Math.ceil(inheritedFile.sizeBytes / 1024)} KB` : 'Chưa rõ dung lượng'}</p>
             </div>
-            {onPreviewInheritedFile && <Button type="button" variant="outline" size="sm" onClick={onPreviewInheritedFile}><Eye className="size-4" />Xem</Button>}
+            {onPreviewInheritedFile && <Button type="button" variant="info" size="sm" onClick={onPreviewInheritedFile}><Eye className="size-4" />Xem</Button>}
             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Bỏ tệp ${inheritedFile.name}`} onClick={() => setInheritedFileSelected(false)}><X className="size-4" /></Button>
           </div>
         )}

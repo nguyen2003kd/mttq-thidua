@@ -2,6 +2,8 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FilterTextInput } from './FilterDropdown';
+import { sortTableRows, toggleTableSort, toTimestamp } from '@/lib/tableSorting';
 import { DataTable } from './DataTable';
 
 class ResizeObserverStub {
@@ -16,7 +18,23 @@ interface SearchRow {
   name: string;
 }
 
+interface PeriodSortRow {
+  startYear: number;
+}
+
 const columns: ColumnDef<SearchRow>[] = [{ accessorKey: 'name', header: 'Tên' }];
+const sortableYearColumn: ColumnDef<PeriodSortRow>[] = [{
+  accessorKey: 'startYear',
+  header: 'Năm bắt đầu',
+  enableSorting: true,
+  sortDescFirst: false,
+  meta: { sortable: true, list: { width: '132px' } },
+}];
+const defaultSortableScoreColumn: ColumnDef<{ score: number }>[] = [{ accessorKey: 'score', header: 'Điểm', meta: { sortable: true } }];
+const unsortableTextColumns: ColumnDef<{ content: string; description: string }>[] = [
+  { accessorKey: 'content', header: 'Nội dung' },
+  { accessorKey: 'description', header: 'Mô tả', meta: { sortable: false } },
+];
 
 function SearchParam() {
   const { search } = useLocation();
@@ -49,5 +67,168 @@ describe('DataTable search', () => {
     await waitFor(() => expect(screen.getByTestId('search-param')).toHaveTextContent('tieu chi'));
     expect(input).toHaveValue('tieu chi');
     expect(onSearchChange).toHaveBeenLastCalledWith('tieu chi');
+  });
+});
+
+describe('DataTable text filters', () => {
+  it('keeps filter text as a string and applies it only after confirmation', () => {
+    const onFilterChange = vi.fn();
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ name: 'Cụm 1' }]}
+          columns={columns}
+          filters={<FilterTextInput value="" onChange={onFilterChange} placeholder="Tìm tên cụm…" />}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bộ lọc' }));
+    const input = screen.getByPlaceholderText('Tìm tên cụm…');
+    fireEvent.change(input, { target: { value: 'Cụm 1' } });
+
+    expect(input).toHaveValue('Cụm 1');
+    expect(onFilterChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
+    expect(onFilterChange).toHaveBeenCalledWith('Cụm 1');
+  });
+
+  it('enables and applies the clear action when a clear handler is provided', () => {
+    const onFilterChange = vi.fn();
+    const onClearFilters = vi.fn();
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ name: 'Cụm 1' }]}
+          columns={columns}
+          filters={<FilterTextInput value="Cụm 1" onChange={onFilterChange} placeholder="Tìm tên cụm…" />}
+          onClearFilters={onClearFilters}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bộ lọc' }));
+    const clearButton = screen.getByRole('button', { name: 'Xóa lọc' });
+    expect(clearButton).toBeEnabled();
+    fireEvent.click(clearButton);
+
+    expect(onFilterChange).toHaveBeenCalledWith('');
+    expect(onClearFilters).toHaveBeenCalled();
+  });
+});
+
+describe('DataTable list sorting', () => {
+  it('sorts columns explicitly marked sortable when their headers are clicked', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ startYear: 2024 }, { startYear: 1991 }]}
+          columns={sortableYearColumn}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    const header = screen.getByText('Năm bắt đầu');
+    fireEvent.click(header);
+    expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['1991', '2024']);
+
+    fireEvent.click(header);
+    expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['2024', '1991']);
+  });
+
+  it('resets column sorting when an external sort preset changes', async () => {
+    const data = [{ startYear: 2024 }, { startYear: 1991 }];
+    const { rerender } = render(
+      <MemoryRouter>
+        <DataTable
+          data={data}
+          columns={sortableYearColumn}
+          variant="list"
+          showPagination={false}
+          sortingResetKey="createdAt-desc"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText('Năm bắt đầu'));
+    await waitFor(() => {
+      expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['1991', '2024']);
+    });
+
+    rerender(
+      <MemoryRouter>
+        <DataTable
+          data={data}
+          columns={sortableYearColumn}
+          variant="list"
+          showPagination={false}
+          sortingResetKey="name-asc"
+        />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getAllByText(/^(1991|2024)$/).map((item) => item.textContent)).toEqual(['2024', '1991']);
+    });
+  });
+
+  it('sorts list columns explicitly marked sortable', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ score: 2 }, { score: 10 }]}
+          columns={defaultSortableScoreColumn}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Điểm' }));
+
+    expect(screen.getAllByText(/^(2|10)$/).map((item) => item.textContent)).toEqual(['10', '2']);
+  });
+
+  it('omits sorting controls from unmarked and explicitly unsortable text columns', () => {
+    render(
+      <MemoryRouter>
+        <DataTable
+          data={[{ content: 'Nội dung', description: 'Mô tả' }]}
+          columns={unsortableTextColumns}
+          variant="list"
+          showPagination={false}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Nội dung' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mô tả' })).not.toBeInTheDocument();
+  });
+});
+
+describe('table sorting helpers', () => {
+  const rows = [
+    { id: 'older', score: 70, status: 'Chưa nộp', date: '2025-04-01T00:00:00Z' },
+    { id: 'newer', score: 95, status: 'Đã duyệt', date: '2026-04-01T00:00:00Z' },
+    { id: 'pending', score: 80, status: 'Đang chờ duyệt', date: null },
+  ];
+  const accessors = {
+    score: (row: typeof rows[number]) => row.score,
+    status: (row: typeof rows[number]) => row.status,
+    date: (row: typeof rows[number]) => toTimestamp(row.date),
+  };
+
+  it('sorts numeric values, Vietnamese labels, and timestamps by their value types', () => {
+    expect(sortTableRows(rows, { column: 'score', direction: 'desc' }, accessors).map((row) => row.id)).toEqual(['newer', 'pending', 'older']);
+    expect(sortTableRows(rows, { column: 'status', direction: 'asc' }, accessors).map((row) => row.id)).toEqual(['older', 'newer', 'pending']);
+    expect(sortTableRows(rows, { column: 'date', direction: 'desc' }, accessors).map((row) => row.id)).toEqual(['newer', 'older', 'pending']);
+  });
+
+  it('cycles a column through both directions and back to original order', () => {
+    expect(toggleTableSort(null, 'score', 'desc')).toEqual({ column: 'score', direction: 'desc' });
+    expect(toggleTableSort({ column: 'score', direction: 'desc' }, 'score', 'desc')).toEqual({ column: 'score', direction: 'asc' });
+    expect(toggleTableSort({ column: 'score', direction: 'asc' }, 'score', 'desc')).toBeNull();
   });
 });

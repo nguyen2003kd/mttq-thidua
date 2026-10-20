@@ -208,6 +208,7 @@ export function EvidenceModal({
               <Button
                 variant="ghost"
                 size="icon-xs"
+                className="text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info"
                 title="Xem file"
                 onClick={() => setPreviewFile({ id: item.id, originalName: item.fileName })}
               >

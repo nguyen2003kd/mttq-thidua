@@ -125,6 +125,7 @@ export const resultPublicationApi = {
     });
     return response instanceof Blob ? response : new Blob([JSON.stringify(response)], { type: 'application/octet-stream' });
   },
+  remindUnpublished: (periodId: string) => request<{ notifiedWards: number }>({ url: '/api/v1/result-publications/remind-unpublished', method: 'POST', params: { periodId } }),
   publish: (periodId: string, note?: string, file?: File | null) => {
     const form = new FormData();
     form.append('periodId', periodId);

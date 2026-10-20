@@ -70,9 +70,9 @@ export function ConfirmDialog({
                 <AlertTriangle className="h-5 w-5 text-destructive" />
               </div>
             )}
-            <div className="space-y-1.5">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <DialogTitle>{title}</DialogTitle>
-              <DialogDescription>{description}</DialogDescription>
+              <DialogDescription className="break-words">{description}</DialogDescription>
             </div>
           </div>
         </DialogHeader>

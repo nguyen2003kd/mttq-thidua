@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
+import { queryClient } from '@/api/mutator/query-client';
 import { postApiV1AuthLoginWeb } from '@/api/endpoints/auth';
 import { Button } from '@/components/core';
 import { Input } from '@/components/ui/input';
@@ -120,6 +122,8 @@ export default function LoginPage() {
       const sessionExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
       const refreshExpiresAt = new Date(Date.now() + refreshExpiresIn * 1000).toISOString();
       const accountName = loginData.username || loginData.email;
+      queryClient.clear();
+      useNotificationStore.getState().clear();
       setStore({
         isSignedIn: true,
         id: loginData.userId,

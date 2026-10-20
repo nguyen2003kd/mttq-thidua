@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useQuery
 } from '@tanstack/react-query';
@@ -20,6 +19,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -60,18 +60,17 @@ export const getApiV1ExternalProvincesCodeWards = (
 
 
 export const getGetApiV1ExternalProvincesCodeWardsQueryKey = (code: string,
-    params?: GetApiV1ExternalProvincesCodeWardsParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/external/provinces/${code}/wards` });
-};
+    params?: GetApiV1ExternalProvincesCodeWardsParams,) =>
+    apiQueryKey({ code,params }, { url: `/api/v1/external/provinces/${code}/wards` });
 
 
-export const getGetApiV1ExternalProvincesCodeWardsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ExternalProvincesCodeWards>>, TError = unknown>(code: string,
+export const useGetApiV1ExternalProvincesCodeWardsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1ExternalProvincesCodeWards>>, TError = unknown>(code: string,
     params?: GetApiV1ExternalProvincesCodeWardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1ExternalProvincesCodeWards>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1ExternalProvincesCodeWardsQueryKey(code,params);
+  const queryKey =  apiQueryKey({ code,params }, { url: `/api/v1/external/provinces/${code}/wards`, queryOptions });
 
 
 
@@ -122,7 +121,7 @@ export function useGetApiV1ExternalProvincesCodeWards<TData = Awaited<ReturnType
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1ExternalProvincesCodeWardsQueryOptions(code,params,options)
+  const queryOptions = useGetApiV1ExternalProvincesCodeWardsQueryOptions(code,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

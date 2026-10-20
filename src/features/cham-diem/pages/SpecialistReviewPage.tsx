@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   Download,
   Edit3,
   Eye,
@@ -29,7 +31,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, TableColumnVisibility, TruncatedText } from '@/components/core';
+import { Button, EmptyState, FilePreviewDialog, FileUpload, FilterDropdown, FilterSelect, FormDialog, PageHeader, PageLoading, PeriodSelect, TableColumnVisibility, TruncatedText } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -43,14 +45,31 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
+import {
+  getLocalitySortDirection,
+  LOCALITY_SORT_OPTIONS,
+  LOCALITY_STATUS_LABELS,
+  sortLocalityRows,
+  toggleLocalitySort,
+  type LocalityOverallStatus,
+  type LocalitySortDirection,
+  type LocalitySortValue,
+} from '@/features/cham-diem/utils/localitySorting';
+import { buildScoreEntryUrl } from '@/features/cham-diem/utils/scoreEntryNavigation';
+import { filterSubmissionsByStage } from '@/features/cham-diem/utils/submissionStageFilter';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import { getRevisionNotes, leaderRevisionNotesForResult, resolveHistoryAction, revisionNoteForResult, translateLegacyReason, type RevisionNote, type RevisionRequestStage } from '../revisionNotes';
 import { useAuthStore } from '@/store/authStore';
+import { usePeriodStore } from '@/store/periodStore';
+import { periodsApi } from '@/features/admin/api/periodsApi';
 import {
   localityApi,
   mergeSubmissionCriteria,
@@ -60,7 +79,7 @@ import {
 } from '@/features/dia-phuong/api/localityApi';
 import { downloadFile, filesApi, getFileBlob, getFilesApiError } from '@/features/files/api/filesApi';
 import { Card, CardContent } from '@/components/ui/card';
-import { formatDateTime, cn } from '@/lib/utils';
+import { formatDate, formatDateTime, cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 
@@ -77,6 +96,8 @@ interface SpecialistCriteriaItem {
   code: string;
   title: string;
   evidenceFiles: EvidenceFile[];
+  /** File đính kèm khi Chuyên viên thêm tiêu chí bổ sung (category = supplementary). */
+  supplementaryFiles: EvidenceFile[];
   proposedScore: number;
   proposedBonusScore: number;
   maxProposedScore: number;
@@ -116,6 +137,7 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
         code: `TC_${String(index + 1).padStart(2, '0')}`,
         title: criterion.content,
         evidenceFiles: [],
+        supplementaryFiles: [],
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: criterion.maxPoint,
@@ -151,37 +173,48 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
 interface LocalityRow {
   localityId: string;
   localityName: string;
+  completedGroupCount: number;
   completionRate: string;
-  overallStatus: 'CHUA_NOP' | 'CHO_DUYET' | 'YEU_CAU_SUA' | 'DA_DUYET';
+  overallStatus: LocalityOverallStatus;
   hasNewSubmissions: boolean;
   hasModificationRequest: boolean;
   submissionIds: string[];
 }
 
-type SubmissionStageFilter = '' | SubmissionStage;
+interface SpecialistReviewEmbeddedDetail {
+  localityId: string;
+  criteriaGroupId: string;
+}
+
+interface SpecialistReviewPageProps {
+  basePath?: string;
+  embeddedDetail?: SpecialistReviewEmbeddedDetail;
+}
+
+type SubmissionStageFilter = '' | SubmissionStage | string;
 type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 
-const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: '' | SubmissionStage; label: string }>> = {
+const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: SubmissionStageFilter; label: string }>> = {
   SCORER: [
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ chấm' },
-    { value: 'ScorerRevisionRequested', label: 'Yêu cầu chỉnh sửa' },
-    { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
-    { value: 'ScorerSubmitted', label: 'Đã gửi review' },
+    { value: 'ScorerRevisionRequested', label: 'Yêu cầu chỉnh sửa từ Lãnh đạo ban' },
+    { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
+    { value: 'ScorerSubmitted,ReviewerApproved,SpecialistApproved', label: 'Đã gửi Lãnh đạo ban' },
   ],
   REVIEWER: [
     { value: '', label: 'Tất cả' },
-    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
-    { value: 'ReviewerRevisionRequested', label: 'Yêu cầu chỉnh sửa' },
-    { value: 'ReviewerApproved', label: 'Đã chuyển Chuyên viên trưởng' },
+    { value: 'ScorerSubmitted', label: 'Đang chờ duyệt' },
+    { value: 'ReviewerRevisionRequested', label: 'Chờ Lãnh đạo ban chỉnh sửa' },
+    { value: 'ReviewerApproved,SpecialistApproved', label: 'Đã duyệt' },
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
-    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
-    { value: 'ReviewerApproved', label: 'Chờ duyệt' },
-    { value: 'RequiresRevision', label: 'Chờ địa phương chỉnh sửa' },
-    { value: 'SpecialistApproved', label: 'Đã chuyển lãnh đạo' },
+    { value: 'LocalSubmitted', label: 'Chờ chấm' },
+    { value: 'ScorerSubmitted', label: 'Đã gửi Lãnh đạo ban' },
+    { value: 'ReviewerApproved', label: 'Chờ Chuyên viên phụ trách thi đua khen thưởng' },
+    { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
+    { value: 'SpecialistApproved', label: 'Đã duyệt' },
   ],
 };
 
@@ -198,10 +231,21 @@ const GROUP_SORT_OPTIONS = [
   { value: 'name-asc', label: 'Tên A–Z' },
   { value: 'name-desc', label: 'Tên Z–A' },
   { value: 'deadline-asc', label: 'Hạn nộp gần nhất' },
-  { value: 'maxPoint-desc', label: 'Điểm cao nhất' },
+  { value: 'maxPoint-desc', label: 'Điểm tối đa cao nhất' },
+  { value: 'proposedScore-desc', label: 'Điểm đề xuất cao nhất' },
+  { value: 'proposedScore-asc', label: 'Điểm đề xuất thấp nhất' },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng cao nhất' },
+  { value: 'proposedBonus-asc', label: 'Điểm thưởng thấp nhất' },
+  { value: 'status-asc', label: 'Trạng thái A–Z' },
+  { value: 'status-desc', label: 'Trạng thái Z–A' },
 ] as const;
 
 const DEFAULT_GROUP_SORT = 'createdAt-desc';
+
+const SPECIALIST_DETAIL_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+  { value: 'official-desc', label: 'Điểm Chuyên viên cao nhất', sort: { column: 'official', direction: 'desc' } },
+];
 
 const SPECIALIST_GROUP_COLUMNS = [
   { id: 'group', label: 'Nhóm tiêu chí' },
@@ -258,10 +302,11 @@ function getGroupStatusFilterLabel(status: GroupStatusFilter) {
   return GROUP_STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ?? '';
 }
 
-async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmitted: boolean) {
+async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmitted: boolean, periodId?: string) {
   const firstPage = await specialistApi.listAllSubmissions({
     stage: stage || undefined,
     includeUnsubmitted: includeUnsubmitted || undefined,
+    periodId: periodId || undefined,
     page: 1,
     pageSize: 100,
     sortBy: 'createdAt',
@@ -274,6 +319,7 @@ async function listEverySubmission(stage: SubmissionStageFilter, includeUnsubmit
     Array.from({ length: pageCount - 1 }, (_, index) => specialistApi.listAllSubmissions({
       stage: stage || undefined,
       includeUnsubmitted: includeUnsubmitted || undefined,
+      periodId: periodId || undefined,
       page: index + 2,
       pageSize: 100,
       sortBy: 'createdAt',
@@ -324,10 +370,10 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
     ScorerRevisionRequested: 'YEU_CAU_SUA',
-    ReviewerRevisionRequested: 'DA_DUYET',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
   REVIEWER: {
-    LocalSubmitted: 'CHO_DUYET',
+    LocalSubmitted: 'CHUA_DEN_LUOT',
     ScorerSubmitted: 'CHO_DUYET',
     ReviewerApproved: 'DA_DUYET',
     SpecialistApproved: 'DA_DUYET',
@@ -339,16 +385,16 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     ReviewerRevisionRequested: 'CHO_DUYET',
   },
   SPECIALIST: {
-    LocalSubmitted: 'CHO_DUYET',
-    ScorerSubmitted: 'CHO_DUYET',
+    LocalSubmitted: 'CHUA_DEN_LUOT',
+    ScorerSubmitted: 'CHUA_DEN_LUOT',
     ReviewerApproved: 'CHO_DUYET',
     SpecialistApproved: 'DA_DUYET',
     LeaderApproved: 'DA_DUYET',
     CouncilApproved: 'DA_DUYET',
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
-    ScorerRevisionRequested: 'CHO_DUYET',
-    ReviewerRevisionRequested: 'CHO_DUYET',
+    ScorerRevisionRequested: 'CHUA_DEN_LUOT',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
 };
 
@@ -407,7 +453,7 @@ type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
 const scoreEditSchema = z.object({
   score: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
-  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.'),
+  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.').max(1, 'Điểm thưởng không được vượt quá 1 điểm.'),
   reason: z.string().trim(),
 });
 
@@ -460,10 +506,10 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
 // stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
 const STAGE_ACTOR_LABELS: Record<string, string> = {
   Draft: 'Địa phương',
-  RequiresRevision: 'Chuyên viên trưởng',
-  LocalSubmitted: 'Chuyên viên trưởng',
+  RequiresRevision: 'Chuyên viên phụ trách thi đua khen thưởng',
+  LocalSubmitted: 'Chuyên viên phụ trách thi đua khen thưởng',
   ScorerSubmitted: 'Lãnh đạo ban',
-  ReviewerApproved: 'Chuyên viên trưởng',
+  ReviewerApproved: 'Chuyên viên phụ trách thi đua khen thưởng',
   SpecialistApproved: 'Lãnh đạo ban',
   LeaderApproved: 'Hội đồng thi đua',
   CouncilApproved: 'Ban thường trực',
@@ -498,9 +544,10 @@ function RevisionNoteView({ note, reasonClassName = 'text-sm leading-5 text-mute
               key={file.id}
               type="button"
               onClick={(event) => { event.stopPropagation(); onPreview(file); }}
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-info/30 bg-background px-1.5 py-0.5 text-xs text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
+              title={`Xem ${file.displayName ?? file.originalName}`}
             >
-              <FileText className="h-3 w-3 shrink-0" />
+              <Eye className="h-3 w-3 shrink-0" />
               <span className="truncate">{file.displayName ?? file.originalName}</span>
             </button>
           ))}
@@ -774,7 +821,7 @@ function OfficialScoreRevisionDialog({
               {formatOfficialScore(result.officialPoint, result.snapshotMaxPoint)}
             </div>
             <div className="rounded-md border border-border bg-background px-4 py-3">
-              <p className="text-xs font-medium text-muted-foreground">Điểm thưởng chuyên viên chấm</p>
+              <p className="text-xs font-medium text-muted-foreground">Điểm thưởng chuyên viên</p>
               {formatOfficialScore(result.officialBonusPoint, result.snapshotMaxBonusPoint)}
             </div>
           </div>
@@ -873,7 +920,7 @@ function RevisionHistorySection({
                                   key={file.id}
                                   type="button"
                                   onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })}
-                                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-primary hover:bg-muted"
+                                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-info/30 bg-background px-1.5 py-0.5 text-xs text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
                                 >
                                   <FileText className="h-3 w-3 shrink-0" />
                                   <span className="truncate">{file.displayName ?? file.originalName}</span>
@@ -934,12 +981,14 @@ function RevisionHistorySection({
   );
 }
 
-function toEvidenceFiles(files: SubmissionResultFile[] | undefined): EvidenceFile[] {
-  return (files ?? []).map((file) => ({
+function toEvidenceFiles(files: SubmissionResultFile[] | undefined, category?: 'evidence' | 'supplementary'): EvidenceFile[] {
+  return (files ?? [])
+    .filter((file) => !category || file.category?.toLowerCase() === category)
+    .map((file) => ({
     id: file.id,
     fileName: file.displayName || file.originalName,
     fileSize: formatFileSize(file.sizeBytes),
-    uploadedAt: new Intl.DateTimeFormat('vi-VN').format(new Date(file.createdAt)),
+    uploadedAt: file.createdAt,
     fileId: file.id,
   }));
 }
@@ -1083,24 +1132,41 @@ function SupplementaryDialog({
 // }
 
 function OverallStatusBadge({ status }: { status: LocalityRow['overallStatus'] }) {
-  if (status === 'CHUA_NOP') return <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge>;
-  if (status === 'DA_DUYET') return <Badge variant="success">Đã duyệt</Badge>;
-  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Đang chờ duyệt</Badge>;
+  if (status === 'CHUA_NOP' || status === 'CHUA_DEN_LUOT') return <Badge variant="outline" className="text-muted-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  if (status === 'DA_DUYET') return <Badge variant="success">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+  return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{LOCALITY_STATUS_LABELS[status]}</Badge>;
+}
+
+function LocalitySortIcon({ direction }: { direction: LocalitySortDirection | undefined }) {
+  if (direction === 'asc') return <ChevronUp aria-hidden="true" className="size-3.5 shrink-0" />;
+  if (direction === 'desc') return <ChevronDown aria-hidden="true" className="size-3.5 shrink-0" />;
+  return <ChevronsUpDown aria-hidden="true" className="size-3.5 shrink-0 text-primary-foreground/60" />;
+}
+
+function getGroupStatusLabel(status: SpecialistCriteriaGroup['status'], role: ScoringRole, stage?: SubmissionStage | null) {
+  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return 'Chờ Chuyên viên cấp 2';
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ScorerSubmitted') return 'Chờ Lãnh đạo ban';
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ReviewerRevisionRequested') return 'Yêu cầu chỉnh sửa';
+  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return 'Chờ duyệt';
+  if (status === 'DA_CHAM') return 'Đã chấm';
+  if (status === 'CHO_DUYET') return 'Chờ duyệt';
+  if (status === 'CHO_CHAM') return 'Chờ chấm';
+  if (status === 'YEU_CAU_SUA') return 'Yêu cầu chỉnh sửa';
+  return 'Chưa nộp';
 }
 
 function GroupStatusBadge({ status, role, stage }: { status: SpecialistCriteriaGroup['status']; role: ScoringRole; stage?: SubmissionStage | null }) {
-  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ Chuyên viên cấp 2</Badge>;
-  if (role === 'REVIEWER' && stage === 'ScorerSubmitted') return <Badge variant="warning">Chờ Lãnh đạo ban</Badge>;
-  if (role === 'REVIEWER' && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  if (role === 'SPECIALIST' && stage === 'ScorerSubmitted') return <Badge variant="warning">Chờ Lãnh đạo ban</Badge>;
-  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return <Badge variant="warning">Chờ duyệt</Badge>;
-  if (role === 'SPECIALIST' && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  if (status === 'DA_CHAM') return <Badge variant="success"><CheckCircle2 className="size-3" />Đã chấm</Badge>;
-  if (status === 'CHO_DUYET') return <Badge variant="warning">Chờ duyệt</Badge>;
-  if (status === 'CHO_CHAM') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">Chờ chấm</Badge>;
-  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">Yêu cầu chỉnh sửa</Badge>;
-  return <Badge variant="secondary">Chưa nộp</Badge>;
+  const label = getGroupStatusLabel(status, role, stage);
+  if (role === 'SPECIALIST' && stage === 'LocalSubmitted') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{label}</Badge>;
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ScorerSubmitted') return <Badge variant="warning">{label}</Badge>;
+  if ((role === 'REVIEWER' || role === 'SPECIALIST') && stage === 'ReviewerRevisionRequested') return <Badge variant="warning">{label}</Badge>;
+  if (role === 'SPECIALIST' && stage === 'ReviewerApproved') return <Badge variant="warning">{label}</Badge>;
+  if (status === 'DA_CHAM') return <Badge variant="success"><CheckCircle2 className="size-3" />{label}</Badge>;
+  if (status === 'CHO_DUYET') return <Badge variant="warning">{label}</Badge>;
+  if (status === 'CHO_CHAM') return <Badge className="border border-accent/40 bg-accent/20 text-foreground">{label}</Badge>;
+  if (status === 'YEU_CAU_SUA') return <Badge variant="warning">{label}</Badge>;
+  return <Badge variant="secondary">{label}</Badge>;
 }
 
 function TableSectionHeader({ title, countLabel, actions }: { title: string; countLabel: string; actions?: ReactNode }) {
@@ -1115,20 +1181,20 @@ function TableSectionHeader({ title, countLabel, actions }: { title: string; cou
   );
 }
 
-function EvidenceInlineList({ files, onPreview }: { files: EvidenceFile[]; onPreview: (file: EvidenceFile) => void }) {
+function EvidenceInlineList({ files, onPreview, countLabel = 'file minh chứng', emptyText = 'Chưa có minh chứng' }: { files: EvidenceFile[]; onPreview: (file: EvidenceFile) => void; countLabel?: string; emptyText?: string }) {
   if (files.length === 0) {
-    return <p className="text-xs text-muted-foreground">Chưa có minh chứng</p>;
+    return <p className="text-xs text-muted-foreground">{emptyText}</p>;
   }
 
   return (
     <div className="min-w-0">
-      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{files.length} file minh chứng</p>
+      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{files.length} {countLabel}</p>
       <ul className="space-y-1.5">
         {files.map((file) => (
-          <li key={file.id} className="flex min-w-0 items-start rounded-md border border-border bg-background transition-colors hover:bg-muted/40">
+          <li key={file.id} className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1.5 transition-colors hover:bg-muted/40">
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-start gap-2 rounded-l-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-l-md px-2 py-1.5 text-left text-info-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring hover:text-info-foreground dark:text-info"
               title={file.fileName}
               aria-label={`Xem ${file.fileName}`}
               onClick={(event) => {
@@ -1136,17 +1202,33 @@ function EvidenceInlineList({ files, onPreview }: { files: EvidenceFile[]; onPre
                 onPreview(file);
               }}
             >
-              <FileText className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
-              <span className="min-w-0">
-                <span className="line-clamp-2 break-all text-xs font-medium leading-4 text-foreground">{file.fileName}</span>
-                <span className="mt-0.5 block text-[11px] text-muted-foreground">{file.fileSize}</span>
+              <FileText className="size-3.5 shrink-0 text-info-foreground dark:text-info" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium leading-4 text-foreground">{file.fileName}</span>
+                <span className="block text-[11px] leading-4 text-muted-foreground">
+                  {[file.fileSize, file.uploadedAt ? formatDate(file.uploadedAt) : null].filter(Boolean).join(' · ')}
+                </span>
               </span>
             </button>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="m-1 shrink-0"
+              className="size-6 shrink-0"
+              title={`Xem ${file.fileName}`}
+              aria-label={`Xem ${file.fileName}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreview(file);
+              }}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shrink-0"
               title={`Tải xuống ${file.fileName}`}
               aria-label={`Tải xuống ${file.fileName}`}
               onClick={(event) => {
@@ -1154,7 +1236,7 @@ function EvidenceInlineList({ files, onPreview }: { files: EvidenceFile[]; onPre
                 void downloadFile(file.fileId, file.fileName).catch(() => toast.error('Không tải được file'));
               }}
             >
-              <Download className="size-4" />
+              <Download className="size-3.5" />
             </Button>
           </li>
         ))}
@@ -1279,11 +1361,17 @@ function CriterionDetailDialog({
             <p className="text-sm font-medium text-foreground">Minh chứng đã nộp</p>
             <EvidenceInlineList files={item.evidenceFiles} onPreview={onPreviewEvidence} />
           </div>
+          {item.supplementaryFiles.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">Tệp đính kèm từ chuyên viên</p>
+              <EvidenceInlineList files={item.supplementaryFiles} onPreview={onPreviewEvidence} countLabel="tệp đính kèm" />
+            </div>
+          )}
         </div>
         <DialogFooter className="mx-0 mb-0 border-t border-border px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
           {!item.isAddedBySpecialist && (
-            <Button type="button" disabled={editDisabled} disabledReason={editDisabledReason} onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
+            <Button type="button" variant="edit" disabled={editDisabled} disabledReason={editDisabledReason} onClick={() => onEdit(item)}><Edit3 className="size-4" />Sửa điểm</Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -1297,12 +1385,16 @@ function ScoreEditDialog({
   onOpenChange,
   onSave,
   initialAttachment = null,
+  periodBonusUsed = null,
+  periodBonusLimit = null,
 }: {
   item: SpecialistCriteriaItem | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (values: ScoreEditForm, attachment: File | null, attachmentChanged: boolean) => void;
   initialAttachment?: File | null;
+  periodBonusUsed?: number | null;
+  periodBonusLimit?: number | null;
 }) {
   const form = useForm<ScoreEditForm>({
     resolver: zodResolver(scoreEditSchema),
@@ -1343,9 +1435,18 @@ function ScoreEditDialog({
       form.setError('score', { message: `Điểm chấm không được vượt quá ${item.maxProposedScore}.` });
       return;
     }
-    if (values.bonusScore > item.maxProposedBonusScore) {
-      form.setError('bonusScore', { message: `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore}.` });
+    if (values.bonusScore > 1) {
+      form.setError('bonusScore', { message: 'Điểm thưởng không được vượt quá 1 điểm.' });
       return;
+    }
+    // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn (5/kỳ).
+    if (periodBonusUsed != null && periodBonusLimit != null) {
+      const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
+      const projected = periodBonusUsed - currentBonus + values.bonusScore;
+      if (projected > periodBonusLimit) {
+        form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn 5 điểm/kỳ.` });
+        return;
+      }
     }
     if (attachmentError) return;
     onSave(values, attachment, attachmentChanged);
@@ -1367,22 +1468,43 @@ function ScoreEditDialog({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="specialist-score">Điểm chuyên viên <span className="text-danger">★</span></Label>
+                <Label htmlFor="specialist-score">Điểm chuyên viên <span className="text-destructive">★</span></Label>
                 <Input id="specialist-score" type="number" min={0} max={item.maxProposedScore} step="0.25" {...form.register('score')} />
                 <p className="text-xs text-muted-foreground">Tối đa {item.maxProposedScore} điểm</p>
-                {form.formState.errors.score && <p className="text-xs text-danger">{form.formState.errors.score.message}</p>}
+                {form.formState.errors.score && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.score.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-danger">★</span></Label>
-                <Input id="specialist-bonus-score" type="number" min={0} max={item.maxProposedBonusScore} step="0.25" {...form.register('bonusScore')} />
-                <p className="text-xs text-muted-foreground">Tối đa {item.maxProposedBonusScore} điểm</p>
-                {form.formState.errors.bonusScore && <p className="text-xs text-danger">{form.formState.errors.bonusScore.message}</p>}
+                <Label htmlFor="specialist-bonus-score">Điểm thưởng <span className="text-destructive">★</span></Label>
+                <Input
+                  id="specialist-bonus-score"
+                  type="number"
+                  min={0}
+                  max={1}
+                  step="0.25"
+                  {...form.register('bonusScore', {
+                    onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                      const raw = event.target.value;
+                      if (raw === '') return;
+                      const num = Number(raw);
+                      if (!Number.isFinite(num)) return;
+                      if (num > 1) {
+                        event.target.value = '1';
+                        form.setValue('bonusScore', 1, { shouldValidate: true });
+                      } else if (num < 0) {
+                        event.target.value = '0';
+                        form.setValue('bonusScore', 0, { shouldValidate: true });
+                      }
+                    },
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">Tối đa 1 điểm</p>
+                {form.formState.errors.bonusScore && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.bonusScore.message}</p>}
               </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="specialist-score-reason">Lý do sửa điểm <span className="text-muted-foreground">(bắt buộc nếu khác đề xuất)</span></Label>
               <Textarea id="specialist-score-reason" rows={3} placeholder="Nhập lý do điều chỉnh điểm..." {...form.register('reason')} />
-              {form.formState.errors.reason && <p className="text-xs text-danger">{form.formState.errors.reason.message}</p>}
+              {form.formState.errors.reason && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.reason.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label>Tệp đính kèm <span className="font-normal text-muted-foreground">(không bắt buộc)</span></Label>
@@ -1411,9 +1533,12 @@ function ScoreEditDialog({
   );
 }
 
-export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }: { basePath?: string }) {
-  const { diaPhuongId, nhomTieuChiId } = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
+export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', embeddedDetail }: SpecialistReviewPageProps) {
+  const routeParams = useParams<{ diaPhuongId?: string; nhomTieuChiId?: string }>();
+  const diaPhuongId = embeddedDetail?.localityId ?? routeParams.diaPhuongId;
+  const nhomTieuChiId = embeddedDetail?.criteriaGroupId ?? routeParams.nhomTieuChiId;
   const localityCode = diaPhuongId?.replace(/^loc-/i, '');
+  const isEmbedded = Boolean(embeddedDetail);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userRole = useAuthStore((s) => s.user?.role);
@@ -1445,8 +1570,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     groupStatusFilter: '',
     groupSortFilter: DEFAULT_GROUP_SORT,
     groupYearFilter: '',
-    groupPeriodFilter: '',
+    groupPeriodFilter: usePeriodStore.getState().selectedPeriodId ?? '',
   });
+  const withGroupPeriodFilter = (path: string) => {
+    if (!groupPeriodFilter) return path;
+    return basePath === '/thi-dua/cham-diem'
+      ? buildScoreEntryUrl(path, groupPeriodFilter)
+      : `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`;
+  };
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -1458,8 +1589,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
+  const [localitySort, setLocalitySort] = useState<LocalitySortValue>('');
+  const [criterionSort, setCriterionSort] = useState<TableSortState>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState<string | null>(null);
   const defaultSelectedCriteriaIds = useMemo(() => (selectedCriterionId ? [selectedCriterionId] : []), [selectedCriterionId]);
@@ -1494,6 +1628,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   // Lọc stage chỉ áp dụng cho danh sách. Khi vào drill-down phải luôn tải đủ
   // hồ sơ của địa phương để không thiếu nhóm tiêu chí ngoài trạng thái vừa lọc.
   const activeSubmissionStage = diaPhuongId ? '' : submissionStageFilter;
+  // Kỳ thi đua cũng chỉ lọc danh sách địa phương; vào drill-down phải tải đủ hồ sơ mọi kỳ.
+  const activeLocalityPeriod = diaPhuongId ? '' : groupPeriodFilter;
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const isDetailRoute = Boolean(nhomTieuChiId);
@@ -1501,8 +1637,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   // vẫn xuất hiện. Trang chi tiết chỉ tải submissions thuộc nhóm đang xem.
   const includeUnsubmitted = !submissionStageFilter;
   const allSubmissionsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', stage: activeSubmissionStage || undefined, includeUnsubmitted: includeUnsubmitted || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
-    queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted),
+    queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', stage: activeSubmissionStage || undefined, includeUnsubmitted: includeUnsubmitted || undefined, period: activeLocalityPeriod || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
+    queryFn: () => listEverySubmission(activeSubmissionStage, includeUnsubmitted, activeLocalityPeriod),
     enabled: !isDetailRoute,
   });
   const detailGroupSubmissionsQuery = useQuery({
@@ -1510,12 +1646,14 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     queryFn: () => listEverySubmissionByGroup(nhomTieuChiId!),
     enabled: isDetailRoute,
   });
-  const visibleSubmissionItems = useMemo(
-    () => isDetailRoute
+  const visibleSubmissionItems = useMemo(() => {
+    const items = isDetailRoute
       ? (detailGroupSubmissionsQuery.data?.items ?? [])
-      : (allSubmissionsQuery.data?.items ?? []),
-    [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, isDetailRoute],
-  );
+      : (allSubmissionsQuery.data?.items ?? []);
+    return !isDetailRoute && !diaPhuongId
+      ? filterSubmissionsByStage(items, submissionStageFilter)
+      : items;
+  }, [allSubmissionsQuery.data?.items, detailGroupSubmissionsQuery.data?.items, diaPhuongId, isDetailRoute, submissionStageFilter]);
   const groupsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listCriteriaGroups({ page: 1, pageSize: 100 }),
@@ -1528,8 +1666,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
 
   // Danh sách địa phương = nhóm submissions theo locality (wardCode)
   const totalAppliedGroups = useMemo(
-    () => (groupsQuery.data?.items ?? []).filter((group) => group.status === 'Applied' || group.status === 'Published').length,
-    [groupsQuery.data],
+    () => (groupsQuery.data?.items ?? [])
+      .filter((group) => (group.status === 'Applied' || group.status === 'Published') && (!activeLocalityPeriod || group.periodId === activeLocalityPeriod))
+      .length,
+    [groupsQuery.data, activeLocalityPeriod],
   );
 
   const localityRows: LocalityRow[] = useMemo(() => {
@@ -1553,11 +1693,15 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           ? 'YEU_CAU_SUA'
           : statuses.includes('CHO_DUYET')
             ? 'CHO_DUYET'
-            : 'DA_DUYET';
+            : statuses.includes('CHUA_DEN_LUOT')
+              ? 'CHUA_DEN_LUOT'
+              : 'DA_DUYET';
+      const completedGroupCount = realSubs.filter((s) => STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][s.currentStage] === 'DA_CHAM').length;
       return {
         localityId: wardCode,
         localityName: subs[0]?.localityFullName ?? subs[0]?.createdByUsername ?? wardCode,
-        completionRate: `${realSubs.filter((s) => STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][s.currentStage] === 'DA_CHAM').length}/${totalAppliedGroups}`,
+        completedGroupCount,
+        completionRate: `${completedGroupCount}/${totalAppliedGroups}`,
         overallStatus,
         hasNewSubmissions: statuses.includes('CHO_DUYET'),
         hasModificationRequest: statuses.includes('YEU_CAU_SUA'),
@@ -1644,7 +1788,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         id: c.id,
         code: `TC_${String(idx + 1).padStart(2, '0')}`,
         title: c.content,
-        evidenceFiles: toEvidenceFiles(result?.files),
+        evidenceFiles: toEvidenceFiles(result?.files, 'evidence'),
+        supplementaryFiles: toEvidenceFiles(result?.files, 'supplementary'),
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: c.maxPoint,
@@ -1682,6 +1827,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       all: getRevisionNotes(histories),
       specialist: getLatestRevisionNote(histories, 'ReviewerApproved'),
       reviewer: getRevisionNotes(histories, ['ScorerSubmitted', 'ReviewerRevisionRequested'])[0] ?? null,
+      scorerRequest: getRevisionNotes(histories, ['ScorerRevisionRequested']),
+      leaderRequest: getRevisionNotes(histories, ['ScorerSubmitted']),
     };
   }, [selectedRevisionHistoriesQuery.data]);
 
@@ -1725,14 +1872,25 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     return Array.from(years).sort((a, b) => Number(b) - Number(a)).map((year) => ({ value: year, label: year }));
   }, [localityGroups]);
 
-  const groupPeriodOptions = useMemo(() => {
-    const periods = new Map<string, string>();
-    for (const group of localityGroups) {
-      if (group.periodId) periods.set(group.periodId, group.periodName?.trim() || 'Kỳ thi đua chưa đặt tên');
+  // Mặc định chọn kỳ Active (lần đầu vào trang, khi chưa chọn kỳ ở trang nào).
+  const periodsQuery = useQuery({ queryKey: ['publication-periods'], queryFn: periodsApi.listAll });
+  // Danh sách kỳ dùng chung cho bộ chọn kỳ ở mọi màn của trang — lấy tất cả kỳ (trừ Draft)
+  // như các trang Địa phương, để màn trong cũng chọn được đủ kỳ thay vì chỉ kỳ của địa phương đang mở.
+  const groupPeriodOptions = useMemo(() => (periodsQuery.data ?? [])
+    .filter((period) => period.status !== 'Draft')
+    .map((period) => ({ value: period.id, label: period.name?.trim() || 'Kỳ thi đua chưa đặt tên' }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi')), [periodsQuery.data]);
+  const periodAutoSelected = useRef(false);
+  useEffect(() => {
+    if (periodAutoSelected.current || periodsQuery.isLoading || groupPeriodFilter) return;
+    const periods = periodsQuery.data ?? [];
+    const activeId = periods.find((period) => period.status === 'Active')?.id ?? periods[0]?.id;
+    if (activeId && !usePeriodStore.getState().selectedPeriodId) {
+      periodAutoSelected.current = true;
+      setGroupPeriodFilter(activeId);
+      usePeriodStore.getState().setSelectedPeriod(activeId);
     }
-    return Array.from(periods, ([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
-  }, [localityGroups]);
+  }, [periodsQuery.data, periodsQuery.isLoading, groupPeriodFilter, setGroupPeriodFilter]);
 
   const filteredGroups = useMemo(() => {
     const groups = debouncedGroupSearch
@@ -1748,10 +1906,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       ));
       return matchesStatus && matchesPeriod && matchesYear;
     });
-    const [sortBy, sortOrder] = groupSortFilter.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
+    const [sortBy, sortOrder] = groupSortFilter.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint' | 'proposedScore' | 'proposedBonus' | 'status', 'asc' | 'desc'];
     return filtered.sort((a, b) => {
       if (sortBy === 'name') return a.groupName.localeCompare(b.groupName, 'vi') * (sortOrder === 'asc' ? 1 : -1);
       if (sortBy === 'maxPoint') return (b.maxPoint - a.maxPoint) * (sortOrder === 'asc' ? -1 : 1);
+      if (sortBy === 'proposedScore') return (a.totalProposedScore - b.totalProposedScore) * (sortOrder === 'asc' ? 1 : -1);
+      if (sortBy === 'proposedBonus') return (a.totalProposedBonusScore - b.totalProposedBonusScore) * (sortOrder === 'asc' ? 1 : -1);
+      if (sortBy === 'status') {
+        const leftStage = submissionByGroup.get(a.id)?.currentStage;
+        const rightStage = submissionByGroup.get(b.id)?.currentStage;
+        return getGroupStatusLabel(a.status, scoringRole, leftStage).localeCompare(getGroupStatusLabel(b.status, scoringRole, rightStage), 'vi') * (sortOrder === 'asc' ? 1 : -1);
+      }
       const aTime = Date.parse(sortBy === 'deadline' ? a.deadline ?? '' : a.createdAt);
       const bTime = Date.parse(sortBy === 'deadline' ? b.deadline ?? '' : b.createdAt);
       const safeATime = Number.isFinite(aTime) ? aTime : (sortBy === 'deadline' ? Number.POSITIVE_INFINITY : 0);
@@ -1772,10 +1937,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       return matchesSearch;
     });
   }, [localityRows, debouncedLocalitySearch]);
+  const sortedLocalityRows = useMemo(
+    () => sortLocalityRows(filteredLocalityRows, localitySort),
+    [filteredLocalityRows, localitySort],
+  );
 
   if (!diaPhuongId) {
     const visibleRows = filteredLocalityRows;
+    const sortedRows = sortedLocalityRows;
     const selectedLocality = visibleRows.find((row) => row.localityId === selectedLocalityId);
+    const completionSortDirection = getLocalitySortDirection(localitySort, 'completion');
+    const statusSortDirection = getLocalitySortDirection(localitySort, 'status');
     if (allSubmissionsQuery.isLoading || groupsQuery.isLoading) {
       return <div className="space-y-6"><PageHeader title="Danh sách địa phương" description="COL.01.05 · Theo dõi tiến độ và trạng thái hồ sơ" /><PageLoading label="Đang tải danh sách địa phương…" /></div>;
     }
@@ -1796,7 +1968,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <TabsTrigger
                       key={filter.value || 'ALL'}
                       value={filter.value || 'ALL'}
-                      className="!flex-none h-9 rounded-md px-3 data-active:bg-primary/5 data-active:text-primary after:bg-primary"
+                      className="!flex-none h-9 rounded-md px-3 after:bg-primary"
                     >
                       {filter.label}
                     </TabsTrigger>
@@ -1817,6 +1989,24 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <PeriodSelect
+                value={groupPeriodFilter}
+                onChange={(value) => {
+                  setGroupPeriodFilter(value);
+                  usePeriodStore.getState().setSelectedPeriod(value || null);
+                  setSelectedLocalityId(null);
+                }}
+                options={groupPeriodOptions}
+              />
+              <div className="xl:hidden">
+                <FilterSelect
+                  label="Sắp xếp"
+                  value={localitySort}
+                  onChange={(value) => setLocalitySort(value as LocalitySortValue)}
+                  options={LOCALITY_SORT_OPTIONS}
+                  allLabel="Mặc định"
+                />
+              </div>
               <TableColumnVisibility
                 storageKey="specialist-localities"
                 columns={[
@@ -1833,7 +2023,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 hideWhen={!selectedLocality}
                 disabled={!selectedLocality}
                 disabledReason="Chọn một địa phương trong bảng để xem hồ sơ."
-                onClick={() => selectedLocality && navigate(`${basePath}/${selectedLocality.localityId}`)}
+                onClick={() => selectedLocality && navigate(withGroupPeriodFilter(`${basePath}/${selectedLocality.localityId}`))}
               >
                 <Eye className="size-4" />Xem hồ sơ
               </Button>
@@ -1856,23 +2046,55 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
               <TableHeader>
                 <TableRow className="bg-primary hover:bg-primary">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tên địa phương</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Nhóm tiêu chí đã hoàn thành</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái hồ sơ</TableHead>
+                  <TableHead
+                    aria-sort={completionSortDirection === 'asc' ? 'ascending' : completionSortDirection === 'desc' ? 'descending' : undefined}
+                    className="whitespace-normal border-r border-white/30 bg-primary p-0 text-center leading-5 text-primary-foreground"
+                  >
+                    <button
+                      type="button"
+                      aria-label={`Sắp xếp theo Nhóm tiêu chí đã hoàn thành${completionSortDirection ? (completionSortDirection === 'asc' ? ' tăng dần' : ' giảm dần') : ''}`}
+                      onClick={() => setLocalitySort((current) => toggleLocalitySort(current, 'completion'))}
+                      className="flex w-full cursor-pointer items-center justify-center gap-1 px-4 py-3 text-center leading-5 transition-colors hover:text-primary-foreground/75"
+                    >
+                      <span>Nhóm tiêu chí đã hoàn thành</span>
+                      <LocalitySortIcon direction={completionSortDirection} />
+                    </button>
+                  </TableHead>
+                  <TableHead
+                    aria-sort={statusSortDirection === 'asc' ? 'ascending' : statusSortDirection === 'desc' ? 'descending' : undefined}
+                    className="whitespace-normal border-r border-white/30 bg-primary p-0 text-center leading-5 text-primary-foreground"
+                  >
+                    <button
+                      type="button"
+                      aria-label={`Sắp xếp theo Trạng thái hồ sơ${statusSortDirection ? (statusSortDirection === 'asc' ? ' tăng dần' : ' giảm dần') : ''}`}
+                      onClick={() => setLocalitySort((current) => toggleLocalitySort(current, 'status'))}
+                      className="flex w-full cursor-pointer items-center justify-center gap-1 px-4 py-3 text-center leading-5 transition-colors hover:text-primary-foreground/75"
+                    >
+                      <span>Trạng thái hồ sơ</span>
+                      <LocalitySortIcon direction={statusSortDirection} />
+                    </button>
+                  </TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Tiêu chí mới được nộp</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa</TableHead>
                   <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Cập nhật thông tin mới</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleRows.map((row) => {
+                {sortedRows.map((row) => {
                   const newGroups = row.hasNewSubmissions ? 1 : 0;
                   return (
                   <TableRow
                     key={row.localityId}
                     aria-selected={selectedLocalityId === row.localityId}
-                    className={selectedLocalityId === row.localityId ? 'cursor-pointer bg-primary/10 hover:bg-primary/10' : 'cursor-pointer hover:bg-muted'}
+                    className={
+                      selectedLocalityId === row.localityId
+                        ? 'cursor-pointer bg-primary/10 hover:bg-primary/10'
+                        : row.overallStatus === 'CHO_DUYET' || row.overallStatus === 'YEU_CAU_SUA'
+                          ? 'cursor-pointer bg-warning/15 hover:bg-warning/25'
+                          : 'cursor-pointer hover:bg-muted'
+                    }
                     onClick={() => setSelectedLocalityId(row.localityId)}
-                    onDoubleClick={() => navigate(`${basePath}/${row.localityId}`)}
+                    onDoubleClick={() => navigate(withGroupPeriodFilter(`${basePath}/${row.localityId}`))}
                   >
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -1897,8 +2119,16 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           </div>
 
           <div className="xl:hidden">
-            {visibleRows.length > 0 ? visibleRows.map((row) => (
-              <article key={row.localityId} className="p-4 sm:p-5">
+            {sortedRows.length > 0 ? sortedRows.map((row) => (
+              <article
+                key={row.localityId}
+                className={cn(
+                  'rounded-lg border p-4 sm:p-5',
+                  row.overallStatus === 'CHO_DUYET' || row.overallStatus === 'YEU_CAU_SUA'
+                    ? 'border-warning/50 bg-warning/15'
+                    : 'border-border bg-card',
+                )}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><MapPin className="size-5" /></span>
@@ -1915,7 +2145,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{row.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Cập nhật mới</dt><dd className="mt-1 font-medium">{row.hasNewSubmissions ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" onClick={() => navigate(`${basePath}/${row.localityId}`)}><Eye className="size-4" />Xem hồ sơ</Button>
+                <Button variant="info" className="mt-4 w-full sm:w-auto" onClick={() => navigate(withGroupPeriodFilter(`${basePath}/${row.localityId}`))}><Eye className="size-4" />Xem hồ sơ</Button>
               </article>
             )) : (
               <p className="px-4 py-12 text-center text-sm text-muted-foreground">Không có địa phương phù hợp.</p>
@@ -1942,9 +2172,23 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   }
 
   if (!nhomTieuChiId) {
-    const { completedGroups, revisionGroups, totalCount } = periodScopedGroupProgress;
+    const { completedGroups, pendingGroups, revisionGroups, unsubmittedGroups, totalCount } = periodScopedGroupProgress;
     const completionPercent = totalCount > 0 ? Math.min(100, Math.round((completedGroups / totalCount) * 100)) : 0;
+    const incompleteGroups = totalCount - completedGroups;
+    const progressStatusBadge = totalCount === 0
+      ? <Badge variant="outline" className="text-muted-foreground">Chưa có nhóm tiêu chí</Badge>
+      : incompleteGroups > 0
+        ? <Badge variant="secondary">Còn {incompleteGroups}/{totalCount} nhóm chưa hoàn thành</Badge>
+        : <Badge variant="success">Đã hoàn thành {totalCount}/{totalCount} nhóm</Badge>;
     const selectedGroupRow = filteredGroups.find((group) => group.id === selectedGroupId);
+    const [groupSortBy, groupSortOrder] = groupSortFilter.split('-') as [string, 'asc' | 'desc'];
+    const groupTableSort: TableSortState = ['proposedScore', 'proposedBonus', 'status'].includes(groupSortBy)
+      ? { column: groupSortBy, direction: groupSortOrder }
+      : null;
+    const sortGroupTable = (column: string, firstDirection: 'asc' | 'desc') => {
+      const next = toggleTableSort(groupTableSort, column, firstDirection);
+      setGroupSortFilter(next ? `${next.column}-${next.direction}` : DEFAULT_GROUP_SORT);
+    };
     const activeGroupFilters = [
       ...(groupStatusFilter ? [{ label: 'Trạng thái', value: getGroupStatusFilterLabel(groupStatusFilter), onClear: () => setGroupStatusFilter('') }] : []),
       ...(groupSortFilter !== DEFAULT_GROUP_SORT ? [{ label: 'Sắp xếp', value: GROUP_SORT_OPTIONS.find((option) => option.value === groupSortFilter)?.label ?? 'Tùy chọn', onClear: () => setGroupSortFilter(DEFAULT_GROUP_SORT) }] : []),
@@ -1954,7 +2198,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Link className="hover:text-primary" to={basePath}>Danh sách địa phương</Link>
+          <Link className="hover:text-primary" to={withGroupPeriodFilter(basePath)}>Danh sách địa phương</Link>
           <span>/</span>
           <span className="font-medium text-foreground">{district.localityName}</span>
         </div>
@@ -1963,23 +2207,18 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           description="Xem tiến độ và thực hiện chấm điểm từng nhóm tiêu chí"
           actions={
             <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
-              <div className="flex h-11 items-center rounded-lg border border-primary/25 bg-primary/[0.04] px-3">
-                <FilterSelect
-                  label="Kỳ thi đua"
-                  labelPosition="outside"
-                  value={groupPeriodFilter}
-                  onChange={(value) => {
-                    setGroupPeriodFilter(value);
-                    setSelectedGroupId(null);
-                  }}
-                  allLabel="Tất cả kỳ thi đua"
-                  options={groupPeriodOptions}
-                  className="border-primary/30 bg-card hover:border-primary/55"
-                />
-              </div>
+              <PeriodSelect
+                value={groupPeriodFilter}
+                onChange={(value) => {
+                  setGroupPeriodFilter(value);
+                  usePeriodStore.getState().setSelectedPeriod(value || null);
+                  setSelectedGroupId(null);
+                }}
+                options={groupPeriodOptions}
+              />
               <Button
                 variant="back"
-                render={<Link to={basePath} />}
+                render={<Link to={withGroupPeriodFilter(basePath)} />}
                 nativeButton={false}
               >
                 <ArrowLeft className="size-4" />Quay về
@@ -1994,18 +2233,23 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">{district.localityName}</h2>
-                <OverallStatusBadge status={district.overallStatus} />
+                {progressStatusBadge}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">Hồ sơ thi đua năm 2026 · {completedGroups} nhóm đã chấm</p>
+              <p className="mt-1 text-sm text-muted-foreground">Thống kê theo bộ lọc kỳ thi đua</p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                <span><strong className="font-semibold text-success">{completedGroups}</strong> nhóm đã chấm</span>
+                <span><strong className="font-semibold text-warning-foreground">{pendingGroups}</strong> nhóm đang chờ xử lý</span>
+                <span><strong className="font-semibold text-warning-foreground">{revisionGroups}</strong> nhóm yêu cầu chỉnh sửa</span>
+                <span><strong className="font-semibold text-muted-foreground">{unsubmittedGroups}</strong> nhóm chưa nộp</span>
+              </div>
             </div>
           </div>
           <div>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs text-muted-foreground">Nhóm tiêu chí đã hoàn thành</p>
+                <p className="text-xs text-muted-foreground">Tiến độ nhóm đã chấm</p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{completedGroups}/{totalCount}</p>
               </div>
-              {revisionGroups > 0 && <Badge variant="warning">{revisionGroups} nhóm cần chỉnh sửa</Badge>}
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Tiến độ hoàn thành nhóm tiêu chí" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
               <div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${completionPercent}%` }} />
@@ -2066,11 +2310,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 />
               </FilterDropdown>
               <Button
-                variant={selectedGroupRow?.status === 'DA_CHAM' ? 'outline' : 'info'}
+                variant={selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'default' : 'info'}
                 hideWhen={!selectedGroupRow}
                 disabled={!selectedGroupRow}
                 disabledReason="Chọn một nhóm tiêu chí trong bảng để xem hoặc chấm điểm."
-                onClick={() => selectedGroupRow && navigate(`${basePath}/${district.localityId}/${selectedGroupRow.id}`)}
+                onClick={() => selectedGroupRow && navigate(withGroupPeriodFilter(`${basePath}/${district.localityId}/${selectedGroupRow.id}`))}
               >
                 {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
                 {selectedGroupRow?.status === 'CHO_CHAM' || selectedGroupRow?.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
@@ -2098,9 +2342,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 <TableRow className="sticky top-[57px] z-10 bg-primary shadow-[0_6px_12px_-10px_rgba(31,27,26,0.35)] hover:bg-primary sm:top-[49px]">
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nhóm tiêu chí</TableHead>
                   <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm đề xuất</TableHead>
-                  <TableHead className="whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Điểm thưởng</TableHead>
-                  <TableHead className="whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Trạng thái</TableHead>
+                  <SortableTableHead column="proposedScore" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={groupTableSort} onSort={() => sortGroupTable('proposedScore', 'desc')} align="center" className="border-r border-white/30 bg-primary text-center" />
+                  <SortableTableHead column="proposedBonus" label="Điểm thưởng" ariaLabel="Điểm thưởng" sort={groupTableSort} onSort={() => sortGroupTable('proposedBonus', 'desc')} align="center" className="border-r border-white/30 bg-primary text-center" />
+                  <SortableTableHead column="status" label="Trạng thái" ariaLabel="Trạng thái" sort={groupTableSort} onSort={() => sortGroupTable('status', 'asc')} className="bg-primary text-center" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2110,9 +2354,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     aria-selected={selectedGroupId === group.id}
                     className={selectedGroupId === group.id ? 'cursor-pointer bg-primary/10 hover:bg-primary/10' : 'cursor-pointer hover:bg-muted'}
                     onClick={() => setSelectedGroupId(group.id)}
-                    onDoubleClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}
+                    onDoubleClick={() => navigate(withGroupPeriodFilter(`${basePath}/${district.localityId}/${group.id}`))}
                   >
-                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p><p className="mt-2 text-xs text-muted-foreground">{group.code}</p></TableCell>
+                    <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top"><p className="font-semibold leading-5 text-foreground">{group.groupName}</p></TableCell>
                     <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-4 align-top text-sm leading-5 text-muted-foreground">{group.description}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top font-semibold tabular-nums">{group.totalProposedScore}</TableCell>
                     <TableCell className="border-r border-primary/15 px-4 py-4 text-center align-top tabular-nums">{group.totalProposedBonusScore}</TableCell>
@@ -2134,13 +2378,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   </div>
                   <GroupStatusBadge status={group.status} role={scoringRole} stage={submissionByGroup.get(group.id)?.currentStage} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p>
+                {/* <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.description}</p> */}
                 <dl className="mt-4 grid grid-cols-3 overflow-hidden rounded-md border border-border bg-border">
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm đề xuất</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Điểm thưởng</dt><dd className="mt-1 font-semibold tabular-nums">{group.totalProposedBonusScore}</dd></div>
                   <div className="bg-card p-3"><dt className="text-xs text-muted-foreground">Yêu cầu sửa</dt><dd className="mt-1 font-medium">{group.hasModificationRequest ? 'Có' : 'Không'}</dd></div>
                 </dl>
-                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'DA_CHAM' ? 'outline' : 'default'} onClick={() => navigate(`${basePath}/${district.localityId}/${group.id}`)}>
+                <Button className="mt-4 w-full sm:w-auto" variant={group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'default' : 'info'} onClick={() => navigate(withGroupPeriodFilter(`${basePath}/${district.localityId}/${group.id}`))}>
                   {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? <Edit3 className="size-4" /> : <Eye className="size-4" />}
                   {group.status === 'CHO_CHAM' || group.status === 'YEU_CAU_SUA' ? 'Chấm điểm' : 'Xem chi tiết'}
                 </Button>
@@ -2175,11 +2419,18 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   const specialistLockReason = scorerRevisionScopeLoading
     ? 'Đang tải danh sách tiêu chí cần chỉnh sửa.'
     : specialistPermissions.disabledReason;
-  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : scoringRole === 'SPECIALIST' ? 'người review' : 'địa phương';
+  // Yêu cầu chỉnh sửa của Chuyên viên phụ trách thi đua khen thưởng giờ gửi thẳng về địa phương (không qua Lãnh đạo ban).
+  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : 'địa phương';
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
   );
+  const sortedDetailItems = sortTableRows(displayGroup.items, criterionSort, {
+    proposed: (item) => item.isAddedBySpecialist ? null : item.proposedScore + item.proposedBonusScore,
+    official: (item) => item.isAddedBySpecialist || (item.officialScore === null && item.officialBonusScore === null)
+      ? null
+      : (item.officialScore ?? 0) + (item.officialBonusScore ?? 0),
+  });
   const scorerRevisionNote = isScorerRevisionStage ? selectedRevisionNotes.reviewer : null;
   const isScoringCriterionEditable = (item: SpecialistCriteriaItem) => {
     if (item.isDisabled) return false;
@@ -2227,9 +2478,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       toast.info(specialistLockReason);
       return;
     }
-    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && isScoringCriterionEditable(item));
+    // Chỉ điền điểm đề xuất cho các tiêu chí CHƯA có điểm chuyên viên —
+    // giữ nguyên tiêu chí đã được chấm/sửa thủ công trước đó.
+    const editableItems = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && isScoringCriterionEditable(item) && item.officialScore === null);
     if (editableItems.length === 0) {
-      toast.info('Không có tiêu chí được yêu cầu chỉnh sửa để sao chép điểm.');
+      toast.info('Tất cả tiêu chí đã có điểm chuyên viên chấm — không ghi đè điểm đã sửa.');
       return;
     }
     const newOverrides = new Map(scoreOverrides);
@@ -2244,7 +2497,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     setScoreOverrides(newOverrides);
     toast.success(isScorerRevisionStage
       ? `Đã sao chép điểm đề xuất cho ${editableItems.length} tiêu chí được yêu cầu chỉnh sửa.`
-      : 'Đã sao chép toàn bộ điểm đề xuất sang điểm Chuyên viên chấm.');
+      : `Đã sao chép điểm đề xuất cho ${editableItems.length} tiêu chí chưa có điểm chuyên viên chấm.`);
   };
 
   const openForwardDialog = () => {
@@ -2269,6 +2522,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
     //   toast.error('Vui lòng nhập lý do cho các tiêu chí có điểm chấm khác điểm đề xuất.');
     //   return;
     // }
+    if (!specialistPermissions.usesForwardingDialog) {
+      setApproving(true);
+      void confirmForward({ explanation: '', files: [], onProgress: () => {} })
+        .catch(() => undefined)
+        .finally(() => setApproving(false));
+      return;
+    }
     setForwardOpen(true);
   };
 
@@ -2391,17 +2651,18 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
   };
 
   const confirmForward = async ({ explanation, files, onProgress }: { explanation: string; files: File[]; onProgress: (percent: number) => void }) => {
+    const isDirectApproval = !specialistPermissions.usesForwardingDialog;
     if (specialistApproveLocked) {
       toast.info(specialistLockReason);
       return;
     }
     const submission = submissionByGroup.get(selectedGroup.id);
     if (!submission) {
-      toast.error('Nhóm này chưa có hồ sơ để chuyển.');
+      toast.error(isDirectApproval ? 'Nhóm này chưa có hồ sơ để duyệt.' : 'Nhóm này chưa có hồ sơ để chuyển.');
       return;
     }
     if (!specialistPermissions.canApprove) {
-      toast.error('Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
+      toast.error(isDirectApproval ? 'Hồ sơ không ở trạng thái bạn có thể duyệt.' : 'Hồ sơ không ở trạng thái bạn có thể chuyển lên cấp tiếp theo.');
       return;
     }
     if (scoredItems.length === 0) {
@@ -2417,39 +2678,47 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       const items = specialistPermissions.canEdit ? buildScoreItems() : [];
       if (specialistPermissions.canEdit) {
         if (items.length > 0) {
-          await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
+          await specialistApi.updateScores({ submissionId: submission.id, reason: isDirectApproval ? 'Lưu điểm chấm trước khi duyệt hồ sơ' : 'Lưu điểm chấm trước khi chuyển hồ sơ', scoreItems: items });
           serverChanged = true;
         }
         serverChanged ||= pendingScoreAttachments.size > 0;
         await uploadPendingScoreAttachments();
       }
-      await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      if (isDirectApproval) {
+        await specialistApi.approveSubmission(submission.id);
+      } else {
+        await specialistApi.forwardSubmission(submission.id, explanation, files, onProgress);
+      }
       serverChanged = true;
       await refreshSubmissionData();
       serverChanged = false;
       setScoreOverrides(new Map());
-      toast.success(`Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
+      toast.success(isDirectApproval ? 'Đã duyệt hồ sơ.' : `Đã chuyển hồ sơ — ${specialistPermissions.forwardLabel}.`);
     } catch (error) {
       if (serverChanged) await refreshSubmissionData();
-      toast.error(`Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
+      toast.error(isDirectApproval ? 'Không thể duyệt hồ sơ.' : `Không thể chuyển hồ sơ (${specialistPermissions.forwardLabel}).`, { description: getFilesApiError(error) });
       throw error;
     }
   };
 
   return (
     <div className="space-y-5 pb-6">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <Link className="hover:text-primary" to={basePath}>Danh sách địa phương</Link>
-        <span>/</span>
-        <Link className="hover:text-primary" to={`${basePath}/${district.localityId}`}>{district.localityName}</Link>
-        <span>/</span>
-        <span className="font-medium text-foreground">{selectedGroup.groupName}</span>
-      </div>
-      <PageHeader
-        title="Chi tiết chấm điểm kết quả tiêu chí"
-        description={`${district.localityName} · ${selectedGroup.groupName}`}
-        actions={<Button variant="back" render={<Link to={`${basePath}/${district.localityId}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
-      />
+      {!isEmbedded && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Link className="hover:text-primary" to={withGroupPeriodFilter(basePath)}>Danh sách địa phương</Link>
+            <span>/</span>
+            <Link className="hover:text-primary" to={withGroupPeriodFilter(`${basePath}/${district.localityId}`)}>{district.localityName}</Link>
+            <span>/</span>
+            <span className="font-medium text-foreground">{selectedGroup.groupName}</span>
+          </div>
+          <PageHeader
+            title="Chi tiết chấm điểm kết quả tiêu chí"
+            description={`${district.localityName} · ${selectedGroup.groupName}`}
+            actions={<Button variant="back" render={<Link to={withGroupPeriodFilter(`${basePath}/${district.localityId}`)} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại nhóm tiêu chí</Button>}
+          />
+        </>
+      )}
 
       <section className="overflow-hidden rounded-lg border border-border bg-card" aria-label="Tóm tắt hồ sơ chấm điểm">
         <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
@@ -2509,6 +2778,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         <div className="sticky top-[-16px] z-30 isolate sm:top-[-24px]">
         <div className="flex flex-col gap-3 border-b border-border bg-card px-4 py-3 shadow-[0_6px_12px_-12px_rgba(31,27,26,0.22)] sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+            <TableSortSelect sort={criterionSort} options={SPECIALIST_DETAIL_SORT_OPTIONS} onChange={setCriterionSort} />
             <TableColumnVisibility
               storageKey="specialist-review-criteria"
               columns={[
@@ -2517,16 +2787,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 { id: 'proposed', label: 'Địa phương đề xuất' },
                 { id: 'explanation', label: 'Nội dung diễn giải' },
                 { id: 'score', label: 'Chuyên viên chấm' },
-                { id: 'revision-note', label: isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa' },
+                { id: 'specialist-revision-note', label: 'Yêu cầu chỉnh sửa chuyên viên' },
+                { id: 'leader-revision-note', label: 'Yêu cầu chỉnh sửa lãnh đạo ban' },
               ]}
             />
-            <Button variant="outline" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
+            <Button variant="info" hideWhen={!selectedCriterion} disabled={!selectedCriterion} onClick={() => setCriterionDetailOpen(true)}>
               <Eye className="size-4" />Xem chi tiết
             </Button>
             {specialistPermissions.canEdit && (
               <>
                 <Button
-                  variant="outline"
+                  variant="edit"
                   hideWhen={!selectedCriterion}
                   disabled={!selectedCriterion || selectedCriterion.isAddedBySpecialist || selectedCriterion.isDisabled || specialistActionsLocked || selectedCriterionRevisionLocked}
                   disabledReason={selectedCriterionLockReason}
@@ -2534,11 +2805,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                 >
                   <Edit3 className="size-4" />Sửa điểm
                 </Button>
-                <Button variant="outline" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
+                <Button variant="default" onClick={copyProposedScores} disabled={displayGroup.items.length === 0 || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : 'Nhóm tiêu chí chưa có tiêu chí con.'}><Sparkles className="size-4" />Cho điểm theo đề xuất</Button>
               </>
             )}
             {/* Reviewer không chấm điểm (canEdit=false) nhưng vẫn được thêm tiêu chí bổ sung khi hồ sơ đang ở bước của mình. */}
-            <Button variant="outline" onClick={openSupplementaryDialog} disabled={supplementaryAddLocked} disabledReason={supplementaryAddLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
+            <Button variant="success" onClick={openSupplementaryDialog} disabled={supplementaryAddLocked} disabledReason={supplementaryAddLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
             {selectedCriterion && (
               <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
                 <AlertCircle className="size-4 text-warning" />Yêu cầu chỉnh sửa
@@ -2547,30 +2818,35 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
           </div>
           <div className="flex flex-col gap-2 sm:flex-row lg:w-auto">
             {specialistPermissions.canEdit && (
-              <Button variant="outline" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
+              <Button variant="default" onClick={() => void saveDraftScores()} disabled={savingDraft || specialistActionsLocked} disabledReason={specialistActionsLocked ? specialistLockReason : undefined}><Save className="size-4" />{savingDraft ? 'Đang lưu' : 'Lưu nháp'}</Button>
             )}
-            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}><Send className="size-4" />{scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}</Button>
+            <Button className="w-full lg:w-auto" onClick={openForwardDialog} disabled={approving || specialistApproveLocked || scoredItems.length === 0 || hasMissingApprovalScore} disabledReason={approvalDisabledReason}>
+              {scoringRole === 'SPECIALIST' ? <CheckCircle2 className="size-4" /> : <Send className="size-4" />}
+              {approving ? 'Đang duyệt…' : scoringRole === 'SPECIALIST' ? 'Duyệt' : specialistPermissions.forwardLabel}
+            </Button>
           </div>
         </div>
         <div className="hidden overflow-hidden bg-primary xl:block">
           <div ref={tableHeaderInnerRef} className="will-change-transform">
-            <Table data-column-visibility-table="specialist-review-criteria" containerClassName="!overflow-visible" className="w-full min-w-[1600px] table-fixed">
+            <Table data-column-visibility-table="specialist-review-criteria" containerClassName="!overflow-visible" className="w-full min-w-[1800px] table-fixed">
             <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[15%]" />
-              <col className="w-[15%]" />
-              <col className="w-[17%]" />
               <col className="w-[16%]" />
-              <col className="w-[19%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[15%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
             </colgroup>
             <TableHeader>
               <TableRow className="bg-primary hover:bg-primary">
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Tiêu chí con</TableHead>
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Minh chứng</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Địa phương đề xuất</TableHead>
+                <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={criterionSort} onSort={() => setCriterionSort((current) => toggleTableSort(current, 'proposed', 'desc'))} className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary" />
                 <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Nội dung diễn giải</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground">Chuyên viên chấm</TableHead>
-                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">{isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa'}</TableHead>
+                <SortableTableHead column="official" label="Chuyên viên chấm" ariaLabel="Chuyên viên chấm" sort={criterionSort} onSort={() => setCriterionSort((current) => toggleTableSort(current, 'official', 'desc'))} className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary" />
+                <TableHead className="sticky top-0 z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa chuyên viên</TableHead>
+                <TableHead className="sticky top-0 z-10 whitespace-normal bg-primary px-4 py-3 text-center leading-5 text-primary-foreground">Yêu cầu chỉnh sửa lãnh đạo ban</TableHead>
               </TableRow>
             </TableHeader>
             </Table>
@@ -2586,22 +2862,22 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
             }
           }}
         >
-          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1600px] table-fixed">
+          <Table data-column-visibility-table="specialist-review-criteria" containerClassName="overflow-visible" className="w-full min-w-[1800px] table-fixed">
             <colgroup>
-              <col className="w-[18%]" />
-              <col className="w-[15%]" />
-              <col className="w-[15%]" />
-              <col className="w-[17%]" />
               <col className="w-[16%]" />
-              <col className="w-[19%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[15%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
             </colgroup>
             <TableBody>
-              {displayGroup.items.map((item) => {
+              {sortedDetailItems.map((item) => {
                 const result = resultByCriteriaId.get(item.id);
                 const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
-                const revisionNotes = isScorerRevisionStage
-                  ? (reviewerNote ? [reviewerNote] : [])
-                  : leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
+                const specialistRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.scorerRequest, result?.id, result?.criteriaId);
+                const leaderRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.leaderRequest, result?.id, result?.criteriaId);
                 const historyExpanded = expandedCriterionHistoryId === item.id;
                 return (
                   <Fragment key={item.id}>
@@ -2629,7 +2905,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                          className="h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info"
                           aria-expanded={historyExpanded}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -2644,7 +2920,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                            className="h-8 px-2 text-info-foreground hover:bg-info/10 hover:text-info-foreground dark:text-info"
                             onClick={(event) => {
                               event.stopPropagation();
                               setScoreRevisionResult(result);
@@ -2685,11 +2961,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     </div>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-5 text-center align-top"><RevisionNotesView notes={revisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-5 text-center align-top"><RevisionNotesView notes={specialistRevisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
+                  <TableCell className="whitespace-normal px-4 py-5 text-center align-top"><RevisionNotesView notes={leaderRevisionNotes} onPreview={openRevisionFilePreview} /></TableCell>
                   </TableRow>
                   {historyExpanded && (
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
-                    <TableCell colSpan={6} className="px-4 py-3">
+                    <TableCell colSpan={7} className="px-4 py-3">
                       <CriterionHistoryPanel
                         resultId={result?.id}
                         currentPoint={item.proposedScore}
@@ -2702,18 +2979,17 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                   </Fragment>
                 );
               })}
-              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
+              {displayGroup.items.length === 0 && <TableRow><TableCell colSpan={7} className="h-32 text-center text-muted-foreground">Nhóm này chưa có tiêu chí con.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
 
         <div className="divide-y divide-border xl:hidden">
-          {displayGroup.items.map((item) => {
+          {sortedDetailItems.map((item) => {
             const result = resultByCriteriaId.get(item.id);
             const reviewerNote = isScorerRevisionStage ? revisionNoteForResult(selectedRevisionNotes.reviewer, result) : null;
-            const revisionNotes = isScorerRevisionStage
-              ? (reviewerNote ? [reviewerNote] : [])
-              : leaderRevisionNotesForResult(selectedRevisionNotes.all, result?.id, result?.criteriaId);
+            const specialistRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.scorerRequest, result?.id, result?.criteriaId);
+            const leaderRevisionNotes = leaderRevisionNotesForResult(selectedRevisionNotes.leaderRequest, result?.id, result?.criteriaId);
             const historyExpanded = expandedCriterionHistoryId === item.id;
             return (
             <article key={item.id} className="p-4 sm:p-5">
@@ -2737,9 +3013,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                     <h4 className="text-xs font-semibold text-foreground">Nội dung diễn giải</h4>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.explanation || '—'}</p>
                   </div>
-                  {revisionNotes.length > 0 && (
+                  {(specialistRevisionNotes.length > 0 || leaderRevisionNotes.length > 0) && (
                     <dl className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">{isScorerRevisionStage ? 'Nội dung chỉnh sửa Lãnh đạo ban' : 'Yêu cầu chỉnh sửa'}</dt><dd className="mt-1"><RevisionNotesView notes={revisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Yêu cầu chỉnh sửa chuyên viên</dt><dd className="mt-1"><RevisionNotesView notes={specialistRevisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
+                      <div className="p-3"><dt className="text-xs font-medium text-muted-foreground">Yêu cầu chỉnh sửa lãnh đạo ban</dt><dd className="mt-1"><RevisionNotesView notes={leaderRevisionNotes} reasonClassName="text-sm leading-5 text-foreground" onPreview={openRevisionFilePreview} /></dd></div>
                     </dl>
                   )}
                 </div>
@@ -2786,7 +3063,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
                       {historyExpanded ? <ChevronDown className="size-4" /> : <History className="size-4" />}
                       {historyExpanded ? 'Ẩn lịch sử tiêu chí' : 'Xem lịch sử tiêu chí'}
                     </Button>
-                    {result.officialReason !== null && <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setScoreRevisionResult(result)}><Eye className="size-4" />Xem điểm đã sửa</Button>}
+                    {result.officialReason !== null && <Button type="button" variant="info" className="w-full sm:w-auto" onClick={() => setScoreRevisionResult(result)}><Eye className="size-4" />Xem điểm đã sửa</Button>}
                   </div>
                   {historyExpanded && (
                     <div className="mt-3">
@@ -2890,6 +3167,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
         item={selectedCriterion}
         open={scoreEditOpen}
         onOpenChange={setScoreEditOpen}
+        periodBonusUsed={selectedSubmissionDetailQuery.data?.periodBonusUsed ?? null}
+        periodBonusLimit={selectedSubmissionDetailQuery.data?.periodBonusLimit ?? null}
         initialAttachment={selectedCriterion ? pendingScoreAttachments.get(selectedCriterion.id) ?? null : null}
         onSave={(values, attachment, attachmentChanged) => {
           if (!selectedCriterion) return;
@@ -2984,11 +3263,11 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet' }
       />
       <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <ForwardSubmissionDialog
-        open={forwardOpen}
+        open={forwardOpen && specialistPermissions.usesForwardingDialog}
         onOpenChange={setForwardOpen}
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
-        targetLabel={basePath === '/chuyen-vien/duyet' ? 'Chuyên viên trưởng' : undefined}
+        targetLabel={basePath === '/chuyen-vien/duyet' ? 'Chuyên viên phụ trách thi đua khen thưởng' : undefined}
         explanationLabel={basePath === '/chuyen-vien/duyet' ? 'Diễn giải hồ sơ từ Lãnh đạo ban' : undefined}
         onConfirm={confirmForward}
       />

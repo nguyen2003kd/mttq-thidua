@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -33,6 +32,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -493,17 +493,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1AuthProfileQueryKey = () => {
-  return apiQueryKey({}, { url: `/api/v1/auth/profile` });
-};
+export const getGetApiV1AuthProfileQueryKey = () =>
+    apiQueryKey({  }, { url: `/api/v1/auth/profile` });
 
 
-export const getGetApiV1AuthProfileQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuthProfile>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuthProfile>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1AuthProfileQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuthProfile>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuthProfile>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1AuthProfileQueryKey();
+  const queryKey =  apiQueryKey({  }, { url: `/api/v1/auth/profile`, queryOptions });
 
 
 
@@ -550,7 +549,7 @@ export function useGetApiV1AuthProfile<TData = Awaited<ReturnType<typeof getApiV
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1AuthProfileQueryOptions(options)
+  const queryOptions = useGetApiV1AuthProfileQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -822,17 +821,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1AuthSessionsQueryKey = (params?: GetApiV1AuthSessionsParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/auth/sessions` });
-};
+export const getGetApiV1AuthSessionsQueryKey = (params?: GetApiV1AuthSessionsParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/auth/sessions` });
 
 
-export const getGetApiV1AuthSessionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuthSessions>>, TError = unknown>(params?: GetApiV1AuthSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuthSessions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1AuthSessionsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1AuthSessions>>, TError = unknown>(params?: GetApiV1AuthSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1AuthSessions>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1AuthSessionsQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/auth/sessions`, queryOptions });
 
 
 
@@ -879,7 +877,7 @@ export function useGetApiV1AuthSessions<TData = Awaited<ReturnType<typeof getApi
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1AuthSessionsQueryOptions(params,options)
+  const queryOptions = useGetApiV1AuthSessionsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

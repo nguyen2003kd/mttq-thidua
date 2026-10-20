@@ -10,5 +10,7 @@ export interface ApprovalRequest {
   /** @nullable */
   scoreItems?: ApprovalScoreItem[] | null;
   /** @nullable */
+  criteriaIds?: string[] | null;
+  /** @nullable */
   submissionResultIds?: string[] | null;
 }

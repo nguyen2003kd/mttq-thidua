@@ -18,7 +18,19 @@ interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _retryAfterRefresh?: boolean;
 }
 
+interface RefreshSession {
+  userId: string | null;
+  refreshToken: string;
+}
+
+class SessionChangedDuringRefreshError extends Error {
+  constructor() {
+    super('Session changed during token refresh');
+  }
+}
+
 let refreshPromise: Promise<string> | null = null;
+let refreshingSessionKey: string | null = null;
 let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let stopProactiveRefresh: (() => void) | null = null;
 
@@ -61,21 +73,36 @@ function clearSession(): void {
   }
 }
 
-async function requestNewAccessToken(): Promise<string> {
-  const currentRefreshToken = useAuthStore.getState().refreshToken;
-  if (!currentRefreshToken) {
-    throw new Error('Refresh token is missing');
-  }
+function getRefreshSession(): RefreshSession {
+  const { id, refreshToken } = useAuthStore.getState();
+  if (!refreshToken) throw new Error('Refresh token is missing');
+  return { userId: id, refreshToken };
+}
 
+function isCurrentRefreshSession(session: RefreshSession): boolean {
+  const current = useAuthStore.getState();
+  return current.id === session.userId && current.refreshToken === session.refreshToken;
+}
+
+function isSessionChangedDuringRefresh(error: unknown): error is SessionChangedDuringRefreshError {
+  return error instanceof SessionChangedDuringRefreshError;
+}
+
+async function requestNewAccessToken(session: RefreshSession): Promise<string> {
   const baseUrl = baseConfig.backendDomain.replace(/\/$/, '');
   const response = await axios.post<RefreshTokenEnvelope>(
     `${baseUrl}/api/v1/auth/refresh`,
-    { refreshToken: currentRefreshToken },
+    { refreshToken: session.refreshToken },
     {
       withCredentials: true,
       headers: { 'Content-Type': 'application/json' },
     },
-  );
+  ).catch((error: unknown) => {
+    if (!isCurrentRefreshSession(session)) throw new SessionChangedDuringRefreshError();
+    throw error;
+  });
+
+  if (!isCurrentRefreshSession(session)) throw new SessionChangedDuringRefreshError();
 
   const accessToken = response.data.data?.accessToken;
   const refreshToken = response.data.data?.refreshToken;
@@ -104,9 +131,16 @@ async function requestNewAccessToken(): Promise<string> {
 }
 
 function refreshAccessToken(): Promise<string> {
-  if (!refreshPromise) {
-    refreshPromise = requestNewAccessToken().finally(() => {
-      refreshPromise = null;
+  const session = getRefreshSession();
+  const sessionKey = `${session.userId ?? ''}:${session.refreshToken}`;
+
+  if (!refreshPromise || refreshingSessionKey !== sessionKey) {
+    refreshingSessionKey = sessionKey;
+    refreshPromise = requestNewAccessToken(session).finally(() => {
+      if (refreshingSessionKey === sessionKey) {
+        refreshPromise = null;
+        refreshingSessionKey = null;
+      }
     });
   }
 
@@ -132,7 +166,9 @@ function scheduleProactiveRefresh(): void {
   const delay = Math.max(0, expiresAt.getTime() - Date.now() - PROACTIVE_REFRESH_LEEWAY_MS);
   proactiveRefreshTimer = setTimeout(() => {
     proactiveRefreshTimer = null;
-    void refreshAccessToken().catch(() => clearSession());
+    void refreshAccessToken().catch((error) => {
+      if (!isSessionChangedDuringRefresh(error)) clearSession();
+    });
   }, delay);
 }
 
@@ -207,7 +243,7 @@ export function installAuthInterceptors(instance: AxiosInstance): void {
         requestConfig.headers.set('Authorization', `Bearer ${accessToken}`);
         return await instance.request(requestConfig);
       } catch (refreshError) {
-        clearSession();
+        if (!isSessionChangedDuringRefresh(refreshError)) clearSession();
         return Promise.reject(refreshError);
       }
     },

@@ -12,7 +12,8 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading } from '@/components/core';
+import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading, PeriodSelect } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -20,6 +21,7 @@ import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
 import { periodsApi } from '@/features/admin/api/periodsApi';
+import { vnWards } from '@/data/vn-wards';
 import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { downloadFile, getFilePreviewUrl } from '@/features/files/api/filesApi';
@@ -44,6 +46,7 @@ const entityLabels: Record<string, string> = {
   EmulationClassification: 'xếp loại thi đua',
   User: 'tài khoản người dùng',
   UserAuth: 'thông tin xác thực',
+  UserRole: 'gán vai trò người dùng',
   Role: 'vai trò người dùng',
   FileEntity: 'tệp tin',
   FileVariant: 'phiên bản tệp tin',
@@ -63,6 +66,7 @@ const moduleLabels: Record<string, string> = {
   System: 'Hệ thống',
   Entities: 'Kỳ thi đua',
   Periods: 'Kỳ thi đua',
+  Identity: 'Tài khoản',
 };
 
 function getActionLabel(action: string) {
@@ -99,6 +103,9 @@ const fieldLabels: Record<string, string> = {
   ReviewStatus: 'Trạng thái xem xét',
   CriteriaId: 'Tiêu chí',
   CriteriaGroupId: 'Nhóm tiêu chí',
+  UserId: 'Người dùng',
+  RoleId: 'Vai trò',
+  IsPrimary: 'Là vai trò chính',
   Action: 'Hành động',
   Reason: 'Lý do',
   Level: 'Cấp xử lý',
@@ -112,7 +119,9 @@ const fieldLabels: Record<string, string> = {
   TotalProposedPoint: 'Tổng điểm đề xuất',
   OfficialPoint: 'Điểm chính thức',
   OfficialBonusPoint: 'Điểm thưởng chính thức',
+  WardCode: 'Phường/xã',
 };
+const wardNameByCode = new Map(vnWards.map(({ code, name }) => [code, name]));
 
 /** Dùng màu thương hiệu cho thao tác thông thường, màu cảnh báo cho sửa/xóa. */
 const actionConfig: Record<string, { label: string; text: string; accent: string }> = {
@@ -189,8 +198,8 @@ const submissionStageLabels: Record<string, string> = {
   Draft: 'Nháp',
   LocalSubmitted: 'Đã nộp địa phương',
   ScorerSubmitted: 'Chờ Lãnh đạo ban',
-  ReviewerApproved: 'Chờ Chuyên viên trưởng',
-  SpecialistApproved: 'Chuyên viên trưởng đã duyệt',
+  ReviewerApproved: 'Chờ Chuyên viên phụ trách thi đua khen thưởng',
+  SpecialistApproved: 'Chuyên viên phụ trách thi đua khen thưởng đã duyệt',
   LeaderApproved: 'Lãnh đạo đã duyệt',
   CouncilApproved: 'Hội đồng đã duyệt',
   CommitteeFinalized: 'Ủy ban đã phê duyệt',
@@ -265,8 +274,27 @@ function getFieldLabel(key: string): string | null {
   return fieldLabels[key] ?? fieldLabels[key.charAt(0).toUpperCase() + key.slice(1)] ?? null;
 }
 
+function localizeAuditFieldValue(field: string, value: string | null) {
+  if (!value) return value;
+  if (field.toLowerCase() === 'action' && value === 'ResubmitAfterRevision')
+    return 'Nộp lại sau chỉnh sửa';
+  if (field.toLowerCase() === 'wardcode')
+    return wardNameByCode.get(value.trim()) ?? value;
+  return value;
+}
+
 function formatAuditValue(field: string, value: unknown) {
   if (value === null || value === undefined || value === '') return 'Chưa có';
+
+  if (field.toLowerCase() === 'wardcode' && typeof value === 'number') {
+    const code = String(value);
+    return wardNameByCode.get(code) ?? code;
+  }
+
+  if (typeof value === 'string') {
+    const localizedValue = localizeAuditFieldValue(field, value);
+    if (localizedValue !== value) return localizedValue ?? value;
+  }
 
   if (field === 'Status' && typeof value === 'number') {
     return ({ 0: 'Nháp', 1: 'Đã áp dụng', 2: 'Đã kết thúc' } as Record<number, string>)[value] ?? String(value);
@@ -318,15 +346,20 @@ function getMeaningfulDiff(item: AuditLogItem) {
 }
 
 // Ưu tiên `changes` BE đã enrich (label + display tiếng Việt), fallback tự parse changedData.
+// Log phê duyệt (ApprovalHistory): ẩn các field kỹ thuật thừa (Action/ChangedData/StageLevel/UserId/UserName) —
+// thông tin hữu ích đã có ở tiêu đề + khối ngữ cảnh; chỉ giữ Lý do.
+const approvalSnapshotNoiseFields = new Set(['Action', 'ChangedData', 'StageLevel', 'UserId', 'UserName']);
 function getDisplayChanges(item: AuditLogItem) {
+  const hideApprovalNoise = item.entityName === 'ApprovalHistory';
   const rows = item.changes?.length
     ? item.changes
-        .filter((change) => !noiseAuditFields.has(change.field))
+        .filter((change) => !noiseAuditFields.has(change.field)
+          && !(hideApprovalNoise && approvalSnapshotNoiseFields.has(change.field)))
         .map((change) => ({
           field: change.field,
           label: getFieldLabel(change.field) ?? change.label ?? change.field,
-          before: normDisplay(readableRef(normalizeStageDisplay(change.field, formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay ?? formatAuditValue(change.field, change.before)))) ?? 'Chưa có',
-          after: normDisplay(readableRef(normalizeStageDisplay(change.field, formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay ?? formatAuditValue(change.field, change.after)))) ?? 'Chưa có',
+          before: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, normalizeIsoDisplay(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay) ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
+          after: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, normalizeIsoDisplay(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay) ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
         .filter((field) => field.before !== field.after)
@@ -334,9 +367,17 @@ function getDisplayChanges(item: AuditLogItem) {
   return rows.sort((a, b) => (fieldPriority[a.field] ?? 100) - (fieldPriority[b.field] ?? 100));
 }
 
-function getActorLabel(actor: string, actionLevel: string | null) {
-  if (actionLevel) return actionLevel;
-  return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(actor) ? 'Người dùng hệ thống' : actor || 'Hệ thống tự động';
+/** BE display đôi khi trả chuỗi ISO thô ("2026-10-20T02:30:35+00:00") → format dd/mm/yyyy hh:mm cho dễ đọc. */
+function normalizeIsoDisplay(value: string | null): string | null {
+  if (!value) return value;
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value.trim()) ? formatDateTime(value) : value;
+}
+
+/** Nhãn actor: ghép vai trò + tên — "Địa phương Long Bình", "Chuyên viên cấp 2 Nguyễn Văn A"… */
+function getActorLabel(item: { actor: string; actionLevel?: string | null; actorLevel?: string | null }) {
+  const actor = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(item.actor) ? 'Người dùng hệ thống' : item.actor || 'Hệ thống tự động';
+  const level = item.actorLevel ?? item.actionLevel;
+  return level ? `${level} ${actor}` : actor;
 }
 
 /** Tách giờ / ngày để hiển thị 2 dòng, dễ quét hơn chuỗi dài. */
@@ -531,6 +572,32 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
   );
 }
 
+/** Dòng ngữ cảnh trong modal chi tiết: nhóm tiêu chí + tiêu chí con liên quan (resolve tên từ changes BE). */
+function AuditContextLine({ item }: { item: AuditLogItem }) {
+  const changeMap = new Map((item.changes ?? []).map((change) => [change.field, change]));
+  const contextDisplay = (field: string) => readableRef(normDisplay(changeMap.get(field)?.afterDisplay ?? null));
+  const groupName = contextDisplay('CriteriaGroupId');
+  const criteriaName = contextDisplay('CriteriaId');
+  if (!groupName && !criteriaName) return null;
+
+  return (
+    <div className="space-y-1 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+      {groupName && (
+        <p className="min-w-0">
+          <span className="text-muted-foreground">Nhóm tiêu chí: </span>
+          <span className="font-semibold text-foreground">{groupName}</span>
+        </p>
+      )}
+      {criteriaName && (
+        <p className="min-w-0">
+          <span className="text-muted-foreground">Tiêu chí con: </span>
+          <span className="font-semibold text-foreground">{criteriaName}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Modal chi tiết một bản ghi audit — dùng AppDialog, body gồm meta + diff/file. Giữ item cũ khi đóng để animation mượt. */
 function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; onOpenChange: (open: boolean) => void }) {
   const lastItem = useRef<AuditLogItem | null>(null);
@@ -546,7 +613,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
       open={item !== null}
       onOpenChange={onOpenChange}
       title={title}
-      subtitle={getActorLabel(current.actor, current.actionLevel)}
+      subtitle={getActorLabel(current)}
       size="max-w-4xl sm:max-w-4xl"
       height="h-[80vh] max-h-[80vh]"
     >
@@ -562,14 +629,15 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
             <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{moduleLabels[current.module] ?? current.module}</dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Đối tượng</dt>
-            <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{getEntityLabel(current.entityName)}</dd>
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Người thực hiện</dt>
+            <dd className="mt-0.5 truncate text-sm font-semibold text-foreground">{current.actorFullName ?? current.actor}</dd>
           </div>
           <div className="min-w-0">
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-foreground/60">Thời gian</dt>
             <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums text-foreground">{time} · {date}</dd>
           </div>
         </dl>
+        <AuditContextLine item={current} />
         <AuditDetail item={current} diff={diff} />
       </div>
     </AppDialog>
@@ -608,7 +676,7 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
       <TableCell className="border-r border-border/60 py-3.5 whitespace-normal">
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
-          <p className="truncate text-[13px] text-foreground/70">{subtitle} · {getActorLabel(item.actor, item.actionLevel)}</p>
+          <p className="truncate text-[13px] text-foreground/70">{subtitle}</p>
         </div>
       </TableCell>
       <TableCell className="border-r border-border/60 py-3.5 text-center">
@@ -646,6 +714,7 @@ function DateRangeFilter({ label, value, onChange }: { label?: string; value: st
 /** Nội dung trang lịch sử audit: filter + bảng + modal chi tiết. Backend tự scope — role thường chỉ thấy log của mình, ADMIN thấy tất cả. Dùng lại cho trang lịch sử của từng role. */
 export function AuditLogView({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   const [page, setPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const {
     filters: { module, action, entityName, searchInput, from, to, periodFilter },
     setters: {
@@ -669,17 +738,16 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     page,
     pageSize: PAGE_SIZE,
     sortBy: 'createdAt',
-    sortOrder: 'desc',
-    // Kỳ thi đua chỉ có startYear/endYear — lọc log theo khoảng năm tương ứng.
-    ...(selectedPeriod ? { from: new Date(`${selectedPeriod.startYear}-01-01T00:00:00`).toISOString() } : {}),
-    ...(selectedPeriod ? { to: new Date(`${selectedPeriod.endYear}-12-31T23:59:59.999`).toISOString() } : {}),
+    sortOrder,
+    // Lọc theo kỳ thi đua: BE giải mã chuỗi entity thuộc kỳ (chính xác hơn lọc theo khoảng năm).
+    ...(effectivePeriodFilter ? { periodId: effectivePeriodFilter } : {}),
     ...(from ? { from: new Date(`${from}T00:00:00`).toISOString() } : {}),
     ...(to ? { to: new Date(`${to}T23:59:59.999`).toISOString() } : {}),
     ...(module ? { module } : {}),
     ...(action ? { action } : {}),
     ...(entityName ? { entityName } : {}),
     ...(search ? { search } : {}),
-  }), [page, from, to, module, action, entityName, search, selectedPeriod]);
+  }), [page, from, to, module, action, entityName, search, effectivePeriodFilter, sortOrder]);
 
   const logsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1AuditLogsQueryKey(), query), queryFn: () => auditLogsApi.list(query) });
   const result = logsQuery.data;
@@ -717,9 +785,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   const visibleItems = result.items;
 
   const periodSelector = (
-    <FilterSelect
-      label="Kỳ thi đua"
-      labelPosition="outside"
+    <PeriodSelect
       value={effectivePeriodFilter}
       onChange={handlePeriodChange}
       allLabel="Tất cả kỳ thi đua"
@@ -771,7 +837,14 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
-                <TableHead className="w-[120px] border-r border-white/15 text-sm font-semibold text-primary-foreground">Thời gian</TableHead>
+                <SortableTableHead
+                  column="createdAt"
+                  label="Thời gian"
+                  ariaLabel="Thời gian"
+                  sort={{ column: 'createdAt', direction: sortOrder }}
+                  onSort={() => setSortOrder((current) => current === 'desc' ? 'asc' : 'desc')}
+                  className="w-[120px] border-r border-white/15 bg-primary text-sm font-semibold text-primary-foreground"
+                />
                 <TableHead className="border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
                 <TableHead className="w-[130px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
                 <TableHead className="w-[150px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>

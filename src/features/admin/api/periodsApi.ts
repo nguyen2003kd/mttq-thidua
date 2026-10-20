@@ -1,7 +1,18 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
 
-export type PeriodStatusApi = 'Draft' | 'Active' | 'Closed';
+export type PeriodStatusApi = 'Draft' | 'Active' | 'Closed' | 'Published';
+
+const PERIOD_STATUS_ORDER: Record<PeriodStatusApi, number> = {
+  Active: 0,
+  Published: 1,
+  Draft: 2,
+  Closed: 3,
+};
+
+export function comparePeriodStatus(left: PeriodStatusApi, right: PeriodStatusApi) {
+  return PERIOD_STATUS_ORDER[left] - PERIOD_STATUS_ORDER[right];
+}
 
 export interface PeriodApi {
   id: string;
@@ -49,7 +60,7 @@ export const periodsApi = {
   list: (params?: { search?: string; status?: PeriodStatusApi; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' }) =>
     request<PagedResult<PeriodApi>>({ url: '/api/v1/periods', method: 'GET', params }),
   listAll: async () => {
-    const page = await request<PagedResult<PeriodApi>>({ url: '/api/v1/periods', method: 'GET', params: { page: 1, pageSize: 100, sortBy: 'startYear', sortOrder: 'desc' } });
+    const page = await request<PagedResult<PeriodApi>>({ url: '/api/v1/periods', method: 'GET', params: { page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' } });
     return page.items;
   },
   get: (id: string) => request<PeriodApi>({ url: `/api/v1/periods/${id}`, method: 'GET' }),

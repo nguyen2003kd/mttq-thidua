@@ -39,7 +39,7 @@ const getCurrentLocalDateTime = () => {
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
   id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
   deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order,
-  type: criterion.type === 'Supplementary' ? 'Supplementary' : 'Standard', status: criterion.status,
+  type: criterion.type === 'Supplementary' ? 'Supplementary' : criterion.type === 'LateAdded' ? 'LateAdded' : 'Standard', status: criterion.status,
 });
 
 interface EditorProps {
@@ -49,13 +49,13 @@ interface EditorProps {
 }
 
 function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parentDeadline, onSave, saving }: EditorProps) {
-  const [name, setName] = useState(''); const [score, setScore] = useState(''); const [bonus, setBonus] = useState('0');
+  const [name, setName] = useState(''); const [score, setScore] = useState(''); const [bonus, setBonus] = useState('');
   const [deadline, setDeadline] = useState(''); const [note, setNote] = useState(''); const [error, setError] = useState('');
   const parentDeadlineInput = toDateTimeInput(parentDeadline);
-  useEffect(() => { if (!open) return; setName(item?.name ?? ''); setScore(item?.maxScore?.toString() ?? ''); setBonus(item?.bonusScore?.toString() ?? '0'); setDeadline(toDateTimeInput(item?.deadline)); setNote(item?.note ?? ''); setError(''); }, [open, item]);
+  useEffect(() => { if (!open) return; setName(item?.name ?? ''); setScore(item?.maxScore?.toString() ?? ''); setBonus(item ? (item.bonusScore ?? 1).toString() : ''); setDeadline(toDateTimeInput(item?.deadline)); setNote(item?.note ?? ''); setError(''); }, [open, item]);
   const submit = (event: FormEvent) => {
     event.preventDefault(); if (readonly) return onOpenChange(false);
-    const maxScore = Number(score); const bonusScore = Number(bonus || 0);
+    const maxScore = Number(score); const bonusScore = bonus.trim() === '' ? 1 : Number(bonus);
     if (!name.trim()) return setError('Nội dung tiêu chí là bắt buộc.');
     if (!Number.isFinite(maxScore) || maxScore <= 0) return setError('Điểm chuẩn phải lớn hơn 0.');
     if (!Number.isFinite(bonusScore) || bonusScore < 0) return setError('Điểm thưởng tối đa không hợp lệ.');
@@ -67,7 +67,7 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parent
   };
   return <FormDialog open={open} onOpenChange={onOpenChange} title={readonly ? 'Xem tiêu chí con' : item ? 'Sửa tiêu chí con' : 'Thêm mới tiêu chí con'} description="Nhập thông tin tiêu chí con." onSubmit={submit} submitLabel={readonly ? 'Đóng' : 'Lưu'} cancelLabel="Đóng" hideCancel={readonly} submitDisabled={saving}>
     <div className="space-y-1.5"><Label htmlFor="child-name">Nội dung <span className="text-destructive">★</span></Label><Input id="child-name" value={name} onChange={(event) => setName(event.target.value)} disabled={readonly || saving} /></div>
-    <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="child-score">Điểm chuẩn <span className="text-destructive">★</span></Label><Input id="child-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} disabled={readonly || saving} /></div><div className="space-y-1.5"><Label htmlFor="child-bonus">Điểm thưởng tối đa</Label><Input id="child-bonus" type="number" min={0} step="0.25" value={bonus} onChange={(event) => setBonus(event.target.value)} disabled={readonly || saving} /></div></div>
+    <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="child-score">Điểm chuẩn <span className="text-destructive">★</span></Label><Input id="child-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} disabled={readonly || saving} /></div><div className="space-y-1.5"><Label htmlFor="child-bonus">Điểm thưởng tối đa</Label><Input id="child-bonus" type="number" min={0} step="0.25" value={bonus} onChange={(event) => setBonus(event.target.value)} disabled={readonly || saving} /><p className="text-xs text-muted-foreground">Để trống sẽ mặc định là 1 điểm.</p></div></div>
     <div className="space-y-1.5"><Label htmlFor="child-deadline">Hạn nộp</Label><Input id="child-deadline" type="datetime-local" min={getCurrentLocalDateTime()} max={parentDeadlineInput || undefined} value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={readonly || saving} /><p className="text-xs text-muted-foreground">Không được quá hạn nộp của tiêu chí cha{parentDeadlineInput ? ` (${parentDeadlineInput.replace('T', ' ')})` : ''}.</p></div>
     <div className="space-y-1.5"><Label htmlFor="child-note">Ghi chú</Label><Textarea id="child-note" rows={3} value={note} onChange={(event) => setNote(event.target.value)} disabled={readonly || saving} /></div>
     {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
@@ -106,15 +106,15 @@ export default function CriteriaChildrenPage() {
       await invalidateCriteria();
       setDeleteOpen(false);
       setSelected(null);
-      toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm còn ${updatedGroup.maxPoint} điểm.`);
+      toast.success(`Đã xóa tiêu chí. Tổng điểm tối đa của nhóm vẫn giữ nguyên ${updatedGroup.maxPoint} điểm.`);
     },
     onError: (apiError) => toast.error(getCriteriaApiError(apiError)),
   });
-  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => criterion.type === 'Standard' && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
+  const groupCriteria = useMemo(() => group?.criteria.filter((criterion) => (criterion.type === 'Standard' || criterion.type === 'LateAdded') && criterion.status !== 'Deleted').map(toItem) ?? [], [group]);
   const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
   const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
-  const remainingPointTotal = selected ? groupCriteria.filter((item) => item.id !== selected.id).reduce((total, item) => total + item.maxScore, 0) : 0;
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
+  const hideChildStatus = group?.status === 'Draft';
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
       accessorKey: 'name',
@@ -125,29 +125,33 @@ export default function CriteriaChildrenPage() {
     {
       accessorKey: 'maxScore',
       header: 'Điểm chuẩn',
-      meta: { align: 'center', list: { width: 'minmax(110px,0.7fr)' } },
+      meta: { align: 'center', sortable: true, list: { width: 'minmax(110px,0.7fr)' } },
     },
     {
       accessorKey: 'bonusScore',
       header: 'Điểm thưởng tối đa',
       cell: ({ row }) => row.original.bonusScore ?? 0,
-      meta: { align: 'center', list: { width: 'minmax(145px,0.85fr)' } },
+      meta: { align: 'center', sortable: true, list: { width: 'minmax(145px,0.85fr)' } },
     },
     {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
+      sortDescFirst: true,
       cell: ({ row }) => row.original.deadline ? formatDate(row.original.deadline) : '—',
-      meta: { list: { width: 'minmax(145px,0.9fr)' } },
+      meta: { sortable: true, list: { width: 'minmax(145px,0.9fr)' } },
     },
     {
-      accessorKey: 'status',
+      accessorFn: (row) => hideChildStatus ? '' : row.status === 'Deleted' ? 'Vô hiệu' : row.status === 'Applied' ? 'Đã áp dụng' : 'Nháp',
+      id: 'status',
       header: 'Trạng thái',
-      cell: ({ row }) => row.original.status === 'Deleted'
-        ? <Badge variant="secondary">Vô hiệu</Badge>
-        : row.original.status === 'Applied'
-          ? <Badge variant="success">Đã áp dụng</Badge>
-          : <Badge variant="secondary">Nháp</Badge>,
-      meta: { align: 'center', list: { width: 'minmax(120px,0.75fr)' } },
+      cell: ({ row }) => hideChildStatus
+        ? null
+        : row.original.status === 'Deleted'
+          ? <Badge variant="secondary">Vô hiệu</Badge>
+          : row.original.status === 'Applied'
+            ? <Badge variant="success">Đã áp dụng</Badge>
+            : <Badge variant="secondary">Nháp</Badge>,
+      meta: { align: 'center', sortable: true, list: { width: 'minmax(120px,0.75fr)' } },
     },
     {
       accessorKey: 'note',
@@ -155,7 +159,7 @@ export default function CriteriaChildrenPage() {
       cell: ({ row }) => <TruncatedText value={row.original.note} className="text-muted-foreground" />,
       meta: { list: { width: 'minmax(180px,1.1fr)' } },
     },
-  ], []);
+  ], [hideChildStatus]);
   if (isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (!group) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description={error ? getCriteriaApiError(error) : 'Nhóm tiêu chí không tồn tại hoặc đã bị xóa.'} />;
   const pointValidation = validateCriteriaApplication(group.maxPoint, appliedCriteria.map((item) => item.maxScore));
@@ -280,19 +284,19 @@ export default function CriteriaChildrenPage() {
         onClearFilters={sort !== 'createdAt-desc' ? () => setSort('createdAt-desc') : undefined}
         toolbar={(
           <div className="flex flex-wrap items-center gap-2">
-            <Button hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
-            <Button variant="warning" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted' || group.status === 'Published'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa tiêu chí con.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && group.status !== 'Published' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
+            <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí con để xem." onClick={() => selected && setEditor({ item: selected, readonly: true })}><Eye className="size-4" />Xem</Button>
+            <Button variant="edit" hideWhen={!selected} disabled={!selected || selected.status === 'Deleted' || group.status === 'Published'} disabledReason={!selected ? 'Chọn một tiêu chí con để chỉnh sửa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu, không thể chỉnh sửa.' : group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể chỉnh sửa tiêu chí con.' : undefined} onClick={() => selected && selected.status !== 'Deleted' && group.status !== 'Published' && setEditor({ item: selected, readonly: false })}><Pencil className="size-4" />Sửa</Button>
             <Button
-              variant="outline"
+              variant="destructive"
               hideWhen={!selected}
               disabled={!selected || selected.status === 'Deleted' || !canDeleteCriteria || (group.status !== 'Draft' && group.status !== 'Applied') || groupCriteria.length <= 1 || deleteMutation.isPending}
-              disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên trưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
-              className="border-danger text-danger hover:bg-danger/5"
+              disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên phụ trách thi đua khen thưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
               onClick={() => { if (selected && selected.status !== 'Deleted' && canDeleteCriteria) setDeleteOpen(true); }}
             >
               <Trash2 className="size-4" />Xóa
             </Button>
             <Button
+              variant="success"
               disabled={group.status === 'Published'}
               disabledReason={group.status === 'Published' ? 'Nhóm tiêu chí đã công bố, không thể thêm tiêu chí con mới.' : undefined}
               onClick={openCreateEditor}
@@ -320,7 +324,10 @@ export default function CriteriaChildrenPage() {
       open={deleteOpen}
       onOpenChange={setDeleteOpen}
       title="Xóa tiêu chí con"
-      description={selected ? `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tiêu chí sẽ chuyển sang trạng thái Vô hiệu, dữ liệu điểm và lịch sử vẫn được giữ lại. Tổng điểm tối đa của nhóm sẽ giảm từ ${group.maxPoint} xuống ${remainingPointTotal} điểm.` : 'Chọn tiêu chí cần xóa.'}
+      description={selected ? (group.status === 'Draft'
+        ? 'Bạn có chắc muốn xóa tiêu chí? Tiêu chí sẽ bị xóa hoàn toàn.'
+        : `Bạn có chắc muốn xóa tiêu chí “${selected.name}” (${selected.maxScore} điểm)? Tiêu chí sẽ chuyển sang trạng thái Vô hiệu, dữ liệu điểm và lịch sử vẫn được giữ lại. Tổng điểm tối đa của nhóm vẫn giữ nguyên ${group.maxPoint} điểm.`)
+        : 'Chọn tiêu chí cần xóa.'}
       confirmLabel={deleteMutation.isPending ? 'Đang xóa…' : 'Xóa tiêu chí'}
       cancelLabel="Hủy"
       variant="destructive"

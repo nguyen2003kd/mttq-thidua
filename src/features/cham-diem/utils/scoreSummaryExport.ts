@@ -63,8 +63,8 @@ export interface ScoreSummaryExportRow {
 export interface ScoreSummaryExportMeta {
   periodName: string | null;
   totalUnits: number;
-  proposed: { excellent: number; good: number; fair: number };
-  province: { excellent: number; good: number; fair: number };
+  proposed: { excellent: number; good: number; fair: number; average: number };
+  province: { excellent: number; good: number; fair: number; average: number };
   rankings: { rank: number; localityName: string; total: number }[];
 }
 
@@ -72,9 +72,10 @@ type Distribution = ScoreSummaryExportMeta['proposed'];
 
 export function toDistribution(distribution: Record<string, number>): Distribution {
   return {
-    excellent: distribution.EXCELLENT ?? 0,
-    good: distribution.GOOD ?? 0,
-    fair: distribution.FAIR ?? 0,
+    excellent: distribution.XUAT_SAC ?? distribution.EXCELLENT ?? 0,
+    good: distribution.TOT ?? distribution.GOOD ?? 0,
+    fair: distribution.KHA ?? distribution.FAIR ?? 0,
+    average: distribution.TRUNG_BINH ?? distribution.AVERAGE ?? 0,
   };
 }
 
@@ -99,6 +100,7 @@ function writeOverviewBlock(worksheet: XLSX.WorkSheet, row: number, meta: ScoreS
     ['Xuất sắc', 'excellent'],
     ['Tốt', 'good'],
     ['Khá', 'fair'],
+    ['Trung bình', 'average'],
   ];
   let current = row + 1;
   for (const [label, key] of distributionRows) {
@@ -141,6 +143,7 @@ function writeScaleBlock(worksheet: XLSX.WorkSheet, row: number): number {
     ['Xuất sắc', 'Từ 95 đến 100 điểm'],
     ['Tốt', 'Từ 85 đến dưới 95 điểm'],
     ['Khá', 'Từ 70 đến dưới 85 điểm'],
+    ['Trung bình', 'Dưới 70 điểm'],
   ];
   let current = row + 1;
   for (const [label, description] of scaleRows) {

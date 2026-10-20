@@ -1,5 +1,4 @@
 /* eslint-disable */
-import { apiQueryKey } from '../mutator/query-keys';
 import {
   useMutation,
   useQuery
@@ -27,6 +26,7 @@ import type {
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
+import { apiQueryKey } from '../mutator/query-keys.ts';
 
 
 
@@ -126,17 +126,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1CriteriaGroupsQueryKey = (params?: GetApiV1CriteriaGroupsParams,) => {
-  return apiQueryKey({ params: params }, { url: `/api/v1/criteria-groups` });
-};
+export const getGetApiV1CriteriaGroupsQueryKey = (params?: GetApiV1CriteriaGroupsParams,) =>
+    apiQueryKey({ params }, { url: `/api/v1/criteria-groups` });
 
 
-export const getGetApiV1CriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError = unknown>(params?: GetApiV1CriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1CriteriaGroupsQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError = unknown>(params?: GetApiV1CriteriaGroupsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroups>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1CriteriaGroupsQueryKey(params);
+  const queryKey =  apiQueryKey({ params }, { url: `/api/v1/criteria-groups`, queryOptions });
 
 
 
@@ -183,7 +182,7 @@ export function useGetApiV1CriteriaGroups<TData = Awaited<ReturnType<typeof getA
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1CriteriaGroupsQueryOptions(params,options)
+  const queryOptions = useGetApiV1CriteriaGroupsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -331,17 +330,16 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-export const getGetApiV1CriteriaGroupsIdQueryKey = (id: string,) => {
-  return apiQueryKey({}, { url: `/api/v1/criteria-groups/${id}` });
-};
+export const getGetApiV1CriteriaGroupsIdQueryKey = (id: string,) =>
+    apiQueryKey({ id }, { url: `/api/v1/criteria-groups/${id}` });
 
 
-export const getGetApiV1CriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
+export const useGetApiV1CriteriaGroupsIdQueryOptions = <TData = Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError = unknown>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getApiV1CriteriaGroupsId>>, TError, TData>>, request?: SecondParameter<typeof mainInstance>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetApiV1CriteriaGroupsIdQueryKey(id);
+  const queryKey =  apiQueryKey({ id }, { url: `/api/v1/criteria-groups/${id}`, queryOptions });
 
 
 
@@ -388,7 +386,7 @@ export function useGetApiV1CriteriaGroupsId<TData = Awaited<ReturnType<typeof ge
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetApiV1CriteriaGroupsIdQueryOptions(id,options)
+  const queryOptions = useGetApiV1CriteriaGroupsIdQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

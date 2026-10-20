@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from './Button';
+import { Button, type ButtonProps } from './Button';
 import { cn } from '@/lib/utils';
 import type { Action } from '@/lib/rbac';
 
@@ -27,6 +27,7 @@ export interface FormDialogProps {
   submitDisabled?: boolean;
   /** RBAC cho nút submit. */
   submitAction?: Action;
+  submitVariant?: ButtonProps['variant'];
   /** Lớp max-w-* cho DialogContent. */
   size?: string;
   children: ReactNode;
@@ -44,6 +45,7 @@ export function FormDialog({
   hideSubmit = false,
   submitDisabled,
   submitAction,
+  submitVariant,
   size = 'max-w-lg sm:max-w-lg',
   children,
 }: FormDialogProps) {
@@ -65,7 +67,7 @@ export function FormDialog({
               </Button>
             )}
             {!hideSubmit && (
-              <Button type="submit" action={submitAction} disabled={submitDisabled}>
+              <Button type="submit" action={submitAction} variant={submitVariant ?? (submitAction === 'edit' ? 'default' : undefined)} disabled={submitDisabled}>
                 {submitLabel}
               </Button>
             )}

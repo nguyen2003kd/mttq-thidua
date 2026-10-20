@@ -9,7 +9,7 @@ import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys
 import { Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { PageHeader, DataTable, Button, FormDialog, ConfirmDialog } from '@/components/core';
+import { PageHeader, DataTable, Button, FilterTextInput, FormDialog, ConfirmDialog } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,7 +41,7 @@ interface UsersEnvelope {
 
 function roleLabel(raw: string): string {
   const map: Record<string, string> = {
-    SPECIALIST: 'Chuyên viên trưởng',
+    SPECIALIST: 'Chuyên viên phụ trách thi đua khen thưởng',
     LEADER: 'Lãnh đạo',
     SCORER: 'Chuyên viên cấp 2',
     REVIEWER: 'Lãnh đạo ban',
@@ -220,13 +220,14 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
         pageSize={10}
         onRowClick={openEdit}
         filters={
-          <Input
+          <FilterTextInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Tìm tên ban…"
             className="h-9 w-64"
           />
         }
+        onClearFilters={() => setSearch('')}
         emptyState={search.trim()
           ? { title: 'Không tìm thấy ban', description: 'Thử từ khóa khác.' }
           : { title: 'Chưa có ban', description: 'Tạo ban đầu tiên để bắt đầu phân công.' }}
@@ -324,6 +325,7 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
             </div>
             <Button
               type="button"
+              variant="success"
               size="sm"
               disabled={!assignUserId || assignMutation.isPending}
               disabledReason="Chọn một tài khoản để thêm vào ban."
@@ -347,7 +349,7 @@ export default function DepartmentManagementPage({ embedded = false }: { embedde
 
       {selected && !editOpen && !deleteOpen && (
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => selected && openEdit(selected)}>
+          <Button variant="edit" size="sm" onClick={() => selected && openEdit(selected)}>
             Chỉnh sửa
           </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>

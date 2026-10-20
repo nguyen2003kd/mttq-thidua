@@ -66,6 +66,7 @@ export interface DataTableColumnMeta {
   /** Class chỉ áp dụng cho tiêu đề cột khi dùng biến thể danh sách. */
   headerClassName?: string;
   align?: 'left' | 'center' | 'right';
+  sortable?: boolean;
   /** Không tự bọc Tooltip cho ô có input, button, hoặc nội dung tương tác. */
   disableTooltip?: boolean;
   list?: {
@@ -101,6 +102,8 @@ export interface DataTableProps<TData, TValue = unknown> {
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   emptyState?: { title: string; description?: string; icon?: ReactNode };
   toolbar?: ReactNode;
+  /** Khối nội dung đặt TRƯỚC nhóm nút bên phải (cạnh trái thanh công cụ). */
+  toolbarLeading?: ReactNode;
   variant?: 'table' | 'list';
   className?: string;
   /** Tiêu đề hiện khi toolbar dính (sticky) */
@@ -131,6 +134,7 @@ export interface DataTableProps<TData, TValue = unknown> {
   enableColumnVisibility?: boolean;
   /** Khóa riêng để ghi nhớ cột đã ẩn/hiện trên từng bảng. */
   columnVisibilityStorageKey?: string;
+  sortingResetKey?: string;
 }
 
 /** Control chọn cột hiển thị trong dropdown Bộ lọc — nhận giá trị nháp (id cột hiển thị nối dấu phẩy), chỉ áp dụng khi bấm Xác nhận. */
@@ -200,6 +204,7 @@ export function DataTable<TData, TValue = unknown>({
   onRowSelectionChange,
   emptyState,
   toolbar,
+  toolbarLeading,
   variant = 'table',
   className,
   onRowClick,
@@ -217,6 +222,7 @@ export function DataTable<TData, TValue = unknown>({
   stickyDescription,
   enableColumnVisibility = true,
   columnVisibilityStorageKey,
+  sortingResetKey,
 }: DataTableProps<TData, TValue>) {
   const resolvedColumnVisibilityStorageKey = useMemo(
     () => columnVisibilityStorageKey ?? `${stickyTitle ?? 'table'}:${columns.map((column) => String(column.id ?? ('accessorKey' in column ? column.accessorKey : '') ?? '')).join('|')}`,
@@ -225,6 +231,7 @@ export function DataTable<TData, TValue = unknown>({
   const selectionCbRef = useRef(onRowSelectionChange);
   selectionCbRef.current = onRowSelectionChange;
   const [sorting, setSorting] = useState<SortingState>([]);
+  const sortingResetKeyRef = useRef(sortingResetKey);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
@@ -245,12 +252,17 @@ export function DataTable<TData, TValue = unknown>({
   useEffect(() => {
     setSearchInput(restoredSearch);
   }, [restoredSearch]);
+  useEffect(() => {
+    if (sortingResetKeyRef.current === sortingResetKey) return;
+    sortingResetKeyRef.current = sortingResetKey;
+    setSorting([]);
+  }, [sortingResetKey]);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const listHeaderInnerRef = useRef<HTMLDivElement>(null);
   const tableHeaderInnerRef = useRef<HTMLDivElement>(null);
   const [toolbarHeight, setToolbarHeight] = useState(0);
-  const hasToolbar = Boolean(searchable || filters || inlineFilters || toolbar || enableColumnVisibility);
+  const hasToolbar = Boolean(searchable || filters || inlineFilters || toolbar || toolbarLeading || enableColumnVisibility);
   const setStickyTitle = useUIStore((s) => s.setStickyTitle);
   const setStickyDescription = useUIStore((s) => s.setStickyDescription);
 
@@ -485,40 +497,41 @@ export function DataTable<TData, TValue = unknown>({
             {visibleHeaders.map((header, idx) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const canSort = meta?.sortable === true && header.column.getCanSort();
+              const sortDirection = header.column.getIsSorted();
               const headerContent = flexRender(header.column.columnDef.header, header.getContext());
               const headerText = extractCellText(headerContent).trim();
+              const headerNode = headerText ? (
+                <Tooltip>
+                  <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
+                  <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
+                </Tooltip>
+              ) : headerContent;
 
               return (
-                <TableHead key={header.id} className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', meta?.className)}>
-                  {header.isPlaceholder ? null : (
-                    <div
+                <TableHead
+                  key={header.id}
+                  aria-sort={sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : undefined}
+                  className={cn('bg-primary text-primary-foreground', alignClass, !hasToolbar && idx === 0 && 'rounded-tl-[calc(var(--radius)_-_1px)]', !hasToolbar && idx === visibleHeaders.length - 1 && 'rounded-tr-[calc(var(--radius)_-_1px)]', canSort && 'p-0', meta?.className)}
+                >
+                  {header.isPlaceholder ? null : canSort ? (
+                    <button
+                      type="button"
+                      onClick={header.column.getToggleSortingHandler()}
                       className={cn(
-                        'flex items-center gap-1.5',
-                        header.column.getCanSort() && 'cursor-pointer select-none hover:text-primary-foreground/75',
-                        alignClass === 'text-right' && 'justify-end',
+                        'flex min-h-11 w-full cursor-pointer items-center gap-1.5 px-4 py-3 text-inherit transition-colors hover:text-primary-foreground/75',
+                        alignClass === 'text-right' && 'flex-row-reverse justify-start',
                         alignClass === 'text-center' && 'justify-center',
                       )}
-                      onClick={header.column.getToggleSortingHandler()}
                     >
-                      {headerText ? (
-                        <Tooltip>
-                          <TooltipTrigger render={<span className="block min-w-0 truncate" />}>{headerContent}</TooltipTrigger>
-                          <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
-                        </Tooltip>
-                      ) : headerContent}
-                      {header.column.getCanSort() && (
-                        <span className="text-primary-foreground/50">
-                          {header.column.getIsSorted() === 'asc' ? (
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          ) : header.column.getIsSorted() === 'desc' ? (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronsUpDown className="h-3.5 w-3.5" />
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                      {headerNode}
+                      <span className={cn('shrink-0', sortDirection ? 'text-primary-foreground' : 'text-primary-foreground/50')}>
+                        {sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" />
+                          : sortDirection === 'desc' ? <ChevronDown className="h-3.5 w-3.5" />
+                            : <ChevronsUpDown className="h-3.5 w-3.5" />}
+                      </span>
+                    </button>
+                  ) : headerNode}
                 </TableHead>
               );
             })}
@@ -552,31 +565,56 @@ export function DataTable<TData, TValue = unknown>({
             return visibleHeaders.map((header, idx, arr) => {
               const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined;
               const alignClass = getAlignClass(meta?.align, idx === 0 ? 'left' : 'center');
+              const canSort = meta?.sortable === true && header.column.getCanSort();
+              const sortDirection = header.column.getIsSorted();
 
               return (
                 <div
                   key={header.id}
-                  className={cn(
-                    'relative flex items-center min-w-0 h-12 px-4 box-border',
-                    idx === 0 && 'pl-5',
-                    idx === arr.length - 1 && 'pr-5',
-                    alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
-                    meta?.className,
-                  )}
+                  role="columnheader"
+                  aria-sort={sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : undefined}
+                  className={cn('relative min-w-0 h-12 box-border', meta?.className)}
                 >
                   {header.isPlaceholder ? null : (() => {
                     const headerContent = flexRender(header.column.columnDef.header, header.getContext());
                     const headerText = extractCellText(headerContent).trim();
-                    return headerText ? (
+                    const headerNode = headerText ? (
                       <Tooltip>
-                      <TooltipTrigger render={<span className={cn('block min-w-0 truncate', meta?.headerClassName)} />}>{headerContent}</TooltipTrigger>
+                        <TooltipTrigger render={<span className={cn('block min-w-0 truncate', meta?.headerClassName)} />}>{headerContent}</TooltipTrigger>
                         <TooltipContent className="max-w-80 whitespace-normal">{headerText}</TooltipContent>
                       </Tooltip>
                     ) : headerContent;
+
+                    return canSort ? (
+                      <button
+                        type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                        className={cn(
+                          'flex h-full w-full cursor-pointer items-center gap-1.5 px-4 box-border text-primary-foreground transition-colors hover:text-primary-foreground/75',
+                          idx === 0 && 'pl-5',
+                          idx === arr.length - 1 && 'pr-5',
+                          alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'flex-row-reverse justify-start' : 'justify-start',
+                        )}
+                      >
+                        {headerNode}
+                        <span className={cn('shrink-0', sortDirection ? 'text-primary-foreground' : 'text-primary-foreground/50')}>
+                          {sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" />
+                            : sortDirection === 'desc' ? <ChevronDown className="h-3.5 w-3.5" />
+                              : <ChevronsUpDown className="h-3.5 w-3.5" />}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className={cn(
+                        'flex h-full w-full items-center gap-1.5 px-4 box-border',
+                        idx === 0 && 'pl-5',
+                        idx === arr.length - 1 && 'pr-5',
+                        alignClass === 'text-center' ? 'justify-center' : alignClass === 'text-right' ? 'justify-end' : 'justify-start',
+                      )}>
+                        {headerNode}
+                      </div>
+                    );
                   })()}
-                  {idx < arr.length - 1 && (
-                    <span className="absolute right-0 top-0 h-full border-r border-white/30" />
-                  )}
+                  {idx < arr.length - 1 && <span className="absolute right-0 top-0 h-full border-r border-white/30" />}
                 </div>
               );
             });
@@ -737,6 +775,7 @@ export function DataTable<TData, TValue = unknown>({
         </FilterDropdown>
       )}
       {inlineFilters}
+      {toolbarLeading}
       <div className={cn('ml-auto flex items-center gap-2', inlineFilters && 'flex-wrap justify-end')}>
         {!filters && showColumnVisibility && (
           <DropdownMenu>

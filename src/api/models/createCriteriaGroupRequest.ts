@@ -10,4 +10,5 @@ export interface CreateCriteriaGroupRequest {
   deadline?: string | null;
   /** @nullable */
   departmentId?: string | null;
+  periodId?: string;
 }

@@ -30,12 +30,12 @@ const ACTION_MAP: Record<string, ActionType> = {
 // stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
 const STAGE_ACTOR_MAP: Record<string, { role: Role; label: string }> = {
   Draft: { role: 'LOCAL', label: 'Địa phương' },
-  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
-  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  RequiresRevision: { role: 'SPECIALIST', label: 'Chuyên viên phụ trách thi đua khen thưởng' },
+  LocalSubmitted: { role: 'SPECIALIST', label: 'Chuyên viên phụ trách thi đua khen thưởng' },
   ScorerSubmitted: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
   ScorerRevisionRequested: { role: 'SCORER', label: 'Chuyên viên cấp 2' },
   ReviewerRevisionRequested: { role: 'REVIEWER', label: 'Lãnh đạo ban' },
-  ReviewerApproved: { role: 'SPECIALIST', label: 'Chuyên viên trưởng' },
+  ReviewerApproved: { role: 'SPECIALIST', label: 'Chuyên viên phụ trách thi đua khen thưởng' },
   SpecialistApproved: { role: 'LEADER', label: 'Lãnh đạo ban' },
   LeaderApproved: { role: 'COUNCIL', label: 'Hội đồng thi đua' },
   CouncilApproved: { role: 'COMMITTEE', label: 'Ban thường trực' },
@@ -277,7 +277,7 @@ export function LocalityCriteriaHistoryDialog({ open, onOpenChange, submission, 
                   </div>
                   <div className="space-y-1">
                     {revisionFiles.map((file) => (
-                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-background/60 px-2 py-1 text-left text-xs hover:bg-muted">
+                      <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex w-full items-center gap-2 rounded-md bg-info/5 px-2 py-1 text-left text-xs text-info-foreground hover:bg-info/10 dark:text-info">
                         <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{file.displayName ?? file.originalName}</span>
                         <span className="text-muted-foreground shrink-0">{formatBytes(file.sizeBytes)}</span>

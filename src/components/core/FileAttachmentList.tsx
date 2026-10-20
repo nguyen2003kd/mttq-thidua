@@ -161,7 +161,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
                       aria-label={`Xem file ${file.displayName || file.originalName}`}
                       title="Xem file"
                       onClick={() => setViewing(file)}
-                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-info-foreground transition-colors hover:bg-info/10 hover:text-info-foreground dark:text-info"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
@@ -180,7 +180,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
                         aria-label={`Xóa file ${file.displayName || file.originalName}`}
                         title="Xóa file"
                         onClick={() => setDeleting(file)}
-                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -197,7 +197,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
         <button
           type="button"
           onClick={() => setUploadOpen(true)}
-          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-primary"
+          className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-dashed border-button-create bg-button-create px-3 py-2.5 text-xs font-medium text-white transition-colors hover:bg-button-create/90"
         >
           <Plus className="h-4 w-4" />
           {addLabel}
@@ -211,6 +211,7 @@ export function FileAttachmentList({ entityType, entityId, readOnly, emptyText =
           title={addLabel}
           description="Chọn file để tải lên và gắn vào nhóm này. Có thể chọn nhiều file cùng lúc."
           submitLabel="Tải lên"
+          submitVariant="success"
           cancelLabel="Đóng"
           submitDisabled={uploading || pendingFiles.length === 0}
           onSubmit={handleUploadSubmit}

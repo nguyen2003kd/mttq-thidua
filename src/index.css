@@ -45,6 +45,13 @@
     --info: 198 100% 44.51%;
     --info-foreground: 198 100% 15%;
 
+    --button-create: 153 46% 34%;
+    --button-edit: 46 81% 52%;
+    --button-edit-foreground: 0 0% 12%;
+    --button-warning: 24 100% 32%;
+    --button-view: 198 100% 22%;
+    --button-delete: 0 100% 38%;
+
     --border: 0 0% 87%;
     --input: 0 0% 87%;
     --ring: 198 100% 44.51%;

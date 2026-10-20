@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
 import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
@@ -15,6 +15,11 @@ import {
   Trophy,
 } from "lucide-react";
 import { Button, EmptyState, FilterSelect, PageHeader, PageLoading } from "@/components/core";
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
+import { classifyByConfig, formatClassificationRange, type EmulationClassificationConfig } from '@/lib/emulationClassification';
+import { useEmulationClassifications } from '@/hooks/useEmulationClassifications';
 import { useQueryFilters } from "@/hooks/useQueryFilters";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -47,6 +52,8 @@ import { ResultPublicationDialog } from "@/features/duyet/components/ResultPubli
 import { resultPublicationApi } from "@/features/duyet/api/resultPublicationApi";
 import { toast } from "sonner";
 
+const EmbeddedSpecialistReviewPage = lazy(() => import('./SpecialistReviewPage'));
+
 interface ScoreTotals {
   proposedScore: number;
   proposedBonus: number;
@@ -54,8 +61,6 @@ interface ScoreTotals {
   provinceBonus: number;
   hasProvinceScore: boolean;
 }
-
-type Classification = "EXCELLENT" | "GOOD" | "FAIR" | "BELOW" | "UNSCORED";
 
 interface LocalityScoreSummary extends ScoreTotals {
   localityId: string;
@@ -67,11 +72,29 @@ interface LocalityScoreSummary extends ScoreTotals {
   submissions: SubmissionApi[];
   proposedTotal: number;
   provinceTotal: number | null;
-  proposedClassification: Classification;
-  provinceClassification: Classification;
+  proposedClassification: EmulationClassificationConfig | null;
+  provinceClassification: EmulationClassificationConfig | null;
 }
 
 const UNASSIGNED_CLUSTER_ID = "__unassigned__";
+
+const SCORE_SUMMARY_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposedScore-desc', label: 'Điểm địa phương cao nhất', sort: { column: 'proposedScore', direction: 'desc' } },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
+  { value: 'provinceScore-desc', label: 'Điểm thành phố cao nhất', sort: { column: 'provinceScore', direction: 'desc' } },
+  { value: 'provinceBonus-desc', label: 'Điểm thưởng thành phố cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
+  { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
+  { value: 'provinceTotal-desc', label: 'Tổng điểm thành phố cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
+];
+
+const SCORE_DETAIL_SORT_OPTIONS: TableSortOption[] = [
+  { value: 'proposed-desc', label: 'Điểm địa phương cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+  { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
+  { value: 'province-desc', label: 'Điểm thành phố cao nhất', sort: { column: 'province', direction: 'desc' } },
+  { value: 'provinceBonus-desc', label: 'Điểm thưởng thành phố cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
+  { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
+  { value: 'provinceTotal-desc', label: 'Tổng điểm thành phố cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
+];
 
 function normalizeWardCode(code: string) {
   return code.trim().replace(/^loc-/i, "").toLowerCase();
@@ -129,15 +152,6 @@ function getTotals(submissions: SubmissionApi[]): ScoreTotals {
   );
 }
 
-function classifyScore(score: number | null): Classification {
-  if (score === null) return "UNSCORED";
-  const scoreForClassification = Math.min(score, 100);
-  if (scoreForClassification >= 95) return "EXCELLENT";
-  if (scoreForClassification >= 85) return "GOOD";
-  if (scoreForClassification >= 70) return "FAIR";
-  return "BELOW";
-}
-
 function formatScore(value: number | null) {
   if (value === null) return "—";
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(
@@ -145,7 +159,7 @@ function formatScore(value: number | null) {
   );
 }
 
-/** Chỉ hồ sơ đã qua bước Chuyên viên trưởng duyệt mới được tính vào bảng tổng hợp. */
+/** Chỉ hồ sơ đã qua bước Chuyên viên phụ trách thi đua khen thưởng duyệt mới được tính vào bảng tổng hợp. */
 const SUMMARY_STAGES: readonly SubmissionStage[] = ["SpecialistApproved", "ReviewerApproved"];
 
 async function listEverySubmission(periodId?: string) {
@@ -191,15 +205,17 @@ function ScoreCell({ value }: { value: number | null }) {
   );
 }
 
-/** Danh sách nhóm và chi tiết tiêu chí con dùng chung một modal hai bước. */
 function LocalityCriteriaDialog({
   locality,
   onClose,
+  canReview,
 }: {
   locality: LocalityScoreSummary | null;
   onClose: () => void;
+  canReview: boolean;
 }) {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [detailSort, setDetailSort] = useState<TableSortState>(null);
   const selectedSubmission = locality?.submissions.find(
     (submission) => submission.id === selectedSubmissionId,
   );
@@ -212,24 +228,118 @@ function LocalityCriteriaDialog({
   const detailQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsIdQueryKey(selectedSubmission?.id ?? '')),
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
-    enabled: Boolean(locality && selectedSubmission),
+    enabled: Boolean(locality && selectedSubmission && !canReview),
   });
+  const sortedDetailResults = sortTableRows(detailQuery.data?.results ?? [], detailSort, {
+    proposed: (result) => result.point,
+    proposedBonus: (result) => result.bonusPoint,
+    province: (result) => result.officialPoint,
+    provinceBonus: (result) => result.officialBonusPoint,
+    proposedTotal: (result) => result.point + result.bonusPoint,
+    provinceTotal: (result) => result.officialPoint === null && result.officialBonusPoint === null ? null : (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0),
+  });
+  const comparisonContent = detailQuery.isLoading ? (
+    <div className="space-y-3" aria-label="Đang tải tiêu chí con">
+      <div className="h-16 animate-pulse rounded-md bg-muted" />
+      <div className="h-16 animate-pulse rounded-md bg-muted/70" />
+    </div>
+  ) : detailQuery.isError ? (
+    <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+      Không tải được tiêu chí con.
+      <Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>
+        Thử lại
+      </Button>
+    </div>
+  ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
+    <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+      Nhóm này chưa có kết quả tiêu chí con.
+    </p>
+  ) : (
+    <div className="overflow-hidden rounded-md border border-border">
+      <div className="flex justify-end border-b border-border p-2">
+        <TableSortSelect sort={detailSort} options={SCORE_DETAIL_SORT_OPTIONS} onChange={setDetailSort} />
+      </div>
+      <Table className="min-w-[1080px] table-fixed">
+        <colgroup>
+          <col className="w-[28%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+        </colgroup>
+        <TableHeader>
+          <TableRow className="bg-primary hover:bg-primary">
+            <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
+            <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="province" label="Điểm của thành phố" ariaLabel="Điểm của thành phố" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceBonus" label="Điểm thưởng của thành phố" ariaLabel="Điểm thưởng của thành phố" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceTotal" label="Tổng điểm thành phố" ariaLabel="Tổng điểm thành phố" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="whitespace-normal bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedDetailResults.map((result, index) => (
+            <TableRow key={result.id} className="border-b border-border hover:bg-muted/40">
+              <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
+                <p className="font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || "Tiêu chí con " + (index + 1)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}
+                </p>
+                {result.criteriaStatus === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
+              </TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
+              <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
+              <TableCell className="px-4 py-3">
+                <ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null
+                  ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0)
+                  : null} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   const closeDialog = () => {
     setSelectedSubmissionId(null);
     onClose();
   };
 
+  const selectGroup = (submissionId: string) => {
+    setSelectedSubmissionId(submissionId);
+  };
+
+  const showGroups = () => {
+    setSelectedSubmissionId(null);
+  };
+
+  const embeddedLocalityId = selectedSubmission?.createdByWardCode
+    ?? selectedSubmission?.createdBy
+    ?? locality?.localityId
+    ?? '';
+
   return (
     <Dialog open={Boolean(locality)} onOpenChange={(open) => { if (!open) closeDialog(); }}>
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className={cn(
+        'flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-0 overflow-hidden p-0',
+        selectedSubmission && canReview ? 'h-[calc(100dvh-2rem)] sm:max-w-[1880px]' : selectedSubmission ? 'sm:max-w-[1440px]' : 'sm:max-w-6xl',
+      )}>
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 sm:px-6">
           <DialogTitle>
             {selectedGroupName ?? "Nhóm tiêu chí của " + (locality?.localityName ?? "")}
           </DialogTitle>
           <DialogDescription>
             {selectedSubmission
-              ? "Đối chiếu điểm từng tiêu chí con của " + (locality?.localityName ?? "") + "."
+              ? canReview
+                ? "Thẩm định kết quả tiêu chí của " + (locality?.localityName ?? "") + "."
+                : "Xem chi tiết điểm từng tiêu chí con của " + (locality?.localityName ?? "") + "."
               : "Chọn một nhóm tiêu chí để xem các tiêu chí con và điểm chấm."}
           </DialogDescription>
         </DialogHeader>
@@ -237,76 +347,18 @@ function LocalityCriteriaDialog({
         <div key={selectedSubmissionId ?? "groups"} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {selectedSubmission ? (
             <div className="space-y-4">
-              <Button type="button" variant="back" onClick={() => setSelectedSubmissionId(null)}>
+              <Button type="button" variant="back" onClick={showGroups}>
                 <ArrowLeft className="size-4" />
                 Tất cả nhóm tiêu chí
               </Button>
 
-              {detailQuery.isLoading ? (
-                <div className="space-y-3" aria-label="Đang tải tiêu chí con">
-                  <div className="h-16 animate-pulse rounded-md bg-muted" />
-                  <div className="h-16 animate-pulse rounded-md bg-muted/70" />
-                </div>
-              ) : detailQuery.isError ? (
-                <div className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  Không tải được tiêu chí con.
-                  <Button type="button" variant="outline" size="sm" onClick={() => void detailQuery.refetch()}>
-                    Thử lại
-                  </Button>
-                </div>
-              ) : (detailQuery.data?.results.length ?? 0) === 0 ? (
-                <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  Nhóm này chưa có kết quả tiêu chí con.
-                </p>
-              ) : (
-                <div className="overflow-hidden rounded-md border border-border">
-                  <Table className="min-w-[1080px] table-fixed">
-                    <colgroup>
-                      <col className="w-[28%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                    </colgroup>
-                    <TableHeader>
-                      <TableRow className="bg-primary hover:bg-primary">
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Địa phương đề xuất</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">điểm thưởng địa phương</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của thành phố</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của thành phố</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng điểm địa phương</TableHead>
-                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm thành phố</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {detailQuery.data?.results.map((result, index) => (
-                        <TableRow key={result.id} className="border-b border-border hover:bg-muted/40">
-                          <TableCell className="whitespace-normal border-r border-primary/15 px-4 py-3">
-                            <p className="font-medium leading-5 text-foreground">{result.criteriaContent?.trim() || "Tiêu chí con " + (index + 1)}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Điểm chuẩn {formatScore(result.snapshotMaxPoint)} · Điểm thưởng tối đa {formatScore(result.snapshotMaxBonusPoint)}
-                            </p>
-                            {result.criteriaStatus === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
-                          </TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.bonusPoint} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialPoint} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.officialBonusPoint} /></TableCell>
-                          <TableCell className="border-r border-primary/15 px-4 py-3"><ScoreCell value={result.point + result.bonusPoint} /></TableCell>
-                          <TableCell className="px-4 py-3">
-                            <ScoreCell value={result.officialPoint !== null || result.officialBonusPoint !== null
-                              ? (result.officialPoint ?? 0) + (result.officialBonusPoint ?? 0)
-                              : null} />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+              {canReview ? (
+                <Suspense fallback={<div role="status" className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">Đang tải chi tiết chấm điểm…</div>}>
+                  <EmbeddedSpecialistReviewPage
+                    embeddedDetail={{ localityId: embeddedLocalityId, criteriaGroupId: selectedSubmission.criteriaGroupId }}
+                  />
+                </Suspense>
+              ) : comparisonContent}
             </div>
           ) : (
             <div className="space-y-4">
@@ -327,7 +379,7 @@ function LocalityCriteriaDialog({
                         key={submission.id}
                         type="button"
                         className="grid w-full grid-cols-2 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_110px_110px_20px]"
-                        onClick={() => setSelectedSubmissionId(submission.id)}
+                        onClick={() => selectGroup(submission.id)}
                       >
                         <span className="col-span-2 flex min-w-0 items-start gap-3 sm:col-span-1">
                           <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">{index + 1}</span>
@@ -366,17 +418,16 @@ function LocalityCriteriaDialog({
 function getDistribution(
   rows: LocalityScoreSummary[],
   field: "proposedClassification" | "provinceClassification",
+  classifications: readonly EmulationClassificationConfig[],
 ) {
-  return rows.reduce(
-    (distribution, row) => {
-      distribution[row[field]] += 1;
-      return distribution;
-    },
-    { EXCELLENT: 0, GOOD: 0, FAIR: 0, BELOW: 0, UNSCORED: 0 } satisfies Record<
-      Classification,
-      number
-    >,
+  const counts = new Map<string, number>(
+    classifications.map((config) => [config.code, 0]),
   );
+  for (const row of rows) {
+    const config = row[field];
+    if (config) counts.set(config.code, (counts.get(config.code) ?? 0) + 1);
+  }
+  return classifications.map((config) => ({ config, count: counts.get(config.code) ?? 0 }));
 }
 
 function ResultSummary({
@@ -385,9 +436,10 @@ function ResultSummary({
   emphasized = false,
 }: {
   label: string;
-  distribution: Record<Classification, number>;
+  distribution: { config: EmulationClassificationConfig; count: number }[];
   emphasized?: boolean;
 }) {
+  const borderColors = ["border-success", "border-accent", "border-info", "border-muted-foreground/50"];
   return (
     <div
       className={cn(
@@ -396,32 +448,20 @@ function ResultSummary({
       )}
     >
       <p className="text-xs font-semibold leading-4 text-foreground">{label}</p>
-      <div className="grid grid-cols-3 gap-1">
-        <div className="min-w-0 border-l-2 border-success pl-2">
-          <p
-            className={cn(
-              "text-base font-semibold leading-5 tabular-nums",
-              emphasized ? "text-primary" : "text-foreground",
-            )}
-          >
-            {distribution.EXCELLENT}
-          </p>
-          <p className="text-[11px] leading-4 text-muted-foreground">
-            Xuất sắc
-          </p>
-        </div>
-        <div className="min-w-0 border-l-2 border-accent pl-2">
-          <p className="text-base font-semibold leading-5 tabular-nums text-foreground">
-            {distribution.GOOD}
-          </p>
-          <p className="text-[11px] leading-4 text-muted-foreground">Tốt</p>
-        </div>
-        <div className="min-w-0 border-l-2 border-info pl-2">
-          <p className="text-base font-semibold leading-5 tabular-nums text-foreground">
-            {distribution.FAIR}
-          </p>
-          <p className="text-[11px] leading-4 text-muted-foreground">Khá</p>
-        </div>
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${distribution.length}, minmax(0, 1fr))` }}>
+        {distribution.map(({ config, count }, index) => (
+          <div key={config.code} className={cn("min-w-0 border-l-2 pl-2", borderColors[index % borderColors.length])}>
+            <p
+              className={cn(
+                "text-base font-semibold leading-5 tabular-nums",
+                emphasized ? "text-primary" : "text-foreground",
+              )}
+            >
+              {count}
+            </p>
+            <p className="text-[11px] leading-4 text-muted-foreground">{config.name}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -433,17 +473,49 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const { filters: { periodFilter }, setters: { periodFilter: setPeriodFilter } } = useQueryFilters({ periodFilter: '' });
+  const [isPeriodFilterReady, setIsPeriodFilterReady] = useState(false);
+  const periodDefaultingRef = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
+  const [summarySort, setSummarySort] = useState<TableSortState>(null);
+  const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER'));
   const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
+  const periodListParams = { page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' } as const;
   const periodsQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
-    queryFn: periodsApi.listAll,
+    queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey({
+      Page: periodListParams.page,
+      PageSize: periodListParams.pageSize,
+      SortBy: periodListParams.sortBy,
+      SortOrder: periodListParams.sortOrder,
+    }), 'options'),
+    queryFn: async () => (await periodsApi.list(periodListParams)).items,
   });
-  const periods = periodsQuery.data ?? [];
+  const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
+  const classificationsQuery = useEmulationClassifications();
+  const classifications = classificationsQuery.classifications;
+  const sortedPeriods = useMemo(() => [...periods].sort((left, right) => {
+    const leftTimestamp = Date.parse(left.updatedAt ?? left.createdAt);
+    const rightTimestamp = Date.parse(right.updatedAt ?? right.createdAt);
+    return rightTimestamp - leftTimestamp || right.startYear - left.startYear || right.endYear - left.endYear;
+  }), [periods]);
+  useEffect(() => {
+    if (isPeriodFilterReady || periodsQuery.isLoading) return;
+    if (periodsQuery.isError) {
+      setIsPeriodFilterReady(true);
+      return;
+    }
+    if (periodFilter || sortedPeriods.length === 0) {
+      setIsPeriodFilterReady(true);
+      return;
+    }
+    if (periodDefaultingRef.current) return;
+    periodDefaultingRef.current = true;
+    setPeriodFilter(sortedPeriods[0].id);
+  }, [isPeriodFilterReady, periodFilter, periodsQuery.isError, periodsQuery.isLoading, setPeriodFilter, sortedPeriods]);
   const submissionsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: periodFilter || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(periodFilter || undefined),
+    enabled: isPeriodFilterReady && !periodsQuery.isError,
   });
   const clustersQuery = useQuery({
     queryKey: dataQueryKey(apiQueryKey({}, { url: '/api/v1/clusters' }), 'with-wards'),
@@ -518,8 +590,8 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
           proposedTotal,
           provinceTotal,
           proposedClassification:
-            submissions.length > 0 ? classifyScore(proposedTotal) : "UNSCORED",
-          provinceClassification: classifyScore(provinceTotal),
+            submissions.length > 0 ? classifyByConfig(proposedTotal, classifications) : null,
+          provinceClassification: classifyByConfig(provinceTotal, classifications),
         };
       })
       .sort((left, right) => {
@@ -533,16 +605,16 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
           left.localityName.localeCompare(right.localityName, "vi")
         );
       });
-  }, [submissionsQuery.data, clusters]);
+  }, [submissionsQuery.data, clusters, classifications]);
   const selectedLocality = rows.find((row) => row.localityId === selectedLocalityId) ?? null;
 
   const proposedDistribution = useMemo(
-    () => getDistribution(rows, "proposedClassification"),
-    [rows],
+    () => getDistribution(rows, "proposedClassification", classifications),
+    [rows, classifications],
   );
   const provinceDistribution = useMemo(
-    () => getDistribution(rows, "provinceClassification"),
-    [rows],
+    () => getDistribution(rows, "provinceClassification", classifications),
+    [rows, classifications],
   );
 
   const groupedRows = useMemo(() => {
@@ -579,6 +651,17 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
           left.cluster.localeCompare(right.cluster, "vi"),
       );
   }, [clusters, rows]);
+  const sortedGroupedRows = useMemo(() => groupedRows.map((group) => ({
+    ...group,
+    rows: sortTableRows(group.rows, summarySort, {
+      proposedScore: (row) => row.proposedScore,
+      proposedBonus: (row) => row.proposedBonus,
+      provinceScore: (row) => row.hasProvinceScore ? row.provinceScore : null,
+      provinceBonus: (row) => row.hasProvinceScore ? row.provinceBonus : null,
+      proposedTotal: (row) => row.proposedTotal,
+      provinceTotal: (row) => row.provinceTotal,
+    }),
+  })), [groupedRows, summarySort]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -601,7 +684,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
     }
   };
 
-  if (submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
+  if (!isPeriodFilterReady || submissionsQuery.isLoading || clustersQuery.isLoading || periodsQuery.isLoading)
     return <PageLoading label="Đang tổng hợp và xếp hạng điểm…" />;
   if (submissionsQuery.isError || clustersQuery.isError || periodsQuery.isError) {
     const error = submissionsQuery.error ?? clustersQuery.error ?? periodsQuery.error;
@@ -629,7 +712,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
             value={periodFilter}
             onChange={setPeriodFilter}
             allLabel="Tất cả kỳ thi đua"
-            options={periods.map((period) => ({ value: period.id, label: period.name }))}
+            options={sortedPeriods.map((period) => ({ value: period.id, label: period.name }))}
           />
         }
       />
@@ -794,22 +877,19 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
               </p>
             </div>
             <dl className="divide-y divide-border">
-              <div className="flex items-baseline justify-between gap-2 px-4 py-2">
-                <dt className="text-xs font-semibold text-success">Xuất sắc</dt>
-                <dd className="text-xs text-foreground">Từ 95 đến 100 điểm</dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-2 px-4 py-2">
-                <dt className="text-xs font-semibold text-foreground">Tốt</dt>
-                <dd className="text-xs text-foreground">
-                  Từ 85 đến dưới 95 điểm
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-2 px-4 py-2">
-                <dt className="text-xs font-semibold text-info">Khá</dt>
-                <dd className="text-xs text-foreground">
-                  Từ 70 đến dưới 85 điểm
-                </dd>
-              </div>
+              {classifications.map((config, index) => (
+                <div key={config.code} className="flex items-baseline justify-between gap-2 px-4 py-2">
+                  <dt
+                    className={cn(
+                      "text-xs font-semibold",
+                      index === 0 ? "text-success" : index === classifications.length - 1 ? "text-muted-foreground" : "text-foreground",
+                    )}
+                  >
+                    {config.name}
+                  </dt>
+                  <dd className="text-xs text-foreground">{formatClassificationRange(config)}</dd>
+                </div>
+              ))}
             </dl>
           </section>
         </div>
@@ -820,6 +900,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
         aria-label="Bảng tổng hợp chấm điểm toàn thành phố"
       >
         <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border px-5 py-4">
+          <TableSortSelect sort={summarySort} options={SCORE_SUMMARY_SORT_OPTIONS} onChange={setSummarySort} />
           <Badge variant="secondary">{rows.length} đơn vị</Badge>
         </div>
         {groupedRows.length === 0 ? (
@@ -851,32 +932,16 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 leading-5 text-primary-foreground sm:top-[-24px]">
                   Tên xã, phường
                 </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Địa phương chấm
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Điểm điểm thưởng địa phương
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Thành phố chấm
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Điểm thưởng của thành phố
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Địa phương chấm
-                  <br />
-                  (điểm tự chấm + điểm thưởng)
-                </TableHead>
-                <TableHead className="sticky top-[-16px] z-10 whitespace-normal bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Thành phố chấm
-                  <br />
-                  (điểm chấm + điểm thưởng)
-                </TableHead>
+                <SortableTableHead column="proposedScore" label="Địa phương chấm" ariaLabel="Điểm địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceScore" label="Thành phố chấm" ariaLabel="Điểm thành phố chấm" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceBonus" label="Điểm thưởng của thành phố" ariaLabel="Điểm thưởng thành phố" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="proposedTotal" label={<>Địa phương chấm<br />(điểm tự chấm + điểm thưởng)</>} ariaLabel="Tổng điểm địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceTotal" label={<>Thành phố chấm<br />(điểm chấm + điểm thưởng)</>} ariaLabel="Tổng điểm thành phố" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal bg-primary sm:top-[-24px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {groupedRows.flatMap((group) =>
+              {sortedGroupedRows.flatMap((group) =>
                 group.rows.length === 0 ? [
                   <TableRow key={group.id} className="border-b-2 border-border">
                     <TableCell className="whitespace-normal border-r border-primary/15 bg-muted/30 px-3 text-center font-semibold">
@@ -909,7 +974,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                           onClick={() => setSelectedLocalityId(row.localityId)}
                         >
                           <span className="min-w-0">{row.localityName}</span>
-                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary">
+                          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-info-foreground dark:text-info">
                             <Eye className="size-4" aria-hidden="true" />
                             Xem
                           </span>
@@ -946,8 +1011,9 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
       <LocalityCriteriaDialog
         locality={selectedLocality}
         onClose={() => setSelectedLocalityId(null)}
+        canReview={canReview}
       />
-      {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} />}
+      {canPublish && <ResultPublicationDialog open={publishOpen} onOpenChange={setPublishOpen} selectedPeriodId={periodFilter} />}
     </div>
   );
 }

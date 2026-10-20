@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ColumnDef } from '@tanstack/react-table';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { formatDate } from '@/lib/utils';
+import { isDeadlineBlockingLocalityEdit } from '@/features/workflow/deadlineRules';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { EvidenceFormValue } from './EvidenceModal';
 
@@ -30,6 +31,8 @@ interface LocalityScoreTableProps {
   evidence: Evidence[];
   localityId: string;
   editable: boolean;
+  allowRevisionAfterDeadline?: boolean;
+  evidenceDeletionLocked?: boolean;
   scoreFieldsLocked?: boolean;
   editDisabledReason?: string;
   nowMs: number;
@@ -42,9 +45,13 @@ interface LocalityScoreTableProps {
   onPreviewRevisionFile?: (file: SpecialistRevisionFile) => void;
   /** Khi có danh sách này, chỉ các tiêu chí được yêu cầu mới cho phép chỉnh sửa. */
   editableCriteriaIds?: ReadonlySet<string> | null;
+  /** Lần mở lại gần nhất do Chuyên viên thêm tiêu chí → mở ô điểm cho result mới chờ nhập lần đầu. */
+  scoreUnlockForNewCriteria?: boolean;
   onCompletionChange?: (criteriaId: string, complete: boolean) => void;
   uploading?: boolean;
   toolbar?: ReactNode;
+  /** Khối nội dung đặt cạnh trái thanh công cụ (trước nhóm nút bên phải). */
+  toolbarLeading?: ReactNode;
   onSelect?: (entry: ScoreEntry, criterion: CriteriaItem) => void;
   onDeleteEvidence?: (id: string) => void;
   onPreviewEvidenceFile?: (file: Evidence) => void;
@@ -142,6 +149,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   draft,
   state,
   editable,
+  allowRevisionAfterDeadline = false,
+  evidenceDeletionLocked = false,
   editDisabledReason,
   nowMs,
   uploading = false,
@@ -155,6 +164,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   onPreviewRevisionFile,
   onPreviewEvidenceFile,
   editableCriteriaIds,
+  scoreUnlockForNewCriteria,
   onCompletionChange,
 }, ref) {
   const [score, setScore] = useState('');
@@ -205,11 +215,16 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
   const maxBonus = criterion.bonusScore ?? 0;
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
+  const criterionDeadlineBlocksEdit = isDeadlineBlockingLocalityEdit(criterionDeadlineExpired, allowRevisionAfterDeadline);
   const revisionReason = specialistRevisionReasons?.get(criterion.id) ?? null;
   const revisionFiles = specialistRevisionFiles?.get(criterion.id) ?? [];
   const revisionLocked = Boolean(editableCriteriaIds && !editableCriteriaIds.has(criterion.id));
   const criterionDisabled = criterion.status === 'Deleted' || entry?.criteriaStatus === 'Deleted';
-  const locked = Boolean(criterionDisabled || entry?.locked || !editable || criterionDeadlineExpired || revisionLocked);
+  const locked = Boolean(criterionDisabled || entry?.locked || !editable || criterionDeadlineBlocksEdit || revisionLocked);
+  // Chỉ mở ô điểm khi lần mở lại gần nhất là do Chuyên viên thêm tiêu chí (nhóm đã áp dụng)
+  // và result đang chờ địa phương nhập điểm lần đầu — luồng yêu cầu chỉnh sửa thường vẫn giữ nguyên điểm.
+  const scoreFieldsEditable = !scoreFieldsLocked
+    || (scoreUnlockForNewCriteria && entry?.reviewStatus === 'RequiresRevision');
   const standardFiles = files.filter((item) => item.kind !== 'BONUS');
   const availableEvidenceSlots = Math.max(0, MAX_FILES_PER_CRITERION - standardFiles.length);
   const evidenceFileError = dialogFiles.some((file) => file.size > MAX_FILE_SIZE)
@@ -223,7 +238,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       ? 'Tiêu chí đã bị vô hiệu, không thể chỉnh sửa hoặc nộp thêm.'
       : !editable
         ? editDisabledReason ?? 'Hồ sơ hiện không cho phép chỉnh sửa.'
-      : criterionDeadlineExpired
+      : criterionDeadlineBlocksEdit
         ? 'Tiêu chí đã quá hạn nộp, không thể thêm file minh chứng.'
         : revisionLocked
           ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.'
@@ -322,8 +337,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       }
       return true;
     }
-    const nextScoreError = scoreFieldsLocked ? '' : validateScore(score, criterion.maxScore, 'Điểm đề xuất', true);
-    const nextBonusScoreError = scoreFieldsLocked ? '' : validateScore(bonusScore, maxBonus, 'Điểm thưởng');
+    const nextScoreError = scoreFieldsEditable ? validateScore(score, criterion.maxScore, 'Điểm đề xuất', true) : '';
+    const nextBonusScoreError = scoreFieldsEditable ? validateScore(bonusScore, maxBonus, 'Điểm thưởng') : '';
     setScoreError(nextScoreError);
     setBonusScoreError(nextBonusScoreError);
     setExplanationError('');
@@ -344,8 +359,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
 
   const collect = (): EvidenceFormValue | null => {
     if (locked) return null;
-    const proposedScore = scoreFieldsLocked ? entry?.proposedScore ?? entry?.value ?? 0 : Number(score || 0);
-    const proposedBonusScore = scoreFieldsLocked ? entry?.proposedBonusScore ?? 0 : Number(bonusScore || 0);
+    const proposedScore = scoreFieldsEditable ? Number(score || 0) : entry?.proposedScore ?? entry?.value ?? 0;
+    const proposedBonusScore = scoreFieldsEditable ? Number(bonusScore || 0) : entry?.proposedBonusScore ?? 0;
     return {
       proposedScore: isSupplementary ? 0 : proposedScore,
       proposedBonusScore: isSupplementary ? 0 : proposedBonusScore,
@@ -369,6 +384,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <TooltipContent className="max-w-sm whitespace-normal break-words">{criterion.name}</TooltipContent>
         </Tooltip>
         {criterion.type === 'Supplementary' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí bổ sung</Badge>}
+        {criterion.type === 'LateAdded' && <Badge className="mt-2 bg-primary/10 text-primary">Tiêu chí mới</Badge>}
         {criterionDisabled && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}
         {(revisionReason || revisionFiles.length > 0) && <Badge className="mt-2 bg-warning/15 text-warning-foreground">Yêu cầu chỉnh sửa</Badge>}
       </TableCell>}
@@ -385,7 +401,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <ScorePlaceholder label="Điểm đề xuất" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
-            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || scoreFieldsLocked || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
+            <Input aria-label={`Điểm đề xuất ${criterion.name}`} aria-invalid={Boolean(scoreError)} type="number" min={0} max={criterion.maxScore} step="0.25" value={score} disabled={locked || !scoreFieldsEditable || uploading} onChange={(event) => updateScoreInput(event.target.value, criterion.maxScore, 'Điểm đề xuất', setScore, setScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {criterion.maxScore}</span>
           </div>
         )}
@@ -396,7 +412,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
           <ScorePlaceholder label="Điểm thưởng" />
         ) : (
           <div className="relative mx-auto w-full max-w-[108px]">
-            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || scoreFieldsLocked || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
+            <Input aria-label={`Điểm thưởng ${criterion.name}`} aria-invalid={Boolean(bonusScoreError)} type="number" min={0} max={maxBonus} step="0.25" value={bonusScore} disabled={locked || !scoreFieldsEditable || maxBonus === 0 || uploading} onChange={(event) => updateScoreInput(event.target.value, maxBonus, 'Điểm thưởng', setBonusScore, setBonusScoreError)} className="h-11 pr-14 text-center text-base font-semibold tabular-nums" />
             <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center whitespace-nowrap border-l pl-2 text-sm font-medium text-muted-foreground tabular-nums">/ {maxBonus}</span>
           </div>
         )}
@@ -449,7 +465,7 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
                 <li key={item.id} className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md border border-border bg-card px-2 py-2">
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-info-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:text-info-foreground dark:text-info dark:hover:text-info"
                     title={`Xem file ${item.fileName}`}
                     aria-label={`Xem file ${item.fileName}`}
                     onClick={(event) => { event.stopPropagation(); onPreviewEvidenceFile?.(item); }}
@@ -477,7 +493,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
                       variant="ghost"
                       size="icon-xs"
                       className="shrink-0 text-destructive"
-                      disabled={locked || uploading}
+                      disabled={locked || uploading || evidenceDeletionLocked}
+                      disabledReason={evidenceDeletionLocked ? 'Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.' : undefined}
                       title="Xóa minh chứng"
                       aria-label={`Xóa minh chứng ${item.fileName}`}
                       onClick={(event) => { event.stopPropagation(); onDeleteEvidence(item.id); }}
@@ -576,6 +593,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   evidence,
   localityId,
   editable,
+  allowRevisionAfterDeadline = false,
+  evidenceDeletionLocked = false,
   scoreFieldsLocked = false,
   editDisabledReason,
   nowMs,
@@ -585,9 +604,11 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   specialistRevisionFiles,
   onPreviewRevisionFile,
   editableCriteriaIds,
+  scoreUnlockForNewCriteria,
   onCompletionChange,
   uploading,
   toolbar,
+  toolbarLeading,
   onSelect,
   onDeleteEvidence,
 }, ref) {
@@ -604,19 +625,19 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
       accessorKey: 'deadline',
       header: 'Hạn nộp',
       size: 130,
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', sortable: true, disableTooltip: true },
     },
     {
       id: 'proposedScore',
       header: 'Điểm đề xuất ★',
       size: 130,
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', sortable: true, disableTooltip: true },
     },
     {
       id: 'bonusScore',
       header: 'Điểm thưởng',
       size: 130,
-      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', disableTooltip: true },
+      meta: { className: 'h-12 w-[130px] border-r border-white/30', align: 'center', sortable: true, disableTooltip: true },
     },
     {
       id: 'explanation',
@@ -660,14 +681,16 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
           <h2 className="text-sm font-semibold">Nội dung tự đánh giá</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{scoreFieldsLocked ? 'Đang xử lý yêu cầu chỉnh sửa: điểm đề xuất và điểm thưởng được giữ nguyên; bạn vẫn có thể cập nhật minh chứng và diễn giải.' : 'Nhập điểm trực tiếp; minh chứng và diễn giải được bổ sung qua từng nút trên dòng.'}</p>
         </div>
-        <Badge variant="outline">{criteria.length} tiêu chí</Badge>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="outline">{criteria.length} tiêu chí</Badge>
+        </div>      </div>
       <DataTable
         columns={columns}
         data={criteria}
         pageSize={criteria.length || 10}
         showPagination={false}
         toolbar={toolbar}
+        toolbarLeading={toolbarLeading}
         getRowId={(criterion) => criterion.id}
         selectedRowId={selectedCriterionId}
         className="-mt-px"
@@ -687,6 +710,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               draft={draftValues?.get(criterion.id)}
               state={record.state}
               editable={editable}
+              allowRevisionAfterDeadline={allowRevisionAfterDeadline}
+              evidenceDeletionLocked={evidenceDeletionLocked}
               scoreFieldsLocked={scoreFieldsLocked}
               editDisabledReason={editDisabledReason}
               nowMs={nowMs}
@@ -696,6 +721,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               specialistRevisionFiles={specialistRevisionFiles}
               onPreviewRevisionFile={onPreviewRevisionFile}
               editableCriteriaIds={editableCriteriaIds}
+              scoreUnlockForNewCriteria={scoreUnlockForNewCriteria}
               onCompletionChange={onCompletionChange}
               uploading={uploading}
               onSelect={onSelect}

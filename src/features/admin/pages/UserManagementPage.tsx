@@ -6,7 +6,7 @@ import { getGetApiV1DepartmentsQueryKey, getGetApiV1DepartmentsAllQueryKey } fro
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { KeyRound, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -24,6 +24,7 @@ import {
 } from '@/api/endpoints/users';
 import type { CreateUserRequest, UpdateUserRequest } from '@/api/models';
 import { departmentsApi } from '../api/departmentsApi';
+import { isValidVietnamesePhoneNumber as isValidPhoneNumber } from '../userValidation';
 import { useAuthStore } from '@/store/authStore';
 
 // Swagger gen chưa cập nhật fullName/departmentId — mở rộng local cho tới khi chạy lại gen:api.
@@ -36,8 +37,6 @@ interface ManagedUser {
   username: string | null;
   /** Họ tên người đại diện — tên hiển thị chính. */
   fullName: string | null;
-  firstName: string | null;
-  lastName: string | null;
   phone: string | null;
   wardCode: string | null;
   /** Ban (department) tài khoản thuộc về. */
@@ -64,7 +63,7 @@ const STATUS_OPTIONS = [
 
 const ROLE_OPTIONS = [
   { value: 'local', label: 'Địa phương' },
-  { value: 'specialist', label: 'Chuyên viên trưởng' },
+  { value: 'specialist', label: 'Chuyên viên phụ trách thi đua khen thưởng' },
   { value: 'leader', label: 'Lãnh đạo' },
   { value: 'council', label: 'Hội đồng' },
   { value: 'committee', label: 'Ủy ban' },
@@ -86,7 +85,7 @@ function roleLabel(raw: string): string {
   const normalized = raw.trim().toUpperCase().replace(/[-\s]/g, '_');
   const map: Record<string, string> = {
     LOCAL: 'Địa phương',
-    SPECIALIST: 'Chuyên viên trưởng',
+    SPECIALIST: 'Chuyên viên phụ trách thi đua khen thưởng',
     LEADER: 'Lãnh đạo',
     COUNCIL: 'Hội đồng',
     COMMITTEE: 'Ủy ban',
@@ -180,13 +179,13 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const [fUsername, setFUsername] = useState('');
   const [fFullName, setFFullName] = useState('');
   const [fPhone, setFPhone] = useState('');
+  const [fPhoneError, setFPhoneError] = useState('');
   const [fRole, setFRole] = useState('');
   const [fDepartment, setFDepartment] = useState('');
 
   const [eFullName, setEFullName] = useState('');
-  const [eFirstName, setEFirstName] = useState('');
-  const [eLastName, setELastName] = useState('');
   const [ePhone, setEPhone] = useState('');
+  const [ePhoneError, setEPhoneError] = useState('');
   const [eWardCode, setEWardCode] = useState('');
   const [eStatus, setEStatus] = useState('Active');
   const [eDepartment, setEDepartment] = useState('');
@@ -196,9 +195,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const openEdit = (u: ManagedUser) => {
     setSelected(u);
     setEFullName(u.fullName ?? '');
-    setEFirstName(u.firstName ?? '');
-    setELastName(u.lastName ?? '');
     setEPhone(u.phone ?? '');
+    setEPhoneError('');
     setEWardCode(u.wardCode ?? '');
     setEStatus(u.status || 'Active');
     setEDepartment(u.departmentId ?? '');
@@ -209,6 +207,9 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     e.preventDefault();
     if (!fEmail.trim()) { toast.error('Vui lòng nhập email.'); return; }
     if (!fFullName.trim()) { toast.error('Vui lòng nhập họ tên người đại diện.'); return; }
+    if (!fPhone.trim()) { setFPhoneError('Vui lòng nhập số điện thoại.'); return; }
+    if (!isValidPhoneNumber(fPhone)) { setFPhoneError('Số điện thoại không hợp lệ'); return; }
+    setFPhoneError('');
     if (!fRole) { toast.error('Vui lòng chọn vai trò.'); return; }
     if (!fDepartment) { toast.error('Vui lòng chọn ban.'); return; }
     createMutation.mutate({
@@ -226,12 +227,12 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const handleEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+    if (ePhone.trim() && !isValidPhoneNumber(ePhone)) { setEPhoneError('Số điện thoại không hợp lệ'); return; }
+    setEPhoneError('');
     updateMutation.mutate({
       id: selected.id,
       body: {
         fullName: eFullName.trim() || null,
-        firstName: eFirstName.trim() || null,
-        lastName: eLastName.trim() || null,
         phone: ePhone.trim() || null,
         wardCode: eWardCode.trim() || null,
         departmentId: eDepartment || null,
@@ -263,8 +264,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       id: 'fullName',
       header: 'Họ và tên',
       meta: { className: 'font-medium', list: { width: 'minmax(180px, 1.4fr)' } },
-      // Ưu tiên fullName (người đại diện) → fallback firstName + lastName.
-      cell: ({ row }) => row.original.fullName?.trim() || `${row.original.lastName ?? ''} ${row.original.firstName ?? ''}`.trim() || '—',
+      // Tên hiển thị chính là fullName (người đại diện); trống thì hiện —.
+      cell: ({ row }) => row.original.fullName?.trim() || '—',
     },
     {
       accessorKey: 'email',
@@ -296,9 +297,10 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       cell: ({ row }) => row.original.departmentName ?? '—',
     },
     {
-      accessorKey: 'status',
+      accessorFn: (row) => statusLabels[row.status] ?? row.status,
+      id: 'status',
       header: 'Trạng thái',
-      meta: { align: 'center', list: { width: '130px' } },
+      meta: { align: 'center', sortable: true, list: { width: '130px' } },
       cell: ({ row }) => (
         <Badge variant={statusVariant(row.original.status)}>{statusLabels[row.original.status] ?? row.original.status}</Badge>
       ),
@@ -306,7 +308,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
     {
       accessorKey: 'createdAt',
       header: 'Ngày tạo',
-      meta: { align: 'right', list: { width: '130px', valueClassName: 'text-xs' } },
+      sortDescFirst: true,
+      meta: { align: 'right', sortable: true, list: { width: '130px', valueClassName: 'text-xs' } },
       cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
   ], []);
@@ -350,17 +353,18 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           </div>
         }
         activeFilters={[
+          ...(search.trim() ? [{ label: 'Tìm kiếm', value: search.trim(), onClear: () => setSearch('') }] : []),
           ...(statusFilter ? [{ label: 'Trạng thái', value: statusLabels[statusFilter] ?? statusFilter, onClear: () => setStatusFilter('') }] : []),
           ...(roleFilter ? [{ label: 'Vai trò', value: roleLabels[roleFilter] ?? roleFilter, onClear: () => setRoleFilter('') }] : []),
         ]}
-        onClearFilters={() => { setStatusFilter(''); setRoleFilter(''); }}
+        onClearFilters={() => { setSearch(''); setStatusFilter(''); setRoleFilter(''); }}
         emptyState={{
           title: 'Chưa có tài khoản',
           description: 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
           canCreateAccounts ? (
-            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
+            <Button size="sm" className="h-9!" onClick={() => { setFEmail(''); setFUsername(''); setFFullName(''); setFPhone(''); setFPhoneError(''); setFRole(''); setFDepartment(''); setCreateOpen(true); }} action="create">
               <Plus className="h-4 w-4 ml-2" /> Thêm tài khoản
             </Button>
           ) : undefined
@@ -392,8 +396,24 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
           <Input id="u-full-name" value={fFullName} onChange={(e) => setFFullName(e.target.value)} placeholder="VD: Nguyễn Văn A — tên hiển thị chính" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="u-phone">Số điện thoại</Label>
-          <Input id="u-phone" value={fPhone} onChange={(e) => setFPhone(e.target.value)} placeholder="0901234567" />
+          <Label htmlFor="u-phone">Số điện thoại <span className="text-destructive">*</span></Label>
+          <Input
+            id="u-phone"
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            aria-invalid={Boolean(fPhoneError)}
+            aria-describedby={fPhoneError ? 'u-phone-error' : undefined}
+            value={fPhone}
+            onChange={(e) => { setFPhone(e.target.value); setFPhoneError(''); }}
+            placeholder="0901234567"
+          />
+          {fPhoneError && (
+            <p id="u-phone-error" role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+              <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+              {fPhoneError}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -442,18 +462,23 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="e-last-name">Họ</Label>
-            <Input id="e-last-name" value={eLastName} onChange={(e) => setELastName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e-first-name">Tên</Label>
-            <Input id="e-first-name" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
             <Label htmlFor="e-phone">Số điện thoại</Label>
-            <Input id="e-phone" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
+            <Input
+              id="e-phone"
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              aria-invalid={Boolean(ePhoneError)}
+              aria-describedby={ePhoneError ? 'e-phone-error' : undefined}
+              value={ePhone}
+              onChange={(e) => { setEPhone(e.target.value); setEPhoneError(''); }}
+            />
+            {ePhoneError && (
+              <p id="e-phone-error" role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+                {ePhoneError}
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="e-ward">Mã phường/xã</Label>
@@ -522,7 +547,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       {/* Actions row cho dòng được chọn */}
       {canManageAccounts && selected && !deleteOpen && !resetOpen && !editOpen && !createOpen && (
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
+          <Button variant="warning" size="sm" onClick={() => { setResetPassword(''); setResetOpen(true); }}>
             <KeyRound className="h-3.5 w-3.5" /> Đặt lại mật khẩu
           </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>

@@ -3,6 +3,9 @@ import { FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { FilePreviewDialog, TableColumnVisibility } from '@/components/core';
+import { SortableTableHead } from '@/components/core/SortableTableHead';
+import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
+import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { CriteriaGroupApi } from '@/features/admin/api/criteriaGroupsApi';
 import type { SubmissionApi } from '@/features/cham-diem/api/specialistApi';
@@ -22,6 +25,7 @@ function displayNumber(value: number) {
 
 export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, group }: CouncilSubmissionDetailDialogProps) {
   const [previewFile, setPreviewFile] = useState<{ id: string; originalName: string } | null>(null);
+  const [detailSort, setDetailSort] = useState<TableSortState>(null);
   if (!submission) return null;
 
   const criteriaById = new Map((group?.criteria ?? []).map((criterion) => [criterion.id, criterion]));
@@ -30,6 +34,14 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
   const actualTotal = activeResults.reduce((total, result) => total + (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint), 0);
   const actualBonusTotal = activeResults.reduce((total, result) => total + (result.officialBonusPoint ?? result.bonusPoint), 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? 'Địa phương';
+  const sortedResults = sortTableRows(submission.results, detailSort, {
+    proposed: (result) => result.point + result.bonusPoint,
+    actual: (result) => (result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint),
+  });
+  const detailSortOptions: TableSortOption[] = [
+    { value: 'proposed-desc', label: 'Điểm đề xuất cao nhất', sort: { column: 'proposed', direction: 'desc' } },
+    { value: 'actual-desc', label: 'Điểm thực tế cao nhất', sort: { column: 'actual', direction: 'desc' } },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,7 +61,8 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
           </div>
 
           <div className="rounded-lg border">
-            <div className="flex justify-end border-b p-2">
+            <div className="flex flex-wrap justify-end gap-2 border-b p-2">
+              <TableSortSelect sort={detailSort} options={detailSortOptions} onChange={setDetailSort} />
               <TableColumnVisibility
                 storageKey="council-submission-detail"
                 columns={[
@@ -69,15 +82,15 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                 <TableRow>
                   <TableHead>Tên tiêu chí con</TableHead>
                   <TableHead>Nội dung</TableHead>
-                  <TableHead className="text-right">Điểm đề xuất</TableHead>
-                  <TableHead className="text-right">Điểm thực tế</TableHead>
+                  <SortableTableHead column="proposed" label="Điểm đề xuất" ariaLabel="Điểm đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />
+                  <SortableTableHead column="actual" label="Điểm thực tế" ariaLabel="Điểm thực tế" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'actual', 'desc'))} align="right" className="text-right" buttonClassName="text-foreground hover:text-primary" />
                   <TableHead>Lý do</TableHead>
                   <TableHead>Minh chứng</TableHead>
                   <TableHead>Ghi chú</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {submission.results.map((result) => {
+                {sortedResults.map((result) => {
                   const criterion = criteriaById.get(result.criteriaId);
                   return (
                     <TableRow key={result.id}>
@@ -87,7 +100,7 @@ export function CouncilSubmissionDetailDialog({ open, onOpenChange, submission, 
                       <TableCell className="text-right font-semibold tabular-nums">{displayNumber((result.officialPoint ?? result.point) + (result.officialBonusPoint ?? result.bonusPoint))}</TableCell>
                       <TableCell className="max-w-[220px] whitespace-normal text-muted-foreground">{result.officialReason || '—'}</TableCell>
                       <TableCell className="max-w-[210px] whitespace-normal">
-                        {result.files.length ? <div className="space-y-1">{result.files.map((file) => <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex items-center gap-1 text-primary hover:underline"><FileText className="size-3.5 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : <span className="text-muted-foreground">—</span>}
+                        {result.files.length ? <div className="space-y-1">{result.files.map((file) => <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="flex items-center gap-1 text-info-foreground hover:underline dark:text-info"><FileText className="size-3.5 shrink-0" />{file.displayName || file.originalName}</button>)}</div> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="max-w-[190px] whitespace-normal text-muted-foreground">{criterion?.note || '—'}</TableCell>
                     </TableRow>

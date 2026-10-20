@@ -100,7 +100,7 @@ export function CriteriaChildrenDialog({ open, onOpenChange, items, totalScore, 
           </div>
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm font-semibold">Danh sách tiêu chí con</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => setDraft((current) => [...current, emptyCriteriaChild()])}>
+            <Button type="button" variant="success" size="sm" onClick={() => setDraft((current) => [...current, emptyCriteriaChild()])}>
               <Plus className="mr-1.5 h-4 w-4" /> Thêm tiêu chí
             </Button>
           </div>

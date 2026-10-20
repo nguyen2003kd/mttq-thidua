@@ -75,6 +75,11 @@ export interface SubmissionApi {
   criteriaGroupName: string | null;
   currentStage: SubmissionStage;
   totalProposedPoint: number;
+  /** Tổng điểm thưởng địa phương đề xuất của hồ sơ — dùng để theo dõi quota 5/kỳ. */
+  totalProposedBonusPoint?: number;
+  /** Tổng điểm thưởng chính thức của địa phương trong kỳ (mọi hồ sơ) + giới hạn kỳ — trả về ở endpoint chi tiết. */
+  periodBonusUsed?: number;
+  periodBonusLimit?: number;
   totalFinalPoint: number;
   submittedAt: string | null;
   createdAt: string;
@@ -157,7 +162,7 @@ export const localityApi = {
     request<PagedResult<CriteriaApi>>({ url: `/api/v1/criteria-groups/${groupId}/criteria`, method: 'GET', params }),
 
   // Submissions — bài nộp của địa phương
-  listMySubmissions: (params?: { stage?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
+  listMySubmissions: (params?: { stage?: string; periodId?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: string }) =>
     request<PagedResult<SubmissionApi>>({ url: '/api/v1/my-submissions', method: 'GET', params }),
   getSubmission: (id: string) =>
     request<SubmissionApi>({ url: `/api/v1/submissions/${id}`, method: 'GET' }),
@@ -240,7 +245,7 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissio
       .filter((c) => c.type !== 'Supplementary' || c.targetSubmissionId === targetSubmissionId)
       .map((c, idx): CriteriaItem => ({
       id: c.id,
-      type: c.type as 'Standard' | 'Supplementary',
+      type: c.type as 'Standard' | 'Supplementary' | 'LateAdded',
       name: c.content,
       maxScore: c.maxPoint,
       bonusScore: c.maxBonusPoint || undefined,
@@ -290,6 +295,7 @@ export function mapSubmissionToRecord(submission: SubmissionApi): ScoreRecord {
       criteriaId: r.criteriaId,
       criteriaName: r.criteriaContent ?? '',
       criteriaStatus: r.criteriaStatus ?? undefined,
+      reviewStatus: r.reviewStatus,
       value: r.point ?? 0,
       state,
       scoredBy: '',
