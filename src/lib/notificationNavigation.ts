@@ -62,6 +62,15 @@ export function getNotificationTarget(
       return groupId ? { to: `/dia-phuong/tieu-chi/${groupId}` } : null;
     }
 
+    case 'criteria_group_applied_for_scoring': {
+      // Vào thẳng nhóm tiêu chí vừa được áp dụng: SCORER xem theo tiêu chí, REVIEWER/SPECIALIST xem trang tiêu chí con.
+      const scoringGroupId = payload.criteriaGroupId ?? payload.criteriaGroupIds?.[0];
+      if (!scoringGroupId) return null;
+      if (role === 'SCORER') return { to: `/thi-dua/cham-diem/theo-tieu-chi/${scoringGroupId}` };
+      if (role === 'REVIEWER' || role === 'SPECIALIST') return { to: `/chuyen-vien/tieu-chi/${scoringGroupId}/con` };
+      return null;
+    }
+
     case 'result_published':
       return payload.periodId ? { to: `/dia-phuong/ket-qua?periodId=${encodeURIComponent(payload.periodId)}` } : null;
 
@@ -78,6 +87,14 @@ export function getNotificationTarget(
     case 'reviewer_revision_requested':
     case 'specialist_review_requested':
       if ((role !== 'REVIEWER' && role !== 'SPECIALIST') || !wardCode || !payload.criteriaGroupId) return null;
+      return { to: `/chuyen-vien/duyet/${wardCode}/${payload.criteriaGroupId}` };
+
+    case 'scorer_submission_received':
+      if (role !== 'SCORER' || !wardCode || !payload.criteriaGroupId) return null;
+      return { to: `/thi-dua/cham-diem/${wardCode}/${payload.criteriaGroupId}` };
+
+    case 'reviewer_submission_received':
+      if (role !== 'REVIEWER' || !wardCode || !payload.criteriaGroupId) return null;
       return { to: `/chuyen-vien/duyet/${wardCode}/${payload.criteriaGroupId}` };
 
     default:

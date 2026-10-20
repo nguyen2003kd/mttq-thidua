@@ -35,6 +35,10 @@ export interface AuditLogItem {
   actionKind: string | null;
   /** Vai trò thực hiện — dùng để phân biệt các cấp trong lịch sử. */
   actionLevel: string | null;
+  /** Nhãn vai trò của actor (Địa phương, Chuyên viên cấp 2…) — luôn có, ghép trước tên actor. */
+  actorLevel?: string | null;
+  /** Tên cá nhân đầy đủ của actor (trước khi thay bằng tên xã/phường/ban). */
+  actorFullName?: string | null;
   entityName: string | null;
   entityId: string | null;
   httpMethod: string | null;

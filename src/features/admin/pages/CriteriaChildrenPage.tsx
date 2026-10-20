@@ -114,6 +114,7 @@ export default function CriteriaChildrenPage() {
   const appliedCriteria = useMemo(() => groupCriteria.filter((item) => item.status === 'Applied'), [groupCriteria]);
   const criteriaMaxPointTotal = useMemo(() => groupCriteria.reduce((total, item) => total + item.maxScore, 0), [groupCriteria]);
   const criteria = useMemo(() => criteriaPage?.items.map(toItem) ?? [], [criteriaPage]);
+  const hideChildStatus = group?.status === 'Draft';
   const columns = useMemo<ColumnDef<CriteriaItem>[]>(() => [
     {
       accessorKey: 'name',
@@ -140,14 +141,16 @@ export default function CriteriaChildrenPage() {
       meta: { sortable: true, list: { width: 'minmax(145px,0.9fr)' } },
     },
     {
-      accessorFn: (row) => row.status === 'Deleted' ? 'Vô hiệu' : row.status === 'Applied' ? 'Đã áp dụng' : 'Nháp',
+      accessorFn: (row) => hideChildStatus ? '' : row.status === 'Deleted' ? 'Vô hiệu' : row.status === 'Applied' ? 'Đã áp dụng' : 'Nháp',
       id: 'status',
       header: 'Trạng thái',
-      cell: ({ row }) => row.original.status === 'Deleted'
-        ? <Badge variant="secondary">Vô hiệu</Badge>
-        : row.original.status === 'Applied'
-          ? <Badge variant="success">Đã áp dụng</Badge>
-          : <Badge variant="secondary">Nháp</Badge>,
+      cell: ({ row }) => hideChildStatus
+        ? null
+        : row.original.status === 'Deleted'
+          ? <Badge variant="secondary">Vô hiệu</Badge>
+          : row.original.status === 'Applied'
+            ? <Badge variant="success">Đã áp dụng</Badge>
+            : <Badge variant="secondary">Nháp</Badge>,
       meta: { align: 'center', sortable: true, list: { width: 'minmax(120px,0.75fr)' } },
     },
     {
@@ -156,7 +159,7 @@ export default function CriteriaChildrenPage() {
       cell: ({ row }) => <TruncatedText value={row.original.note} className="text-muted-foreground" />,
       meta: { list: { width: 'minmax(180px,1.1fr)' } },
     },
-  ], []);
+  ], [hideChildStatus]);
   if (isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
   if (!group) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description={error ? getCriteriaApiError(error) : 'Nhóm tiêu chí không tồn tại hoặc đã bị xóa.'} />;
   const pointValidation = validateCriteriaApplication(group.maxPoint, appliedCriteria.map((item) => item.maxScore));

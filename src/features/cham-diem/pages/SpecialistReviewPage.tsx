@@ -197,9 +197,9 @@ type GroupStatusFilter = '' | SpecialistCriteriaGroup['status'];
 const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: SubmissionStageFilter; label: string }>> = {
   SCORER: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
-    { value: 'ScorerRevisionRequested', label: 'Chờ Chuyên viên cấp 2 chỉnh sửa' },
-    { value: 'RequiresRevision', label: 'Chờ Địa phương chỉnh sửa' },
+    { value: 'LocalSubmitted', label: 'Chờ chấm' },
+    { value: 'ScorerRevisionRequested', label: 'Yêu cầu chỉnh sửa từ Lãnh đạo ban' },
+    { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
     { value: 'ScorerSubmitted,ReviewerApproved,SpecialistApproved', label: 'Đã gửi Lãnh đạo ban' },
   ],
   REVIEWER: [
@@ -210,10 +210,10 @@ const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: Submission
   ],
   SPECIALIST: [
     { value: '', label: 'Tất cả' },
-    { value: 'LocalSubmitted', label: 'Chờ Chuyên viên cấp 2' },
-    { value: 'ScorerSubmitted', label: 'Chờ Lãnh đạo ban' },
+    { value: 'LocalSubmitted', label: 'Chờ chấm' },
+    { value: 'ScorerSubmitted', label: 'Đã gửi Lãnh đạo ban' },
     { value: 'ReviewerApproved', label: 'Chờ Chuyên viên trưởng' },
-    { value: 'RequiresRevision', label: 'Yêu cầu chỉnh sửa' },
+    { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
     { value: 'SpecialistApproved', label: 'Đã duyệt' },
   ],
 };
@@ -370,7 +370,7 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
     ScorerRevisionRequested: 'YEU_CAU_SUA',
-    ReviewerRevisionRequested: 'DA_DUYET',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
   REVIEWER: {
     LocalSubmitted: 'CHUA_DEN_LUOT',
@@ -382,19 +382,19 @@ const STAGE_TO_STATUS_BY_ROLE: Record<ScoringRole, Record<string, LocalityRow['o
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
     ScorerRevisionRequested: 'YEU_CAU_SUA',
-    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
+    ReviewerRevisionRequested: 'CHO_DUYET',
   },
   SPECIALIST: {
-    LocalSubmitted: 'CHO_DUYET',
-    ScorerSubmitted: 'CHO_DUYET',
+    LocalSubmitted: 'CHUA_DEN_LUOT',
+    ScorerSubmitted: 'CHUA_DEN_LUOT',
     ReviewerApproved: 'CHO_DUYET',
     SpecialistApproved: 'DA_DUYET',
     LeaderApproved: 'DA_DUYET',
     CouncilApproved: 'DA_DUYET',
     CommitteeFinalized: 'DA_DUYET',
     RequiresRevision: 'YEU_CAU_SUA',
-    ScorerRevisionRequested: 'CHO_DUYET',
-    ReviewerRevisionRequested: 'CHO_DUYET',
+    ScorerRevisionRequested: 'CHUA_DEN_LUOT',
+    ReviewerRevisionRequested: 'CHUA_DEN_LUOT',
   },
 };
 
@@ -1693,7 +1693,9 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           ? 'YEU_CAU_SUA'
           : statuses.includes('CHO_DUYET')
             ? 'CHO_DUYET'
-            : 'DA_DUYET';
+            : statuses.includes('CHUA_DEN_LUOT')
+              ? 'CHUA_DEN_LUOT'
+              : 'DA_DUYET';
       const completedGroupCount = realSubs.filter((s) => STAGE_TO_GROUP_STATUS_BY_ROLE[scoringRole][s.currentStage] === 'DA_CHAM').length;
       return {
         localityId: wardCode,
@@ -2417,7 +2419,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const specialistLockReason = scorerRevisionScopeLoading
     ? 'Đang tải danh sách tiêu chí cần chỉnh sửa.'
     : specialistPermissions.disabledReason;
-  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : scoringRole === 'SPECIALIST' ? 'người review' : 'địa phương';
+  // Yêu cầu chỉnh sửa của Chuyên viên trưởng giờ gửi thẳng về địa phương (không qua Lãnh đạo ban).
+  const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : 'địa phương';
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
     (selectedSubmissionDetailQuery.data?.results ?? []).map((result) => [result.criteriaId, result]),
