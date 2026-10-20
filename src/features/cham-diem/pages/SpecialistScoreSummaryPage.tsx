@@ -275,10 +275,10 @@ function LocalityCriteriaDialog({
                         <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
                         <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Địa phương đề xuất</TableHead>
                         <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">điểm thưởng địa phương</TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của tỉnh </TableHead>
-                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của tỉnh</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm của thành phố</TableHead>
+                        <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Điểm thưởng của thành phố</TableHead>
                         <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-right text-primary-foreground">Tổng điểm địa phương</TableHead>
-                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm tỉnh</TableHead>
+                        <TableHead className="whitespace-normal px-4 py-3 text-right text-primary-foreground">Tổng điểm thành phố</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -340,7 +340,7 @@ function LocalityCriteriaDialog({
                           <span className="font-semibold tabular-nums text-foreground">{formatScore(totals.proposedScore + totals.proposedBonus)}</span>
                         </span>
                         <span className="text-sm">
-                          <span className="block text-xs text-muted-foreground">Tổng điểm tỉnh</span>
+                          <span className="block text-xs text-muted-foreground">Tổng điểm thành phố</span>
                           <span className="font-semibold tabular-nums text-foreground">
                             {formatScore(totals.hasProvinceScore ? totals.provinceScore + totals.provinceBonus : null)}
                           </span>
@@ -427,7 +427,7 @@ function ResultSummary({
   );
 }
 
-/** Bảng tổng hợp điểm toàn tỉnh của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
+/** Bảng tổng hợp điểm toàn thành phố của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
 export default function SpecialistScoreSummaryPage({ readOnly = false }: { readOnly?: boolean }) {
   const queryClient = useQueryClient();
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
@@ -715,7 +715,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
             />
             <div className="border-t border-border">
               <ResultSummary
-                label="Tỉnh chấm"
+                label="Thành phố chấm"
                 distribution={provinceDistribution}
                 emphasized
               />
@@ -724,7 +724,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
 
           <aside
             className="self-start overflow-hidden rounded-lg border border-border bg-card"
-            aria-label="Xếp hạng xã phường theo điểm tỉnh chấm"
+            aria-label="Xếp hạng xã phường theo điểm thành phố chấm"
           >
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
               <div className="flex items-center gap-2">
@@ -733,7 +733,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                 </span>
                 <div>
                   <h2 className="text-sm font-semibold text-foreground">
-                    Xếp hạng tỉnh chấm
+                    Xếp hạng thành phố chấm
                   </h2>
                 </div>
               </div>
@@ -817,7 +817,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
 
       <section
         className="min-w-[1480px] overflow-clip rounded-lg border border-border bg-card"
-        aria-label="Bảng tổng hợp chấm điểm toàn tỉnh"
+        aria-label="Bảng tổng hợp chấm điểm toàn thành phố"
       >
         <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border px-5 py-4">
           <Badge variant="secondary">{rows.length} đơn vị</Badge>
@@ -858,10 +858,10 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                   Điểm điểm thưởng địa phương
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Tỉnh chấm
+                  Thành phố chấm
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Điểm thưởng của tỉnh
+                  Điểm thưởng của thành phố
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
                   Địa phương chấm
@@ -869,7 +869,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                   (điểm tự chấm + điểm thưởng)
                 </TableHead>
                 <TableHead className="sticky top-[-16px] z-10 whitespace-normal bg-primary px-4 py-3 text-right leading-5 text-primary-foreground sm:top-[-24px]">
-                  Tỉnh chấm
+                  Thành phố chấm
                   <br />
                   (điểm chấm + điểm thưởng)
                 </TableHead>
