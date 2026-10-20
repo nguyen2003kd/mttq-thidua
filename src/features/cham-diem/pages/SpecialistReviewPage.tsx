@@ -212,7 +212,7 @@ const QUICK_STAGE_FILTERS_BY_ROLE: Record<ScoringRole, Array<{ value: Submission
     { value: '', label: 'Tất cả' },
     { value: 'LocalSubmitted', label: 'Chờ chấm' },
     { value: 'ScorerSubmitted', label: 'Đã gửi Lãnh đạo ban' },
-    { value: 'ReviewerApproved', label: 'Chờ Chuyên viên trưởng' },
+    { value: 'ReviewerApproved', label: 'Chờ Chuyên viên phụ trách thi đua khen thưởng' },
     { value: 'RequiresRevision', label: 'Các yêu cầu ĐP chỉnh sửa' },
     { value: 'SpecialistApproved', label: 'Đã duyệt' },
   ],
@@ -506,10 +506,10 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
 // stageLevel = stage hồ sơ đang ở khi hành động diễn ra → suy ra cấp thao tác
 const STAGE_ACTOR_LABELS: Record<string, string> = {
   Draft: 'Địa phương',
-  RequiresRevision: 'Chuyên viên trưởng',
-  LocalSubmitted: 'Chuyên viên trưởng',
+  RequiresRevision: 'Chuyên viên phụ trách thi đua khen thưởng',
+  LocalSubmitted: 'Chuyên viên phụ trách thi đua khen thưởng',
   ScorerSubmitted: 'Lãnh đạo ban',
-  ReviewerApproved: 'Chuyên viên trưởng',
+  ReviewerApproved: 'Chuyên viên phụ trách thi đua khen thưởng',
   SpecialistApproved: 'Lãnh đạo ban',
   LeaderApproved: 'Hội đồng thi đua',
   CouncilApproved: 'Ban thường trực',
@@ -2419,7 +2419,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const specialistLockReason = scorerRevisionScopeLoading
     ? 'Đang tải danh sách tiêu chí cần chỉnh sửa.'
     : specialistPermissions.disabledReason;
-  // Yêu cầu chỉnh sửa của Chuyên viên trưởng giờ gửi thẳng về địa phương (không qua Lãnh đạo ban).
+  // Yêu cầu chỉnh sửa của Chuyên viên phụ trách thi đua khen thưởng giờ gửi thẳng về địa phương (không qua Lãnh đạo ban).
   const revisionTargetLabel = scoringRole === 'REVIEWER' ? 'người chấm' : 'địa phương';
   const displayGroup = applyOverrides(selectedGroup);
   const resultByCriteriaId = new Map(
@@ -3267,7 +3267,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         onOpenChange={setForwardOpen}
         localityName={district.localityName}
         groupName={selectedGroup.groupName}
-        targetLabel={basePath === '/chuyen-vien/duyet' ? 'Chuyên viên trưởng' : undefined}
+        targetLabel={basePath === '/chuyen-vien/duyet' ? 'Chuyên viên phụ trách thi đua khen thưởng' : undefined}
         explanationLabel={basePath === '/chuyen-vien/duyet' ? 'Diễn giải hồ sơ từ Lãnh đạo ban' : undefined}
         onConfirm={confirmForward}
       />

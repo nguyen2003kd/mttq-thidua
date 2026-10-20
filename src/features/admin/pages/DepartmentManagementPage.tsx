@@ -41,7 +41,7 @@ interface UsersEnvelope {
 
 function roleLabel(raw: string): string {
   const map: Record<string, string> = {
-    SPECIALIST: 'Chuyên viên trưởng',
+    SPECIALIST: 'Chuyên viên phụ trách thi đua khen thưởng',
     LEADER: 'Lãnh đạo',
     SCORER: 'Chuyên viên cấp 2',
     REVIEWER: 'Lãnh đạo ban',

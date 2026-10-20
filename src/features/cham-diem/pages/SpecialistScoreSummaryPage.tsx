@@ -159,7 +159,7 @@ function formatScore(value: number | null) {
   );
 }
 
-/** Chỉ hồ sơ đã qua bước Chuyên viên trưởng duyệt mới được tính vào bảng tổng hợp. */
+/** Chỉ hồ sơ đã qua bước Chuyên viên phụ trách thi đua khen thưởng duyệt mới được tính vào bảng tổng hợp. */
 const SUMMARY_STAGES: readonly SubmissionStage[] = ["SpecialistApproved", "ReviewerApproved"];
 
 async function listEverySubmission(periodId?: string) {

@@ -28,7 +28,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   LOCAL: 'Địa phương',
   SCORER: 'Chuyên viên cấp 2',
   REVIEWER: 'Lãnh đạo ban',
-  SPECIALIST: 'Chuyên viên trưởng',
+  SPECIALIST: 'Chuyên viên phụ trách thi đua khen thưởng',
   LEADER: 'Lãnh đạo',
   COUNCIL: 'Hội đồng',
   COMMITTEE: 'Ủy ban',
