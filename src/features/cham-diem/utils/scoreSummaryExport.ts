@@ -43,10 +43,10 @@ const HEADERS = [
   'Tên xã, phường',
   'Địa phương chấm',
   'Điểm điểm thưởng địa phương',
-  'Tỉnh chấm',
-  'Điểm thưởng của tỉnh',
+  'Thành phố chấm',
+  'Điểm thưởng của thành phố',
   'Địa phương chấm (điểm tự chấm + điểm thưởng)',
-  'Tỉnh chấm (điểm chấm + điểm thưởng)',
+  'Thành phố chấm (điểm chấm + điểm thưởng)',
 ];
 
 export interface ScoreSummaryExportRow {
@@ -92,7 +92,7 @@ function setCell(
 
 function writeOverviewBlock(worksheet: XLSX.WorkSheet, row: number, meta: ScoreSummaryExportMeta): number {
   setCell(worksheet, row, 0, 'Đề xuất điểm', sectionTitleStyle);
-  setCell(worksheet, row, 1, 'Tỉnh chấm', sectionTitleStyle);
+  setCell(worksheet, row, 1, 'Thành phố chấm', sectionTitleStyle);
   worksheet['!merges']!.push({ s: { r: row, c: 1 }, e: { r: row, c: 3 } });
   worksheet['!merges']!.push({ s: { r: row, c: 4 }, e: { r: row, c: 7 } });
 
@@ -116,7 +116,7 @@ function writeOverviewBlock(worksheet: XLSX.WorkSheet, row: number, meta: ScoreS
 }
 
 function writeRankingBlock(worksheet: XLSX.WorkSheet, row: number, meta: ScoreSummaryExportMeta): number {
-  setCell(worksheet, row, 0, 'Xếp hạng tỉnh chấm', sectionTitleStyle);
+  setCell(worksheet, row, 0, 'Xếp hạng thành phố chấm', sectionTitleStyle);
   worksheet['!merges']!.push({ s: { r: row, c: 0 }, e: { r: row, c: 3 } });
   setCell(worksheet, row, 4, `${meta.rankings.length} đã chấm`, sectionTitleStyle);
   worksheet['!merges']!.push({ s: { r: row, c: 4 }, e: { r: row, c: 7 } });

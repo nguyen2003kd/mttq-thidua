@@ -81,19 +81,19 @@ const UNASSIGNED_CLUSTER_ID = "__unassigned__";
 const SCORE_SUMMARY_SORT_OPTIONS: TableSortOption[] = [
   { value: 'proposedScore-desc', label: 'Điểm địa phương cao nhất', sort: { column: 'proposedScore', direction: 'desc' } },
   { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
-  { value: 'provinceScore-desc', label: 'Điểm tỉnh cao nhất', sort: { column: 'provinceScore', direction: 'desc' } },
-  { value: 'provinceBonus-desc', label: 'Điểm thưởng tỉnh cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
+  { value: 'provinceScore-desc', label: 'Điểm thành phố cao nhất', sort: { column: 'provinceScore', direction: 'desc' } },
+  { value: 'provinceBonus-desc', label: 'Điểm thưởng thành phố cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
   { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
-  { value: 'provinceTotal-desc', label: 'Tổng điểm tỉnh cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
+  { value: 'provinceTotal-desc', label: 'Tổng điểm thành phố cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
 ];
 
 const SCORE_DETAIL_SORT_OPTIONS: TableSortOption[] = [
   { value: 'proposed-desc', label: 'Điểm địa phương cao nhất', sort: { column: 'proposed', direction: 'desc' } },
   { value: 'proposedBonus-desc', label: 'Điểm thưởng địa phương cao nhất', sort: { column: 'proposedBonus', direction: 'desc' } },
-  { value: 'province-desc', label: 'Điểm tỉnh cao nhất', sort: { column: 'province', direction: 'desc' } },
-  { value: 'provinceBonus-desc', label: 'Điểm thưởng tỉnh cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
+  { value: 'province-desc', label: 'Điểm thành phố cao nhất', sort: { column: 'province', direction: 'desc' } },
+  { value: 'provinceBonus-desc', label: 'Điểm thưởng thành phố cao nhất', sort: { column: 'provinceBonus', direction: 'desc' } },
   { value: 'proposedTotal-desc', label: 'Tổng điểm địa phương cao nhất', sort: { column: 'proposedTotal', direction: 'desc' } },
-  { value: 'provinceTotal-desc', label: 'Tổng điểm tỉnh cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
+  { value: 'provinceTotal-desc', label: 'Tổng điểm thành phố cao nhất', sort: { column: 'provinceTotal', direction: 'desc' } },
 ];
 
 function normalizeWardCode(code: string) {
@@ -274,10 +274,10 @@ function LocalityCriteriaDialog({
             <TableHead className="whitespace-normal border-r border-white/30 px-4 py-3 text-primary-foreground">Tiêu chí con</TableHead>
             <SortableTableHead column="proposed" label="Địa phương đề xuất" ariaLabel="Địa phương đề xuất" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposed', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
             <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
-            <SortableTableHead column="province" label="Điểm của tỉnh" ariaLabel="Điểm của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
-            <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng của tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="province" label="Điểm của thành phố" ariaLabel="Điểm của thành phố" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'province', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceBonus" label="Điểm thưởng của thành phố" ariaLabel="Điểm thưởng của thành phố" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
             <SortableTableHead column="proposedTotal" label="Tổng điểm địa phương" ariaLabel="Tổng điểm địa phương" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="whitespace-normal border-r border-white/30 bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
-            <SortableTableHead column="provinceTotal" label="Tổng điểm tỉnh" ariaLabel="Tổng điểm tỉnh" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="whitespace-normal bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
+            <SortableTableHead column="provinceTotal" label="Tổng điểm thành phố" ariaLabel="Tổng điểm thành phố" sort={detailSort} onSort={() => setDetailSort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="whitespace-normal bg-primary text-right" buttonClassName="min-w-0 whitespace-normal text-pretty leading-4 px-2" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -392,7 +392,7 @@ function LocalityCriteriaDialog({
                           <span className="font-semibold tabular-nums text-foreground">{formatScore(totals.proposedScore + totals.proposedBonus)}</span>
                         </span>
                         <span className="text-sm">
-                          <span className="block text-xs text-muted-foreground">Tổng điểm tỉnh</span>
+                          <span className="block text-xs text-muted-foreground">Tổng điểm thành phố</span>
                           <span className="font-semibold tabular-nums text-foreground">
                             {formatScore(totals.hasProvinceScore ? totals.provinceScore + totals.provinceBonus : null)}
                           </span>
@@ -467,7 +467,7 @@ function ResultSummary({
   );
 }
 
-/** Bảng tổng hợp điểm toàn tỉnh của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
+/** Bảng tổng hợp điểm toàn thành phố của Chuyên viên, tham chiếu cấu trúc sheet “Bảng tổng”. */
 export default function SpecialistScoreSummaryPage({ readOnly = false }: { readOnly?: boolean }) {
   const queryClient = useQueryClient();
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
@@ -798,7 +798,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
             />
             <div className="border-t border-border">
               <ResultSummary
-                label="Tỉnh chấm"
+                label="Thành phố chấm"
                 distribution={provinceDistribution}
                 emphasized
               />
@@ -807,7 +807,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
 
           <aside
             className="self-start overflow-hidden rounded-lg border border-border bg-card"
-            aria-label="Xếp hạng xã phường theo điểm tỉnh chấm"
+            aria-label="Xếp hạng xã phường theo điểm thành phố chấm"
           >
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
               <div className="flex items-center gap-2">
@@ -816,7 +816,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                 </span>
                 <div>
                   <h2 className="text-sm font-semibold text-foreground">
-                    Xếp hạng tỉnh chấm
+                    Xếp hạng thành phố chấm
                   </h2>
                 </div>
               </div>
@@ -897,7 +897,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
 
       <section
         className="min-w-[1480px] overflow-clip rounded-lg border border-border bg-card"
-        aria-label="Bảng tổng hợp chấm điểm toàn tỉnh"
+        aria-label="Bảng tổng hợp chấm điểm toàn thành phố"
       >
         <div className="flex flex-wrap items-center justify-end gap-3 border-b border-border px-5 py-4">
           <TableSortSelect sort={summarySort} options={SCORE_SUMMARY_SORT_OPTIONS} onChange={setSummarySort} />
@@ -934,10 +934,10 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                 </TableHead>
                 <SortableTableHead column="proposedScore" label="Địa phương chấm" ariaLabel="Điểm địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
                 <SortableTableHead column="proposedBonus" label="Điểm thưởng địa phương" ariaLabel="Điểm thưởng địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
-                <SortableTableHead column="provinceScore" label="Tỉnh chấm" ariaLabel="Điểm tỉnh chấm" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
-                <SortableTableHead column="provinceBonus" label="Điểm thưởng của tỉnh" ariaLabel="Điểm thưởng tỉnh" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceScore" label="Thành phố chấm" ariaLabel="Điểm thành phố chấm" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceScore', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceBonus" label="Điểm thưởng của thành phố" ariaLabel="Điểm thưởng thành phố" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceBonus', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
                 <SortableTableHead column="proposedTotal" label={<>Địa phương chấm<br />(điểm tự chấm + điểm thưởng)</>} ariaLabel="Tổng điểm địa phương" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'proposedTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal border-r border-white/30 bg-primary sm:top-[-24px]" />
-                <SortableTableHead column="provinceTotal" label={<>Tỉnh chấm<br />(điểm chấm + điểm thưởng)</>} ariaLabel="Tổng điểm tỉnh" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal bg-primary sm:top-[-24px]" />
+                <SortableTableHead column="provinceTotal" label={<>Thành phố chấm<br />(điểm chấm + điểm thưởng)</>} ariaLabel="Tổng điểm thành phố" sort={summarySort} onSort={() => setSummarySort((current) => toggleTableSort(current, 'provinceTotal', 'desc'))} align="right" className="sticky top-[-16px] z-10 whitespace-normal bg-primary sm:top-[-24px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
