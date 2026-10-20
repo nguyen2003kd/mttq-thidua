@@ -290,7 +290,7 @@ export default function CriteriaChildrenPage() {
               variant="destructive"
               hideWhen={!selected}
               disabled={!selected || selected.status === 'Deleted' || !canDeleteCriteria || (group.status !== 'Draft' && group.status !== 'Applied') || groupCriteria.length <= 1 || deleteMutation.isPending}
-              disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên trưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
+              disabledReason={!selected ? 'Chọn một tiêu chí con để xóa.' : selected.status === 'Deleted' ? 'Tiêu chí đã vô hiệu.' : !canDeleteCriteria ? 'Chỉ Chuyên viên phụ trách thi đua khen thưởng được xóa tiêu chí.' : group.status !== 'Draft' && group.status !== 'Applied' ? 'Không thể xóa tiêu chí sau khi nhóm đã đóng hoặc công bố.' : groupCriteria.length <= 1 ? 'Nhóm cần còn ít nhất một tiêu chí con.' : deleteMutation.isPending ? 'Đang xóa tiêu chí.' : undefined}
               onClick={() => { if (selected && selected.status !== 'Deleted' && canDeleteCriteria) setDeleteOpen(true); }}
             >
               <Trash2 className="size-4" />Xóa

@@ -524,7 +524,7 @@ export default function LocalityCriteriaPage() {
   const latestSpecialistRevision = useMemo(() => {
     if (latestReopenIsSupplementaryAdd) return null;
     // Lấy yêu cầu chỉnh sửa MỚI NHẤT bất kể stageLevel — yêu cầu của Chuyên viên cấp 2
-    // (LocalSubmitted/ScorerRevisionRequested) lẫn Chuyên viên trưởng (ReviewerApproved)
+    // (LocalSubmitted/ScorerRevisionRequested) lẫn Chuyên viên phụ trách thi đua khen thưởng (ReviewerApproved)
     // đều xuống thẳng địa phương và cần đánh dấu tiêu chí bị yêu cầu.
     return (revisionHistoriesQuery.data?.items ?? []).find((item) => (
       item.action?.toLowerCase() === 'requestrevision'

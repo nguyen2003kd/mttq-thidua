@@ -25,7 +25,7 @@ type FormValues = z.infer<typeof schema>;
 const roleLabels: Record<string, string> = {
   LOCAL: 'Địa phương',
   LOCALITY: 'Địa phương',
-  SPECIALIST: 'Chuyên viên trưởng',
+  SPECIALIST: 'Chuyên viên phụ trách thi đua khen thưởng',
   SCORER: 'Chuyên viên cấp 2',
   REVIEWER: 'Lãnh đạo ban',
   LEADER: 'Lãnh đạo',
