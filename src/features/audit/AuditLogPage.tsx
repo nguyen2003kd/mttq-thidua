@@ -99,7 +99,7 @@ const fieldLabels: Record<string, string> = {
   OriginalName: 'Tên tệp gốc',
   FileSize: 'Dung lượng',
   ContentType: 'Loại tệp',
-  Explanation: 'Giải thích',
+  Explanation: 'Nội dung diễn giải',
   ReviewStatus: 'Trạng thái xem xét',
   CriteriaId: 'Tiêu chí',
   CriteriaGroupId: 'Nhóm tiêu chí',
@@ -354,7 +354,11 @@ function getDisplayChanges(item: AuditLogItem) {
   const rows = item.changes?.length
     ? item.changes
         .filter((change) => !noiseAuditFields.has(change.field)
-          && !(hideApprovalNoise && approvalSnapshotNoiseFields.has(change.field)))
+          && !(hideApprovalNoise && approvalSnapshotNoiseFields.has(change.field))
+          // Dòng ngữ cảnh Tiêu chí/Nhóm tiêu chí đã hiển thị ở khối ngữ cảnh phía trên →
+          // ẩn khỏi bảng diff khi không phải thay đổi thật (Created: chưa có → tên; Updated: cùng tên).
+          && !((change.field === 'CriteriaId' || change.field === 'CriteriaGroupId')
+            && (change.beforeDisplay == null || change.beforeDisplay === change.afterDisplay)))
         .map((change) => ({
           field: change.field,
           label: getFieldLabel(change.field) ?? change.label ?? change.field,
