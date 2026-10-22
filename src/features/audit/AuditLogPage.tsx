@@ -677,24 +677,21 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
           <div className="text-[13px] tabular-nums text-foreground/70">{date}</div>
         </div>
       </TableCell>
-      <TableCell className="border-r border-border/60 py-3.5 whitespace-normal">
+      <TableCell className="min-w-0 border-r border-border/60 py-3.5 whitespace-normal">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
+          <p className="line-clamp-2 break-words text-[15px] font-semibold text-foreground">{title}</p>
           <p className="truncate text-[13px] text-foreground/70">{subtitle}</p>
         </div>
       </TableCell>
-      <TableCell className="border-r border-border/60 py-3.5 text-center">
-        <span className={`whitespace-nowrap text-sm font-semibold ${cfg.text}`}>
+      <TableCell className="overflow-hidden border-r border-border/60 py-3.5 text-center">
+        <span className={`block truncate text-sm font-semibold ${cfg.text}`} title={cfg.label || item.action}>
           {cfg.label || item.action}
         </span>
       </TableCell>
-      <TableCell className="border-r border-border/60 py-3.5 text-center">
-        <span className="whitespace-nowrap text-sm text-foreground">
+      <TableCell className="overflow-hidden border-r border-border/60 py-3.5 text-center">
+        <span className="block truncate text-sm text-foreground" title={moduleLabels[item.module] ?? item.module}>
           {moduleLabels[item.module] ?? item.module}
         </span>
-      </TableCell>
-      <TableCell className="py-3.5 text-right">
-        <ChevronRight className="ml-auto size-[18px] text-muted-foreground" />
       </TableCell>
     </TableRow>
   );
@@ -838,7 +835,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
           </div>
         ) : (
           <>
-            <Table className="min-w-[640px]">
+            <Table className="w-full min-w-[640px] table-fixed">
             <TableHeader>
               <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
                 <SortableTableHead
@@ -847,12 +844,11 @@ export function AuditLogView({ title, description, actions }: { title: string; d
                   ariaLabel="Thời gian"
                   sort={{ column: 'createdAt', direction: sortOrder }}
                   onSort={() => setSortOrder((current) => current === 'desc' ? 'asc' : 'desc')}
-                  className="w-[120px] border-r border-white/15 bg-primary text-sm font-semibold text-primary-foreground"
+                  className="w-[14%] border-r border-white/15 bg-primary text-sm font-semibold text-primary-foreground"
                 />
-                <TableHead className="border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
-                <TableHead className="w-[130px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
-                <TableHead className="w-[150px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>
-                <TableHead className="w-[64px] text-right text-sm font-semibold text-primary-foreground">Chi tiết</TableHead>
+                <TableHead className="w-[36%] border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
+                <TableHead className="w-[24%] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
+                <TableHead className="w-[26%] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
