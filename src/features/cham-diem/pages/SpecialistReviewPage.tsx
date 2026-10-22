@@ -763,11 +763,13 @@ function OfficialScoreRevisionDialog({
   onOpenChange,
   result,
   criterionLabel,
+  onPreviewFile,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   result: SubmissionResultItem | null;
   criterionLabel: string;
+  onPreviewFile: (file: { id: string; originalName: string }) => void;
 }) {
   const scoreUpdateFilesQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), 'score-revisions', result?.id),
@@ -834,7 +836,37 @@ function OfficialScoreRevisionDialog({
           <div>
             <p className="text-sm font-medium text-foreground">Tệp đính kèm</p>
             <p className="mt-1 text-xs text-muted-foreground">Chỉ hiển thị tệp đính kèm khi sửa điểm.</p>
-            {scoreUpdateFilesQuery.isLoading ? <div className="mt-3 h-16 animate-pulse rounded-md bg-muted" /> : scoreUpdateFilesQuery.isError ? <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">Không tải được tệp đính kèm. Vui lòng thử lại.</p> : scoreUpdateFiles.length === 0 ? <p className="mt-3 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">Không có tệp đính kèm cho lần sửa điểm này.</p> : <div className="mt-3 divide-y rounded-md border border-border">{scoreUpdateFiles.map((file) => <div key={file.id} className="flex items-center gap-3 px-3 py-2.5"><FileText className="size-4 shrink-0 text-primary" aria-hidden="true" /><span className="min-w-0 flex-1 break-all text-sm font-medium text-foreground">{file.displayName || file.originalName}</span><Button type="button" variant="outline" size="sm" onClick={() => { void downloadFile(file.id, file.displayName || file.originalName); }}><Download className="size-4" />Tải về</Button></div>)}</div>}
+            {scoreUpdateFilesQuery.isLoading ? (
+              <div className="mt-3 h-16 animate-pulse rounded-md bg-muted" />
+            ) : scoreUpdateFilesQuery.isError ? (
+              <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                Không tải được tệp đính kèm. Vui lòng thử lại.
+              </p>
+            ) : scoreUpdateFiles.length === 0 ? (
+              <p className="mt-3 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                Không có tệp đính kèm cho lần sửa điểm này.
+              </p>
+            ) : (
+              <div className="mt-3 divide-y rounded-md border border-border">
+                {scoreUpdateFiles.map((file) => {
+                  const fileName = file.displayName || file.originalName;
+                  return (
+                    <div key={file.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 break-all text-sm font-medium text-foreground">{fileName}</span>
+                      <Button type="button" variant="outline" size="sm" onClick={() => onPreviewFile({ id: file.id, originalName: fileName })}>
+                        <Eye className="size-4" />
+                        Xem
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => { void downloadFile(file.id, fileName); }}>
+                        <Download className="size-4" />
+                        Tải về
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button></DialogFooter>
@@ -3201,6 +3233,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }}
         result={scoreRevisionResult}
         criterionLabel={scoreRevisionCriterionLabel}
+        onPreviewFile={setPreviewFile}
       />
       <RevisionRequestDialog
         open={revisionOpen}
