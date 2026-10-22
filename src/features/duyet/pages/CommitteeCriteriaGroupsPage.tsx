@@ -6,8 +6,9 @@ import { dataQueryKey } from '@/api/mutator/query-keys';
 import { ArrowLeft, Eye, Search } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Button, DataTable, EmptyState, PageHeader, PageLoading, ScoreStateBadge, TruncatedText } from '@/components/core';
-import { Badge } from '@/components/ui/badge';
+import { Button, DataTable, EmptyState, PageHeader, PageLoading, TruncatedText } from '@/components/core';
+// import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột trạng thái
+// import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
 import { buildCommitteePeriodUrl } from '../committeePeriodNavigation';
 
@@ -87,7 +88,8 @@ export default function CommitteeCriteriaGroupsPage() {
     { accessorFn: (row) => row.proposedScore, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', sortable: true, list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.officialScore, header: 'Tổng điểm thực tế', cell: ({ row }) => <span className="font-semibold tabular-nums">{row.original.officialScore}</span>, meta: { align: 'right', sortable: true, list: { width: 'minmax(150px,.8fr)' } } },
     { accessorFn: (row) => row.officialBonus, header: 'Tổng điểm thưởng', cell: ({ row }) => <span className="tabular-nums">{row.original.officialBonus}</span>, meta: { align: 'right', sortable: true, list: { width: 'minmax(150px,.8fr)' } } },
-    { id: 'state', accessorFn: (row) => row.submission.currentStage === COMMITTEE_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === COMMITTEE_STAGE ? <ScoreStateBadge state="CHO_DUYET_BTT" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', sortable: true, list: { width: 'minmax(150px,.8fr)' } } },
+    // Ẩn cột trạng thái — Ban thường trực chỉ xem hồ sơ, không duyệt (giống trang Hội đồng).
+    // { id: 'state', accessorFn: (row) => row.submission.currentStage === COMMITTEE_STAGE ? 'Chờ duyệt' : 'Đã duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submission.currentStage === COMMITTEE_STAGE ? <ScoreStateBadge state="CHO_DUYET_BTT" /> : <Badge variant="success">Đã duyệt</Badge>, meta: { align: 'center', sortable: true, list: { width: 'minmax(150px,.8fr)' } } },
   ], []);
   if (!localityId) return <EmptyState title="Không tìm thấy địa phương" description="Mã địa phương không hợp lệ." />;
   if (submissionsQuery.isLoading || groupsQuery.isLoading) return <PageLoading label="Đang tải các nhóm tiêu chí…" />;
