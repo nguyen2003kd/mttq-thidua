@@ -117,7 +117,13 @@ export const criteriaGroupsApi = {
   create: (payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: '/api/v1/criteria-groups', method: 'POST', data: payload }),
   update: (id: string, payload: CriteriaGroupPayload) => request<CriteriaGroupApi>({ url: `/api/v1/criteria-groups/${id}`, method: 'PUT', data: payload }),
   delete: (id: string) => request<{ deleted: true; id: string }>({ url: `/api/v1/criteria-groups/${id}`, method: 'DELETE' }),
-  apply: (criteriaGroupId: string) => request<{ applied: true; criteriaGroupIds: string[] }>({ url: '/api/v1/criteria-groups/apply', method: 'POST', data: { criteriaGroupIds: [criteriaGroupId] } }),
+  // Áp dụng (công bố) nhóm tiêu chí — đính kèm file thông báo gửi cùng (multipart/form-data).
+  apply: (criteriaGroupId: string, files?: File[]) => {
+    const data = new FormData();
+    data.append('criteriaGroupIds', criteriaGroupId);
+    (files ?? []).forEach((file) => data.append('files', file));
+    return request<{ applied: true; criteriaGroupIds: string[] }>({ url: '/api/v1/criteria-groups/apply', method: 'POST', data });
+  },
   listCriteria: (groupId: string, params?: {
     search?: string;
     type?: CriteriaApi['type'];
