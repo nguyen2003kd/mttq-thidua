@@ -74,15 +74,18 @@ const LOCK_REASONS: Record<ScoringRole, string> = {
  */
 export function getSpecialistSubmissionPermissions(stage: SubmissionStage | null | undefined, role: ScoringRole = 'SPECIALIST') {
   const isActionable = Boolean(stage && ACTIONABLE_STAGES[role].includes(stage));
+  // Hồ sơ đang chờ địa phương sửa (RequiresRevision): SPECIALIST vẫn được yêu cầu chỉnh sửa
+  // thêm / bổ sung tiêu chí — 2 thao tác không khóa lẫn nhau.
+  const canReviseWhileWaiting = role === 'SPECIALIST' && stage === 'RequiresRevision';
   return {
     /** Được nhập/sửa điểm — reviewer chỉ duyệt, không chấm. */
     canEdit: isActionable && role !== 'REVIEWER',
     /** Được duyệt/gửi hồ sơ lên cấp tiếp theo tại stage hiện tại. */
     canApprove: isActionable,
     /** Được yêu cầu chỉnh sửa ở bước liền trước trong luồng. */
-    canRequestRevision: isActionable,
+    canRequestRevision: isActionable || canReviseWhileWaiting,
     /** Được thêm tiêu chí bổ sung — reviewer không chấm điểm nhưng vẫn được bổ sung. */
-    canAddSupplementary: isActionable,
+    canAddSupplementary: isActionable || canReviseWhileWaiting,
     usesForwardingDialog: role !== 'SPECIALIST',
     isForwarded: !isActionable,
     disabledReason: LOCK_REASONS[role],
@@ -235,8 +238,8 @@ export const specialistApi = {
     });
   },
 
-  // UpdateScore — chuyên viên lưu nháp điểm chấm (giữ nguyên stage)
-  updateScores: (payload: { submissionId: string; reason: string; scoreItems: Array<{ submissionResultId: string; point: number; bonusPoint: number; reason?: string | null }> }) =>
+  // UpdateScore — chuyên viên lưu điểm chấm (giữ nguyên stage). isDraft = lưu nháp → BE không ghi log.
+  updateScores: (payload: { submissionId: string; reason: string; isDraft?: boolean; scoreItems: Array<{ submissionResultId: string; point: number; bonusPoint: number; reason?: string | null }> }) =>
     request<{ processed: boolean; submissionId: string; action: string }>({
       url: '/api/v1/submissions/approve',
       method: 'POST',

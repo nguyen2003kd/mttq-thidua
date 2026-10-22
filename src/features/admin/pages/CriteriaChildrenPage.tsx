@@ -83,7 +83,7 @@ export default function CriteriaChildrenPage() {
   const [applyOpen, setApplyOpen] = useState(false); const [saving, setSaving] = useState(false);
   const [applyFiles, setApplyFiles] = useState<File[]>([]); const [applyError, setApplyError] = useState('');
   const [applyValidationMessage, setApplyValidationMessage] = useState('');
-  const { uploading, uploadProgress, uploadFiles } = useFileUpload();
+  const { uploading, uploadProgress } = useFileUpload();
   const { data: group, isLoading, error } = useQuery({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(id ?? '')), queryFn: () => criteriaGroupsApi.get(id!), enabled: Boolean(id) });
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'content' | 'maxPoint' | 'deadline', 'asc' | 'desc'];
   const { data: criteriaPage, isLoading: isLoadingCriteria } = useQuery({
@@ -202,17 +202,7 @@ export default function CriteriaChildrenPage() {
         toast.error(validation.message);
         return;
       }
-      await criteriaGroupsApi.apply(group.id);
-      if (applyFiles.length > 0) {
-        const uploadedFiles = await uploadFiles(applyFiles, {
-          entityType: 'CriteriaGroup',
-          entityId: group.id,
-          category: 'notice',
-        });
-        if (uploadedFiles.length !== applyFiles.length) {
-          toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
-        }
-      }
+      await criteriaGroupsApi.apply(group.id, applyFiles);
       await invalidateQueryResources(queryClient, [
         getGetApiV1CriteriaGroupsQueryKey(),
         getGetApiV1SubmissionsQueryKey(),

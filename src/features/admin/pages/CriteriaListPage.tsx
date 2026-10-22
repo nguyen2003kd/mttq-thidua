@@ -165,7 +165,7 @@ export default function CriteriaListPage() {
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
-  const { uploading: fileUploading, uploadProgress: fileProgress, uploadFiles } = useFileUpload();
+  const { uploading: fileUploading, uploadProgress: fileProgress } = useFileUpload();
   const invalidateCriteria = () => invalidateQueryResources(queryClient, [
     getGetApiV1CriteriaGroupsQueryKey(),
     getGetApiV1SubmissionsQueryKey(),
@@ -806,17 +806,7 @@ export default function CriteriaListPage() {
               setApplyError(validation.message ?? 'Không thể áp dụng nhóm tiêu chí.');
               return;
             }
-            await criteriaGroupsApi.apply(applyTable.id);
-            if (applyFiles.length > 0) {
-              const uploadedFiles = await uploadFiles(applyFiles, {
-                entityType: 'CriteriaGroup',
-                entityId: applyTable.id,
-                category: 'notice',
-              });
-              if (uploadedFiles.length !== applyFiles.length) {
-                toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
-              }
-            }
+            await criteriaGroupsApi.apply(applyTable.id, applyFiles);
             await invalidateQueryResources(queryClient, [
               getGetApiV1CriteriaGroupsQueryKey(),
               getGetApiV1SubmissionsQueryKey(),

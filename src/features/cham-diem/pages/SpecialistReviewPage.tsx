@@ -2667,7 +2667,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     setSavingDraft(true);
     let serverChanged = false;
     try {
-      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
+      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', isDraft: true, scoreItems: items });
       serverChanged = true;
       await uploadPendingScoreAttachments();
       await refreshSubmissionData();

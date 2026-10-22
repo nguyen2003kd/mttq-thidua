@@ -137,6 +137,26 @@ const defaultActionStyle = {
   accent: 'border-l-border',
 };
 
+/** Nhãn filter cho các action code nghiệp vụ mới (lưu thẳng ở cột Action của log). */
+const businessActionFilterLabels: Record<string, string> = {
+  local_submit: 'Nộp đề xuất',
+  scorer_score: 'Chấm điểm',
+  scorer_forward: 'Gửi duyệt',
+  reviewer_approve: 'Phê duyệt',
+  reviewer_score: 'Điều chỉnh điểm',
+  specialist_approve: 'Duyệt hồ sơ',
+  specialist_score: 'Thẩm định điểm',
+  scorer_request_revision: 'Yêu cầu sửa',
+  reviewer_request_revision: 'Yêu cầu sửa',
+  specialist_request_revision: 'Yêu cầu sửa',
+  scorer_add_criteria: 'Bổ sung tiêu chí',
+  reviewer_add_criteria: 'Bổ sung tiêu chí',
+  specialist_add_criteria: 'Bổ sung tiêu chí',
+  committee_finalize: 'Kết thúc duyệt',
+  remind: 'Nhắc nhở',
+  group_publish: 'Công bố nhóm tiêu chí',
+};
+
 /** Nhãn + màu theo hành động nghiệp vụ (actionKind từ backend) — phân biệt thao tác của từng role.
  *  `verb` là dạng ngắn để ghép với cấp (vd "Lãnh đạo duyệt"); chỉ cần cho thao tác có actionLevel. */
 const businessActionConfig: Record<string, { label: string; verb?: string; text: string; accent: string }> = {
@@ -152,6 +172,23 @@ const businessActionConfig: Record<string, { label: string; verb?: string; text:
   stage_transition: { label: 'Chuyển giai đoạn', verb: 'chuyển giai đoạn', text: 'text-info', accent: 'border-l-info' },
   request_revision: { label: 'Yêu cầu sửa', verb: 'yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
   delete_file: { label: 'Xóa tệp', text: 'text-destructive', accent: 'border-l-destructive' },
+  // ── Log nghiệp vụ tường minh (action code từ ISystemLogWriter) ──
+  local_submit: { label: 'Nộp đề xuất', text: 'text-primary', accent: 'border-l-primary' },
+  scorer_score: { label: 'Chấm điểm', text: 'text-info', accent: 'border-l-info' },
+  scorer_forward: { label: 'Gửi duyệt', text: 'text-primary', accent: 'border-l-primary' },
+  reviewer_approve: { label: 'Phê duyệt', text: 'text-primary', accent: 'border-l-primary' },
+  reviewer_score: { label: 'Điều chỉnh điểm', text: 'text-info', accent: 'border-l-info' },
+  specialist_approve: { label: 'Duyệt hồ sơ', text: 'text-primary', accent: 'border-l-primary' },
+  specialist_score: { label: 'Thẩm định điểm', text: 'text-info', accent: 'border-l-info' },
+  scorer_request_revision: { label: 'Yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
+  reviewer_request_revision: { label: 'Yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
+  specialist_request_revision: { label: 'Yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
+  scorer_add_criteria: { label: 'Bổ sung tiêu chí', text: 'text-info', accent: 'border-l-info' },
+  reviewer_add_criteria: { label: 'Bổ sung tiêu chí', text: 'text-info', accent: 'border-l-info' },
+  specialist_add_criteria: { label: 'Bổ sung tiêu chí', text: 'text-info', accent: 'border-l-info' },
+  committee_finalize: { label: 'Kết thúc duyệt', text: 'text-primary', accent: 'border-l-primary' },
+  remind: { label: 'Nhắc nhở', text: 'text-info', accent: 'border-l-info' },
+  group_publish: { label: 'Công bố', text: 'text-primary', accent: 'border-l-primary' },
 };
 
 /** Ưu tiên nhãn/màu theo hành động nghiệp vụ (actionKind); ghép cấp (actionLevel) → "Lãnh đạo duyệt"; fallback CRUD. */
@@ -179,7 +216,8 @@ const fieldPriority: Record<string, number> = {
 };
 
 // RevisionRound là counter nội bộ của SubmissionHistory (sequence toàn cục) — không có nghĩa với người xem.
-const noiseAuditFields = new Set(['Id', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'SubmissionId', 'EntityId', 'RevisionRound', 'revisionRound']);
+// Type (Loại tiêu chí: thường/bổ sung) là dữ liệu cấu hình nội bộ — không cần hiển thị.
+const noiseAuditFields = new Set(['Id', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'SubmissionId', 'EntityId', 'RevisionRound', 'revisionRound', 'Type']);
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|heic|heif|avif)$/i;
 
@@ -193,6 +231,60 @@ function parseJsonRecord(value: string | null) {
 }
 
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ── Log nghiệp vụ tường minh (BE ISystemLogWriter) ──────────────────────────
+/** Payload chi tiết có cấu trúc — mỗi action code có layout riêng ở modal chi tiết. */
+interface AuditPayloadPointChange { before?: number | null; after?: number | null }
+interface AuditPayloadChange {
+  criteriaId?: string;
+  criteria?: string | null;
+  point?: number | AuditPayloadPointChange;
+  bonusPoint?: number | AuditPayloadPointChange;
+  explanation?: string | null;
+  reason?: string | null;
+  deadline?: string | null;
+  note?: string | null;
+}
+interface AuditPayloadFile { id?: string; name?: string | null; criteria?: string | null }
+interface AuditLogPayload {
+  summary?: string;
+  actor?: { fullName?: string | null; organization?: string | null; level?: string | null };
+  submissionId?: string;
+  criteriaGroupId?: string;
+  criteriaGroupName?: string | null;
+  periodId?: string;
+  stage?: { from?: string; to?: string | null };
+  reason?: string | null;
+  totalProposedPoint?: number | null;
+  totalFinalPoint?: number | null;
+  isResubmission?: boolean;
+  changes?: AuditPayloadChange[] | AuditPayloadChange | null;
+  files?: AuditPayloadFile[] | null;
+}
+
+/** Log nghiệp vụ mới: có payload + action là action code (không phải CRUD Created/Updated/Deleted/Published). */
+function isBusinessLog(item: AuditLogItem) {
+  return Boolean(item.payload) && !['Created', 'Updated', 'Deleted', 'Published'].includes(item.action);
+}
+
+function parseBusinessPayload(item: AuditLogItem): AuditLogPayload | null {
+  const parsed = parseJsonRecord(item.payload);
+  return parsed ? (parsed as AuditLogPayload) : null;
+}
+
+function payloadChanges(payload: AuditLogPayload): AuditPayloadChange[] {
+  if (Array.isArray(payload.changes)) return payload.changes;
+  return payload.changes ? [payload.changes] : [];
+}
+
+function formatPointPair(value: number | AuditPayloadPointChange | undefined) {
+  const fmt = (v?: number | null) => (v == null ? '—' : v.toLocaleString('vi-VN'));
+  if (value == null || typeof value === 'number') {
+    const text = value == null ? '—' : fmt(value);
+    return { before: text, after: text };
+  }
+  return { before: fmt(value.before), after: fmt(value.after) };
+}
 const submissionStageOrder = ['Draft', 'LocalSubmitted', 'ScorerSubmitted', 'ReviewerApproved', 'SpecialistApproved', 'LeaderApproved', 'CouncilApproved', 'CommitteeFinalized', 'RequiresRevision', 'ScorerRevisionRequested', 'ReviewerRevisionRequested'] as const;
 const submissionStageLabels: Record<string, string> = {
   Draft: 'Nháp',
@@ -377,10 +469,12 @@ function normalizeIsoDisplay(value: string | null): string | null {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value.trim()) ? formatDateTime(value) : value;
 }
 
-/** Nhãn actor: ghép vai trò + tên — "Địa phương Long Bình", "Chuyên viên cấp 2 Nguyễn Văn A"… */
+/** Nhãn actor: ghép vai trò + tên — "Địa phương Long Bình", "Chuyên viên cấp 2 Nguyễn Văn A"…
+ *  Tài khoản test thường đặt FullName trùng nhãn vai trò → đã có cấp rồi thì không ghép nữa (tránh lặp). */
 function getActorLabel(item: { actor: string; actionLevel?: string | null; actorLevel?: string | null }) {
   const actor = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(item.actor) ? 'Người dùng hệ thống' : item.actor || 'Hệ thống tự động';
   const level = item.actorLevel ?? item.actionLevel;
+  if (level && actor.trim().toLowerCase().startsWith(level.trim().toLowerCase())) return actor;
   return level ? `${level} ${actor}` : actor;
 }
 
@@ -505,16 +599,199 @@ interface DiffField {
   after: string;
 }
 
-/** Bảng chi tiết: luôn 3 cột Trường | Giá trị cũ | Giá trị mới. Giá trị render dạng chip có viền cho gọn, ô trống hiển thị "—" mờ. */
-function DiffTable({ diff }: { diff: DiffField[] }) {
+/** Dòng minh chứng trong payload log nghiệp vụ — bấm để xem trước. Tên file/tiêu chí dài → cắt "…" không vỡ layout. */
+function PayloadFileRow({ file }: { file: AuditPayloadFile }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const name = file.name ?? 'Tệp đính kèm';
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3.5 py-2.5">
+      <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+        <FileText className="size-4 shrink-0 text-primary/70" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-foreground" title={name}>{name}</span>
+          {file.criteria && (
+            <span className="block truncate text-xs text-muted-foreground" title={file.criteria}>{file.criteria}</span>
+          )}
+        </span>
+      </span>
+      {file.id && (
+        <>
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            <FileText className="size-3.5" />Xem
+          </button>
+          <FilePreviewDialog
+            file={previewOpen ? { id: file.id, displayName: name, originalName: name } : null}
+            onOpenChange={setPreviewOpen}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Chi tiết log nghiệp vụ tường minh — render theo action code: lý do, bảng điểm, minh chứng. */
+function BusinessAuditDetail({ item, payload }: { item: AuditLogItem; payload: AuditLogPayload }) {
+  const code = item.actionKind ?? item.action;
+  const changes = payloadChanges(payload);
+  const isSubmit = code === 'local_submit';
+  const isScore = code.endsWith('_score');
+  const isRevision = code.endsWith('_request_revision');
+  const isAddCriteria = code.endsWith('_add_criteria');
+  const isApprove = ['reviewer_approve', 'specialist_approve', 'leader_approve', 'council_approve', 'scorer_forward', 'approve'].includes(code);
+  const total = payload.totalFinalPoint ?? payload.totalProposedPoint;
+  const totalLabel = payload.totalFinalPoint != null ? 'Tổng điểm chính thức' : 'Tổng điểm đề xuất';
+
+  return (
+    <div className="space-y-4">
+      {payload.criteriaGroupName && (
+        <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Nhóm tiêu chí: </span>
+          <span className="font-semibold text-foreground">"{payload.criteriaGroupName}"</span>
+        </p>
+      )}
+      {payload.reason && !isScore && (
+        <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Lý do: </span>
+          <span className="text-foreground">{payload.reason}</span>
+        </p>
+      )}
+
+      {isSubmit && changes.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-foreground">Điểm đã đề xuất</p>
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-muted/60">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wide text-foreground/70">Tiêu chí</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Điểm tự chấm</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Điểm thưởng</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wide text-foreground/70">Diễn giải</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {changes.map((change, index) => (
+                  <tr key={change.criteriaId ?? index} className="align-top">
+                    <td className="px-3 py-2.5 font-medium text-foreground">{change.criteria ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground">{formatPointPair(change.point).after}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground">{formatPointPair(change.bonusPoint).after}</td>
+                    <td className="px-3 py-2.5 text-foreground/80"><span className="line-clamp-2" title={change.explanation ?? ''}>{change.explanation || '—'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {(isScore || isApprove) && changes.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-foreground">{isScore ? 'Điểm điều chỉnh' : 'Điểm chấm'}</p>
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-muted/60">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wide text-foreground/70">Tiêu chí</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Điểm đề xuất</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Điểm thưởng đề xuất</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Điểm chấm</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Điểm thưởng chấm</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {changes.map((change, index) => {
+                  const point = formatPointPair(change.point);
+                  const bonus = formatPointPair(change.bonusPoint);
+                  const pointChanged = point.before !== point.after;
+                  const bonusChanged = bonus.before !== bonus.after;
+                  return (
+                    <tr key={change.criteriaId ?? index} className="align-top">
+                      <td className="px-3 py-2.5 font-medium text-foreground">{change.criteria ?? '—'}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{point.before}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{bonus.before}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${pointChanged ? 'text-primary' : 'text-foreground'}`}>{point.after}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${bonusChanged ? 'text-primary' : 'text-foreground'}`}>{bonus.after}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {isRevision && changes.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-foreground">Tiêu chí bị yêu cầu chỉnh sửa</p>
+          <ul className="space-y-1.5 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+            {changes.map((change, index) => (
+              <li key={change.criteriaId ?? index} className="text-foreground">• {change.criteria ?? '—'}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {isAddCriteria && changes[0] && (
+        <div className="space-y-1 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+          <p><span className="text-muted-foreground">Nội dung: </span><span className="font-semibold text-foreground">{changes[0].criteria ?? '—'}</span></p>
+          {changes[0].deadline && <p><span className="text-muted-foreground">Hạn nộp: </span><span className="text-foreground">{formatDateTime(changes[0].deadline)}</span></p>}
+          {changes[0].note && <p><span className="text-muted-foreground">Ghi chú: </span><span className="text-foreground">{changes[0].note}</span></p>}
+        </div>
+      )}
+
+      {total != null && (
+        <p className="text-sm">
+          <span className="text-muted-foreground">{totalLabel}: </span>
+          <span className="text-base font-bold tabular-nums text-primary">{total.toLocaleString('vi-VN')}</span>
+        </p>
+      )}
+
+      {(code === 'group_publish' || code.endsWith('_request_revision') || code.endsWith('_add_criteria')) && (item.files?.length ?? 0) > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-foreground">Tệp đính kèm</p>
+          <div className="space-y-2">
+            {item.files!.map((file) => (
+              <PayloadFileRow key={file.id} file={{ id: file.id, name: file.displayName ?? file.originalName }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {code !== 'group_publish' && payload.files && payload.files.length > 0 && (
+        <div>
+          <p className="mb-2 text-sm font-semibold text-foreground">Minh chứng đính kèm</p>
+          <div className="space-y-2">
+            {payload.files.map((file, index) => (
+              <PayloadFileRow key={file.id ?? index} file={file} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Bảng chi tiết: Trường | Giá trị cũ | Giá trị mới. Tạo mới → bỏ cột "Giá trị cũ" (luôn "—"),
+ *  Xóa → bỏ cột "Giá trị mới". Giá trị render dạng chip có viền cho gọn, ô trống hiển thị "—" mờ. */
+function DiffTable({ diff, mode }: { diff: DiffField[]; mode: 'created' | 'deleted' | 'updated' }) {
+  const showBefore = mode !== 'created';
+  const showAfter = mode !== 'deleted';
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-border bg-muted/60">
             <th className="w-[200px] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Trường</th>
-            <th className="w-[38%] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Giá trị cũ</th>
-            <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Giá trị mới</th>
+            {showBefore && (
+              <th className="w-[38%] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Giá trị cũ</th>
+            )}
+            {showAfter && (
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground/70">Giá trị mới</th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-border/70">
@@ -524,24 +801,28 @@ function DiffTable({ diff }: { diff: DiffField[] }) {
             return (
               <tr key={field.label} className="align-top">
                 <td className="px-3 py-2.5 font-semibold text-foreground">{field.label}</td>
-                <td className="px-3 py-2.5">
-                  {hasBefore ? (
-                    <span className="inline-block max-w-full break-words rounded-md bg-destructive/10 px-2 py-0.5 font-medium text-destructive ring-1 ring-inset ring-destructive/30">
-                      {field.before}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2.5">
-                  {hasAfter ? (
-                    <span className="inline-block max-w-full break-words rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary ring-1 ring-inset ring-primary/30">
-                      {field.after}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
+                {showBefore && (
+                  <td className="px-3 py-2.5">
+                    {hasBefore ? (
+                      <span className="inline-block max-w-full break-words rounded-md bg-destructive/10 px-2 py-0.5 font-medium text-destructive ring-1 ring-inset ring-destructive/30">
+                        {field.before}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                )}
+                {showAfter && (
+                  <td className="px-3 py-2.5">
+                    {hasAfter ? (
+                      <span className="inline-block max-w-full break-words rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary ring-1 ring-inset ring-primary/30">
+                        {field.after}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -568,10 +849,11 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
     : item.action === 'Created' ? 'Dữ liệu đã tạo'
     : item.action === 'Deleted' ? 'Dữ liệu đã xóa'
     : 'Chi tiết thay đổi';
+  const mode = item.action === 'Created' ? 'created' : item.action === 'Deleted' ? 'deleted' : 'updated';
   return (
     <div>
       <p className="mb-2.5 text-sm font-semibold text-foreground">{title}</p>
-      <DiffTable diff={diff} />
+      <DiffTable diff={diff} mode={mode} />
     </div>
   );
 }
@@ -611,6 +893,7 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
   const { time, date } = formatTimeParts(current.createdAt);
   const cfg = getActionDisplay(current);
   const diff = getDisplayChanges(current);
+  const businessPayload = isBusinessLog(current) ? parseBusinessPayload(current) : null;
   const title = current.summary ?? `${getActionLabel(current.action)} ${getEntityLabel(current.entityName)}`;
   return (
     <AppDialog
@@ -642,7 +925,9 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
           </div>
         </dl>
         <AuditContextLine item={current} />
-        <AuditDetail item={current} diff={diff} />
+        {businessPayload
+          ? <BusinessAuditDetail item={current} payload={businessPayload} />
+          : <AuditDetail item={current} diff={diff} />}
       </div>
     </AppDialog>
   );
@@ -655,9 +940,15 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
   const isFile = item.entityName === 'FileEntity';
   const { time, date } = formatTimeParts(item.createdAt);
   const cfg = getActionDisplay(item);
+  const businessPayload = isBusinessLog(item) ? parseBusinessPayload(item) : null;
 
   let subtitle = getEntityLabel(item.entityName);
-  if (item.entityName === 'SubmissionResult') {
+  if (businessPayload) {
+    const stageLine = businessPayload.stage?.from || businessPayload.stage?.to
+      ? `${submissionStageLabels[businessPayload.stage.from ?? ''] ?? businessPayload.stage.from ?? '—'} → ${submissionStageLabels[businessPayload.stage.to ?? ''] ?? businessPayload.stage.to ?? '—'}`
+      : null;
+    subtitle = businessPayload.criteriaGroupName ?? stageLine ?? subtitle;
+  } else if (item.entityName === 'SubmissionResult') {
     subtitle = getReadableReference([display('criteriaId'), display('CriteriaId'), display('Criteria')], subtitle);
   } else if (item.entityName === 'Submission') {
     subtitle = getReadableReference([display('criteriaGroupId'), display('CriteriaGroupId')], subtitle);
@@ -774,7 +1065,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
 
   const activeFilters = [
     ...(module ? [{ label: 'Phân hệ', value: moduleLabels[module] ?? module, onClear: () => { setModule(''); resetPage(); } }] : []),
-    ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : action, onClear: () => { setAction(''); resetPage(); } }] : []),
+    ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : businessActionFilterLabels[action] ?? action, onClear: () => { setAction(''); resetPage(); } }] : []),
     ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
     ...(selectedPeriod ? [{ label: 'Kỳ thi đua', value: selectedPeriod.name, onClear: () => handlePeriodChange('') }] : []),
     ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setQueryFilters({ from: '', to: '' }); resetPage(); } }] : []),
@@ -822,7 +1113,10 @@ export function AuditLogView({ title, description, actions }: { title: string; d
           </div>
           <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters}>
             <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={Object.entries(moduleLabels).map(([value, label]) => ({ value, label }))} />
-            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={Object.entries(actionLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
+            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={[
+              ...Object.entries(actionLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) })),
+              ...Object.entries(businessActionFilterLabels).map(([value, label]) => ({ value, label })),
+            ]} />
             <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={Object.entries(entityLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
             <DateRangeFilter label="Khoảng ngày" value={`${from}|${to}`} onChange={handleDateRangeChange} />
           </FilterDropdown>
@@ -835,7 +1129,8 @@ export function AuditLogView({ title, description, actions }: { title: string; d
           </div>
         ) : (
           <>
-            <Table className="w-full min-w-[640px] table-fixed">
+            {/* table-fixed: cột Thao tác lấy phần width còn lại → title/subtitle dài cắt "…" không lệch layout */}
+            <Table className="min-w-[640px] table-fixed">
             <TableHeader>
               <TableRow className="border-b border-primary/70 bg-primary hover:bg-primary">
                 <SortableTableHead
@@ -846,9 +1141,9 @@ export function AuditLogView({ title, description, actions }: { title: string; d
                   onSort={() => setSortOrder((current) => current === 'desc' ? 'asc' : 'desc')}
                   className="w-[14%] border-r border-white/15 bg-primary text-sm font-semibold text-primary-foreground"
                 />
-                <TableHead className="w-[36%] border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
-                <TableHead className="w-[24%] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
-                <TableHead className="w-[26%] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>
+                <TableHead className="border-r border-white/15 text-sm font-semibold text-primary-foreground">Thao tác</TableHead>
+                <TableHead className="w-[130px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Hành động</TableHead>
+                <TableHead className="w-[150px] border-r border-white/15 text-center text-sm font-semibold text-primary-foreground">Phân hệ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
