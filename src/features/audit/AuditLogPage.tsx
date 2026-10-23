@@ -15,6 +15,7 @@ import {
 import { AppDialog, Button, EmptyState, FilePreviewDialog, FilterDropdown, FilterSelect, PageHeader, PageLoading, PeriodSelect } from '@/components/core';
 import { SortableTableHead } from '@/components/core/SortableTableHead';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
@@ -104,6 +105,7 @@ const fieldLabels: Record<string, string> = {
   ReviewStatus: 'Trạng thái xem xét',
   CriteriaId: 'Tiêu chí',
   CriteriaGroupId: 'Nhóm tiêu chí',
+  ScoringConfigId: 'Cấu hình điểm',
   UserId: 'Người dùng',
   RoleId: 'Vai trò',
   IsPrimary: 'Là vai trò chính',
@@ -417,6 +419,15 @@ function formatAuditValue(field: string, value: unknown) {
 }
 
 /** BE display đôi khi trả số thập phân dạng chuỗi ("10.00") — normalize về dạng gọn. */
+function formatPointValue(value: number) {
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value);
+}
+
+/** Viết hoa chữ cái đầu — dòng phụ ("kỳ thi đua" → "Kỳ thi đua") cho chuyên nghiệp. */
+function capitalizeFirst(text: string) {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
 function normDisplay(value: string | null) {
   return value !== null && /^-?\d+\.\d+$/.test(value) ? Number(value).toLocaleString('vi-VN') : value;
 }
@@ -458,8 +469,11 @@ function getDisplayChanges(item: AuditLogItem) {
           before: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, normalizeIsoDisplay(formatStructuredValue(change.beforeDisplay, change.field) ?? change.beforeDisplay) ?? formatAuditValue(change.field, change.before))))) ?? 'Chưa có',
           after: normDisplay(readableRef(localizeAuditFieldValue(change.field, normalizeStageDisplay(change.field, normalizeIsoDisplay(formatStructuredValue(change.afterDisplay, change.field) ?? change.afterDisplay) ?? formatAuditValue(change.field, change.after))))) ?? 'Chưa có',
         }))
-        // Bỏ field không đổi (context như CriteriaGroupId X→X) và field null→null.
-        .filter((field) => field.before !== field.after)
+        // Bỏ field không đổi (context như CriteriaGroupId X→X), field null→null,
+        // và các dòng hiển thị ở khối ngữ cảnh riêng của log cấu hình điểm (Tên + Levels).
+        .filter((field) => field.field !== 'Levels'
+          && !(item.entityName === 'ScoringConfig' && field.field === 'Name')
+          && field.before !== field.after)
     : getMeaningfulDiff(item);
   return rows.sort((a, b) => (fieldPriority[a.field] ?? 100) - (fieldPriority[b.field] ?? 100));
 }
@@ -843,7 +857,14 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
       </div>
     );
   }
-  if (diff.length === 0) {
+  // Log cấu hình điểm: Tên (chip) + bảng mức xếp loại — không phải diff.
+  const isScoringConfigLog = item.entityName === 'ScoringConfig';
+  const levelsRow = item.changes?.find((change) => change.field === 'Levels');
+  const configNameRow = item.changes?.find((change) => change.field === 'Name');
+  const configLevels = Array.isArray(levelsRow?.after)
+    ? (levelsRow!.after as Array<{ name: string; minPoint: number; maxPoint: number; includeMin: boolean; includeMax: boolean }>)
+    : [];
+  if (isScoringConfigLog && diff.length === 0 && configLevels.length === 0) {
     return <p className="text-sm text-muted-foreground">Không có thay đổi giá trị — thao tác chỉ ghi nhận thời điểm lưu.</p>;
   }
   const title = item.actionKind === 'request_revision' ? 'Nội dung yêu cầu chỉnh sửa'
@@ -853,8 +874,39 @@ function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) 
   const mode = item.action === 'Created' ? 'created' : item.action === 'Deleted' ? 'deleted' : 'updated';
   return (
     <div>
+      {isScoringConfigLog && configNameRow?.afterDisplay && (
+        <p className="mb-2.5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Tên cấu hình: </span>
+          <span className="ml-1 inline-block rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary">{configNameRow.afterDisplay}</span>
+        </p>
+      )}
+      {isScoringConfigLog && configLevels.length > 0 && (
+        <div className="mb-2.5">
+          <p className="mb-2 text-sm font-semibold text-foreground">Mức xếp loại</p>
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-muted/60">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wide text-foreground/70">Mức xếp loại</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-foreground/70">Khoảng điểm</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {configLevels.map((level, index) => (
+                  <tr key={index}>
+                    <td className="px-3 py-2.5"><Badge className="bg-primary/10 text-primary">{level.name}</Badge></td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
+                      {formatPointValue(level.minPoint)} {level.includeMin ? '≤' : '<'} điểm {level.includeMax ? '≤' : '<'} {formatPointValue(level.maxPoint)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       <p className="mb-2.5 text-sm font-semibold text-foreground">{title}</p>
-      <DiffTable diff={diff} mode={mode} />
+      {diff.length > 0 && <DiffTable diff={diff} mode={mode} />}
     </div>
   );
 }
@@ -925,7 +977,8 @@ function AuditDetailDialog({ item, onOpenChange }: { item: AuditLogItem | null; 
             <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums text-foreground">{time} · {date}</dd>
           </div>
         </dl>
-        <AuditContextLine item={current} />
+        {/* Log nghiệp vụ tự hiển thị ngữ cảnh trong BusinessAuditDetail (từ payload) → chặn AuditContextLine để không lặp. */}
+        {!businessPayload && <AuditContextLine item={current} />}
         {businessPayload
           ? <BusinessAuditDetail item={current} payload={businessPayload} />
           : <AuditDetail item={current} diff={diff} />}
@@ -972,7 +1025,7 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
       <TableCell className="min-w-0 border-r border-border/60 py-3.5 whitespace-normal">
         <div className="min-w-0">
           <p className="line-clamp-2 break-words text-[15px] font-semibold text-foreground">{title}</p>
-          <p className="truncate text-[13px] text-foreground/70">{subtitle}</p>
+          <p className="truncate text-[13px] text-foreground/70">{capitalizeFirst(subtitle)}</p>
         </div>
       </TableCell>
       <TableCell className="overflow-hidden border-r border-border/60 py-3.5 text-center">
