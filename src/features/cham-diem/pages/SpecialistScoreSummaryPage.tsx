@@ -749,7 +749,8 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
                 Công bố kết quả
               </Button>
             )}
-            {!readOnly && (
+            {/* Ẩn nút Thu gọn/Mở rộng khi "Tất cả kỳ thi đua" — khối tổng quan đã ẩn, không có gì để thu/mở. */}
+            {!readOnly && periodFilter && (
               <Button
                 type="button"
                 variant="outline"
@@ -770,13 +771,14 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
         </div>
         <div
           id="specialist-score-summary-overview"
-          hidden={overviewCollapsed}
+          hidden={overviewCollapsed || !periodFilter}
           className={
-            overviewCollapsed
+            overviewCollapsed || !periodFilter
               ? "hidden"
               : "grid items-start gap-3 border-t border-border p-3 xl:grid-cols-[minmax(270px,.8fr)_minmax(360px,1.1fr)_minmax(270px,.8fr)]"
           }
         >
+          {periodFilter && (
           <section
             className="self-start overflow-hidden rounded-lg border border-border border-l-[3px] border-l-primary bg-card"
             aria-label="Đề xuất điểm"
@@ -806,9 +808,14 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
               />
             </div>
           </section>
+          )}
 
           <aside
-            className="self-start overflow-hidden rounded-lg border border-border bg-card"
+            className={cn(
+              "self-start overflow-hidden rounded-lg border border-border bg-card",
+              // Khi là bảng duy nhất (Tất cả kỳ thi đua) → thu hẹp lại cho cân, không trải dài hết trang.
+              !periodFilter && "max-w-md",
+            )}
             aria-label="Xếp hạng xã phường theo điểm thành phố chấm"
           >
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
@@ -866,6 +873,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
               </div>
             )}
           </aside>
+          {periodFilter && (
           <section
             className="self-start overflow-hidden rounded-lg border border-border bg-card"
             aria-label="Thang điểm xếp loại"
@@ -894,6 +902,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
               ))}
             </dl>
           </section>
+          )}
         </div>
       </section>
 
