@@ -44,6 +44,7 @@ const entityLabels: Record<string, string> = {
   SubmissionHistory: 'lịch sử hồ sơ',
   ApprovalHistory: 'lịch sử phê duyệt',
   EmulationClassification: 'xếp loại thi đua',
+  ScoringConfig: 'cấu hình điểm',
   User: 'tài khoản người dùng',
   UserAuth: 'thông tin xác thực',
   UserRole: 'gán vai trò người dùng',

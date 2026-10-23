@@ -262,7 +262,6 @@ function AttachmentButton({ label, files, onPreview }: {
 export default function LocalityResultsPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const { classifications } = useEmulationClassifications();
   const user = useAuthStore((state) => state.user);
   const localityId = user?.localityId;
   const [selectedRow, setSelectedRow] = useState<ResultRow | null>(null);
@@ -288,6 +287,9 @@ export default function LocalityResultsPage() {
   const periodId = selectablePeriods.some((period) => period.id === requestedPeriodId)
     ? requestedPeriodId
     : selectablePeriods.some((period) => period.id === storedPeriodId) ? storedPeriodId! : defaultPeriodId;
+  // Thang xếp loại theo cấu hình điểm của kỳ đang chọn.
+  const selectedPeriodScoringConfigId = selectablePeriods.find((period) => period.id === periodId)?.scoringConfigId ?? null;
+  const { classifications } = useEmulationClassifications(selectedPeriodScoringConfigId);
 
   useEffect(() => {
     if (!periodsQuery.isLoading && periodId && searchParams.get('periodId') !== periodId) {

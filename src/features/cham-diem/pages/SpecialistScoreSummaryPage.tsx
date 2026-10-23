@@ -491,7 +491,9 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
     queryFn: async () => (await periodsApi.list(periodListParams)).items,
   });
   const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
-  const classificationsQuery = useEmulationClassifications();
+  const classificationsQuery = useEmulationClassifications(
+    periods.find((period) => period.id === periodFilter)?.scoringConfigId ?? null,
+  );
   const classifications = classificationsQuery.classifications;
   const sortedPeriods = useMemo(() => [...periods].sort((left, right) => {
     const leftTimestamp = Date.parse(left.updatedAt ?? left.createdAt);

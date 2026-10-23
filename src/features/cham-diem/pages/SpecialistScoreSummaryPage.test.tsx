@@ -77,6 +77,8 @@ function makePeriod(
     endYear,
     name: `${startYear}-${endYear}`,
     status,
+    scoringConfigId: null,
+    scoringConfigName: null,
     createdBy: null,
     updatedBy: null,
     createdAt,
