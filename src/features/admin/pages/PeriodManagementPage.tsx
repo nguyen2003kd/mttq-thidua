@@ -20,6 +20,7 @@ import {
   type PeriodApi,
   type PeriodStatusApi,
 } from '../api/periodsApi';
+import { scoringConfigsApi } from '../api/scoringConfigsApi';
 
 const STATUS_LABELS: Record<PeriodStatusApi, string> = {
   Draft: 'Nháp',
@@ -40,9 +41,10 @@ interface FormState {
   endYear: string;
   name: string;
   status: PeriodStatusApi;
+  scoringConfigId: string;
 }
 
-const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Active' };
+const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Active', scoringConfigId: '' };
 
 export default function PeriodManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
@@ -61,9 +63,16 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
 
   const periods = periodsQuery.data?.items ?? [];
 
+  // Danh sách cấu hình điểm cho select bắt buộc trong form kỳ.
+  const scoringConfigsQuery = useQuery({
+    queryKey: ['scoring-configs', 'options'],
+    queryFn: scoringConfigsApi.listAll,
+  });
+  const scoringConfigs = scoringConfigsQuery.data ?? [];
+
   const invalidate = () => invalidateQueryResources(queryClient, [getGetApiV1PeriodsQueryKey(), getGetApiV1AuditLogsQueryKey()]);
 
-  const buildPayload = (excludeId?: string): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi } | null => {
+  const buildPayload = (excludeId?: string): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi; scoringConfigId: string } | null => {
     const startYear = Number(form.startYear);
     const endYear = Number(form.endYear);
     if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear < 1900 || endYear > 2200) {
@@ -74,6 +83,10 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Năm kết thúc phải lớn hơn hoặc bằng năm bắt đầu.');
       return null;
     }
+    if (!form.scoringConfigId) {
+      toast.error('Vui lòng chọn cấu hình điểm cho kỳ thi đua.');
+      return null;
+    }
     // Tên trống -> tự sinh theo năm (BE cũng vậy); check trùng trên tên đã resolve
     const name = form.name.trim();
     const resolvedName = name || `${startYear}-${endYear}`;
@@ -81,7 +94,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Tên kỳ thi đua đã tồn tại, vui lòng chọn tên khác.');
       return null;
     }
-    return { startYear, endYear, name: name || null, status: form.status };
+    return { startYear, endYear, name: name || null, status: form.status, scoringConfigId: form.scoringConfigId };
   };
 
   const createMutation = useMutation({
@@ -138,6 +151,12 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
     {
+      accessorKey: 'scoringConfigName',
+      header: 'Cấu hình điểm',
+      cell: ({ row }) => row.original.scoringConfigName || '—',
+      meta: { list: { width: 'minmax(140px, 1fr)' } },
+    },
+    {
       accessorKey: 'status',
       header: 'Trạng thái',
       enableSorting: true,
@@ -157,6 +176,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       endYear: String(period.endYear),
       name: period.name,
       status: period.status,
+      scoringConfigId: period.scoringConfigId ?? '',
     });
     setEditOpen(true);
   };
@@ -204,6 +224,22 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
             {editOpen && <SelectItem value="Published">Đã công bố</SelectItem>}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="p-scoring-config">Cấu hình điểm <span className="text-destructive">*</span></Label>
+        <Select
+          value={form.scoringConfigId}
+          onValueChange={(v) => setForm((f) => ({ ...f, scoringConfigId: v ?? '' }))}
+          itemToStringLabel={(id) => scoringConfigs.find((config) => config.id === id)?.name ?? 'Cấu hình điểm'}
+        >
+          <SelectTrigger id="p-scoring-config"><SelectValue placeholder="Chọn cấu hình điểm" /></SelectTrigger>
+          <SelectContent>
+            {scoringConfigs.map((config) => (
+              <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">Kỳ sẽ xếp loại kết quả theo các mức điểm của cấu hình này.</p>
       </div>
     </>
   );

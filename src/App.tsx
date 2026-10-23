@@ -367,6 +367,7 @@ export default function App() {
               <Route path="ban" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ban`} replace />} />
               <Route path="cum" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=cum`} replace />} />
               <Route path="ky" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ky`} replace />} />
+              <Route path="cau-hinh-diem" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=cau-hinh-diem`} replace />} />
               <Route path="dia-phuong" element={<LocalityListPage />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>

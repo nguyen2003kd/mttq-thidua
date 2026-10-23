@@ -18,6 +18,8 @@ const period: PeriodApi = {
   endYear: 2030,
   name: '2026-2030',
   status: 'Active',
+  scoringConfigId: null,
+  scoringConfigName: null,
   createdBy: null,
   updatedBy: null,
   createdAt: '2026-01-01T00:00:00Z',
