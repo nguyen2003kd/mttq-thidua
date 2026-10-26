@@ -77,7 +77,7 @@ export interface SubmissionApi {
   totalProposedPoint: number;
   /** Tổng điểm thưởng địa phương đề xuất của hồ sơ — dùng để theo dõi quota 5/kỳ. */
   totalProposedBonusPoint?: number;
-  /** Tổng điểm thưởng chính thức của địa phương trong kỳ (mọi hồ sơ) + giới hạn kỳ — trả về ở endpoint chi tiết. */
+  /** Tổng điểm thưởng hiệu lực trong kỳ: điểm chính thức nếu đã chấm, nếu chưa thì dùng điểm đề xuất. */
   periodBonusUsed?: number;
   periodBonusLimit?: number;
   totalFinalPoint: number;
