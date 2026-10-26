@@ -8,7 +8,6 @@ export interface CreateCriteriaRequest {
   /** @nullable */
   content?: string | null;
   maxPoint?: number;
-  maxBonusPoint?: number;
   /** @nullable */
   deadline?: string | null;
   /** @nullable */

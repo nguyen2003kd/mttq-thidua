@@ -37,7 +37,7 @@ const getCurrentLocalDateTime = () => {
 };
 
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
-  id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint,
+  id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint,
   deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order,
   type: criterion.type === 'Supplementary' ? 'Supplementary' : criterion.type === 'LateAdded' ? 'LateAdded' : 'Standard', status: criterion.status,
 });
@@ -49,25 +49,24 @@ interface EditorProps {
 }
 
 function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parentDeadline, onSave, saving }: EditorProps) {
-  const [name, setName] = useState(''); const [score, setScore] = useState(''); const [bonus, setBonus] = useState('');
+  const [name, setName] = useState(''); const [score, setScore] = useState('');
   const [deadline, setDeadline] = useState(''); const [note, setNote] = useState(''); const [error, setError] = useState('');
   const parentDeadlineInput = toDateTimeInput(parentDeadline);
-  useEffect(() => { if (!open) return; setName(item?.name ?? ''); setScore(item?.maxScore?.toString() ?? ''); setBonus(item ? (item.bonusScore ?? 1).toString() : ''); setDeadline(toDateTimeInput(item?.deadline)); setNote(item?.note ?? ''); setError(''); }, [open, item]);
+  useEffect(() => { if (!open) return; setName(item?.name ?? ''); setScore(item?.maxScore?.toString() ?? ''); setDeadline(toDateTimeInput(item?.deadline)); setNote(item?.note ?? ''); setError(''); }, [open, item]);
   const submit = (event: FormEvent) => {
     event.preventDefault(); if (readonly) return onOpenChange(false);
-    const maxScore = Number(score); const bonusScore = bonus.trim() === '' ? 1 : Number(bonus);
+    const maxScore = Number(score);
     if (!name.trim()) return setError('Nội dung tiêu chí là bắt buộc.');
     if (!Number.isFinite(maxScore) || maxScore <= 0) return setError('Điểm chuẩn phải lớn hơn 0.');
-    if (!Number.isFinite(bonusScore) || bonusScore < 0) return setError('Điểm thưởng tối đa không hợp lệ.');
     if (deadline && new Date(deadline).getTime() < Date.now()) return setError('Hạn nộp không được ở thời gian quá khứ.');
     if (deadline && parentDeadline && new Date(deadline).getTime() > new Date(parentDeadline).getTime()) {
       return setError('Hạn nộp của tiêu chí con không được vượt quá hạn nộp của tiêu chí cha.');
     }
-    onSave({ name: name.trim(), maxScore, bonusScore, deadline: deadline || undefined, note: note.trim() || undefined });
+    onSave({ name: name.trim(), maxScore, deadline: deadline || undefined, note: note.trim() || undefined });
   };
   return <FormDialog open={open} onOpenChange={onOpenChange} title={readonly ? 'Xem tiêu chí con' : item ? 'Sửa tiêu chí con' : 'Thêm mới tiêu chí con'} description="Nhập thông tin tiêu chí con." onSubmit={submit} submitLabel={readonly ? 'Đóng' : 'Lưu'} cancelLabel="Đóng" hideCancel={readonly} submitDisabled={saving}>
     <div className="space-y-1.5"><Label htmlFor="child-name">Nội dung <span className="text-destructive">★</span></Label><Input id="child-name" value={name} onChange={(event) => setName(event.target.value)} disabled={readonly || saving} /></div>
-    <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="child-score">Điểm chuẩn <span className="text-destructive">★</span></Label><Input id="child-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} disabled={readonly || saving} /></div><div className="space-y-1.5"><Label htmlFor="child-bonus">Điểm thưởng tối đa</Label><Input id="child-bonus" type="number" min={0} step="0.25" value={bonus} onChange={(event) => setBonus(event.target.value)} disabled={readonly || saving} /><p className="text-xs text-muted-foreground">Để trống sẽ mặc định là 1 điểm.</p></div></div>
+    <div className="space-y-1.5"><Label htmlFor="child-score">Điểm chuẩn <span className="text-destructive">★</span></Label><Input id="child-score" type="number" min={0} step="0.25" value={score} onChange={(event) => setScore(event.target.value)} disabled={readonly || saving} /><p className="text-xs text-muted-foreground">Điểm thưởng tối đa trên mỗi tiêu chí con do kỳ thi đua quy định.</p></div>
     <div className="space-y-1.5"><Label htmlFor="child-deadline">Hạn nộp</Label><Input id="child-deadline" type="datetime-local" min={getCurrentLocalDateTime()} max={parentDeadlineInput || undefined} value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={readonly || saving} /><p className="text-xs text-muted-foreground">Không được quá hạn nộp của tiêu chí cha{parentDeadlineInput ? ` (${parentDeadlineInput.replace('T', ' ')})` : ''}.</p></div>
     <div className="space-y-1.5"><Label htmlFor="child-note">Ghi chú</Label><Textarea id="child-note" rows={3} value={note} onChange={(event) => setNote(event.target.value)} disabled={readonly || saving} /></div>
     {error && <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive"><AlertTriangle className="size-4 shrink-0" />{error}</p>}
@@ -128,12 +127,6 @@ export default function CriteriaChildrenPage() {
       meta: { align: 'center', sortable: true, list: { width: 'minmax(110px,0.7fr)' } },
     },
     {
-      accessorKey: 'bonusScore',
-      header: 'Điểm thưởng tối đa',
-      cell: ({ row }) => row.original.bonusScore ?? 0,
-      meta: { align: 'center', sortable: true, list: { width: 'minmax(145px,0.85fr)' } },
-    },
-    {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
       sortDescFirst: true,
@@ -179,7 +172,7 @@ export default function CriteriaChildrenPage() {
     if (siblingTotal + value.maxScore > group.maxPoint) return toast.error(`Tổng điểm tiêu chí (${siblingTotal + value.maxScore}) không được vượt quá ${group.maxPoint} điểm của nhóm.`);
     setSaving(true);
     try {
-      const payload = { content: value.name, maxPoint: value.maxScore, maxBonusPoint: value.bonusScore ?? 0, deadline: value.deadline || null, note: value.note };
+      const payload = { content: value.name, maxPoint: value.maxScore, deadline: value.deadline || null, note: value.note };
       if (current) await criteriaGroupsApi.updateCriteria(current.id, { ...payload, changeReason: 'Cập nhật tiêu chí từ giao diện quản lý.' });
       else await criteriaGroupsApi.createBulk(group.id, [{ type: 'Standard', ...payload }]);
       await invalidateCriteria();

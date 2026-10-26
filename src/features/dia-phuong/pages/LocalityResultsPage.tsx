@@ -203,18 +203,20 @@ function ScoreValue({ value, strong = false }: { value: number | null | undefine
 }
 
 /** Dòng tiêu chí con trong bảng cây kết quả. */
-function ChildResultRow({ criterion, result }: { criterion: CriteriaApi; result?: SubmissionResultItem }) {
+function ChildResultRow({ criterion, result, groupMaxBonus }: { criterion: CriteriaApi; result?: SubmissionResultItem; groupMaxBonus?: number }) {
   const proposedScore = result?.point;
   const proposedBonus = result?.bonusPoint;
   const provinceScore = result ? result.officialPoint ?? result.point : null;
   const provinceBonus = result ? result.officialBonusPoint ?? result.bonusPoint : null;
   const proposedTotal = proposedScore === undefined || proposedBonus === undefined ? null : proposedScore + proposedBonus;
   const provinceTotal = provinceScore === null || provinceBonus === null ? null : provinceScore + provinceBonus;
+  // Điểm thưởng tối đa: hồ sơ đã chấm dùng snapshot, chưa có result thì dùng cấu hình của kỳ.
+  const maxBonus = result?.snapshotMaxBonusPoint ?? groupMaxBonus ?? 0;
 
   return <TableRow className="bg-muted/[0.18] hover:bg-muted/40">
     <TableCell className="border-r border-primary/10 px-4 py-3 pl-10 align-top"><div className="flex items-start gap-2"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/50" /><div><p className="whitespace-normal text-sm leading-5 text-foreground">{criterion.content}</p>{(criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted') && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</div></div></TableCell>
     <TableCell className="whitespace-normal border-r border-primary/10 px-4 py-3 align-top text-sm leading-5 text-muted-foreground">{result?.explanation || criterion.note || '—'}</TableCell>
-    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint + criterion.maxBonusPoint} /></TableCell>
+    <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={criterion.maxPoint + maxBonus} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedScore} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedBonus} /></TableCell>
     <TableCell className="border-r border-primary/10 px-4 py-3 text-center align-top"><ScoreValue value={proposedTotal} /></TableCell>
@@ -547,7 +549,7 @@ export default function LocalityResultsPage() {
                   <TableCell className="border-r border-primary/15 px-4 py-4 text-center"><ScoreValue value={row.officialBonus} strong /></TableCell>
                   <TableCell className="px-4 py-4 text-center"><span className="font-semibold tabular-nums text-primary">{formatScore(row.currentPoint)}</span></TableCell>
                 </TableRow>,
-                ...(expanded ? sortedCriteria.map((criterion) => <ChildResultRow key={`${row.criteriaGroupId}-${criterion.id}`} criterion={criterion} result={resultsByCriteriaId.get(criterion.id)} />) : []),
+                ...(expanded ? sortedCriteria.map((criterion) => <ChildResultRow key={`${row.criteriaGroupId}-${criterion.id}`} criterion={criterion} result={resultsByCriteriaId.get(criterion.id)} groupMaxBonus={groupById.get(row.criteriaGroupId)?.maxBonusPointPerCriteria} />) : []),
               ];
             })}
             {!filteredRows.length && <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Chưa có kết quả được công bố.</TableCell></TableRow>}
@@ -656,6 +658,8 @@ export default function LocalityResultsPage() {
         {criterionDialog && (() => {
           const { criterion, result } = criterionDialog;
           const files = result?.files ?? [];
+          // Điểm thưởng tối đa: snapshot của result, thiếu thì dùng cấu hình của kỳ.
+          const maxBonus = result?.snapshotMaxBonusPoint ?? group?.maxBonusPointPerCriteria ?? 0;
           return <div className="space-y-4">
             <section aria-label="Thông tin nhóm tiêu chí" className="rounded-lg border border-border bg-muted/20 p-4">
               <h3 className="text-sm font-semibold">Thông tin nhóm tiêu chí</h3>
@@ -673,9 +677,9 @@ export default function LocalityResultsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-md border border-border bg-muted/30 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm đề xuất</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{result?.point ?? 0}<span className="ml-1 text-xs font-medium text-success">/ {result?.snapshotMaxPoint ?? criterion.maxPoint}</span></p></div>
-              <div className="rounded-md border border-border bg-muted/30 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng ĐX</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{result?.bonusPoint ?? 0}<span className="ml-1 text-xs font-medium text-success">/ {result?.snapshotMaxBonusPoint ?? criterion.maxBonusPoint}</span></p></div>
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng ĐX</p><p className="mt-0.5 text-sm font-semibold tabular-nums">{result?.bonusPoint ?? 0}<span className="ml-1 text-xs font-medium text-success">/ {maxBonus}</span></p></div>
               <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thực tế</p><p className="mt-0.5 text-sm font-semibold tabular-nums text-primary">{result?.officialPoint ?? result?.point ?? 0}<span className="ml-1 text-xs font-medium text-success">/ {result?.snapshotMaxPoint ?? criterion.maxPoint}</span></p></div>
-              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng TT</p><p className="mt-0.5 text-sm font-semibold tabular-nums text-primary">{result?.officialBonusPoint ?? result?.bonusPoint ?? 0}<span className="ml-1 text-xs font-medium text-success">/ {result?.snapshotMaxBonusPoint ?? criterion.maxBonusPoint}</span></p></div>
+              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2"><p className="text-xs text-muted-foreground">Điểm thưởng TT</p><p className="mt-0.5 text-sm font-semibold tabular-nums text-primary">{result?.officialBonusPoint ?? result?.bonusPoint ?? 0}<span className="ml-1 text-xs font-medium text-success">/ {maxBonus}</span></p></div>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p>

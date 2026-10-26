@@ -56,16 +56,16 @@ function LeaderCriterionDetailDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  item: { criterion: { content: string; maxPoint: number; maxBonusPoint: number; type: string }; result?: SubmissionResultItem; leader?: LeaderScoreDraft } | undefined;
+  item: { criterion: { content: string; maxPoint: number; type: string }; result?: SubmissionResultItem; leader?: LeaderScoreDraft; maxBonusPoint: number } | undefined;
   onPreview: (file: PreviewableFile) => void;
 }) {
   if (!item) return null;
-  const { criterion, result, leader } = item;
+  const { criterion, result, leader, maxBonusPoint } = item;
   const fields = [
     ['Điểm đề xuất', String(result?.point ?? 0)],
     ['Điểm thưởng đề xuất', String(result?.bonusPoint ?? 0)],
     ['Điểm tối đa được đề xuất', String(criterion.maxPoint)],
-    ['Điểm thưởng tối đa được đề xuất', String(criterion.maxBonusPoint)],
+    ['Điểm thưởng tối đa được đề xuất', String(maxBonusPoint)],
   ];
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
@@ -156,6 +156,9 @@ export default function BanLeaderReviewDetailPage() {
   if (!groupQuery.data || !submission) return <EmptyState title="Không tìm thấy hồ sơ" description="Submission không tồn tại hoặc không còn ở trạng thái SpecialistApproved." />;
 
   const resultItems = criteria.map((criterion) => ({ criterion, result: resultsByCriteria.get(criterion.id) }));
+  // Giới hạn điểm thưởng theo kỳ: hồ sơ đã chấm dùng snapshot, hồ sơ mới dùng cấu hình của kỳ; tiêu chí bổ sung không có điểm thưởng.
+  const maxBonusFor = (criterion: { type: string }, result?: SubmissionResultItem) =>
+    criterion.type === 'Supplementary' ? 0 : (result?.snapshotMaxBonusPoint ?? groupQuery.data.maxBonusPointPerCriteria);
   const sortedResultItems = sortTableRows(resultItems, detailSort, {
     proposed: (item) => item.result ? item.result.point + item.result.bonusPoint : null,
     specialist: (item) => item.result ? (item.result.officialPoint ?? item.result.point) + (item.result.officialBonusPoint ?? item.result.bonusPoint) : null,
@@ -170,7 +173,7 @@ export default function BanLeaderReviewDetailPage() {
   const specialistScore = sumResults(activeResults, (result) => result.officialPoint ?? result.point);
   const specialistBonus = sumResults(activeResults, (result) => result.officialBonusPoint ?? result.bonusPoint);
   const maximumScore = activeResultItems.reduce((total, { criterion }) => total + criterion.maxPoint, 0);
-  const maximumBonus = activeResultItems.reduce((total, { criterion }) => total + criterion.maxBonusPoint, 0);
+  const maximumBonus = activeResultItems.reduce((total, { criterion, result }) => total + maxBonusFor(criterion, result), 0);
   const localityName = submission.localityFullName ?? submission.createdByUsername ?? localityCode;
   const specialistForwarding = (approvalHistoriesQuery.data?.items ?? [])
     .find((history) => history.stageLevel === 'LocalSubmitted');
@@ -217,8 +220,8 @@ export default function BanLeaderReviewDetailPage() {
         setSelectedCriteriaId(criterion.id);
         return false;
       }
-      if (!Number.isFinite(draft.bonusPoint) || draft.bonusPoint < 0 || draft.bonusPoint > criterion.maxBonusPoint) {
-        toast.error(`Điểm thưởng Lãnh đạo phải từ 0 đến ${criterion.maxBonusPoint}.`, { description: criterion.content });
+      if (!Number.isFinite(draft.bonusPoint) || draft.bonusPoint < 0 || draft.bonusPoint > maxBonusFor(criterion, result)) {
+        toast.error(`Điểm thưởng Lãnh đạo phải từ 0 đến ${maxBonusFor(criterion, result)}.`, { description: criterion.content });
         setSelectedCriteriaId(criterion.id);
         return false;
       }
@@ -412,8 +415,8 @@ export default function BanLeaderReviewDetailPage() {
                 </Button>
               ) : <span className="text-xs text-muted-foreground">Chưa có bằng chứng</span>}
             </TableCell>
-            <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell>
-            <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={revised?.point ?? result?.officialPoint ?? result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={revised?.bonusPoint ?? result?.officialBonusPoint ?? result?.bonusPoint} maximum={criterion.maxBonusPoint} /></div></TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={result?.bonusPoint} maximum={maxBonusFor(criterion, result)} /></div></TableCell>
+            <TableCell className="border-r border-primary/15 px-4 py-5"><div className="grid grid-cols-2 gap-2"><ScoreBox label="Điểm" value={revised?.point ?? result?.officialPoint ?? result?.point} maximum={criterion.maxPoint} /><ScoreBox label="Điểm thưởng" value={revised?.bonusPoint ?? result?.officialBonusPoint ?? result?.bonusPoint} maximum={maxBonusFor(criterion, result)} /></div></TableCell>
             <TableCell className="px-4 py-5 text-sm leading-6 text-muted-foreground"><p title={result?.explanation || '—'} className="line-clamp-4">{result?.explanation || '—'}</p></TableCell>
           </TableRow>;
         })}
@@ -424,7 +427,7 @@ export default function BanLeaderReviewDetailPage() {
     <LeaderCriterionDetailDialog
       open={criterionDetailOpen}
       onOpenChange={setCriterionDetailOpen}
-      item={selectedResultItem ? { criterion: selectedResultItem.criterion, result: selectedResultItem.result, leader: leaderScoreFor(selectedResultItem.result) } : undefined}
+      item={selectedResultItem ? { criterion: selectedResultItem.criterion, result: selectedResultItem.result, leader: leaderScoreFor(selectedResultItem.result), maxBonusPoint: maxBonusFor(selectedResultItem.criterion, selectedResultItem.result) } : undefined}
       onPreview={setPreviewFile}
     />
     <OfficialScoreRevisionDialog open={Boolean(scoreRevisionResult)} onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }} result={scoreRevisionResult} criterionLabel={scoreRevisionResult?.criteriaContent ?? selectedResultItem?.criterion.content ?? 'Tiêu chí con'} />
@@ -436,7 +439,7 @@ export default function BanLeaderReviewDetailPage() {
       criterionId={selectedResultItem?.criterion.id}
       criterionName={selectedResultItem?.criterion.content}
       maxScoreOverride={selectedResultItem?.criterion.maxPoint}
-      maxBonusOverride={selectedResultItem?.criterion.maxBonusPoint}
+      maxBonusOverride={selectedResultItem ? maxBonusFor(selectedResultItem.criterion, selectedResultItem.result) : undefined}
       referenceLabel="Điểm Chuyên viên đang chấm"
       referenceScore={selectedResultItem?.result?.officialPoint ?? selectedResultItem?.result?.point ?? 0}
       referenceBonusScore={selectedResultItem?.result?.officialBonusPoint ?? selectedResultItem?.result?.bonusPoint ?? 0}

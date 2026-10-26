@@ -46,6 +46,8 @@ interface EvidenceModalProps {
   entry?: ScoreEntry;
   evidence: Evidence[];
   readonly?: boolean;
+  /** Điểm thưởng tối đa trên mỗi tiêu chí con — theo cấu hình của kỳ thi đua. */
+  maxBonusPoint?: number;
   onSave?: (value: EvidenceFormValue) => boolean | Promise<boolean>;
   onDeleteEvidence?: (id: string) => void;
   uploading?: boolean;
@@ -59,6 +61,7 @@ export function EvidenceModal({
   entry,
   evidence,
   readonly = false,
+  maxBonusPoint,
   onSave,
   onDeleteEvidence,
   uploading = false,
@@ -85,7 +88,7 @@ export function EvidenceModal({
   }, [open, entry]);
 
   const maxScore = criterion?.maxScore ?? entry?.supplementaryMaxScore ?? 0;
-  const maxBonus = criterion?.bonusScore ?? 0;
+  const maxBonus = criterion?.type === 'Supplementary' ? 0 : (maxBonusPoint ?? criterion?.bonusScore ?? 0);
   const title = readonly ? 'Minh chứng địa phương' : entry?.proposedScore === undefined ? 'Thêm mới minh chứng' : 'Sửa minh chứng';
   const description = criterion?.name ?? entry?.criteriaName ?? '';
   const hasEvidence = evidence.length > 0;
