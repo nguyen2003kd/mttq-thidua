@@ -1,5 +1,4 @@
 import * as XLSX from 'xlsx-js-style';
-import type { CriteriaPayload } from '@/features/admin/api/criteriaGroupsApi';
 
 const HEADERS = ['Nội dung', 'Điểm chuẩn', 'Điểm thưởng từng tiêu chí con', 'Ghi chú', 'Hạn nộp'];
 const GROUP_NAME_HINT = 'Nhập tên nhóm tiêu chí';
@@ -44,13 +43,23 @@ function centerColumns(worksheet: XLSX.WorkSheet, row: number, columns: number[]
   }
 }
 
+/** Tiêu chí con đọc từ Excel — vẫn giữ điểm thưởng (cột C) để validate theo giới hạn của kỳ. */
+export interface ParsedCriteriaItem {
+  type: 'Standard';
+  content: string;
+  maxPoint: number;
+  maxBonusPoint: number;
+  deadline?: string | null;
+  note?: string;
+}
+
 export interface ParsedCriteriaExcel {
   name: string;
   maxPoint: number;
   maxBonusPoint: number;
   content: string;
   deadline: string | null;
-  criteria: CriteriaPayload[];
+  criteria: ParsedCriteriaItem[];
 }
 
 const cellValue = (row: unknown[] | undefined, column: number) => row?.[column] ?? '';

@@ -24,7 +24,8 @@ import type {
   GetApiV1ResultPublicationsOverviewParams,
   GetApiV1ResultPublicationsPreviewParams,
   GetApiV1ResultPublicationsScoreSummaryExcelParams,
-  PostApiV1ResultPublicationsPublishBody
+  PostApiV1ResultPublicationsPublishBody,
+  PostApiV1ResultPublicationsRemindUnpublishedParams
 } from '../models';
 
 import { mainInstance } from '../mutator/custom-instance.ts';
@@ -464,6 +465,66 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getPostApiV1ResultPublicationsPublishMutationOptions(options), queryClient);
+    }
+    export const postApiV1ResultPublicationsRemindUnpublished = (
+    params?: PostApiV1ResultPublicationsRemindUnpublishedParams,
+ options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
+) => {
+
+
+      return mainInstance<void>(
+      {url: `/api/v1/result-publications/remind-unpublished`, method: 'POST',
+        params, signal
+    },
+      options);
+    }
+
+
+
+
+export const getPostApiV1ResultPublicationsRemindUnpublishedMutationKey = () => ['postApiV1ResultPublicationsRemindUnpublished'] as const;
+
+export const getPostApiV1ResultPublicationsRemindUnpublishedMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1ResultPublicationsRemindUnpublished>>, TError,PostApiV1ResultPublicationsRemindUnpublishedMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+): UseMutationOptions<Awaited<ReturnType<typeof postApiV1ResultPublicationsRemindUnpublished>>, TError,PostApiV1ResultPublicationsRemindUnpublishedMutationVariables, TContext> => {
+
+const mutationKey = getPostApiV1ResultPublicationsRemindUnpublishedMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postApiV1ResultPublicationsRemindUnpublished>>, PostApiV1ResultPublicationsRemindUnpublishedMutationVariables> = (props) => {
+          const {params} = props ?? {};
+
+          return  postApiV1ResultPublicationsRemindUnpublished(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostApiV1ResultPublicationsRemindUnpublishedMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1ResultPublicationsRemindUnpublished>>>
+
+    export type PostApiV1ResultPublicationsRemindUnpublishedMutationError = unknown
+    export type PostApiV1ResultPublicationsRemindUnpublishedMutationVariables = {params?: PostApiV1ResultPublicationsRemindUnpublishedParams}
+
+    export const usePostApiV1ResultPublicationsRemindUnpublished = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1ResultPublicationsRemindUnpublished>>, TError,PostApiV1ResultPublicationsRemindUnpublishedMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postApiV1ResultPublicationsRemindUnpublished>>,
+        TError,
+        PostApiV1ResultPublicationsRemindUnpublishedMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostApiV1ResultPublicationsRemindUnpublishedMutationOptions(options), queryClient);
     }
     export const getApiV1ResultPublicationsScoreSummaryExcel = (
     params?: GetApiV1ResultPublicationsScoreSummaryExcelParams,

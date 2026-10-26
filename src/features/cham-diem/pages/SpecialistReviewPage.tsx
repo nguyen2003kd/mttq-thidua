@@ -141,7 +141,8 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: criterion.maxPoint,
-        maxProposedBonusScore: criterion.maxBonusPoint,
+        // Giới hạn điểm thưởng theo kỳ: hồ sơ đã chấm dùng snapshot, hồ sơ mới dùng cấu hình của kỳ.
+        maxProposedBonusScore: criterion.type === 'Supplementary' ? 0 : (result?.snapshotMaxBonusPoint ?? group.maxBonusPointPerCriteria),
         explanation: result?.explanation ?? '',
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,
@@ -453,7 +454,8 @@ type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
 const scoreEditSchema = z.object({
   score: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
-  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.').max(1, 'Điểm thưởng không được vượt quá 1 điểm.'),
+  // Giới hạn trên của điểm thưởng theo từng tiêu chí (từ cấu hình kỳ) được kiểm tra trong submit handler.
+  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.'),
   reason: z.string().trim(),
 });
 
@@ -1467,16 +1469,16 @@ function ScoreEditDialog({
       form.setError('score', { message: `Điểm chấm không được vượt quá ${item.maxProposedScore}.` });
       return;
     }
-    if (values.bonusScore > 1) {
-      form.setError('bonusScore', { message: 'Điểm thưởng không được vượt quá 1 điểm.' });
+    if (values.bonusScore > item.maxProposedBonusScore) {
+      form.setError('bonusScore', { message: `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore} điểm.` });
       return;
     }
-    // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn (5/kỳ).
+    // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn của kỳ.
     if (periodBonusUsed != null && periodBonusLimit != null) {
       const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
       const projected = periodBonusUsed - currentBonus + values.bonusScore;
       if (projected > periodBonusLimit) {
-        form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn 5 điểm/kỳ.` });
+        form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn ${periodBonusLimit} điểm/kỳ.` });
         return;
       }
     }
@@ -1511,7 +1513,7 @@ function ScoreEditDialog({
                   id="specialist-bonus-score"
                   type="number"
                   min={0}
-                  max={1}
+                  max={item.maxProposedBonusScore}
                   step="0.25"
                   {...form.register('bonusScore', {
                     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1825,7 +1827,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: c.maxPoint,
-        maxProposedBonusScore: c.maxBonusPoint,
+        // Giới hạn điểm thưởng theo kỳ: hồ sơ đã chấm dùng snapshot, hồ sơ mới dùng cấu hình của kỳ.
+        maxProposedBonusScore: c.type === 'Supplementary' ? 0 : (result?.snapshotMaxBonusPoint ?? group.maxBonusPointPerCriteria),
         explanation: result?.explanation ?? '',
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,

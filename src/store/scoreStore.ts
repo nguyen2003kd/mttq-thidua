@@ -114,12 +114,15 @@ export interface ScoreStore {
   audits: AuditEntry[];
   generalCommitteeComments: GeneralCommitteeComment[];
   deadline: string;
+  /** Điểm thưởng tối đa một địa phương nhận trong kỳ — đồng bộ với cấu hình của kỳ thi đua. */
+  maxBonusPerPeriod: number;
   scores: Record<string, Record<string, ScoreRecord>>; // tableId -> localityId -> record
   assignments: Record<string, string[]>; // tableId -> localityIds
   /** tableId -> localityId -> criteriaIds bị khóa sau khi tiêu chí đã áp dụng bị sửa. */
   lockedCriteria: Record<string, Record<string, string[]>>;
 
   setDeadline: (date: string) => void;
+  setMaxBonusPerPeriod: (limit: number) => void;
 
   createCriteriaTable: (payload: {
     name: string;
@@ -382,11 +385,13 @@ export const useScoreStore = create<ScoreStore>()(
       audits: initialAudits,
       generalCommitteeComments: [],
       deadline: defaultDeadline,
+      maxBonusPerPeriod: 5,
       scores: initialScores,
       assignments: { tc1: ['loc-25195', 'loc-26068', 'loc-25210', 'loc-25222', 'loc-25217', 'loc-25220'] },
       lockedCriteria: { tc1: {} },
 
       setDeadline: (date) => set({ deadline: date }),
+      setMaxBonusPerPeriod: (limit) => set({ maxBonusPerPeriod: Math.max(0, limit) }),
 
       createLocality: ({ code, name, fullName, unitType, region }) =>
         set((state) => {
@@ -629,7 +634,12 @@ export const useScoreStore = create<ScoreStore>()(
         const locked = state.lockedCriteria[tableId]?.[localityId]?.includes(criteriaId);
         if (!table || !criterion || record?.state === 'DA_CONG_BO' || locked || !explanation.trim()) return false;
         if (proposedScore < 0 || proposedScore > criterion.maxScore) return false;
-        if (proposedBonusScore < 0 || proposedBonusScore > (criterion.bonusScore ?? 0)) return false;
+        if (proposedBonusScore < 0) return false;
+        // Đồng bộ giới hạn theo kỳ: tổng điểm thưởng của địa phương trong bảng không vượt maxBonusPerPeriod.
+        const otherBonusTotal = (record?.entries ?? [])
+          .filter((entry) => entry.criteriaId !== criteriaId)
+          .reduce((sum, entry) => sum + (entry.proposedBonusScore ?? 0), 0);
+        if (otherBonusTotal + proposedBonusScore > state.maxBonusPerPeriod) return false;
 
         set((current) => {
           const tableScores = { ...(current.scores[tableId] ?? {}) };
@@ -714,9 +724,13 @@ export const useScoreStore = create<ScoreStore>()(
           .find((item) => item.id === tableId)
           ?.criteria.find((item) => item.id === criteriaId);
         const maxScore = entry?.isSupplementary ? (entry.supplementaryMaxScore ?? score) : criterion?.maxScore;
-        const maxBonus = entry?.isSupplementary ? 0 : (criterion?.bonusScore ?? 0);
         if (!record || !entry || maxScore === undefined || score < 0 || score > maxScore) return false;
-        if (bonusScore < 0 || bonusScore > maxBonus) return false;
+        if (bonusScore < 0) return false;
+        // Đồng bộ giới hạn theo kỳ: tổng điểm thưởng của địa phương trong bảng không vượt maxBonusPerPeriod.
+        const otherBonusTotal = record.entries
+          .filter((item) => item.criteriaId !== criteriaId)
+          .reduce((sum, item) => sum + (item.stageScores?.[stage]?.bonusScore ?? item.proposedBonusScore ?? 0), 0);
+        if (otherBonusTotal + bonusScore > get().maxBonusPerPeriod) return false;
         const differs = score !== (entry.proposedScore ?? entry.value) || bonusScore !== (entry.proposedBonusScore ?? 0);
         if ((differs || entry.isSupplementary) && !reason?.trim()) return false;
 

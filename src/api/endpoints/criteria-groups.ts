@@ -19,9 +19,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  ApplyCriteriaGroupRequest,
   CreateCriteriaGroupRequest,
   GetApiV1CriteriaGroupsParams,
+  PostApiV1CriteriaGroupsApplyBody,
   UpdateCriteriaGroupRequest
 } from '../models';
 
@@ -399,15 +399,22 @@ export function useGetApiV1CriteriaGroupsId<TData = Awaited<ReturnType<typeof ge
 
 
 export const postApiV1CriteriaGroupsApply = (
-    applyCriteriaGroupRequest?: ApplyCriteriaGroupRequest,
+    postApiV1CriteriaGroupsApplyBody?: PostApiV1CriteriaGroupsApplyBody,
  options?: SecondParameter<typeof mainInstance>,signal?: AbortSignal
 ) => {
 
+      const formData = new FormData();
+if(postApiV1CriteriaGroupsApplyBody?.CriteriaGroupIds !== undefined) {
+ postApiV1CriteriaGroupsApplyBody?.CriteriaGroupIds.forEach(value => formData.append(`CriteriaGroupIds`, value));
+ }
+if(postApiV1CriteriaGroupsApplyBody?.Files !== undefined) {
+ postApiV1CriteriaGroupsApplyBody?.Files.forEach(value => formData.append(`Files`, value));
+ }
 
       return mainInstance<void>(
       {url: `/api/v1/criteria-groups/apply`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: applyCriteriaGroupRequest, signal
+      headers: {'Content-Type': 'multipart/form-data', },
+       data: formData, signal
     },
       options);
     }
@@ -445,9 +452,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type PostApiV1CriteriaGroupsApplyMutationResult = NonNullable<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>>
-    export type PostApiV1CriteriaGroupsApplyMutationBody = ApplyCriteriaGroupRequest | undefined
+    export type PostApiV1CriteriaGroupsApplyMutationBody = PostApiV1CriteriaGroupsApplyBody | undefined
     export type PostApiV1CriteriaGroupsApplyMutationError = unknown
-    export type PostApiV1CriteriaGroupsApplyMutationVariables = {data?: ApplyCriteriaGroupRequest}
+    export type PostApiV1CriteriaGroupsApplyMutationVariables = {data?: PostApiV1CriteriaGroupsApplyBody}
 
     export const usePostApiV1CriteriaGroupsApply = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postApiV1CriteriaGroupsApply>>, TError,PostApiV1CriteriaGroupsApplyMutationVariables, TContext>, request?: SecondParameter<typeof mainInstance>}

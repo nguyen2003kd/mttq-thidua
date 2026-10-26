@@ -7,4 +7,7 @@ export interface CreatePeriodRequest {
   /** @nullable */
   name?: string | null;
   status?: PeriodStatus;
+  scoringConfigId?: string;
+  maxBonusPointPerPeriod?: number;
+  maxBonusPointPerCriteria?: number;
 }

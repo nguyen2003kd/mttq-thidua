@@ -12,7 +12,6 @@ export interface CriteriaApi {
   targetSubmissionId: string | null;
   content: string;
   maxPoint: number;
-  maxBonusPoint: number;
   deadline: string | null;
   note: string | null;
   status: CriteriaStatusApi;
@@ -50,6 +49,8 @@ export interface CriteriaGroupApi {
   departmentName: string | null;
   periodId: string | null;
   periodName: string | null;
+  maxBonusPointPerPeriod: number;
+  maxBonusPointPerCriteria: number;
   createdAt: string;
   updatedAt: string | null;
   criteria: CriteriaApi[];
@@ -88,7 +89,6 @@ export interface CriteriaPayload {
   type: 'Standard';
   content: string;
   maxPoint: number;
-  maxBonusPoint: number;
   deadline?: string | null;
   note?: string;
 }

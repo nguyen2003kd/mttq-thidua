@@ -37,6 +37,8 @@ interface PeriodFormState {
   name: string;
   status: PeriodStatusApi;
   scoringConfigId: string;
+  maxBonusPointPerPeriod: string;
+  maxBonusPointPerCriteria: string;
 }
 
 const emptyPeriodForm: PeriodFormState = {
@@ -45,6 +47,8 @@ const emptyPeriodForm: PeriodFormState = {
   name: '',
   status: 'Active',
   scoringConfigId: '',
+  maxBonusPointPerPeriod: '5',
+  maxBonusPointPerCriteria: '1',
 };
 
 interface CriteriaPeriodSelectionPageProps {
@@ -117,7 +121,13 @@ export default function CriteriaPeriodSelectionPage({
       toast.error('Vui lòng chọn cấu hình điểm cho kỳ thi đua.');
       return null;
     }
-    return { startYear, endYear, name: form.name.trim() || null, status: form.status, scoringConfigId: form.scoringConfigId };
+    const maxBonusPointPerPeriod = Number(form.maxBonusPointPerPeriod);
+    const maxBonusPointPerCriteria = Number(form.maxBonusPointPerCriteria);
+    if (!Number.isFinite(maxBonusPointPerPeriod) || maxBonusPointPerPeriod <= 0 || !Number.isFinite(maxBonusPointPerCriteria) || maxBonusPointPerCriteria <= 0) {
+      toast.error('Điểm thưởng tối đa trong kỳ và trên tiêu chí con phải lớn hơn 0.');
+      return null;
+    }
+    return { startYear, endYear, name: form.name.trim() || null, status: form.status, scoringConfigId: form.scoringConfigId, maxBonusPointPerPeriod, maxBonusPointPerCriteria };
   };
 
   const createMutation = useMutation({
@@ -149,6 +159,8 @@ export default function CriteriaPeriodSelectionPage({
       name: period.name ?? '',
       status: period.status,
       scoringConfigId: period.scoringConfigId ?? '',
+      maxBonusPointPerPeriod: String(period.maxBonusPointPerPeriod ?? 5),
+      maxBonusPointPerCriteria: String(period.maxBonusPointPerCriteria ?? 1),
     });
     setEditOpen(true);
   }, []);
@@ -173,6 +185,9 @@ export default function CriteriaPeriodSelectionPage({
     const payload = buildPayload();
     if (payload) updateMutation.mutate({ id: selectedPeriod.id, payload });
   };
+
+  // Cấu hình điểm thưởng chỉ chỉnh được khi kỳ còn Nháp — khớp ràng buộc của BE.
+  const bonusLimitsLocked = editOpen && selectedPeriod?.status !== 'Draft';
 
   const periodForm = (
     <>
@@ -221,6 +236,37 @@ export default function CriteriaPeriodSelectionPage({
         </Select>
         <p className="text-xs text-muted-foreground">Kỳ sẽ xếp loại kết quả theo các mức điểm của cấu hình này.</p>
       </div>
+      <div className="grid items-end gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="period-bonus-period">Điểm thưởng tối đa trong kỳ <span className="text-destructive">*</span></Label>
+          <Input
+            id="period-bonus-period"
+            type="number"
+            min="0"
+            step="0.5"
+            value={form.maxBonusPointPerPeriod}
+            disabled={bonusLimitsLocked}
+            onChange={(event) => setForm((current) => ({ ...current, maxBonusPointPerPeriod: event.target.value }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="period-bonus-criteria">Điểm thưởng tối đa trên tiêu chí con <span className="text-destructive">*</span></Label>
+          <Input
+            id="period-bonus-criteria"
+            type="number"
+            min="0"
+            step="0.5"
+            value={form.maxBonusPointPerCriteria}
+            disabled={bonusLimitsLocked}
+            onChange={(event) => setForm((current) => ({ ...current, maxBonusPointPerCriteria: event.target.value }))}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {bonusLimitsLocked
+          ? 'Cấu hình điểm thưởng chỉ chỉnh được khi kỳ thi đua còn ở trạng thái Nháp.'
+          : 'Giới hạn tổng điểm thưởng một địa phương nhận được trong kỳ và điểm thưởng tối đa trên mỗi tiêu chí con.'}
+      </p>
     </>
   );
 

@@ -42,9 +42,11 @@ interface FormState {
   name: string;
   status: PeriodStatusApi;
   scoringConfigId: string;
+  maxBonusPointPerPeriod: string;
+  maxBonusPointPerCriteria: string;
 }
 
-const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Active', scoringConfigId: '' };
+const emptyForm: FormState = { startYear: '', endYear: '', name: '', status: 'Active', scoringConfigId: '', maxBonusPointPerPeriod: '5', maxBonusPointPerCriteria: '1' };
 
 export default function PeriodManagementPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
@@ -72,7 +74,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
 
   const invalidate = () => invalidateQueryResources(queryClient, [getGetApiV1PeriodsQueryKey(), getGetApiV1AuditLogsQueryKey()]);
 
-  const buildPayload = (excludeId?: string): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi; scoringConfigId: string } | null => {
+  const buildPayload = (excludeId?: string): { startYear: number; endYear: number; name: string | null; status: PeriodStatusApi; scoringConfigId: string; maxBonusPointPerPeriod: number; maxBonusPointPerCriteria: number } | null => {
     const startYear = Number(form.startYear);
     const endYear = Number(form.endYear);
     if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear < 1900 || endYear > 2200) {
@@ -87,6 +89,12 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Vui lòng chọn cấu hình điểm cho kỳ thi đua.');
       return null;
     }
+    const maxBonusPointPerPeriod = Number(form.maxBonusPointPerPeriod);
+    const maxBonusPointPerCriteria = Number(form.maxBonusPointPerCriteria);
+    if (!Number.isFinite(maxBonusPointPerPeriod) || maxBonusPointPerPeriod <= 0 || !Number.isFinite(maxBonusPointPerCriteria) || maxBonusPointPerCriteria <= 0) {
+      toast.error('Điểm thưởng tối đa trong kỳ và trên tiêu chí con phải lớn hơn 0.');
+      return null;
+    }
     // Tên trống -> tự sinh theo năm (BE cũng vậy); check trùng trên tên đã resolve
     const name = form.name.trim();
     const resolvedName = name || `${startYear}-${endYear}`;
@@ -94,7 +102,7 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       toast.error('Tên kỳ thi đua đã tồn tại, vui lòng chọn tên khác.');
       return null;
     }
-    return { startYear, endYear, name: name || null, status: form.status, scoringConfigId: form.scoringConfigId };
+    return { startYear, endYear, name: name || null, status: form.status, scoringConfigId: form.scoringConfigId, maxBonusPointPerPeriod, maxBonusPointPerCriteria };
   };
 
   const createMutation = useMutation({
@@ -157,6 +165,12 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       meta: { list: { width: 'minmax(140px, 1fr)' } },
     },
     {
+      id: 'bonusLimits',
+      header: 'Điểm thưởng',
+      cell: ({ row }) => `${row.original.maxBonusPointPerPeriod}/kỳ · ${row.original.maxBonusPointPerCriteria}/tiêu chí`,
+      meta: { align: 'center', list: { width: '190px' } },
+    },
+    {
       accessorKey: 'status',
       header: 'Trạng thái',
       enableSorting: true,
@@ -177,6 +191,8 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
       name: period.name,
       status: period.status,
       scoringConfigId: period.scoringConfigId ?? '',
+      maxBonusPointPerPeriod: String(period.maxBonusPointPerPeriod ?? 5),
+      maxBonusPointPerCriteria: String(period.maxBonusPointPerCriteria ?? 1),
     });
     setEditOpen(true);
   };
@@ -193,6 +209,9 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
     const payload = buildPayload(selected?.id);
     if (payload) updateMutation.mutate({ id: selected.id, payload });
   };
+
+  // Cấu hình điểm thưởng chỉ chỉnh được khi kỳ còn Nháp — khớp ràng buộc của BE.
+  const bonusLimitsLocked = editOpen && selected?.status !== 'Draft';
 
   const periodForm = (
     <>
@@ -241,6 +260,37 @@ export default function PeriodManagementPage({ embedded = false }: { embedded?: 
         </Select>
         <p className="text-xs text-muted-foreground">Kỳ sẽ xếp loại kết quả theo các mức điểm của cấu hình này.</p>
       </div>
+      <div className="grid items-end gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="p-bonus-period">Điểm thưởng tối đa trong kỳ <span className="text-destructive">*</span></Label>
+          <Input
+            id="p-bonus-period"
+            type="number"
+            min="0"
+            step="0.5"
+            value={form.maxBonusPointPerPeriod}
+            disabled={bonusLimitsLocked}
+            onChange={(e) => setForm((f) => ({ ...f, maxBonusPointPerPeriod: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="p-bonus-criteria">Điểm thưởng tối đa trên tiêu chí con <span className="text-destructive">*</span></Label>
+          <Input
+            id="p-bonus-criteria"
+            type="number"
+            min="0"
+            step="0.5"
+            value={form.maxBonusPointPerCriteria}
+            disabled={bonusLimitsLocked}
+            onChange={(e) => setForm((f) => ({ ...f, maxBonusPointPerCriteria: e.target.value }))}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {bonusLimitsLocked
+          ? 'Cấu hình điểm thưởng chỉ chỉnh được khi kỳ thi đua còn ở trạng thái Nháp.'
+          : 'Giới hạn tổng điểm thưởng một địa phương nhận được trong kỳ và điểm thưởng tối đa trên mỗi tiêu chí con.'}
+      </p>
     </>
   );
 
