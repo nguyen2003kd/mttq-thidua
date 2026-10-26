@@ -57,19 +57,20 @@ export function selectConfigLevels(
 }
 
 /** Điểm thuộc mức khi (includeMin ? score >= min : score > min) && (includeMax ? score <= max : score < max).
- *  Thang điểm tự do — điểm vượt mức cao nhất → không có xếp loại. */
+ *  Điểm vượt qua mốc của mức cao nhất (hoặc thấp hơn mức thấp nhất) → xếp vào mức gần nhất. */
 export function classifyByConfig(
   score: number | null | undefined,
   rows: readonly EmulationClassificationConfig[],
 ): EmulationClassificationConfig | null {
   if (score === null || score === undefined || !Number.isFinite(score)) return null;
-  return (
-    rows.find(
-      (row) =>
-        (row.includeMin ? score >= row.minPoint : score > row.minPoint) &&
-        (row.includeMax ? score <= row.maxPoint : score < row.maxPoint),
-    ) ?? null
+  const exact = rows.find(
+    (row) =>
+      (row.includeMin ? score >= row.minPoint : score > row.minPoint) &&
+      (row.includeMax ? score <= row.maxPoint : score < row.maxPoint),
   );
+  if (exact || rows.length === 0) return exact ?? null;
+  const sorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
+  return score > sorted[0].maxPoint ? sorted[0] : sorted[sorted.length - 1];
 }
 
 function formatPoint(value: number) {

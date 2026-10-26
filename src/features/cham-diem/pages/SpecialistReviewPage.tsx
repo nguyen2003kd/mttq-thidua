@@ -1459,6 +1459,11 @@ function ScoreEditDialog({
 
   if (!item) return null;
 
+  const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
+  const maxBonusScore = periodBonusUsed != null && periodBonusLimit != null
+    ? Math.min(item.maxProposedBonusScore, Math.max(0, periodBonusLimit - (periodBonusUsed - currentBonus)))
+    : item.maxProposedBonusScore;
+
   const submit = (values: ScoreEditForm) => {
     const scoreChanged = values.score !== item.proposedScore || values.bonusScore !== item.proposedBonusScore;
     if (scoreChanged && !values.reason.trim()) {
@@ -1475,9 +1480,8 @@ function ScoreEditDialog({
     }
     // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn của kỳ.
     if (periodBonusUsed != null && periodBonusLimit != null) {
-      const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
       const projected = periodBonusUsed - currentBonus + values.bonusScore;
-      if (projected > periodBonusLimit) {
+      if (projected > periodBonusLimit && projected >= periodBonusUsed) {
         form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn ${periodBonusLimit} điểm/kỳ.` });
         return;
       }
@@ -1513,7 +1517,7 @@ function ScoreEditDialog({
                   id="specialist-bonus-score"
                   type="number"
                   min={0}
-                  max={item.maxProposedBonusScore}
+                  max={maxBonusScore}
                   step="0.25"
                   {...form.register('bonusScore', {
                     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1521,9 +1525,9 @@ function ScoreEditDialog({
                       if (raw === '') return;
                       const num = Number(raw);
                       if (!Number.isFinite(num)) return;
-                      if (num > 1) {
-                        event.target.value = '1';
-                        form.setValue('bonusScore', 1, { shouldValidate: true });
+                      if (num > maxBonusScore) {
+                        event.target.value = String(maxBonusScore);
+                        form.setValue('bonusScore', maxBonusScore, { shouldValidate: true });
                       } else if (num < 0) {
                         event.target.value = '0';
                         form.setValue('bonusScore', 0, { shouldValidate: true });
@@ -1531,7 +1535,7 @@ function ScoreEditDialog({
                     },
                   })}
                 />
-                <p className="text-xs text-muted-foreground">Tối đa 1 điểm</p>
+                <p className="text-xs text-muted-foreground">Tối đa {maxBonusScore} điểm</p>
                 {form.formState.errors.bonusScore && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.bonusScore.message}</p>}
               </div>
             </div>
@@ -2500,9 +2504,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         ? 'Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.'
         : undefined;
   const maximumScore = scoredItems.reduce((sum, item) => sum + item.maxProposedScore, 0);
-  const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
   const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
-  const specialistBonusScore = scoredItems.reduce((sum, item) => sum + (item.officialBonusScore ?? 0), 0);
+  const periodBonusUsed = selectedSubmissionDetailQuery.data?.periodBonusUsed;
+  const periodBonusLimit = selectedSubmissionDetailQuery.data?.periodBonusLimit
+    ?? selectedGroupDetailQuery.data?.maxBonusPointPerPeriod;
   const revisionCriteria = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && resultByCriteriaId.has(item.id));
   const scoreRevisionCriterionLabel = scoreRevisionResult?.criteriaContent
     ?? displayGroup.items.find((item) => item.id === scoreRevisionResult?.criteriaId)?.title
@@ -2775,7 +2780,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           </div>
           <div className="bg-card px-4 py-3.5">
             <p className="text-xs font-medium text-muted-foreground">Điểm thưởng</p>
-            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">{specialistBonusScore}<span className="text-sm font-normal text-success"> / {maximumBonusScore}</span></p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
+              {periodBonusUsed ?? '—'}
+              <span className="text-sm font-normal text-success"> / {periodBonusLimit ?? '—'}</span>
+            </p>
           </div>
         </div>
       </section>

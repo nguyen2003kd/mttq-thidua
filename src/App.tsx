@@ -318,8 +318,8 @@ export default function App() {
               }
             >
               <Route index element={<Navigate to={ROUTES.SPECIALIST_REVIEW} replace />} />
-              <Route path="tieu-chi" element={<SpecialistCriteriaEntryPage />} />
-              <Route path="tieu-chi/:id/con" element={<CriteriaChildrenPage />} />
+              <Route path="tieu-chi" element={<RequireRole roles={['SPECIALIST']}><SpecialistCriteriaEntryPage /></RequireRole>} />
+              <Route path="tieu-chi/:id/con" element={<RequireRole roles={['SPECIALIST']}><CriteriaChildrenPage /></RequireRole>} />
               <Route path="duyet" element={<SpecialistReviewEntryPage />} />
               <Route path="duyet/:diaPhuongId" element={<SpecialistReviewPage />} />
               <Route path="duyet/:diaPhuongId/:nhomTieuChiId" element={<SpecialistReviewPage />} />
@@ -396,7 +396,7 @@ export default function App() {
               path="/thi-dua/cham-diem"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['SPECIALIST', 'SCORER']}>
+                  <RequireRole roles={['SPECIALIST', 'SCORER', 'REVIEWER']}>
                     <AppLayout>
                       <Outlet />
                     </AppLayout>

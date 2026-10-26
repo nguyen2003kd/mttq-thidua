@@ -63,11 +63,12 @@ export function getNotificationTarget(
     }
 
     case 'criteria_group_applied_for_scoring': {
-      // Vào thẳng nhóm tiêu chí vừa được áp dụng: SCORER xem theo tiêu chí, REVIEWER/SPECIALIST xem trang tiêu chí con.
+      // Vào thẳng nhóm tiêu chí vừa được áp dụng: SCORER và REVIEWER xem trang chấm điểm theo tiêu chí,
+      // SPECIALIST xem trang quản lý tiêu chí con.
       const scoringGroupId = payload.criteriaGroupId ?? payload.criteriaGroupIds?.[0];
       if (!scoringGroupId) return null;
-      if (role === 'SCORER') return { to: `/thi-dua/cham-diem/theo-tieu-chi/${scoringGroupId}` };
-      if (role === 'REVIEWER' || role === 'SPECIALIST') return { to: `/chuyen-vien/tieu-chi/${scoringGroupId}/con` };
+      if (role === 'SCORER' || role === 'REVIEWER') return { to: `/thi-dua/cham-diem/theo-tieu-chi/${scoringGroupId}` };
+      if (role === 'SPECIALIST') return { to: `/chuyen-vien/tieu-chi/${scoringGroupId}/con` };
       return null;
     }
 

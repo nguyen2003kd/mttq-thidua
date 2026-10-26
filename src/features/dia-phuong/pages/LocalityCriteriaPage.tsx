@@ -286,15 +286,16 @@ export default function LocalityCriteriaPage() {
 
   const localityListRows = useMemo<LocalityCriteriaListRow[]>(
     () => assignedTables.map((assignedTable) => {
-      const totalBonusScore = periodById.get(assignedTable.periodId ?? '')?.maxBonusPointPerPeriod ?? 0;
+      const submission = submissionByGroup.get(assignedTable.id);
+      const totalBonusScore = submission?.totalProposedBonusPoint ?? 0;
       return {
         ...assignedTable,
         totalBonusScore,
         totalWithBonus: assignedTable.totalScore + totalBonusScore,
-        submissionStage: submissionByGroup.get(assignedTable.id)?.currentStage ?? null,
+        submissionStage: submission?.currentStage ?? null,
       };
     }),
-    [assignedTables, periodById, submissionByGroup],
+    [assignedTables, submissionByGroup],
   );
 
   const availableYears = useMemo(() => {
@@ -360,24 +361,24 @@ export default function LocalityCriteriaPage() {
       },
       {
         accessorKey: 'totalScore',
-        header: 'Điểm tổng',
+        header: 'Tổng điểm chuẩn',
         enableSorting: true,
         sortDescFirst: false,
-        meta: { align: 'right', sortable: true, list: { label: 'Điểm tổng', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm chuẩn', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
       },
       {
         accessorKey: 'totalBonusScore',
-        header: 'Điểm thưởng tối đa (kỳ)',
+        header: 'Tổng điểm thưởng',
         enableSorting: true,
         sortDescFirst: false,
-        meta: { align: 'right', sortable: true, list: { label: 'Điểm thưởng tối đa (kỳ)', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
       {
         accessorKey: 'totalWithBonus',
-        header: 'Tổng điểm + thưởng tối đa',
+        header: 'Tổng điểm chuẩn + điểm thưởng',
         enableSorting: true,
         sortDescFirst: false,
-        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm + thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm chuẩn + điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
     ],
     [],
