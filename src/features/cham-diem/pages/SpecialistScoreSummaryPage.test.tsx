@@ -79,6 +79,8 @@ function makePeriod(
     status,
     scoringConfigId: null,
     scoringConfigName: null,
+    maxBonusPointPerPeriod: 5,
+    maxBonusPointPerCriteria: 1,
     createdBy: null,
     updatedBy: null,
     createdAt,

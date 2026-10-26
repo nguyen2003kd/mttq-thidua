@@ -20,6 +20,8 @@ const period: PeriodApi = {
   status: 'Active',
   scoringConfigId: null,
   scoringConfigName: null,
+  maxBonusPointPerPeriod: 5,
+  maxBonusPointPerCriteria: 1,
   createdBy: null,
   updatedBy: null,
   createdAt: '2026-01-01T00:00:00Z',
