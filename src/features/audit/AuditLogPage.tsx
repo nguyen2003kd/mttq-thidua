@@ -27,38 +27,9 @@ import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { downloadFile, getFilePreviewUrl } from '@/features/files/api/filesApi';
 import { auditLogsApi, type AuditLogItem, type AuditLogQuery } from './api/auditLogsApi';
+import { actionLabels, entityLabels, businessActionFilterLabels, auditActionFilterOptions, auditEntityFilterOptions } from './auditFilterOptions';
 
 const PAGE_SIZE = 20;
-
-const actionLabels: Record<string, string> = {
-  Created: 'thêm mới',
-  Updated: 'cập nhật',
-  Deleted: 'xóa',
-  Published: 'công bố',
-};
-
-const entityLabels: Record<string, string> = {
-  CriteriaGroup: 'nhóm tiêu chí',
-  Criteria: 'tiêu chí',
-  Submission: 'hồ sơ thi đua',
-  SubmissionResult: 'kết quả tiêu chí',
-  SubmissionHistory: 'lịch sử hồ sơ',
-  ApprovalHistory: 'lịch sử phê duyệt',
-  EmulationClassification: 'xếp loại thi đua',
-  ScoringConfig: 'cấu hình điểm',
-  User: 'tài khoản người dùng',
-  UserAuth: 'thông tin xác thực',
-  UserRole: 'gán vai trò người dùng',
-  Role: 'vai trò người dùng',
-  FileEntity: 'tệp tin',
-  FileVariant: 'phiên bản tệp tin',
-  PublicationBatch: 'đợt công bố',
-  FinalDecision: 'quyết định cuối cùng',
-  Period: 'kỳ thi đua',
-  Cluster: 'cụm thi đua',
-  ClusterWard: 'thành viên cụm thi đua',
-  Department: 'ban',
-};
 
 const moduleLabels: Record<string, string> = {
   Emulation: 'Tiêu chí thi đua',
@@ -140,26 +111,6 @@ const defaultActionStyle = {
   label: '',
   text: 'text-foreground/70',
   accent: 'border-l-border',
-};
-
-/** Nhãn filter cho các action code nghiệp vụ mới (lưu thẳng ở cột Action của log). */
-const businessActionFilterLabels: Record<string, string> = {
-  local_submit: 'Nộp đề xuất',
-  scorer_score: 'Chấm điểm',
-  scorer_forward: 'Gửi duyệt',
-  reviewer_approve: 'Phê duyệt',
-  reviewer_score: 'Điều chỉnh điểm',
-  specialist_approve: 'Duyệt hồ sơ',
-  specialist_score: 'Thẩm định điểm',
-  scorer_request_revision: 'Yêu cầu sửa',
-  reviewer_request_revision: 'Yêu cầu sửa',
-  specialist_request_revision: 'Yêu cầu sửa',
-  scorer_add_criteria: 'Bổ sung tiêu chí',
-  reviewer_add_criteria: 'Bổ sung tiêu chí',
-  specialist_add_criteria: 'Bổ sung tiêu chí',
-  committee_finalize: 'Kết thúc duyệt',
-  remind: 'Nhắc nhở',
-  group_publish: 'Công bố nhóm tiêu chí',
 };
 
 /** Nhãn + màu theo hành động nghiệp vụ (actionKind từ backend) — phân biệt thao tác của từng role.
@@ -1145,8 +1096,8 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     <div className="space-y-6">
       <PageHeader title={title} description={description} actions={<div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">{actions}{periodSelector}</div>} />
 
-      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3">
+      <section className="relative overflow-visible rounded-lg border border-border bg-card shadow-sm">
+        <div className="relative z-30 flex flex-wrap items-center gap-2 rounded-t-lg border-b border-border bg-background/95 px-4 py-3">
           <div className="relative w-full max-w-[300px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -1167,13 +1118,10 @@ export function AuditLogView({ title, description, actions }: { title: string; d
               </button>
             )}
           </div>
-          <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters}>
+          <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters} panelClassName="w-80 max-w-[calc(100vw-2rem)]">
             <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={Object.entries(moduleLabels).map(([value, label]) => ({ value, label }))} />
-            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={[
-              ...Object.entries(actionLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) })),
-              ...Object.entries(businessActionFilterLabels).map(([value, label]) => ({ value, label })),
-            ]} />
-            <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={Object.entries(entityLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
+            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={auditActionFilterOptions} />
+            <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={auditEntityFilterOptions} />
             <DateRangeFilter label="Khoảng ngày" value={`${from}|${to}`} onChange={handleDateRangeChange} />
           </FilterDropdown>
           <span className="ml-auto text-xs text-muted-foreground">{result.total} thay đổi</span>

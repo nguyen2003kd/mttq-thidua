@@ -101,6 +101,12 @@ export default function CriteriaListPage() {
     yearFilter: '',
     periodFilter: '',
   });
+  // "Đã kết thúc" vẫn hiển thị trên dữ liệu lịch sử, nhưng không là tùy chọn lọc tại trang này.
+  // Xóa tham số cũ để bộ lọc trên URL và giao diện nhất quán.
+  useEffect(() => {
+    if (statusFilter === 'Closed') setStatusFilter('');
+  }, [statusFilter, setStatusFilter]);
+
   const [search, setSearch] = useState(initialSearch);
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
@@ -596,7 +602,6 @@ export default function CriteriaListPage() {
               options={[
                 { value: 'Draft', label: CRITERIA_STATUS_LABELS.DRAFT },
                 { value: 'Applied', label: CRITERIA_STATUS_LABELS.ACTIVE },
-                { value: 'Closed', label: CRITERIA_STATUS_LABELS.EXPIRED },
                 { value: 'Published', label: CRITERIA_STATUS_LABELS.PUBLISHED },
               ]}
             />

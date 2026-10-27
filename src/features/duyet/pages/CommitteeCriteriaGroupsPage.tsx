@@ -10,11 +10,12 @@ import { Button, DataTable, EmptyState, PageHeader, PageLoading, TruncatedText }
 // import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột trạng thái
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { COMMITTEE_APPROVED_STAGE } from '../committeeStatus';
 import { buildCommitteePeriodUrl } from '../committeePeriodNavigation';
 
 const COMMITTEE_STAGE = 'CouncilApproved' as const;
-// Ban thường trực xem ngay hồ sơ chuyên viên đã duyệt — các cấp giữa không duyệt/chuyển.
-const COMMITTEE_VISIBLE_STAGES = ['SpecialistApproved', 'LeaderApproved', COMMITTEE_STAGE, 'CommitteeFinalized'] as const;
+// Ban thường trực xem ngay hồ sơ chuyên viên đã duyệt - các cấp giữa không duyệt/chuyển.
+const COMMITTEE_VISIBLE_STAGES = ['SpecialistApproved', 'LeaderApproved', COMMITTEE_STAGE, COMMITTEE_APPROVED_STAGE] as const;
 // Cũ — chỉ hồ sơ đã tới cấp Ban thường trực:
 // const COMMITTEE_VISIBLE_STAGES = [COMMITTEE_STAGE, 'CommitteeFinalized'] as const;
 
