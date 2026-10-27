@@ -142,25 +142,27 @@ const defaultActionStyle = {
   accent: 'border-l-border',
 };
 
-/** Nhãn filter cho các action code nghiệp vụ mới (lưu thẳng ở cột Action của log). */
-const businessActionFilterLabels: Record<string, string> = {
-  local_submit: 'Nộp đề xuất',
-  scorer_score: 'Chấm điểm',
-  scorer_forward: 'Gửi duyệt',
-  reviewer_approve: 'Phê duyệt',
-  reviewer_score: 'Điều chỉnh điểm',
-  specialist_approve: 'Duyệt hồ sơ',
-  specialist_score: 'Thẩm định điểm',
-  scorer_request_revision: 'Yêu cầu sửa',
-  reviewer_request_revision: 'Yêu cầu sửa',
-  specialist_request_revision: 'Yêu cầu sửa',
-  scorer_add_criteria: 'Bổ sung tiêu chí',
-  reviewer_add_criteria: 'Bổ sung tiêu chí',
-  specialist_add_criteria: 'Bổ sung tiêu chí',
-  committee_finalize: 'Kết thúc duyệt',
-  remind: 'Nhắc nhở',
-  group_publish: 'Công bố nhóm tiêu chí',
-};
+/** Option lọc Hành động: mã CRUD + mã NHÓM nghiệp vụ — BE khớp chính xác hoặc hậu tố "_<mã>"
+ *  (vd request_revision khớp cả scorer/reviewer/specialist_request_revision) → không lặp option cùng nhãn. */
+const actionFilterOptions: Array<{ value: string; label: string }> = [
+  { value: 'created', label: 'Thêm mới' },
+  { value: 'updated', label: 'Cập nhật' },
+  { value: 'deleted', label: 'Xóa' },
+  { value: 'published', label: 'Công bố' },
+  { value: 'submit', label: 'Nộp đề xuất' },
+  { value: 'score', label: 'Chấm điểm' },
+  { value: 'forward', label: 'Gửi duyệt' },
+  { value: 'approve', label: 'Phê duyệt' },
+  { value: 'request_revision', label: 'Yêu cầu sửa' },
+  { value: 'add_criteria', label: 'Bổ sung tiêu chí' },
+  { value: 'committee_finalize', label: 'Kết thúc duyệt' },
+  { value: 'remind', label: 'Nhắc nhở' },
+  { value: 'group_publish', label: 'Công bố nhóm tiêu chí' },
+];
+
+const actionFilterLabels: Record<string, string> = Object.fromEntries(
+  actionFilterOptions.map(({ value, label }) => [value, label]),
+);
 
 /** Nhãn + màu theo hành động nghiệp vụ (actionKind từ backend) — phân biệt thao tác của từng role.
  *  `verb` là dạng ngắn để ghép với cấp (vd "Lãnh đạo duyệt"); chỉ cần cho thao tác có actionLevel. */
@@ -1121,7 +1123,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
 
   const activeFilters = [
     ...(module ? [{ label: 'Phân hệ', value: moduleLabels[module] ?? module, onClear: () => { setModule(''); resetPage(); } }] : []),
-    ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : businessActionFilterLabels[action] ?? action, onClear: () => { setAction(''); resetPage(); } }] : []),
+    ...(action ? [{ label: 'Hành động', value: actionFilterLabels[action] ?? businessActionConfig[action]?.label ?? getActionLabel(action), onClear: () => { setAction(''); resetPage(); } }] : []),
     ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
     ...(selectedPeriod ? [{ label: 'Kỳ thi đua', value: selectedPeriod.name, onClear: () => handlePeriodChange('') }] : []),
     ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setQueryFilters({ from: '', to: '' }); resetPage(); } }] : []),
@@ -1145,15 +1147,17 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     <div className="space-y-6">
       <PageHeader title={title} description={description} actions={<div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">{actions}{periodSelector}</div>} />
 
-      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-4 py-3">
+      {/* Không dùng overflow-hidden ở section: panel của Bộ lọc (absolute) bị cắt tại mép section
+          khi bảng ngắn. Bo góc xử lý bằng rounded-t/b ở thanh filter và footer (pattern chung của DataTable). */}
+      <section className="rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius)_-_1px)] border-b border-border bg-background/95 px-4 py-3">
           <div className="relative w-full max-w-[300px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               value={searchInput}
               onChange={(event) => { setSearchInput(event.target.value); resetPage(); }}
-              placeholder="Tìm theo thao tác hoặc đối tượng…"
+              placeholder="Tìm theo người thực hiện, thao tác hoặc nội dung…"
               className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
             />
             {searchInput && (
@@ -1168,11 +1172,10 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             )}
           </div>
           <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters}>
-            <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={Object.entries(moduleLabels).map(([value, label]) => ({ value, label }))} />
-            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={[
-              ...Object.entries(actionLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) })),
-              ...Object.entries(businessActionFilterLabels).map(([value, label]) => ({ value, label })),
-            ]} />
+            {/* Chỉ các module thực tế xuất hiện trong danh sách log — BE đã loại Identity/Notifications,
+                Entities/Periods/System là dữ liệu cũ hoặc không dùng → bỏ khỏi option tránh trùng "Kỳ thi đua". */}
+            <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={['Emulation', 'Submission', 'Files', 'ResultPublication'].map((value) => ({ value, label: moduleLabels[value] ?? value }))} />
+            <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={actionFilterOptions} />
             <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={Object.entries(entityLabels).map(([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }))} />
             <DateRangeFilter label="Khoảng ngày" value={`${from}|${to}`} onChange={handleDateRangeChange} />
           </FilterDropdown>
@@ -1206,7 +1209,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
               {visibleItems.map((item) => <AuditItemRow key={item.id} item={item} onOpen={setSelected} />)}
             </TableBody>
           </Table>
-          <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1">
+          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-b-[calc(var(--radius)_-_1px)] border-t border-border/40 bg-muted/20 px-4 py-1">
             <div className="text-xs text-muted-foreground">
               Hiển thị {result.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, result.total)} / {result.total}
             </div>
