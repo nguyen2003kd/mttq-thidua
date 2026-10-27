@@ -28,32 +28,28 @@ export const entityLabels: Record<string, string> = {
   Department: 'ban',
 };
 
-export const businessActionFilterLabels: Record<string, string> = {
-  local_submit: 'Nộp đề xuất',
-  scorer_score: 'Chấm điểm',
-  scorer_forward: 'Gửi duyệt',
-  reviewer_approve: 'Phê duyệt',
-  reviewer_score: 'Điều chỉnh điểm',
-  specialist_approve: 'Duyệt hồ sơ',
-  specialist_score: 'Thẩm định điểm',
-  scorer_request_revision: 'Yêu cầu sửa (Người chấm điểm)',
-  reviewer_request_revision: 'Yêu cầu sửa (Lãnh đạo ban)',
-  specialist_request_revision: 'Yêu cầu sửa (Chuyên viên thi đua)',
-  scorer_add_criteria: 'Bổ sung tiêu chí (Người chấm điểm)',
-  reviewer_add_criteria: 'Bổ sung tiêu chí (Lãnh đạo ban)',
-  specialist_add_criteria: 'Bổ sung tiêu chí (Chuyên viên thi đua)',
-  committee_finalize: 'Kết thúc duyệt',
-  remind: 'Nhắc nhở',
-  group_publish: 'Công bố nhóm tiêu chí',
-};
-
-/** Mỗi mã nghiệp vụ vẫn có lựa chọn riêng, nhãn phân biệt theo cấp thực hiện. */
-const capitalize = (label: string) => label.charAt(0).toUpperCase() + label.slice(1);
-
-export const auditActionFilterOptions = [
-  ...Object.entries(actionLabels).map(([value, label]) => ({ value, label: capitalize(label) })),
-  ...Object.entries(businessActionFilterLabels).map(([value, label]) => ({ value, label })),
+/** Lọc theo nhóm hành động: BE khớp chính xác hoặc hậu tố "_<mã>".
+ * Ví dụ request_revision khớp cả scorer/reviewer/specialist_request_revision. */
+export const auditActionFilterOptions: Array<{ value: string; label: string }> = [
+  { value: 'created', label: 'Thêm mới' },
+  { value: 'updated', label: 'Cập nhật' },
+  { value: 'deleted', label: 'Xóa' },
+  { value: 'published', label: 'Công bố' },
+  { value: 'submit', label: 'Nộp đề xuất' },
+  { value: 'score', label: 'Chấm điểm' },
+  { value: 'forward', label: 'Gửi duyệt' },
+  { value: 'approve', label: 'Phê duyệt' },
+  { value: 'request_revision', label: 'Yêu cầu sửa' },
+  { value: 'add_criteria', label: 'Bổ sung tiêu chí' },
+  { value: 'committee_finalize', label: 'Kết thúc duyệt' },
+  { value: 'remind', label: 'Nhắc nhở' },
+  { value: 'group_publish', label: 'Công bố nhóm tiêu chí' },
 ];
 
-export const auditEntityFilterOptions = Object.entries(entityLabels)
-  .map(([value, label]) => ({ value, label: capitalize(label) }));
+export const auditActionFilterLabels: Record<string, string> = Object.fromEntries(
+  auditActionFilterOptions.map(({ value, label }) => [value, label]),
+);
+
+export const auditEntityFilterOptions = Object.entries(entityLabels).map(
+  ([value, label]) => ({ value, label: label.charAt(0).toUpperCase() + label.slice(1) }),
+);

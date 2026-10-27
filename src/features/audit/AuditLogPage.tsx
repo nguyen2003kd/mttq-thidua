@@ -27,7 +27,7 @@ import { formatDateTime } from '@/lib/utils';
 import { LABELS } from '@/constants/labels';
 import { downloadFile, getFilePreviewUrl } from '@/features/files/api/filesApi';
 import { auditLogsApi, type AuditLogItem, type AuditLogQuery } from './api/auditLogsApi';
-import { actionLabels, entityLabels, businessActionFilterLabels, auditActionFilterOptions, auditEntityFilterOptions } from './auditFilterOptions';
+import { actionLabels, entityLabels, auditActionFilterOptions, auditActionFilterLabels, auditEntityFilterOptions } from './auditFilterOptions';
 
 const PAGE_SIZE = 20;
 
@@ -1072,7 +1072,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
 
   const activeFilters = [
     ...(module ? [{ label: 'Phân hệ', value: moduleLabels[module] ?? module, onClear: () => { setModule(''); resetPage(); } }] : []),
-    ...(action ? [{ label: 'Hành động', value: actionLabels[action] ? actionLabels[action].charAt(0).toUpperCase() + actionLabels[action].slice(1) : businessActionFilterLabels[action] ?? action, onClear: () => { setAction(''); resetPage(); } }] : []),
+    ...(action ? [{ label: 'Hành động', value: auditActionFilterLabels[action] ?? businessActionConfig[action]?.label ?? getActionLabel(action), onClear: () => { setAction(''); resetPage(); } }] : []),
     ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
     ...(selectedPeriod ? [{ label: 'Kỳ thi đua', value: selectedPeriod.name, onClear: () => handlePeriodChange('') }] : []),
     ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setQueryFilters({ from: '', to: '' }); resetPage(); } }] : []),
@@ -1096,15 +1096,16 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     <div className="space-y-6">
       <PageHeader title={title} description={description} actions={<div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 lg:w-auto">{actions}{periodSelector}</div>} />
 
+      {/* Không cắt dropdown tại mép bảng; bo góc ở thanh bộ lọc và footer. */}
       <section className="relative overflow-visible rounded-lg border border-border bg-card shadow-sm">
-        <div className="relative z-30 flex flex-wrap items-center gap-2 rounded-t-lg border-b border-border bg-background/95 px-4 py-3">
+        <div className="relative z-30 flex flex-wrap items-center gap-2 rounded-t-[calc(var(--radius)_-_1px)] border-b border-border bg-background/95 px-4 py-3">
           <div className="relative w-full max-w-[300px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               value={searchInput}
               onChange={(event) => { setSearchInput(event.target.value); resetPage(); }}
-              placeholder="Tìm theo thao tác hoặc đối tượng…"
+              placeholder="Tìm theo người thực hiện, thao tác hoặc nội dung…"
               className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
             />
             {searchInput && (
@@ -1119,7 +1120,8 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             )}
           </div>
           <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters} panelClassName="w-80 max-w-[calc(100vw-2rem)]">
-            <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={Object.entries(moduleLabels).map(([value, label]) => ({ value, label }))} />
+            {/* Các phân hệ đang sử dụng, không trùng nhãn "Kỳ thi đua". */}
+            <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={['Emulation', 'Submission', 'Files', 'ResultPublication'].map((value) => ({ value, label: moduleLabels[value] ?? value }))} />
             <FilterSelect label="Hành động" value={action} onChange={(value) => { setAction(value); resetPage(); }} allLabel="Tất cả hành động" options={auditActionFilterOptions} />
             <FilterSelect label="Đối tượng" value={entityName} onChange={(value) => { setEntityName(value); resetPage(); }} allLabel="Tất cả đối tượng" options={auditEntityFilterOptions} />
             <DateRangeFilter label="Khoảng ngày" value={`${from}|${to}`} onChange={handleDateRangeChange} />
@@ -1154,7 +1156,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
               {visibleItems.map((item) => <AuditItemRow key={item.id} item={item} onOpen={setSelected} />)}
             </TableBody>
           </Table>
-          <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-border/40 bg-muted/20 px-4 py-1">
+          <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-b-[calc(var(--radius)_-_1px)] border-t border-border/40 bg-muted/20 px-4 py-1">
             <div className="text-xs text-muted-foreground">
               Hiển thị {result.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, result.total)} / {result.total}
             </div>
