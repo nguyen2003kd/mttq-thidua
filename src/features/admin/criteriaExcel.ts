@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx-js-style';
 
-const HEADERS = ['Nội dung', 'Điểm chuẩn', 'Điểm thưởng từng tiêu chí con', 'Ghi chú', 'Hạn nộp'];
+const HEADERS = ['Nội dung', 'Điểm chuẩn', 'Ghi chú', 'Hạn nộp'];
 const GROUP_NAME_HINT = 'Nhập tên nhóm tiêu chí';
 const CHILD_NAME_HINT = 'Nhập tên tiêu chí con';
 const TEMPLATE_HINTS = new Set([GROUP_NAME_HINT, CHILD_NAME_HINT]);
@@ -43,12 +43,11 @@ function centerColumns(worksheet: XLSX.WorkSheet, row: number, columns: number[]
   }
 }
 
-/** Tiêu chí con đọc từ Excel — vẫn giữ điểm thưởng (cột C) để validate theo giới hạn của kỳ. */
+/** Tiêu chí con đọc từ Excel — điểm thưởng lấy theo cấu hình của kỳ, không nhập trong tệp. */
 export interface ParsedCriteriaItem {
   type: 'Standard';
   content: string;
   maxPoint: number;
-  maxBonusPoint: number;
   deadline?: string | null;
   note?: string;
 }
@@ -56,7 +55,6 @@ export interface ParsedCriteriaItem {
 export interface ParsedCriteriaExcel {
   name: string;
   maxPoint: number;
-  maxBonusPoint: number;
   content: string;
   deadline: string | null;
   criteria: ParsedCriteriaItem[];
@@ -151,7 +149,6 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
   const allowedHeaders = [
     ['noi dung', 'ten', 'ten tieu chi'],
     ['diem chuan'],
-    ['diem thuong tung tieu chi con', 'diem thuong'],
     ['ghi chu'],
     ['han nop'],
   ];
@@ -168,11 +165,11 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
   if (!groupName) throw new Error('Ô A2 cần có tên nhóm tiêu chí.');
 
   const maxPoint = parseScore(cellValue(groupRow, 1), 'Điểm chuẩn tổng tại ô B2', false);
-  const deadline = parseDeadline(cellValue(groupRow, 4), 2);
-  const content = toText(cellValue(groupRow, 3));
+  const deadline = parseDeadline(cellValue(groupRow, 3), 2);
+  const content = toText(cellValue(groupRow, 2));
   const childRows = rows.slice(2)
     .map((row, index) => ({ row, rowNumber: index + 3 }))
-    .filter(({ row }) => row.slice(0, 5).some((value) => !isBlank(value)));
+    .filter(({ row }) => row.slice(0, 4).some((value) => !isBlank(value)));
 
   if (childRows.length === 0) throw new Error('Tệp Excel cần có ít nhất một tiêu chí con từ dòng 3 trở đi.');
 
@@ -184,19 +181,10 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
       type: 'Standard' as const,
       content: name,
       maxPoint: parseScore(cellValue(row, 1), `Điểm chuẩn tại ô B${rowNumber}`, false),
-      maxBonusPoint: isBlank(cellValue(row, 2))
-        ? 1
-        : parseScore(cellValue(row, 2), `Điểm thưởng tại ô C${rowNumber}`, true),
-      note: toText(cellValue(row, 3)) || undefined,
-      deadline: parseDeadline(cellValue(row, 4), rowNumber),
+      note: toText(cellValue(row, 2)) || undefined,
+      deadline: parseDeadline(cellValue(row, 3), rowNumber),
     };
   });
-
-  // Ô C2 không bắt buộc — bỏ trống thì lấy tổng điểm thưởng của các tiêu chí con.
-  const groupBonusRaw = cellValue(groupRow, 2);
-  const maxBonusPoint = isBlank(groupBonusRaw)
-    ? criteria.reduce((total, item) => total + item.maxBonusPoint, 0)
-    : parseScore(groupBonusRaw, 'Điểm thưởng tổng tại ô C2', true);
 
   const childPointTotal = criteria.reduce((total, item) => total + item.maxPoint, 0);
   if (toScoreUnits(childPointTotal) !== toScoreUnits(maxPoint)) {
@@ -207,7 +195,7 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
   // và hạn nộp của tiêu chí con không được vượt quá hạn nộp của nhóm tiêu chí.
   const nowMs = Date.now();
   if (deadline && new Date(deadline).getTime() < nowMs) {
-    throw new Error('Hạn nộp của nhóm tiêu chí (Ô E2) không được ở thời gian quá khứ.');
+    throw new Error('Hạn nộp của nhóm tiêu chí (Ô D2) không được ở thời gian quá khứ.');
   }
   if (deadline) {
     const groupDeadlineMs = new Date(deadline).getTime();
@@ -217,12 +205,12 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
         throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được ở thời gian quá khứ.`);
       }
       if (new Date(item.deadline).getTime() > groupDeadlineMs) {
-        throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được vượt quá hạn nộp của nhóm tiêu chí (Ô E2).`);
+        throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được vượt quá hạn nộp của nhóm tiêu chí (Ô D2).`);
       }
     }
   }
 
-  return { name: groupName, maxPoint, maxBonusPoint, content, deadline, criteria };
+  return { name: groupName, maxPoint, content, deadline, criteria };
 }
 
 export async function parseCriteriaExcelFile(file: File) {
@@ -246,7 +234,7 @@ export function downloadCriteriaExcelTemplate() {
     ...Array.from({ length: childTemplateRows }, emptyRow),
   ]);
   worksheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: childTemplateRows + 1, c: HEADERS.length - 1 } });
-  worksheet['!cols'] = [{ wch: 42 }, { wch: 16 }, { wch: 28 }, { wch: 36 }, { wch: 22 }];
+  worksheet['!cols'] = [{ wch: 42 }, { wch: 16 }, { wch: 36 }, { wch: 22 }];
   worksheet['!rows'] = [
     { hpt: 30 },
     { hpt: 32 },
@@ -254,12 +242,12 @@ export function downloadCriteriaExcelTemplate() {
   ];
   styleRow(worksheet, 0, HEADERS.length, HEADER_STYLE);
   styleRow(worksheet, 1, HEADERS.length, GROUP_ROW_STYLE);
-  // Cột B (Điểm chuẩn tổng), C (Điểm thưởng tổng), D (Ghi chú), E (Hạn nộp) căn giữa.
-  centerColumns(worksheet, 1, [1, 2, 3, 4], GROUP_ROW_STYLE);
+  // Cột B (Điểm chuẩn tổng), C (Ghi chú), D (Hạn nộp) căn giữa.
+  centerColumns(worksheet, 1, [1, 2, 3], GROUP_ROW_STYLE);
   for (let row = 2; row < childTemplateRows + 2; row += 1) {
     styleRow(worksheet, row, HEADERS.length, CHILD_ROW_STYLE);
-    // Cột B (Điểm chuẩn), C (Điểm thưởng), D (Ghi chú), E (Hạn nộp) căn giữa.
-    centerColumns(worksheet, row, [1, 2, 3, 4], CHILD_ROW_CENTERED_STYLE);
+    // Cột B (Điểm chuẩn), C (Ghi chú), D (Hạn nộp) căn giữa.
+    centerColumns(worksheet, row, [1, 2, 3], CHILD_ROW_CENTERED_STYLE);
   }
   worksheet.A2 = { t: 's', v: GROUP_NAME_HINT, s: { ...GROUP_ROW_STYLE, font: { italic: true, color: { rgb: '9CA3AF' } } } };
   worksheet.A3 = { t: 's', v: CHILD_NAME_HINT, s: { ...CHILD_ROW_STYLE, font: { italic: true, color: { rgb: '9CA3AF' } } } };
@@ -268,10 +256,10 @@ export function downloadCriteriaExcelTemplate() {
   const guide = XLSX.utils.aoa_to_sheet([
     ['Hướng dẫn nhập nhóm tiêu chí'],
     ['Giữ nguyên tiêu đề cột ở dòng 1 của trang tính “Bảng tiêu chí”.'],
-    ['Dòng 2 có nền xanh nhạt: thay chữ mờ tại A2 bằng tên nhóm; các ô B2:E2 là thông tin tổng của nhóm.'],
+    ['Dòng 2 có nền xanh nhạt: thay chữ mờ tại A2 bằng tên nhóm; các ô B2:D2 là thông tin tổng của nhóm.'],
     ['Dòng 3 có chữ mờ tại A3: thay bằng tiêu chí con đầu tiên; từ dòng 3 trở đi, mỗi dòng là một tiêu chí con.'],
     ['Tổng điểm chuẩn tại B2 phải bằng tổng cột B từ dòng 3 trở đi.'],
-    ['Tổng điểm thưởng tại C2 phải bằng tổng cột C từ dòng 3 trở đi.'],
+    ['Điểm thưởng của tiêu chí con được áp dụng theo cấu hình của kỳ thi đua, không cần nhập trong tệp.'],
     ['Kỳ thi đua và ban xử lý được chọn trên màn hình sau khi đọc tệp Excel.'],
   ]);
   guide['!cols'] = [{ wch: 100 }];

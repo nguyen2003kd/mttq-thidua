@@ -261,9 +261,15 @@ export default function LocalityCriteriaPage() {
     enabled: Boolean(localityId),
   });
 
-  // Tổng điểm thưởng địa phương đã dùng trong kỳ (mọi hồ sơ) — theo dõi quota tối đa 5/kỳ.
+  // Tổng điểm thưởng hiệu lực địa phương đã dùng trong kỳ (mọi hồ sơ) — khớp cách BE kiểm tra quota:
+  // điểm chính thức nếu đã chấm, nếu chưa thì dùng điểm đề xuất.
   const periodBonusUsed = useMemo(
-    () => (mySubmissionsQuery.data?.items ?? []).reduce((sum, s) => sum + (s.totalProposedBonusPoint ?? 0), 0),
+    () => (mySubmissionsQuery.data?.items ?? []).reduce(
+      (sum, s) => sum + (s.results ?? [])
+        .filter((r) => r.criteriaStatus !== 'Deleted')
+        .reduce((rs, r) => rs + (r.officialBonusPoint ?? r.bonusPoint), 0),
+      0,
+    ),
     [mySubmissionsQuery.data],
   );
 
@@ -287,11 +293,15 @@ export default function LocalityCriteriaPage() {
   const localityListRows = useMemo<LocalityCriteriaListRow[]>(
     () => assignedTables.map((assignedTable) => {
       const submission = submissionByGroup.get(assignedTable.id);
+      // Điểm chuẩn hiệu lực: điểm chính thức (scorer/reviewer đã chấm) nếu có, không thì lấy điểm đề xuất của địa phương.
+      const activeResults = (submission?.results ?? []).filter((result) => result.criteriaStatus !== 'Deleted');
+      const totalScore = activeResults.reduce((sum, result) => sum + (result.officialPoint ?? result.point), 0);
       const totalBonusScore = submission?.totalProposedBonusPoint ?? 0;
       return {
         ...assignedTable,
+        totalScore,
         totalBonusScore,
-        totalWithBonus: assignedTable.totalScore + totalBonusScore,
+        totalWithBonus: totalScore + totalBonusScore,
         submissionStage: submission?.currentStage ?? null,
       };
     }),
@@ -848,6 +858,31 @@ export default function LocalityCriteriaPage() {
     setDraftResults(new Map());
   };
 
+  // Chặn lưu/gửi khi tổng điểm thưởng hiệu lực của kỳ vượt giới hạn — khớp rule BE
+  // (điểm chính thức nếu đã chấm, không thì điểm đề xuất; hồ sơ đang lưu được loại trừ rồi tính lại).
+  const ensurePeriodBonusWithinLimit = (collected: Map<string, EvidenceFormValue>, savedResults: SubmissionApi['results']) => {
+    if (effectivePeriodBonusLimit == null) return true;
+    const othersEffectiveBonus = (mySubmissionsQuery.data?.items ?? [])
+      .filter((s) => s.id !== submission?.id)
+      .reduce((sum, s) => sum + (s.results ?? [])
+        .filter((r) => r.criteriaStatus !== 'Deleted')
+        .reduce((rs, r) => rs + (r.officialBonusPoint ?? r.bonusPoint), 0), 0);
+    const currentBonusAfterSave = detailTable.criteria
+      .filter((c) => c.status !== 'Deleted')
+      .reduce((sum, c) => {
+        const saved = savedResults.find((r) => r.criteriaId === c.id);
+        if (saved?.reviewStatus === 'Accepted') return sum + (saved.officialBonusPoint ?? saved.bonusPoint);
+        const entry = collected.get(c.id);
+        if (entry) return sum + (entry.proposedBonusScore ?? 0);
+        return sum + (saved ? (saved.officialBonusPoint ?? saved.bonusPoint) : 0);
+      }, 0);
+    if (othersEffectiveBonus + currentBonusAfterSave > effectivePeriodBonusLimit) {
+      toast.error(`Tổng điểm thưởng của địa phương trong kỳ thi đua không được vượt quá ${effectivePeriodBonusLimit} điểm (các hồ sơ khác đã dùng ${othersEffectiveBonus}, hồ sơ này dùng ${currentBonusAfterSave}). Hãy giảm điểm thưởng rồi lưu lại.`);
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmitResults = async () => {
     if (!id || !user) return;
     if (!ensureSubmissionIsEditable()) return;
@@ -858,6 +893,7 @@ export default function LocalityCriteriaPage() {
         // Gộp giá trị đang nhập vào draft local rồi tạo submission 1 lần
         const merged = new Map(draftResultsRef.current);
         collected.forEach((v, k) => merged.set(k, v));
+        if (!ensurePeriodBonusWithinLimit(merged, [])) return;
         const items = detailTable.criteria.flatMap((c) => {
           if (c.status === 'Deleted') return [];
           const draft = merged.get(c.id);
@@ -899,6 +935,7 @@ export default function LocalityCriteriaPage() {
       } else {
         // Có bản nháp trên server: upload file bulk song song + submitPoints 1 lần
         const results = submissionDetailQuery.data?.results ?? [];
+        if (!ensurePeriodBonusWithinLimit(collected, results)) return;
         const items = results.flatMap((r) => {
           const v = collected.get(r.criteriaId);
           return v ? [{
@@ -969,6 +1006,7 @@ export default function LocalityCriteriaPage() {
         collected.forEach((v, k) => merged.set(k, v));
         draftResultsRef.current = merged;
         setDraftResults(merged);
+        if (!ensurePeriodBonusWithinLimit(merged, [])) return;
         // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
         if (merged.size > 0) {
           const items = detailTable.criteria.flatMap((c) => {
@@ -998,6 +1036,7 @@ export default function LocalityCriteriaPage() {
       }
       // Đã có submission: 1 call submitPoints cho toàn bộ tiêu chí + bulk upload song song
       const results = submissionDetailQuery.data?.results ?? [];
+      if (!ensurePeriodBonusWithinLimit(collected, results)) return;
       const items = collected.size > 0
         ? results.flatMap((r) => {
             const v = collected.get(r.criteriaId);
