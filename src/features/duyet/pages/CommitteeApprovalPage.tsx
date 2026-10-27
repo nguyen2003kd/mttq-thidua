@@ -15,14 +15,14 @@ import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Input } from '@/components/ui/input';
 // import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { COMMITTEE_APPROVED_STAGE as APPROVED_COMMITTEE_STAGE, isCommitteeSubmissionApproved } from '../committeeStatus';
 import { buildCommitteePeriodUrl } from '../committeePeriodNavigation';
 // import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
 // import { resultPublicationApi } from '../api/resultPublicationApi';
 // import { ResultPublicationDialog } from '../components/ResultPublicationDialog';
 
 const PENDING_COMMITTEE_STAGE = 'CouncilApproved' as const;
-const APPROVED_COMMITTEE_STAGE = 'CommitteeFinalized' as const;
-// Các cấp giữa không duyệt/chuyển hồ sơ — Ban thường trực xem và nhận xét ngay
+// Các cấp giữa không duyệt/chuyển hồ sơ - Ban thường trực xem và nhận xét ngay
 // hồ sơ chuyên viên đã duyệt (SpecialistApproved) thay vì chờ Hội đồng trình lên.
 const COMMITTEE_VISIBLE_STAGES = ['SpecialistApproved', 'LeaderApproved', PENDING_COMMITTEE_STAGE, APPROVED_COMMITTEE_STAGE] as const;
 
@@ -168,7 +168,7 @@ export default function CommitteeApprovalPage() {
   // Cũ: chỉ hồ sơ CouncilApproved mới cho nhận xét — submission.currentStage === PENDING_COMMITTEE_STAGE.
   // Sau đó: mọi stage khác CommitteeFinalized. Giờ thêm loại nhóm đã công bố.
   const canCommentSubmission = (submission: SubmissionApi) =>
-    submission.currentStage !== APPROVED_COMMITTEE_STAGE && !publishedGroupIds.has(submission.criteriaGroupId ?? '');
+    !isCommitteeSubmissionApproved(submission.currentStage) && !publishedGroupIds.has(submission.criteriaGroupId ?? '');
   const canCommentSelected = selectedRow?.submissions.some(canCommentSubmission) ?? false;
   const saveComment = async (comment: string) => {
     if (!selectedRow) return;
