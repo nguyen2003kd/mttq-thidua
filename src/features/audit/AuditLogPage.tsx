@@ -4,6 +4,7 @@ import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
 import { getGetApiV1PeriodsQueryKey } from '@/api/endpoints/periods';
 import { dataQueryKey } from '@/api/mutator/query-keys';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -17,7 +18,6 @@ import { SortableTableHead } from '@/components/core/SortableTableHead';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useDebounce } from '@/hooks/useDebounce';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
@@ -88,6 +88,7 @@ const fieldLabels: Record<string, string> = {
   ActionLevel: 'Cấp xử lý',
   StartYear: 'Năm bắt đầu',
   EndYear: 'Năm kết thúc',
+  PeriodName: 'Kỳ thi đua',
   ActorName: 'Người thực hiện',
   ChangedData: 'Dữ liệu thay đổi',
   SubmissionResultIds: 'Kết quả tiêu chí',
@@ -123,7 +124,7 @@ const businessActionConfig: Record<string, { label: string; verb?: string; text:
   rescore: { label: 'Chấm lại', verb: 'chấm lại', text: 'text-info', accent: 'border-l-info' },
   review: { label: 'Thẩm định', verb: 'thẩm định', text: 'text-info', accent: 'border-l-info' },
   add_criteria: { label: 'Bổ sung tiêu chí', verb: 'bổ sung tiêu chí', text: 'text-info', accent: 'border-l-info' },
-  publish: { label: 'Công bố', verb: 'công bố', text: 'text-primary', accent: 'border-l-primary' },
+  publish: { label: 'Công bố', text: 'text-primary', accent: 'border-l-primary' },
   update_score: { label: 'Cập nhật điểm', text: 'text-info', accent: 'border-l-info' },
   stage_transition: { label: 'Chuyển giai đoạn', verb: 'chuyển giai đoạn', text: 'text-info', accent: 'border-l-info' },
   request_revision: { label: 'Yêu cầu sửa', verb: 'yêu cầu sửa', text: 'text-warning', accent: 'border-l-warning' },
@@ -424,7 +425,7 @@ function getDisplayChanges(item: AuditLogItem) {
         }))
         // Bỏ field không đổi (context như CriteriaGroupId X→X), field null→null,
         // và các dòng hiển thị ở khối ngữ cảnh riêng của log cấu hình điểm (Tên + Levels).
-        .filter((field) => field.field !== 'Levels'
+        .filter((field) => field.field !== 'Levels' && field.field !== 'PublishedGroups'
           && !(item.entityName === 'ScoringConfig' && field.field === 'Name')
           && field.before !== field.after)
     : getMeaningfulDiff(item);
@@ -802,11 +803,89 @@ function DiffTable({ diff, mode }: { diff: DiffField[]; mode: 'created' | 'delet
 
 /** Nội dung chi tiết trong modal: file → preview, còn lại → bảng diff (có tiêu đề nhỏ theo hành động). */
 function AuditDetail({ item, diff }: { item: AuditLogItem; diff: DiffField[] }) {
+  // Log công bố kết quả: mặc định mở hết nhóm để xem luôn tiêu chí con, bấm để thu gọn.
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => {
+    const groupsRow = item.changes?.find((change) => change.field === 'PublishedGroups');
+    const count = Array.isArray(groupsRow?.after) ? groupsRow.after.length : 0;
+    return new Set(Array.from({ length: count }, (_, index) => index));
+  });
   if (item.entityName === 'FileEntity') {
     return (
       <div>
         <p className="mb-2.5 text-sm font-semibold text-foreground">Tệp đính kèm</p>
         <AuditFileRow item={item} />
+      </div>
+    );
+  }
+  // Log công bố kết quả (entity Period, module ResultPublication): tên kỳ đặt trên đầu,
+  // "Chi tiết thay đổi" liệt kê nhóm tiêu chí của kỳ — không dùng bảng diff Trường/Giá trị cũ/mới.
+  const isPublicationLog = item.module === 'ResultPublication' && item.entityName === 'Period';
+  const periodNameRow = item.changes?.find((change) => change.field.toLowerCase() === 'periodname');
+  const noteRow = item.changes?.find((change) => change.field.toLowerCase() === 'note');
+  const publishedGroupsRow = item.changes?.find((change) => change.field === 'PublishedGroups');
+  const publishedGroups = Array.isArray(publishedGroupsRow?.after)
+    ? (publishedGroupsRow.after as Array<{ name?: string; criteria?: Array<{ name?: string; maxPoint?: number | null }> }>)
+    : [];
+  if (isPublicationLog) {
+    const toggleGroup = (index: number) => setExpandedGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+    return (
+      <div>
+        {periodNameRow?.afterDisplay && (
+          <p className="mb-2.5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">Kỳ thi đua: </span>
+            <span className="ml-1 inline-block rounded-md bg-primary/10 px-2 py-0.5 font-semibold text-primary">{capitalizeFirst(periodNameRow.afterDisplay)}</span>
+          </p>
+        )}
+        {publishedGroups.length > 0 ? (
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            {publishedGroups.map((group, index) => {
+              const criteria = group.criteria ?? [];
+              const isOpen = expandedGroups.has(index);
+              return (
+                <div key={index} className={index > 0 ? 'border-t border-border/70' : ''}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(index)}
+                    aria-expanded={isOpen}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+                  >
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                    <span className="min-w-0 flex-1 text-[13px] font-medium text-foreground">{group.name ?? '—'}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{criteria.length} tiêu chí</span>
+                  </button>
+                  {isOpen && (
+                    criteria.length > 0 ? (
+                      <ul className="space-y-1.5 border-t border-border/60 bg-muted/20 py-2.5 pl-10 pr-3">
+                        {criteria.map((criteriaItem, criteriaIndex) => (
+                          <li key={criteriaIndex} className="flex items-baseline justify-between gap-3 text-[13px]">
+                            <span className="min-w-0 flex-1 text-foreground/85">{criteriaItem.name ?? '—'}</span>
+                            {criteriaItem.maxPoint != null && (
+                              <span className="shrink-0 tabular-nums text-muted-foreground">{formatPointValue(criteriaItem.maxPoint)} điểm</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="border-t border-border/60 bg-muted/20 px-3 py-2.5 pl-10 text-[13px] text-muted-foreground">Chưa có tiêu chí con.</p>
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Không có nhóm tiêu chí nào trong kỳ.</p>
+        )}
+        {noteRow?.afterDisplay && (
+          <p className="mt-2.5 text-sm">
+            <span className="text-muted-foreground">Ghi chú: </span>
+            <span className="text-foreground">{noteRow.afterDisplay}</span>
+          </p>
+        )}
       </div>
     );
   }
@@ -959,6 +1038,16 @@ function AuditItemRow({ item, onOpen }: { item: AuditLogItem; onOpen: (item: Aud
     subtitle = getReadableReference([display('criteriaId'), display('CriteriaId'), display('Criteria')], subtitle);
   } else if (item.entityName === 'Submission') {
     subtitle = getReadableReference([display('criteriaGroupId'), display('CriteriaGroupId')], subtitle);
+  } else if (item.entityName === 'Period') {
+    // Log kỳ thi đua (vd công bố kết quả): subtitle "Kỳ thi đua Tên kỳ" — tên nằm trong
+    // changes.periodName (log công bố) hoặc changes.Name (CRUD kỳ).
+    const periodName = getReadableReference(
+      [display('periodName'), display('PeriodName'), display('Name')],
+      '');
+    // Tên kỳ đã có sẵn chữ "kỳ thi đua" (vd "Kỳ thi đua 2027") thì dùng luôn, tránh lặp.
+    if (periodName) subtitle = periodName.toLowerCase().startsWith('kỳ thi đua')
+      ? capitalizeFirst(periodName)
+      : `${subtitle} ${capitalizeFirst(periodName)}`;
   } else if (isFile) {
     const newFile = item.files?.[0];
     subtitle = newFile?.displayName ?? newFile?.originalName
@@ -1015,18 +1104,20 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   const [page, setPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const {
-    filters: { module, action, entityName, searchInput, from, to, periodFilter },
+    filters: { module, action, entityName, search, from, to, periodFilter },
     setters: {
       module: setModule,
       action: setAction,
       entityName: setEntityName,
-      searchInput: setSearchInput,
+      search: setSearch,
       periodFilter: setPeriodFilter,
     },
     setFilters: setQueryFilters,
-  } = useQueryFilters({ module: '', action: '', entityName: '', searchInput: '', from: '', to: '', periodFilter: '' });
+  } = useQueryFilters({ module: '', action: '', entityName: '', search: '', from: '', to: '', periodFilter: '' });
   const [selected, setSelected] = useState<AuditLogItem | null>(null);
-  const search = useDebounce(searchInput, 350);
+  // Ô nhập tách khỏi giá trị đã áp dụng (search trong URL) — chỉ lọc khi bấm Tìm kiếm hoặc Enter.
+  const [searchInput, setSearchInput] = useState(search);
+  useEffect(() => { setSearchInput(search); }, [search]);
   const selectedPeriodId = usePeriodStore((state) => state.selectedPeriodId);
   const effectivePeriodFilter = periodFilter || selectedPeriodId || '';
   const periodsQuery = useQuery({ queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'), queryFn: periodsApi.listAll });
@@ -1053,8 +1144,14 @@ export function AuditLogView({ title, description, actions }: { title: string; d
 
   const resetPage = () => setPage(1);
   const clearFilters = () => {
-    setQueryFilters({ module: '', action: '', entityName: '', searchInput: '', from: '', to: '', periodFilter: '' });
+    setQueryFilters({ module: '', action: '', entityName: '', search: '', from: '', to: '', periodFilter: '' });
+    setSearchInput('');
     usePeriodStore.getState().setSelectedPeriod(null);
+    resetPage();
+  };
+
+  const applySearch = () => {
+    setSearch(searchInput.trim());
     resetPage();
   };
 
@@ -1074,6 +1171,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
     ...(module ? [{ label: 'Phân hệ', value: moduleLabels[module] ?? module, onClear: () => { setModule(''); resetPage(); } }] : []),
     ...(action ? [{ label: 'Hành động', value: auditActionFilterLabels[action] ?? businessActionConfig[action]?.label ?? getActionLabel(action), onClear: () => { setAction(''); resetPage(); } }] : []),
     ...(entityName ? [{ label: 'Đối tượng', value: entityLabels[entityName] ?? entityName, onClear: () => { setEntityName(''); resetPage(); } }] : []),
+    ...(search ? [{ label: 'Tìm kiếm', value: search, onClear: () => { setSearch(''); setSearchInput(''); resetPage(); } }] : []),
     ...(selectedPeriod ? [{ label: 'Kỳ thi đua', value: selectedPeriod.name, onClear: () => handlePeriodChange('') }] : []),
     ...(from || to ? [{ label: 'Khoảng ngày', value: `${from || '…'} → ${to || '…'}`, onClear: () => { setQueryFilters({ from: '', to: '' }); resetPage(); } }] : []),
   ];
@@ -1104,14 +1202,15 @@ export function AuditLogView({ title, description, actions }: { title: string; d
             <Input
               type="text"
               value={searchInput}
-              onChange={(event) => { setSearchInput(event.target.value); resetPage(); }}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applySearch(); } }}
               placeholder="Tìm theo người thực hiện, thao tác hoặc nội dung…"
               className="!h-9 rounded-lg border-border/60 bg-card pl-9 pr-8 !py-0 !text-[13px] leading-9 focus-visible:border-ring"
             />
             {searchInput && (
               <button
                 type="button"
-                onClick={() => { setSearchInput(''); resetPage(); }}
+                onClick={() => { setSearchInput(''); setSearch(''); resetPage(); }}
                 aria-label="Xóa tìm kiếm"
                 className="absolute right-1.5 top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted-foreground/15 hover:text-foreground"
               >
@@ -1119,6 +1218,10 @@ export function AuditLogView({ title, description, actions }: { title: string; d
               </button>
             )}
           </div>
+          <Button type="button" onClick={applySearch} className="shrink-0">
+            <Search className="h-4 w-4" />
+            Tìm kiếm
+          </Button>
           <FilterDropdown activeCount={activeFilters.length} activeFilters={activeFilters} onClear={clearFilters} panelClassName="w-80 max-w-[calc(100vw-2rem)]">
             {/* Các phân hệ đang sử dụng, không trùng nhãn "Kỳ thi đua". */}
             <FilterSelect label="Phân hệ" value={module} onChange={(value) => { setModule(value); resetPage(); }} allLabel="Tất cả phân hệ" options={['Emulation', 'Submission', 'Files', 'ResultPublication'].map((value) => ({ value, label: moduleLabels[value] ?? value }))} />
