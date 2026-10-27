@@ -148,17 +148,13 @@ export default function CriteriaListPage() {
   const trustedNowRef = useRef<number | null>(null);
   const isAppliedEdit = editingTable?.status === 'ACTIVE';
   const [importedCriteria, setImportedCriteria] = useState<ParsedCriteriaItem[] | null>(null);
-  // Giới hạn điểm thưởng nhập kèm khi import Excel — chỉ dùng để validate và báo lỗi, không tự chỉnh số liệu.
-  const [importBonusPeriod, setImportBonusPeriod] = useState('5');
-  const [importBonusCriteria, setImportBonusCriteria] = useState('1');
-  // Đổi kỳ trong cửa sổ import → prefill lại giới hạn từ cấu hình của kỳ mới chọn.
-  useEffect(() => {
-    if (!importedCriteria) return;
-    const prefillPeriod = periods.find((period) => period.id === periodId);
-    setImportBonusPeriod(String(prefillPeriod?.maxBonusPointPerPeriod ?? 5));
-    setImportBonusCriteria(String(prefillPeriod?.maxBonusPointPerCriteria ?? 1));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [importedCriteria, periodId]);
+  // Giới hạn điểm thưởng của kỳ đang chọn — chỉ hiển thị; điểm thưởng tiêu chí con áp theo cấu hình kỳ.
+  const importSelectedPeriod = importedCriteria ? periods.find((period) => period.id === periodId) : undefined;
+  const importPeriodLimit = importSelectedPeriod?.maxBonusPointPerPeriod;
+  const importCriteriaLimit = importSelectedPeriod?.maxBonusPointPerCriteria;
+  const importBonusTotal = importedCriteria !== null && importCriteriaLimit != null
+    ? importedCriteria.length * importCriteriaLimit
+    : null;
   const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
@@ -324,8 +320,6 @@ export default function CriteriaListPage() {
     setPeriodId('');
     setEditingTable(null);
     setImportedCriteria(null);
-    setImportBonusPeriod('5');
-    setImportBonusCriteria('1');
   };
 
   const openCreateDialog = () => {
@@ -366,10 +360,6 @@ export default function CriteriaListPage() {
       setContent(parsed.content);
       setCloseDate(parsed.deadline ?? '');
       setImportedCriteria(parsed.criteria);
-      // Prefill giới hạn điểm thưởng từ cấu hình của kỳ đang chọn (nếu có).
-      const prefillPeriod = periods.find((period) => period.id === effectivePeriodId);
-      setImportBonusPeriod(String(prefillPeriod?.maxBonusPointPerPeriod ?? 5));
-      setImportBonusCriteria(String(prefillPeriod?.maxBonusPointPerCriteria ?? 1));
       setOpen(true);
       toast.success(`Đã đọc ${parsed.criteria.length} tiêu chí con. Vui lòng chọn kỳ thi đua và ban xử lý.`);
     } catch (error) {
@@ -422,23 +412,6 @@ export default function CriteriaListPage() {
       const childPointTotal = importedCriteria.reduce((sum, item) => sum + item.maxPoint, 0);
       if (Math.round(parsedTotalScore * 100) !== Math.round(childPointTotal * 100)) {
         toast.error(`Tổng điểm nhóm (${parsedTotalScore}) phải bằng tổng điểm các tiêu chí con (${childPointTotal}).`);
-        return;
-      }
-      // Validate điểm thưởng trong tệp theo giới hạn do người dùng nhập — chỉ báo lỗi, không tự chỉnh.
-      const periodBonusLimit = Number(importBonusPeriod);
-      const criteriaBonusLimit = Number(importBonusCriteria);
-      if (!Number.isFinite(periodBonusLimit) || periodBonusLimit <= 0 || !Number.isFinite(criteriaBonusLimit) || criteriaBonusLimit <= 0) {
-        toast.error('Vui lòng nhập giới hạn điểm thưởng trong kỳ và trên tiêu chí con lớn hơn 0.');
-        return;
-      }
-      const bonusViolating = importedCriteria.find((item) => item.maxBonusPoint > criteriaBonusLimit);
-      if (bonusViolating) {
-        toast.error(`Điểm thưởng của tiêu chí con "${bonusViolating.content}" (${bonusViolating.maxBonusPoint}) vượt quá mức tối đa ${criteriaBonusLimit} trên tiêu chí con. Hãy nhập tệp Excel khác hoặc nâng mức điểm thưởng tối đa trên tiêu chí con của kỳ.`);
-        return;
-      }
-      const bonusTotal = importedCriteria.reduce((sum, item) => sum + item.maxBonusPoint, 0);
-      if (bonusTotal > periodBonusLimit) {
-        toast.error(`Tổng điểm thưởng của các tiêu chí con (${bonusTotal}) vượt quá mức tối đa ${periodBonusLimit} trong kỳ. Hãy nhập tệp Excel khác hoặc nâng mức điểm thưởng tối đa trong kỳ.`);
         return;
       }
     }
@@ -507,8 +480,7 @@ export default function CriteriaListPage() {
         const createdGroup = await criteriaGroupsApi.create(payload);
         if (importedCriteria) {
           createdGroupId = createdGroup.id;
-          // Điểm thưởng đọc từ Excel chỉ dùng để validate — không gửi lên BE (limit do kỳ quy định).
-          await criteriaGroupsApi.createBulk(createdGroup.id, importedCriteria.map(({ maxBonusPoint: _maxBonusPoint, ...item }) => item));
+          await criteriaGroupsApi.createBulk(createdGroup.id, importedCriteria);
           importedChildrenCreated = true;
           toast.success(`Đã nhập nhóm tiêu chí và ${importedCriteria.length} tiêu chí con từ Excel.`);
         } else {
@@ -732,40 +704,24 @@ export default function CriteriaListPage() {
         <div className="space-y-6">
           {importedCriteria && (
             <div className="rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2.5 text-sm">
-              <p className="font-medium">Đã đọc {importedCriteria.length} tiêu chí con · Tổng điểm chuẩn: {totalScore} · Tổng điểm thưởng: {importedCriteria.reduce((sum, item) => sum + item.maxBonusPoint, 0)}</p>
+              <p className="font-medium">Đã đọc {importedCriteria.length} tiêu chí con · Tổng điểm chuẩn: {totalScore} · Điểm thưởng áp theo cấu hình kỳ{importBonusTotal != null ? ` (tối đa ${importBonusTotal} điểm)` : ''}</p>
               <p className="mt-1 text-muted-foreground">Kỳ thi đua và ban xử lý không có trong tệp; vui lòng chọn bên dưới.</p>
             </div>
           )}
           {importedCriteria && (
-            <div className="grid items-end gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="import-bonus-period" className="text-[13.5px] font-semibold">Tổng điểm thưởng tối đa trong kỳ <span className="text-destructive">*</span></Label>
-                <Input
-                  id="import-bonus-period"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={importBonusPeriod}
-                  onChange={(e) => setImportBonusPeriod(e.target.value)}
-                  className="h-11 bg-muted"
-                />
+                <p className="text-[13.5px] font-semibold">Tổng điểm thưởng tối đa trong kỳ</p>
+                <p className="flex h-11 items-center rounded-lg border border-input bg-muted px-3 text-sm font-medium tabular-nums text-muted-foreground">{importPeriodLimit != null ? `${importPeriodLimit} điểm` : '—'}</p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="import-bonus-criteria" className="text-[13.5px] font-semibold">Điểm thưởng tối đa trên tiêu chí con <span className="text-destructive">*</span></Label>
-                <Input
-                  id="import-bonus-criteria"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={importBonusCriteria}
-                  onChange={(e) => setImportBonusCriteria(e.target.value)}
-                  className="h-11 bg-muted"
-                />
+                <p className="text-[13.5px] font-semibold">Điểm thưởng tối đa trên tiêu chí con</p>
+                <p className="flex h-11 items-center rounded-lg border border-input bg-muted px-3 text-sm font-medium tabular-nums text-muted-foreground">{importCriteriaLimit != null ? `${importCriteriaLimit} điểm` : '—'}</p>
               </div>
             </div>
           )}
-          {importedCriteria && (
-            <p className="text-xs text-muted-foreground">Dùng để kiểm tra điểm thưởng trong tệp: vượt giới hạn sẽ báo lỗi và không cho lưu — hãy nhập tệp khác hoặc nâng giới hạn trong cấu hình kỳ.</p>
+          {importedCriteria && !importSelectedPeriod && (
+            <p className="text-xs text-muted-foreground">Chọn kỳ thi đua để xem giới hạn điểm thưởng áp dụng cho các tiêu chí con.</p>
           )}
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_200px]">
             <div className="space-y-1.5">
