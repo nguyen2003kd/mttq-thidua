@@ -3,6 +3,7 @@
 export type GetApiV1AuditLogsParams = {
 From?: string;
 To?: string;
+PeriodId?: string;
 UserId?: string;
 Module?: string;
 Action?: string;

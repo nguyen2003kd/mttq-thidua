@@ -17,6 +17,8 @@ export interface FilterDropdownProps {
   /** Giữ bảng lọc mở bên dưới nút để không bị thanh điều hướng cố định che phần đầu. */
   openBelow?: boolean;
   className?: string;
+  /** Cho phép điều chỉnh chiều rộng của bảng lọc mà không đổi kích thước nút mở. */
+  panelClassName?: string;
 }
 
 type FilterControlElement = ReactElement<{ value: string; onChange: (value: string) => void }>;
@@ -53,7 +55,7 @@ function flattenFilterChildren(nodes: ReactNode): ReactNode[] {
  * Giá trị chọn trong dropdown là bản nháp — chỉ áp dụng khi bấm "Xác nhận" (dropdown tự đóng).
  * "Xóa lọc" đặt lại toàn bộ filter. Đóng khi bấm ra ngoài hoặc nhấn Escape (bỏ thay đổi chưa xác nhận).
  */
-export function FilterDropdown({ children, activeCount = 0, activeFilters, label = 'Bộ lọc', onClear, openBelow = false, className }: FilterDropdownProps) {
+export function FilterDropdown({ children, activeCount = 0, activeFilters, label = 'Bộ lọc', onClear, openBelow = false, className, panelClassName }: FilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const [panelMaxHeight, setPanelMaxHeight] = useState<number | null>(null);
   const [placement, setPlacement] = useState<'above' | 'below'>('below');
@@ -172,6 +174,7 @@ export function FilterDropdown({ children, activeCount = 0, activeFilters, label
             'absolute left-0 z-30 flex w-64 flex-col overflow-hidden rounded-lg border border-border bg-card p-3 shadow-md',
             placement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
             className,
+            panelClassName,
           )}
         >
           {activeFilters && activeFilters.length > 0 && (

@@ -90,10 +90,9 @@ export default function CriteriaDetailPage() {
                 </div>
                 <span className="shrink-0 font-semibold text-primary">{criterion.maxScore} điểm</span>
               </div>
-              <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                <div><p className="text-xs text-muted-foreground">Điểm thưởng</p><p className="mt-1 font-medium">{criterion.bonusScore ?? '—'}</p></div>
+              <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
                 <div><p className="text-xs text-muted-foreground">Hạn nộp</p><p className="mt-1 font-medium">{criterion.deadline ? formatDate(criterion.deadline) : '—'}</p></div>
-                <div className="sm:col-span-2 lg:col-span-1"><p className="text-xs text-muted-foreground">Ghi chú</p><p className="mt-1 font-medium">{criterion.note || '—'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Ghi chú</p><p className="mt-1 font-medium">{criterion.note || '—'}</p></div>
               </div>
             </section>
           ))}

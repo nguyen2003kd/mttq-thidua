@@ -6,7 +6,6 @@ export interface BulkCriteriaItem {
   /** @nullable */
   content?: string | null;
   maxPoint?: number;
-  maxBonusPoint?: number;
   /** @nullable */
   deadline?: string | null;
   /** @nullable */

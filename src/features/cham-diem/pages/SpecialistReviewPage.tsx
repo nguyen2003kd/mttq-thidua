@@ -141,7 +141,8 @@ function toSpecialistCriteriaGroup(group: CriteriaGroupApi, submission: Submissi
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: criterion.maxPoint,
-        maxProposedBonusScore: criterion.maxBonusPoint,
+        // Giới hạn điểm thưởng theo kỳ: hồ sơ đã chấm dùng snapshot, hồ sơ mới dùng cấu hình của kỳ.
+        maxProposedBonusScore: criterion.type === 'Supplementary' ? 0 : (result?.snapshotMaxBonusPoint ?? group.maxBonusPointPerCriteria),
         explanation: result?.explanation ?? '',
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,
@@ -453,7 +454,8 @@ type SupplementaryForm = z.infer<typeof supplementarySchema>;
 
 const scoreEditSchema = z.object({
   score: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm chấm.' }).min(0, 'Điểm chấm không được nhỏ hơn 0.'),
-  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.').max(1, 'Điểm thưởng không được vượt quá 1 điểm.'),
+  // Giới hạn trên của điểm thưởng theo từng tiêu chí (từ cấu hình kỳ) được kiểm tra trong submit handler.
+  bonusScore: z.coerce.number({ invalid_type_error: 'Vui lòng nhập điểm thưởng.' }).min(0, 'Điểm thưởng không được nhỏ hơn 0.'),
   reason: z.string().trim(),
 });
 
@@ -763,11 +765,13 @@ function OfficialScoreRevisionDialog({
   onOpenChange,
   result,
   criterionLabel,
+  onPreviewFile,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   result: SubmissionResultItem | null;
   criterionLabel: string;
+  onPreviewFile: (file: { id: string; originalName: string }) => void;
 }) {
   const scoreUpdateFilesQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1FilesQueryKey(), 'score-revisions', result?.id),
@@ -834,7 +838,37 @@ function OfficialScoreRevisionDialog({
           <div>
             <p className="text-sm font-medium text-foreground">Tệp đính kèm</p>
             <p className="mt-1 text-xs text-muted-foreground">Chỉ hiển thị tệp đính kèm khi sửa điểm.</p>
-            {scoreUpdateFilesQuery.isLoading ? <div className="mt-3 h-16 animate-pulse rounded-md bg-muted" /> : scoreUpdateFilesQuery.isError ? <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">Không tải được tệp đính kèm. Vui lòng thử lại.</p> : scoreUpdateFiles.length === 0 ? <p className="mt-3 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">Không có tệp đính kèm cho lần sửa điểm này.</p> : <div className="mt-3 divide-y rounded-md border border-border">{scoreUpdateFiles.map((file) => <div key={file.id} className="flex items-center gap-3 px-3 py-2.5"><FileText className="size-4 shrink-0 text-primary" aria-hidden="true" /><span className="min-w-0 flex-1 break-all text-sm font-medium text-foreground">{file.displayName || file.originalName}</span><Button type="button" variant="outline" size="sm" onClick={() => { void downloadFile(file.id, file.displayName || file.originalName); }}><Download className="size-4" />Tải về</Button></div>)}</div>}
+            {scoreUpdateFilesQuery.isLoading ? (
+              <div className="mt-3 h-16 animate-pulse rounded-md bg-muted" />
+            ) : scoreUpdateFilesQuery.isError ? (
+              <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                Không tải được tệp đính kèm. Vui lòng thử lại.
+              </p>
+            ) : scoreUpdateFiles.length === 0 ? (
+              <p className="mt-3 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                Không có tệp đính kèm cho lần sửa điểm này.
+              </p>
+            ) : (
+              <div className="mt-3 divide-y rounded-md border border-border">
+                {scoreUpdateFiles.map((file) => {
+                  const fileName = file.displayName || file.originalName;
+                  return (
+                    <div key={file.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 break-all text-sm font-medium text-foreground">{fileName}</span>
+                      <Button type="button" variant="outline" size="sm" onClick={() => onPreviewFile({ id: file.id, originalName: fileName })}>
+                        <Eye className="size-4" />
+                        Xem
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => { void downloadFile(file.id, fileName); }}>
+                        <Download className="size-4" />
+                        Tải về
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button></DialogFooter>
@@ -1425,6 +1459,11 @@ function ScoreEditDialog({
 
   if (!item) return null;
 
+  const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
+  const maxBonusScore = periodBonusUsed != null && periodBonusLimit != null
+    ? Math.min(item.maxProposedBonusScore, Math.max(0, periodBonusLimit - (periodBonusUsed - currentBonus)))
+    : item.maxProposedBonusScore;
+
   const submit = (values: ScoreEditForm) => {
     const scoreChanged = values.score !== item.proposedScore || values.bonusScore !== item.proposedBonusScore;
     if (scoreChanged && !values.reason.trim()) {
@@ -1435,16 +1474,15 @@ function ScoreEditDialog({
       form.setError('score', { message: `Điểm chấm không được vượt quá ${item.maxProposedScore}.` });
       return;
     }
-    if (values.bonusScore > 1) {
-      form.setError('bonusScore', { message: 'Điểm thưởng không được vượt quá 1 điểm.' });
+    if (values.bonusScore > item.maxProposedBonusScore) {
+      form.setError('bonusScore', { message: `Điểm thưởng không được vượt quá ${item.maxProposedBonusScore} điểm.` });
       return;
     }
-    // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn (5/kỳ).
+    // Cảnh báo quota: tổng điểm thưởng chính thức của địa phương trong kỳ không được vượt quá giới hạn của kỳ.
     if (periodBonusUsed != null && periodBonusLimit != null) {
-      const currentBonus = item.officialBonusScore ?? item.proposedBonusScore;
       const projected = periodBonusUsed - currentBonus + values.bonusScore;
-      if (projected > periodBonusLimit) {
-        form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn 5 điểm/kỳ.` });
+      if (projected > periodBonusLimit && projected >= periodBonusUsed) {
+        form.setError('bonusScore', { message: `Tổng điểm thưởng của địa phương trong kỳ sẽ là ${projected}/${periodBonusLimit} — vượt quá giới hạn ${periodBonusLimit} điểm/kỳ.` });
         return;
       }
     }
@@ -1479,7 +1517,7 @@ function ScoreEditDialog({
                   id="specialist-bonus-score"
                   type="number"
                   min={0}
-                  max={1}
+                  max={maxBonusScore}
                   step="0.25"
                   {...form.register('bonusScore', {
                     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1487,9 +1525,9 @@ function ScoreEditDialog({
                       if (raw === '') return;
                       const num = Number(raw);
                       if (!Number.isFinite(num)) return;
-                      if (num > 1) {
-                        event.target.value = '1';
-                        form.setValue('bonusScore', 1, { shouldValidate: true });
+                      if (num > maxBonusScore) {
+                        event.target.value = String(maxBonusScore);
+                        form.setValue('bonusScore', maxBonusScore, { shouldValidate: true });
                       } else if (num < 0) {
                         event.target.value = '0';
                         form.setValue('bonusScore', 0, { shouldValidate: true });
@@ -1497,7 +1535,7 @@ function ScoreEditDialog({
                     },
                   })}
                 />
-                <p className="text-xs text-muted-foreground">Tối đa 1 điểm</p>
+                <p className="text-xs text-muted-foreground">Tối đa {maxBonusScore} điểm</p>
                 {form.formState.errors.bonusScore && <p role="alert" className="text-xs font-semibold text-destructive">{form.formState.errors.bonusScore.message}</p>}
               </div>
             </div>
@@ -1793,7 +1831,8 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         proposedScore: result?.point ?? 0,
         proposedBonusScore: result?.bonusPoint ?? 0,
         maxProposedScore: c.maxPoint,
-        maxProposedBonusScore: c.maxBonusPoint,
+        // Giới hạn điểm thưởng theo kỳ: hồ sơ đã chấm dùng snapshot, hồ sơ mới dùng cấu hình của kỳ.
+        maxProposedBonusScore: c.type === 'Supplementary' ? 0 : (result?.snapshotMaxBonusPoint ?? group.maxBonusPointPerCriteria),
         explanation: result?.explanation ?? '',
         officialScore: result?.officialPoint ?? null,
         officialBonusScore: result?.officialBonusPoint ?? null,
@@ -2465,9 +2504,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         ? 'Vui lòng chấm đủ điểm và điểm thưởng cho tất cả tiêu chí con trước khi duyệt.'
         : undefined;
   const maximumScore = scoredItems.reduce((sum, item) => sum + item.maxProposedScore, 0);
-  const maximumBonusScore = scoredItems.reduce((sum, item) => sum + item.maxProposedBonusScore, 0);
   const specialistScore = scoredItems.reduce((sum, item) => sum + (item.officialScore ?? 0), 0);
-  const specialistBonusScore = scoredItems.reduce((sum, item) => sum + (item.officialBonusScore ?? 0), 0);
+  const periodBonusUsed = selectedSubmissionDetailQuery.data?.periodBonusUsed;
+  const periodBonusLimit = selectedSubmissionDetailQuery.data?.periodBonusLimit
+    ?? selectedGroupDetailQuery.data?.maxBonusPointPerPeriod;
   const revisionCriteria = displayGroup.items.filter((item) => !item.isAddedBySpecialist && !item.isDisabled && resultByCriteriaId.has(item.id));
   const scoreRevisionCriterionLabel = scoreRevisionResult?.criteriaContent
     ?? displayGroup.items.find((item) => item.id === scoreRevisionResult?.criteriaId)?.title
@@ -2635,7 +2675,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     setSavingDraft(true);
     let serverChanged = false;
     try {
-      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', scoreItems: items });
+      await specialistApi.updateScores({ submissionId: submission.id, reason: 'Lưu nháp điểm chấm của chuyên viên', isDraft: true, scoreItems: items });
       serverChanged = true;
       await uploadPendingScoreAttachments();
       await refreshSubmissionData();
@@ -2740,7 +2780,10 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           </div>
           <div className="bg-card px-4 py-3.5">
             <p className="text-xs font-medium text-muted-foreground">Điểm thưởng</p>
-            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">{specialistBonusScore}<span className="text-sm font-normal text-success"> / {maximumBonusScore}</span></p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-foreground">
+              {periodBonusUsed ?? '—'}
+              <span className="text-sm font-normal text-success"> / {periodBonusLimit ?? '—'}</span>
+            </p>
           </div>
         </div>
       </section>
@@ -3201,6 +3244,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
         onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }}
         result={scoreRevisionResult}
         criterionLabel={scoreRevisionCriterionLabel}
+        onPreviewFile={setPreviewFile}
       />
       <RevisionRequestDialog
         open={revisionOpen}

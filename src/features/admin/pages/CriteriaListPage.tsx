@@ -39,8 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
 import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
-import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile } from '@/features/admin/criteriaExcel';
-import type { CriteriaPayload } from '@/features/admin/api/criteriaGroupsApi';
+import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile, type ParsedCriteriaItem } from '@/features/admin/criteriaExcel';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
 const toLocalDateTimeInput = (timestampMs: number) => {
@@ -58,7 +57,7 @@ const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   departmentName: group.departmentName ?? undefined,
   periodId: group.periodId ?? undefined,
   periodName: group.periodName ?? undefined,
-  criteria: group.criteria.filter((criterion) => criterion.status !== 'Deleted').map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, bonusScore: criterion.maxBonusPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
+  criteria: group.criteria.filter((criterion) => criterion.status !== 'Deleted').map((criterion, index) => ({ id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint, deadline: criterion.deadline ?? undefined, note: criterion.note ?? undefined, order: index + 1 })),
   assignedLocalityCount: group.status === 'Applied' || group.status === 'Published' ? 1 : 0,
   openDate: group.createdAt,
   closeDate: group.deadline ?? '',
@@ -102,6 +101,12 @@ export default function CriteriaListPage() {
     yearFilter: '',
     periodFilter: '',
   });
+  // "Đã kết thúc" vẫn hiển thị trên dữ liệu lịch sử, nhưng không là tùy chọn lọc tại trang này.
+  // Xóa tham số cũ để bộ lọc trên URL và giao diện nhất quán.
+  useEffect(() => {
+    if (statusFilter === 'Closed') setStatusFilter('');
+  }, [statusFilter, setStatusFilter]);
+
   const [search, setSearch] = useState(initialSearch);
   const [sortBy, sortOrder] = sort.split('-') as ['createdAt' | 'name' | 'deadline' | 'maxPoint', 'asc' | 'desc'];
   const { data: groupPage, isLoading } = useQuery({
@@ -148,7 +153,14 @@ export default function CriteriaListPage() {
   const [editingTable, setEditingTable] = useState<CriteriaTable | null>(null);
   const trustedNowRef = useRef<number | null>(null);
   const isAppliedEdit = editingTable?.status === 'ACTIVE';
-  const [importedCriteria, setImportedCriteria] = useState<CriteriaPayload[] | null>(null);
+  const [importedCriteria, setImportedCriteria] = useState<ParsedCriteriaItem[] | null>(null);
+  // Giới hạn điểm thưởng của kỳ đang chọn — chỉ hiển thị; điểm thưởng tiêu chí con áp theo cấu hình kỳ.
+  const importSelectedPeriod = importedCriteria ? periods.find((period) => period.id === periodId) : undefined;
+  const importPeriodLimit = importSelectedPeriod?.maxBonusPointPerPeriod;
+  const importCriteriaLimit = importSelectedPeriod?.maxBonusPointPerCriteria;
+  const importBonusTotal = importedCriteria !== null && importCriteriaLimit != null
+    ? importedCriteria.length * importCriteriaLimit
+    : null;
   const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [selectedTable, setSelectedTable] = useState<CriteriaTable | null>(null);
   const [applyTable, setApplyTable] = useState<CriteriaTable | null>(null);
@@ -165,7 +177,7 @@ export default function CriteriaListPage() {
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
-  const { uploading: fileUploading, uploadProgress: fileProgress, uploadFiles } = useFileUpload();
+  const { uploading: fileUploading, uploadProgress: fileProgress } = useFileUpload();
   const invalidateCriteria = () => invalidateQueryResources(queryClient, [
     getGetApiV1CriteriaGroupsQueryKey(),
     getGetApiV1SubmissionsQueryKey(),
@@ -347,7 +359,8 @@ export default function CriteriaListPage() {
       const parsed = await parseCriteriaExcelFile(file);
       resetEditor();
       // Kỳ thi đua đang hiển thị trên màn hình → chọn sẵn trong cửa sổ import.
-      if (activePeriods.some((period) => period.id === periodFilter)) setPeriodId(periodFilter);
+      const effectivePeriodId = activePeriods.some((period) => period.id === periodFilter) ? periodFilter : '';
+      if (effectivePeriodId) setPeriodId(effectivePeriodId);
       setName(parsed.name);
       setTotalScore(String(parsed.maxPoint));
       setContent(parsed.content);
@@ -561,7 +574,6 @@ export default function CriteriaListPage() {
               options={[
                 { value: 'Draft', label: CRITERIA_STATUS_LABELS.DRAFT },
                 { value: 'Applied', label: CRITERIA_STATUS_LABELS.ACTIVE },
-                { value: 'Closed', label: CRITERIA_STATUS_LABELS.EXPIRED },
                 { value: 'Published', label: CRITERIA_STATUS_LABELS.PUBLISHED },
               ]}
             />
@@ -697,9 +709,24 @@ export default function CriteriaListPage() {
         <div className="space-y-6">
           {importedCriteria && (
             <div className="rounded-md border border-primary/20 bg-primary/[0.04] px-3 py-2.5 text-sm">
-              <p className="font-medium">Đã đọc {importedCriteria.length} tiêu chí con · Tổng điểm chuẩn: {totalScore} · Tổng điểm thưởng: {importedCriteria.reduce((sum, item) => sum + item.maxBonusPoint, 0)}</p>
+              <p className="font-medium">Đã đọc {importedCriteria.length} tiêu chí con · Tổng điểm chuẩn: {totalScore} · Điểm thưởng áp theo cấu hình kỳ{importBonusTotal != null ? ` (tối đa ${importBonusTotal} điểm)` : ''}</p>
               <p className="mt-1 text-muted-foreground">Kỳ thi đua và ban xử lý không có trong tệp; vui lòng chọn bên dưới.</p>
             </div>
+          )}
+          {importedCriteria && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <p className="text-[13.5px] font-semibold">Tổng điểm thưởng tối đa trong kỳ</p>
+                <p className="flex h-11 items-center rounded-lg border border-input bg-muted px-3 text-sm font-medium tabular-nums text-muted-foreground">{importPeriodLimit != null ? `${importPeriodLimit} điểm` : '—'}</p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[13.5px] font-semibold">Điểm thưởng tối đa trên tiêu chí con</p>
+                <p className="flex h-11 items-center rounded-lg border border-input bg-muted px-3 text-sm font-medium tabular-nums text-muted-foreground">{importCriteriaLimit != null ? `${importCriteriaLimit} điểm` : '—'}</p>
+              </div>
+            </div>
+          )}
+          {importedCriteria && !importSelectedPeriod && (
+            <p className="text-xs text-muted-foreground">Chọn kỳ thi đua để xem giới hạn điểm thưởng áp dụng cho các tiêu chí con.</p>
           )}
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_200px]">
             <div className="space-y-1.5">
@@ -806,17 +833,7 @@ export default function CriteriaListPage() {
               setApplyError(validation.message ?? 'Không thể áp dụng nhóm tiêu chí.');
               return;
             }
-            await criteriaGroupsApi.apply(applyTable.id);
-            if (applyFiles.length > 0) {
-              const uploadedFiles = await uploadFiles(applyFiles, {
-                entityType: 'CriteriaGroup',
-                entityId: applyTable.id,
-                category: 'notice',
-              });
-              if (uploadedFiles.length !== applyFiles.length) {
-                toast.warning('Nhóm tiêu chí đã được áp dụng nhưng có file thông báo tải lên không thành công.');
-              }
-            }
+            await criteriaGroupsApi.apply(applyTable.id, applyFiles);
             await invalidateQueryResources(queryClient, [
               getGetApiV1CriteriaGroupsQueryKey(),
               getGetApiV1SubmissionsQueryKey(),

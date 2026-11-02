@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
 import { getGetApiV1MySubmissionsQueryKey, getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
 import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
@@ -57,14 +57,14 @@ const GROUP_SORT_OPTIONS = [
 
 const DEFAULT_GROUP_SORT = 'createdAt-desc';
 
-function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview }: { open: boolean; onOpenChange: (open: boolean) => void; item: SelectedRow | null; evidence: Evidence[]; onPreview: (file: Evidence) => void }) {
+function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview, maxBonusPoint }: { open: boolean; onOpenChange: (open: boolean) => void; item: SelectedRow | null; evidence: Evidence[]; onPreview: (file: Evidence) => void; maxBonusPoint?: number }) {
   if (!item) return null;
   const { entry, criterion } = item;
   const fields = [
     ['Loại tiêu chí', entry.isSupplementary ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'],
     ['Hạn nộp', criterion?.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'],
     ['Điểm đề xuất', `${entry.proposedScore ?? entry.value ?? 0} / ${criterion?.maxScore ?? entry.supplementaryMaxScore ?? 0}`],
-    ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${criterion?.bonusScore ?? 0}`],
+    ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${entry.isSupplementary ? 0 : (maxBonusPoint ?? criterion?.bonusScore ?? 0)}`],
   ];
 
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"><DialogHeader className="border-b border-border bg-muted/20 px-6 py-5 pr-12"><DialogTitle>Chi tiết tiêu chí con</DialogTitle><DialogDescription>Xem đầy đủ thông tin, điểm đề xuất và minh chứng đã nộp.</DialogDescription></DialogHeader><div className="space-y-5 px-6 py-5"><section><p className="text-xs font-medium text-muted-foreground">Nội dung tiêu chí</p><p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold leading-6 text-foreground">{criterion?.name ?? entry.criteriaName}</p>{criterion?.status === 'Deleted' && <Badge variant="secondary" className="mt-2">Vô hiệu</Badge>}</section><div className="grid overflow-hidden rounded-lg border border-border sm:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b border-border px-4 py-3 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 sm:[&:nth-child(odd)]:border-r"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p></div>)}</div>{criterion?.note && <section><p className="text-xs font-medium text-muted-foreground">Ghi chú</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{criterion.note}</p></section>}<section><p className="text-xs font-medium text-muted-foreground">Nội dung diễn giải</p><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.explanation || 'Chưa có diễn giải.'}</p></section>{entry.revisionRequest && <section className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3"><p className="text-xs font-medium text-warning-foreground">Yêu cầu chỉnh sửa</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">{entry.revisionRequest}</p></section>}<section><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-foreground">Minh chứng đã nộp</p><span className="text-xs text-muted-foreground">{evidence.length} tệp</span></div>{evidence.length > 0 ? <div className="mt-3 space-y-2">{evidence.map((file) => <button key={file.id} type="button" onClick={() => onPreview(file)} className="flex w-full min-w-0 items-center gap-3 rounded-md border border-border px-3 py-2.5 text-left hover:bg-muted/50"><FileText className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-all text-sm font-medium">{file.fileName}</span><Eye className="size-4 shrink-0 text-muted-foreground" /></button>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có minh chứng đính kèm.</p>}</section></div></DialogContent></Dialog>;
@@ -228,7 +228,9 @@ export default function LocalityCriteriaPage() {
     queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: () => periodsApi.listAll(),
   });
-  const periods = periodsQuery.data ?? [];
+  const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
+  // Điểm thưởng tối đa theo cấu hình của kỳ — tra theo periodId.
+  const periodById = useMemo(() => new Map(periods.map((period) => [period.id, period])), [periods]);
 
   const groupsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1CriteriaGroupsQueryKey(), { view: 'list', localityId, search: groupSearch || undefined, periodId: periodFilter || undefined, sortBy, sortOrder, page: 1, pageSize: 100 }),
@@ -252,15 +254,22 @@ export default function LocalityCriteriaPage() {
 
   // Kỳ dùng để tổng hợp điểm thưởng: ưu tiên kỳ trên URL, thiếu thì lấy kỳ của nhóm tiêu chí đang mở.
   const effectivePeriodId = periodFilter || groupDetailQuery.data?.periodId || '';
+  const effectivePeriodBonusLimit = periodById.get(effectivePeriodId)?.maxBonusPointPerPeriod ?? null;
   const mySubmissionsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1MySubmissionsQueryKey(), { localityId, periodId: effectivePeriodId || undefined, page: 1, pageSize: 100 }),
     queryFn: () => localityApi.listMySubmissions({ periodId: effectivePeriodId || undefined, page: 1, pageSize: 100 }),
     enabled: Boolean(localityId),
   });
 
-  // Tổng điểm thưởng địa phương đã dùng trong kỳ (mọi hồ sơ) — theo dõi quota tối đa 5/kỳ.
+  // Tổng điểm thưởng hiệu lực địa phương đã dùng trong kỳ (mọi hồ sơ) — khớp cách BE kiểm tra quota:
+  // điểm chính thức nếu đã chấm, nếu chưa thì dùng điểm đề xuất.
   const periodBonusUsed = useMemo(
-    () => (mySubmissionsQuery.data?.items ?? []).reduce((sum, s) => sum + (s.totalProposedBonusPoint ?? 0), 0),
+    () => (mySubmissionsQuery.data?.items ?? []).reduce(
+      (sum, s) => sum + (s.results ?? [])
+        .filter((r) => r.criteriaStatus !== 'Deleted')
+        .reduce((rs, r) => rs + (r.officialBonusPoint ?? r.bonusPoint), 0),
+      0,
+    ),
     [mySubmissionsQuery.data],
   );
 
@@ -281,35 +290,22 @@ export default function LocalityCriteriaPage() {
       .map((g) => mapCriteriaGroupToTable(g));
   }, [groupsQuery.data, submissionByGroup]);
 
-  // API danh sách nhóm không trả tiêu chí con, nên cần lấy chi tiết để tính đúng tổng điểm thưởng.
-  const assignedGroupDetailQueries = useQueries({
-    queries: assignedTables.map((assignedTable) => ({
-      queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(assignedTable.id)),
-      queryFn: () => localityApi.getCriteriaGroup(assignedTable.id),
-      enabled: !id && Boolean(localityId),
-    })),
-  });
-
-  const bonusScoreByGroupId = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const query of assignedGroupDetailQueries) {
-      if (!query.data) continue;
-      totals.set(query.data.id, query.data.criteria.reduce((total, criterion) => total + criterion.maxBonusPoint, 0));
-    }
-    return totals;
-  }, [assignedGroupDetailQueries]);
-
   const localityListRows = useMemo<LocalityCriteriaListRow[]>(
     () => assignedTables.map((assignedTable) => {
-      const totalBonusScore = bonusScoreByGroupId.get(assignedTable.id) ?? 0;
+      const submission = submissionByGroup.get(assignedTable.id);
+      // Điểm chuẩn hiệu lực: điểm chính thức (scorer/reviewer đã chấm) nếu có, không thì lấy điểm đề xuất của địa phương.
+      const activeResults = (submission?.results ?? []).filter((result) => result.criteriaStatus !== 'Deleted');
+      const totalScore = activeResults.reduce((sum, result) => sum + (result.officialPoint ?? result.point), 0);
+      const totalBonusScore = submission?.totalProposedBonusPoint ?? 0;
       return {
         ...assignedTable,
+        totalScore,
         totalBonusScore,
-        totalWithBonus: assignedTable.totalScore + totalBonusScore,
-        submissionStage: submissionByGroup.get(assignedTable.id)?.currentStage ?? null,
+        totalWithBonus: totalScore + totalBonusScore,
+        submissionStage: submission?.currentStage ?? null,
       };
     }),
-    [assignedTables, bonusScoreByGroupId, submissionByGroup],
+    [assignedTables, submissionByGroup],
   );
 
   const availableYears = useMemo(() => {
@@ -375,10 +371,10 @@ export default function LocalityCriteriaPage() {
       },
       {
         accessorKey: 'totalScore',
-        header: 'Điểm tổng',
+        header: 'Tổng điểm chuẩn',
         enableSorting: true,
         sortDescFirst: false,
-        meta: { align: 'right', sortable: true, list: { label: 'Điểm tổng', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm chuẩn', width: 'minmax(105px, .65fr)', valueClassName: 'font-semibold text-primary tabular-nums' } },
       },
       {
         accessorKey: 'totalBonusScore',
@@ -389,10 +385,10 @@ export default function LocalityCriteriaPage() {
       },
       {
         accessorKey: 'totalWithBonus',
-        header: 'Tổng điểm + thưởng',
+        header: 'Tổng điểm chuẩn + điểm thưởng',
         enableSorting: true,
         sortDescFirst: false,
-        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm + thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
+        meta: { align: 'right', sortable: true, list: { label: 'Tổng điểm chuẩn + điểm thưởng', width: 'minmax(145px, .85fr)', valueClassName: 'font-semibold tabular-nums' } },
       },
     ],
     [],
@@ -431,7 +427,6 @@ export default function LocalityCriteriaPage() {
       type: c.type as 'Standard' | 'Supplementary' | 'LateAdded',
       name: c.content,
       maxScore: c.maxPoint,
-      bonusScore: c.maxBonusPoint || undefined,
       deadline: c.deadline ?? undefined,
       note: c.note ?? undefined,
       order: idx + 1,
@@ -496,51 +491,29 @@ export default function LocalityCriteriaPage() {
     enabled: Boolean(submission?.id),
   });
 
-  // Sự kiện mở lại hồ sơ gần nhất: yêu cầu chỉnh sửa hoặc thêm tiêu chí bổ sung.
-  const latestReopenHistory = useMemo(() => (
-    (revisionHistoriesQuery.data?.items ?? []).find((item) => {
-      const action = item.action?.toLowerCase();
-      return action === 'requestrevision' || action === 'addsupplementarycriteria';
-    }) ?? null
+  // Sự kiện mở lại hồ sơ: yêu cầu chỉnh sửa hoặc thêm tiêu chí bổ sung — CẢ HAI có thể cùng
+  // tồn tại trên một hồ sơ (không khóa lẫn nhau) → đọc cả hai loại, không chỉ sự kiện gần nhất.
+  const latestRevisionRequest = useMemo(() => (
+    (revisionHistoriesQuery.data?.items ?? []).find((item) => (
+      item.action?.toLowerCase() === 'requestrevision'
+    )) ?? null
   ), [revisionHistoriesQuery.data]);
 
-  // Khi lần mở lại gần nhất chỉ là thêm tiêu chí bổ sung thì không mở lại các tiêu chí
-  // đã được yêu cầu chỉnh sửa ở vòng trước.
-  // Khi lần mở lại gần nhất là do Chuyên viên thêm tiêu chí mới (nhóm đã áp dụng) thì hiển thị
-  // banner riêng và cho phép nhập điểm đề xuất cho tiêu chí mới; yêu cầu chỉnh sửa thường vẫn khóa điểm.
-  const latestReopenIsSupplementaryAdd = latestReopenHistory?.action?.toLowerCase() === 'addsupplementarycriteria';
-
   const latestRevisionReason = useMemo(
-    () => extractRevisionReason(latestReopenHistory?.reason),
-    [latestReopenHistory],
+    () => extractRevisionReason(latestRevisionRequest?.reason),
+    [latestRevisionRequest],
   );
-  const latestReopenReasonText = useMemo(() => {
-    if (!latestRevisionReason) return null;
-    return latestReopenIsSupplementaryAdd
-      ? latestRevisionReason.replace(/^Thêm tiêu chí (bổ sung|mới):\s*/, '')
-      : latestRevisionReason;
-  }, [latestRevisionReason, latestReopenIsSupplementaryAdd]);
-
-  const latestSpecialistRevision = useMemo(() => {
-    if (latestReopenIsSupplementaryAdd) return null;
-    // Lấy yêu cầu chỉnh sửa MỚI NHẤT bất kể stageLevel — yêu cầu của Chuyên viên cấp 2
-    // (LocalSubmitted/ScorerRevisionRequested) lẫn Chuyên viên phụ trách thi đua khen thưởng (ReviewerApproved)
-    // đều xuống thẳng địa phương và cần đánh dấu tiêu chí bị yêu cầu.
-    return (revisionHistoriesQuery.data?.items ?? []).find((item) => (
-      item.action?.toLowerCase() === 'requestrevision'
-    )) ?? null;
-  }, [revisionHistoriesQuery.data, latestReopenIsSupplementaryAdd]);
 
   const specialistRevisionReason = useMemo(
-    () => extractRevisionReason(latestSpecialistRevision?.reason),
-    [latestSpecialistRevision],
+    () => extractRevisionReason(latestRevisionRequest?.reason),
+    [latestRevisionRequest],
   );
 
   const specialistRevisionCriteriaIds = useMemo(() => {
-    if (!latestSpecialistRevision) return null;
-    const requestedCriteriaIds = parseRevisionCriteriaIds(latestSpecialistRevision.changedData);
+    if (!latestRevisionRequest) return null;
+    const requestedCriteriaIds = parseRevisionCriteriaIds(latestRevisionRequest.changedData);
     if (requestedCriteriaIds.length > 0) return new Set(requestedCriteriaIds);
-    const resultIds = parseSubmissionResultIds(latestSpecialistRevision.changedData);
+    const resultIds = parseSubmissionResultIds(latestRevisionRequest.changedData);
     if (resultIds.length === 0) return null;
     const resultIdSet = new Set(resultIds);
     const criteriaIds = new Set<string>();
@@ -548,7 +521,7 @@ export default function LocalityCriteriaPage() {
       if (resultIdSet.has(result.id)) criteriaIds.add(result.criteriaId);
     }
     return criteriaIds;
-  }, [latestSpecialistRevision, submissionDetailQuery.data]);
+  }, [latestRevisionRequest, submissionDetailQuery.data]);
 
   // Tiêu chí bổ sung do Chuyên viên thêm cho riêng hồ sơ này.
   const supplementaryCriteriaIds = useMemo(() => {
@@ -561,31 +534,29 @@ export default function LocalityCriteriaPage() {
     );
   }, [groupDetailQuery.data, submissionDetailQuery.data, submission?.id]);
 
-  // Chỉ tiêu chí bổ sung vừa được thêm ở lần mở lại gần nhất mới được nhập —
-  // tiêu chí bổ sung đã nộp ở vòng trước vẫn khóa.
-  const latestSupplementaryCriteriaId = useMemo(() => {
-    if (!latestReopenIsSupplementaryAdd) return null;
-    const latestResult = (submissionDetailQuery.data?.results ?? [])
-      .filter((result) => supplementaryCriteriaIds.has(result.criteriaId))
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0];
-    return latestResult?.criteriaId ?? null;
-  }, [latestReopenIsSupplementaryAdd, submissionDetailQuery.data, supplementaryCriteriaIds]);
+  // Kết quả đang chờ địa phương xử lý (RequiresRevision) — tách theo loại tiêu chí để
+  // hiển thị ĐỒNG THỜI cả yêu cầu chỉnh sửa lẫn tiêu chí bổ sung, bất kể yêu cầu nào gần nhất.
+  const pendingRevisionCriteriaIds = useMemo(() => new Set(
+    (submissionDetailQuery.data?.results ?? [])
+      .filter((result) => result.reviewStatus === 'RequiresRevision' && !supplementaryCriteriaIds.has(result.criteriaId))
+      .map((result) => result.criteriaId),
+  ), [submissionDetailQuery.data, supplementaryCriteriaIds]);
 
-  // Khi hồ sơ ở RequiresRevision: chỉ cho sửa tiêu chí được yêu cầu chỉnh sửa,
-  // hoặc riêng tiêu chí bổ sung vừa thêm nếu lần mở lại gần nhất là thêm tiêu chí bổ sung.
+  const pendingSupplementaryCriteriaIds = useMemo(() => new Set(
+    (submissionDetailQuery.data?.results ?? [])
+      .filter((result) => result.reviewStatus === 'RequiresRevision' && supplementaryCriteriaIds.has(result.criteriaId))
+      .map((result) => result.criteriaId),
+  ), [submissionDetailQuery.data, supplementaryCriteriaIds]);
+
+  // Khi hồ sơ ở RequiresRevision: cho sửa mọi tiêu chí đang RequiresRevision — gồm cả yêu cầu
+  // chỉnh sửa lẫn tiêu chí bổ sung. Tiêu chí đã nộp lại (Pending/Accepted) vẫn khóa.
   const revisionEditableCriteriaIds = useMemo<ReadonlySet<string> | null>(() => {
     if (!isRevisionStage) return null;
-    // Yêu cầu chỉnh sửa không chỉ định tiêu chí (dữ liệu cũ) → cho phép sửa toàn bộ.
-    if (latestSpecialistRevision && !specialistRevisionCriteriaIds) return null;
-    const editableIds = new Set(specialistRevisionCriteriaIds ?? []);
-    if (latestReopenIsSupplementaryAdd) {
-      if (latestSupplementaryCriteriaId) editableIds.add(latestSupplementaryCriteriaId);
-      else supplementaryCriteriaIds.forEach((id) => editableIds.add(id));
-    }
-    // Không có yêu cầu nào xác định phạm vi → giữ hành vi cũ (sửa tất cả).
+    const editableIds = new Set<string>([...pendingRevisionCriteriaIds, ...pendingSupplementaryCriteriaIds]);
+    // Không xác định được phạm vi (dữ liệu cũ) → giữ hành vi cũ (sửa tất cả).
     if (editableIds.size === 0) return null;
     return editableIds;
-  }, [isRevisionStage, latestSpecialistRevision, specialistRevisionCriteriaIds, supplementaryCriteriaIds, latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId]);
+  }, [isRevisionStage, pendingRevisionCriteriaIds, pendingSupplementaryCriteriaIds]);
 
   const specialistRevisionReasons = useMemo(() => {
     const map = new Map<string, string>();
@@ -600,7 +571,7 @@ export default function LocalityCriteriaPage() {
 
   const specialistRevisionFiles = useMemo(() => {
     const map = new Map<string, SpecialistRevisionFile[]>();
-    const files = latestSpecialistRevision?.files ?? [];
+    const files = latestRevisionRequest?.files ?? [];
     if (files.length === 0) return map;
     if (specialistRevisionCriteriaIds) {
       specialistRevisionCriteriaIds.forEach((criteriaId) => map.set(criteriaId, files));
@@ -608,7 +579,7 @@ export default function LocalityCriteriaPage() {
       detailCriteria.forEach((criterion) => map.set(criterion.id, files));
     }
     return map;
-  }, [latestSpecialistRevision, specialistRevisionCriteriaIds, detailCriteria]);
+  }, [latestRevisionRequest, specialistRevisionCriteriaIds, detailCriteria]);
 
   // File đính kèm khi Chuyên viên thêm tiêu chí bổ sung (category = supplementary, gắn trên SubmissionResult).
   const supplementaryFiles = useMemo(() => {
@@ -617,17 +588,20 @@ export default function LocalityCriteriaPage() {
     );
     return (evidenceFilesQuery.data ?? [])
       .filter((file) => file.category?.toLowerCase() === 'supplementary')
-      // Chỉ hiện file của tiêu chí bổ sung vừa được thêm ở lần mở lại gần nhất.
-      .filter((file) => !latestReopenIsSupplementaryAdd || !latestSupplementaryCriteriaId
-        || criteriaIdByResultId.get(file.entityId ?? '') === latestSupplementaryCriteriaId);
-  }, [evidenceFilesQuery.data, submissionDetailQuery.data, latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId]);
+      // Ưu tiên file của tiêu chí bổ sung đang chờ xử lý; không có thì giữ nguyên danh sách.
+      .filter((file) => {
+        if (pendingSupplementaryCriteriaIds.size === 0) return true;
+        const criteriaId = criteriaIdByResultId.get(file.entityId ?? '');
+        return criteriaId != null && pendingSupplementaryCriteriaIds.has(criteriaId);
+      });
+  }, [evidenceFilesQuery.data, submissionDetailQuery.data, pendingSupplementaryCriteriaIds]);
 
-  // Lý do thêm tiêu chí bổ sung = ghi chú (note) của tiêu chí bổ sung mới nhất.
+  // Lý do thêm tiêu chí bổ sung = ghi chú (note) của tiêu chí bổ sung đang chờ xử lý.
   const latestSupplementaryNote = useMemo(() => {
-    if (!latestReopenIsSupplementaryAdd) return null;
     const noteById = new Map(detailCriteria.map((criterion) => [criterion.id, criterion.note?.trim() ?? null]));
-    return noteById.get(latestSupplementaryCriteriaId ?? '') ?? null;
-  }, [latestReopenIsSupplementaryAdd, latestSupplementaryCriteriaId, detailCriteria]);
+    const pendingId = [...pendingSupplementaryCriteriaIds][0] ?? null;
+    return pendingId ? noteById.get(pendingId) ?? null : null;
+  }, [pendingSupplementaryCriteriaIds, detailCriteria]);
 
   // Mutations
   const submitPointsMutation = useMutation({
@@ -884,6 +858,31 @@ export default function LocalityCriteriaPage() {
     setDraftResults(new Map());
   };
 
+  // Chặn lưu/gửi khi tổng điểm thưởng hiệu lực của kỳ vượt giới hạn — khớp rule BE
+  // (điểm chính thức nếu đã chấm, không thì điểm đề xuất; hồ sơ đang lưu được loại trừ rồi tính lại).
+  const ensurePeriodBonusWithinLimit = (collected: Map<string, EvidenceFormValue>, savedResults: SubmissionApi['results']) => {
+    if (effectivePeriodBonusLimit == null) return true;
+    const othersEffectiveBonus = (mySubmissionsQuery.data?.items ?? [])
+      .filter((s) => s.id !== submission?.id)
+      .reduce((sum, s) => sum + (s.results ?? [])
+        .filter((r) => r.criteriaStatus !== 'Deleted')
+        .reduce((rs, r) => rs + (r.officialBonusPoint ?? r.bonusPoint), 0), 0);
+    const currentBonusAfterSave = detailTable.criteria
+      .filter((c) => c.status !== 'Deleted')
+      .reduce((sum, c) => {
+        const saved = savedResults.find((r) => r.criteriaId === c.id);
+        if (saved?.reviewStatus === 'Accepted') return sum + (saved.officialBonusPoint ?? saved.bonusPoint);
+        const entry = collected.get(c.id);
+        if (entry) return sum + (entry.proposedBonusScore ?? 0);
+        return sum + (saved ? (saved.officialBonusPoint ?? saved.bonusPoint) : 0);
+      }, 0);
+    if (othersEffectiveBonus + currentBonusAfterSave > effectivePeriodBonusLimit) {
+      toast.error(`Tổng điểm thưởng của địa phương trong kỳ thi đua không được vượt quá ${effectivePeriodBonusLimit} điểm (các hồ sơ khác đã dùng ${othersEffectiveBonus}, hồ sơ này dùng ${currentBonusAfterSave}). Hãy giảm điểm thưởng rồi lưu lại.`);
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmitResults = async () => {
     if (!id || !user) return;
     if (!ensureSubmissionIsEditable()) return;
@@ -894,6 +893,7 @@ export default function LocalityCriteriaPage() {
         // Gộp giá trị đang nhập vào draft local rồi tạo submission 1 lần
         const merged = new Map(draftResultsRef.current);
         collected.forEach((v, k) => merged.set(k, v));
+        if (!ensurePeriodBonusWithinLimit(merged, [])) return;
         const items = detailTable.criteria.flatMap((c) => {
           if (c.status === 'Deleted') return [];
           const draft = merged.get(c.id);
@@ -935,6 +935,7 @@ export default function LocalityCriteriaPage() {
       } else {
         // Có bản nháp trên server: upload file bulk song song + submitPoints 1 lần
         const results = submissionDetailQuery.data?.results ?? [];
+        if (!ensurePeriodBonusWithinLimit(collected, results)) return;
         const items = results.flatMap((r) => {
           const v = collected.get(r.criteriaId);
           return v ? [{
@@ -1005,6 +1006,7 @@ export default function LocalityCriteriaPage() {
         collected.forEach((v, k) => merged.set(k, v));
         draftResultsRef.current = merged;
         setDraftResults(merged);
+        if (!ensurePeriodBonusWithinLimit(merged, [])) return;
         // Chưa có submission trên server → tạo bản nháp (CurrentStage = Draft) từ dữ liệu local
         if (merged.size > 0) {
           const items = detailTable.criteria.flatMap((c) => {
@@ -1034,6 +1036,7 @@ export default function LocalityCriteriaPage() {
       }
       // Đã có submission: 1 call submitPoints cho toàn bộ tiêu chí + bulk upload song song
       const results = submissionDetailQuery.data?.results ?? [];
+      if (!ensurePeriodBonusWithinLimit(collected, results)) return;
       const items = collected.size > 0
         ? results.flatMap((r) => {
             const v = collected.get(r.criteriaId);
@@ -1080,24 +1083,20 @@ export default function LocalityCriteriaPage() {
         summary={<ScoreStateBadge state={record.state} size="lg" />}
         actions={<div className="flex flex-wrap items-center gap-2">{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />
-      {record.revisionRequestedAt && (
+      {record.revisionRequestedAt && pendingRevisionCriteriaIds.size > 0 && (
         <div className="max-w-2xl space-y-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
-          <p className="font-medium text-warning-foreground">
-            {latestReopenIsSupplementaryAdd
-              ? 'Chuyên viên đã thêm tiêu chí bổ sung. Vui lòng nhập minh chứng cho tiêu chí rồi nộp lại.'
-              : 'Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại.'}
-          </p>
-          {latestReopenReasonText && (
+          <p className="font-medium text-warning-foreground">Hồ sơ đã được mở lại. Vui lòng xử lý các phản hồi rồi nộp lại.</p>
+          {latestRevisionReason && (
             <div className="text-sm">
-              <span className="text-muted-foreground">{latestReopenIsSupplementaryAdd ? 'Nội dung tiêu chí mới: ' : 'Lý do yêu cầu chỉnh sửa: '}</span>
-              <span className="italic">{latestReopenReasonText}</span>
+              <span className="text-muted-foreground">Lý do yêu cầu chỉnh sửa: </span>
+              <span className="italic">{latestRevisionReason}</span>
             </div>
           )}
-          {!latestReopenIsSupplementaryAdd && (latestReopenHistory?.files?.length ?? 0) > 0 && (
+          {(latestRevisionRequest?.files?.length ?? 0) > 0 && (
             <div className="space-y-1">
               <span className="text-muted-foreground">File đính kèm:</span>
               <div className="flex flex-wrap gap-2">
-                {latestReopenHistory!.files.map((file) => (
+                {latestRevisionRequest!.files.map((file) => (
                   <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })} className="inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/5 px-2 py-1 text-xs text-warning-foreground hover:bg-warning/10">
                     <FileText className="h-3 w-3 text-muted-foreground" />
                     {file.displayName ?? file.originalName}
@@ -1106,23 +1105,28 @@ export default function LocalityCriteriaPage() {
               </div>
             </div>
           )}
-          {latestReopenIsSupplementaryAdd && supplementaryFiles.length > 0 && (
+        </div>
+      )}
+      {record.revisionRequestedAt && pendingSupplementaryCriteriaIds.size > 0 && (
+        <div className="max-w-2xl space-y-2 rounded-md border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+          <p className="font-medium text-primary">Chuyên viên đã thêm tiêu chí bổ sung. Vui lòng nhập minh chứng cho tiêu chí rồi nộp lại.</p>
+          {latestSupplementaryNote && (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Lý do: </span>
+              <span className="italic">{latestSupplementaryNote}</span>
+            </div>
+          )}
+          {supplementaryFiles.length > 0 && (
             <div className="space-y-1">
               <span className="text-muted-foreground">File đính kèm tiêu chí mới:</span>
               <div className="flex flex-wrap gap-2">
                 {supplementaryFiles.map((file) => (
-                  <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-warning/30 bg-warning/5 px-2 py-1 text-xs text-warning-foreground hover:bg-warning/10">
+                  <button key={file.id} type="button" onClick={() => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName })} className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary hover:bg-primary/10">
                     <FileText className="h-3 w-3 text-muted-foreground" />
                     {file.displayName ?? file.originalName}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-          {latestReopenIsSupplementaryAdd && latestSupplementaryNote && (
-            <div className="text-sm">
-              <span className="text-muted-foreground">Lý do: </span>
-              <span className="italic">{latestSupplementaryNote}</span>
             </div>
           )}
         </div>
@@ -1134,6 +1138,7 @@ export default function LocalityCriteriaPage() {
         evidence={evidence}
         localityId={localityId}
         editable={editable}
+        maxBonusPoint={groupDetailQuery.data?.maxBonusPointPerCriteria}
         allowRevisionAfterDeadline={isRevisionStage}
         evidenceDeletionLocked={isRevisionStage}
         scoreFieldsLocked={isRevisionStage}
@@ -1145,7 +1150,8 @@ export default function LocalityCriteriaPage() {
         specialistRevisionFiles={specialistRevisionFiles}
         onPreviewRevisionFile={(file) => setPreviewFile({ id: file.id, originalName: file.displayName || file.originalName, url: file.url })}
         editableCriteriaIds={revisionEditableCriteriaIds}
-        scoreUnlockForNewCriteria={latestReopenIsSupplementaryAdd}
+        // Tiêu chí bổ sung không có điểm → khóa luôn trường điểm, chỉ sửa diễn giải/minh chứng.
+        scoreUnlockForNewCriteria={false}
         onCompletionChange={reportCriterionCompletion}
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
@@ -1168,8 +1174,8 @@ export default function LocalityCriteriaPage() {
               </p>
             </div>
             <div className="pl-3">
-              <p className="text-xs text-muted-foreground">Điểm thưởng đã nộp <span className="whitespace-nowrap">· tối đa 5 điểm/kỳ thi đua</span></p>
-              <p className="text-sm font-semibold tabular-nums leading-5">{effectivePeriodId ? periodBonusUsed : currentBonusScore}</p>
+              <p className="text-xs text-muted-foreground">Điểm thưởng đã nộp <span className="whitespace-nowrap">· tối đa {effectivePeriodBonusLimit ?? 5} điểm/kỳ thi đua</span></p>
+              <p className="text-sm font-semibold tabular-nums leading-5">{effectivePeriodId ? `${periodBonusUsed} / ${effectivePeriodBonusLimit ?? '—'}` : currentBonusScore}</p>
             </div>
           </div>
         )}
@@ -1207,8 +1213,8 @@ export default function LocalityCriteriaPage() {
       </FormDialog>
       <LocalityCriteriaHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} submission={submissionDetailQuery.data ?? submission} groupName={detailTable.name} />
       <FilePreviewDialog file={previewFile} onOpenChange={(isOpen) => { if (!isOpen) setPreviewFile(null); }} />
-      <CriterionDetailDialog open={detailOpen && Boolean(selected)} onOpenChange={(open) => setDetailOpen(open)} item={selected} evidence={filesFor(selected?.entry.criteriaId)} onPreview={(file) => setPreviewFile({ id: file.id, originalName: file.fileName })} />
-      <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly />
+      <CriterionDetailDialog open={detailOpen && Boolean(selected)} onOpenChange={(open) => setDetailOpen(open)} item={selected} evidence={filesFor(selected?.entry.criteriaId)} onPreview={(file) => setPreviewFile({ id: file.id, originalName: file.fileName })} maxBonusPoint={groupDetailQuery.data?.maxBonusPointPerCriteria} />
+      <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly maxBonusPoint={groupDetailQuery.data?.maxBonusPointPerCriteria} />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa minh chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
         if (isRevisionStage) {
           toast.info('Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.');

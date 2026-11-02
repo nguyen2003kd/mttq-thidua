@@ -193,7 +193,6 @@ export default function BanLeaderApprovalPage() {
         await specialistApi.comment({ submissionId: submission.id, reason: comment });
       }
       await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsQueryKey()]);
-      setSelectedRow(null);
       toast.success('Đã lưu nhận xét của Lãnh đạo ban vào lịch sử hồ sơ.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể lưu nhận xét. Vui lòng thử lại.');

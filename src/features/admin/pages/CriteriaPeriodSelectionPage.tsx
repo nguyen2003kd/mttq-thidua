@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuthStore } from '@/store/authStore';
+import { scoringConfigsApi } from '../api/scoringConfigsApi';
 import { ROUTES } from '@/constants/routes';
 import { comparePeriodStatus, getPeriodApiError, periodsApi, type PeriodApi, type PeriodPayload, type PeriodStatusApi } from '../api/periodsApi';
 
@@ -34,6 +36,9 @@ interface PeriodFormState {
   endYear: string;
   name: string;
   status: PeriodStatusApi;
+  scoringConfigId: string;
+  maxBonusPointPerPeriod: string;
+  maxBonusPointPerCriteria: string;
 }
 
 const emptyPeriodForm: PeriodFormState = {
@@ -41,6 +46,9 @@ const emptyPeriodForm: PeriodFormState = {
   endYear: '',
   name: '',
   status: 'Active',
+  scoringConfigId: '',
+  maxBonusPointPerPeriod: '5',
+  maxBonusPointPerCriteria: '1',
 };
 
 interface CriteriaPeriodSelectionPageProps {
@@ -74,11 +82,20 @@ export default function CriteriaPeriodSelectionPage({
   const [editOpen, setEditOpen] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodApi | null>(null);
   const [form, setForm] = useState<PeriodFormState>(emptyPeriodForm);
+  // Địa phương không cần thấy cột "Cấu hình điểm" ở trang chọn kỳ.
+  const isLocality = useAuthStore((s) => s.user?.role === 'LOCAL');
   const periodsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey(), 'options'),
     queryFn: periodsApi.listAll,
   });
   const periods = periodsQuery.data ?? [];
+
+  // Danh sách cấu hình điểm cho select bắt buộc trong form kỳ.
+  const scoringConfigsQuery = useQuery({
+    queryKey: ['scoring-configs', 'options'],
+    queryFn: scoringConfigsApi.listAll,
+  });
+  const scoringConfigs = scoringConfigsQuery.data ?? [];
 
   const invalidatePeriods = () => invalidateQueryResources(queryClient, [
     getGetApiV1PeriodsQueryKey(),
@@ -100,7 +117,17 @@ export default function CriteriaPeriodSelectionPage({
       toast.error(selectedPeriod ? 'Không thể cập nhật kỳ thi đua cho thời gian đã qua.' : 'Không thể tạo kỳ thi đua cho thời gian đã qua.');
       return null;
     }
-    return { startYear, endYear, name: form.name.trim() || null, status: form.status };
+    if (!form.scoringConfigId) {
+      toast.error('Vui lòng chọn cấu hình điểm cho kỳ thi đua.');
+      return null;
+    }
+    const maxBonusPointPerPeriod = Number(form.maxBonusPointPerPeriod);
+    const maxBonusPointPerCriteria = Number(form.maxBonusPointPerCriteria);
+    if (!Number.isFinite(maxBonusPointPerPeriod) || maxBonusPointPerPeriod <= 0 || !Number.isFinite(maxBonusPointPerCriteria) || maxBonusPointPerCriteria <= 0) {
+      toast.error('Điểm thưởng tối đa trong kỳ và trên tiêu chí con phải lớn hơn 0.');
+      return null;
+    }
+    return { startYear, endYear, name: form.name.trim() || null, status: form.status, scoringConfigId: form.scoringConfigId, maxBonusPointPerPeriod, maxBonusPointPerCriteria };
   };
 
   const createMutation = useMutation({
@@ -131,6 +158,9 @@ export default function CriteriaPeriodSelectionPage({
       endYear: String(period.endYear),
       name: period.name ?? '',
       status: period.status,
+      scoringConfigId: period.scoringConfigId ?? '',
+      maxBonusPointPerPeriod: String(period.maxBonusPointPerPeriod ?? 5),
+      maxBonusPointPerCriteria: String(period.maxBonusPointPerCriteria ?? 1),
     });
     setEditOpen(true);
   }, []);
@@ -155,6 +185,9 @@ export default function CriteriaPeriodSelectionPage({
     const payload = buildPayload();
     if (payload) updateMutation.mutate({ id: selectedPeriod.id, payload });
   };
+
+  // Cấu hình điểm thưởng chỉ chỉnh được khi kỳ còn Nháp — khớp ràng buộc của BE.
+  const bonusLimitsLocked = editOpen && selectedPeriod?.status !== 'Draft';
 
   const periodForm = (
     <>
@@ -187,6 +220,53 @@ export default function CriteriaPeriodSelectionPage({
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="period-scoring-config">Cấu hình điểm <span className="text-destructive">*</span></Label>
+        <Select
+          value={form.scoringConfigId}
+          onValueChange={(value) => setForm((current) => ({ ...current, scoringConfigId: value ?? '' }))}
+          itemToStringLabel={(id) => scoringConfigs.find((config) => config.id === id)?.name ?? 'Cấu hình điểm'}
+        >
+          <SelectTrigger id="period-scoring-config"><SelectValue placeholder="Chọn cấu hình điểm" /></SelectTrigger>
+          <SelectContent>
+            {scoringConfigs.map((config) => (
+              <SelectItem key={config.id} value={config.id}>{config.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">Kỳ sẽ xếp loại kết quả theo các mức điểm của cấu hình này.</p>
+      </div>
+      <div className="grid items-end gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="period-bonus-period">Điểm thưởng tối đa trong kỳ <span className="text-destructive">*</span></Label>
+          <Input
+            id="period-bonus-period"
+            type="number"
+            min="0"
+            step="0.5"
+            value={form.maxBonusPointPerPeriod}
+            disabled={bonusLimitsLocked}
+            onChange={(event) => setForm((current) => ({ ...current, maxBonusPointPerPeriod: event.target.value }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="period-bonus-criteria">Điểm thưởng tối đa trên tiêu chí con <span className="text-destructive">*</span></Label>
+          <Input
+            id="period-bonus-criteria"
+            type="number"
+            min="0"
+            step="0.5"
+            value={form.maxBonusPointPerCriteria}
+            disabled={bonusLimitsLocked}
+            onChange={(event) => setForm((current) => ({ ...current, maxBonusPointPerCriteria: event.target.value }))}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {bonusLimitsLocked
+          ? 'Cấu hình điểm thưởng chỉ chỉnh được khi kỳ thi đua còn ở trạng thái Nháp.'
+          : 'Giới hạn tổng điểm thưởng một địa phương nhận được trong kỳ và điểm thưởng tối đa trên mỗi tiêu chí con.'}
+      </p>
     </>
   );
 
@@ -223,7 +303,14 @@ export default function CriteriaPeriodSelectionPage({
       ),
       meta: { align: 'center', sortable: true, list: { width: '160px' } },
     },
-  ], []);
+    // Địa phương không cần biết kỳ dùng cấu hình điểm nào → ẩn cột ở trang của LOCAL.
+    ...(isLocality ? [] : [{
+      accessorKey: 'scoringConfigName',
+      header: 'Cấu hình điểm',
+      cell: ({ row }: { row: { original: PeriodApi } }) => row.original.scoringConfigName || '—',
+      meta: { list: { width: 'minmax(140px, 1fr)' } },
+    } satisfies ColumnDef<PeriodApi>]),
+  ], [isLocality]);
 
   if (periodsQuery.isError) {
     return (

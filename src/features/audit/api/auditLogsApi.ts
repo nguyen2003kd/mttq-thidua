@@ -50,6 +50,8 @@ export interface AuditLogItem {
   afterData: string | null;
   changedData: string | null;
   summary: string | null;
+  /** Payload chi tiết có cấu trúc của log nghiệp vụ tường minh (action code mới) — null với log CRUD cũ. */
+  payload: string | null;
   changes: AuditLogChange[] | null;
   files: AuditLogFile[] | null;
   beforeFiles: AuditLogFile[] | null;

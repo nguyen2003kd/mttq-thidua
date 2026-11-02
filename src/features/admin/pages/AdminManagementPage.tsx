@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarRange, Layers, Users } from 'lucide-react';
+import { Building2, CalendarRange, Gauge, Layers, Users } from 'lucide-react';
 import { PageHeader, PageLoading } from '@/components/core';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -8,12 +8,14 @@ const UserManagementPage = lazy(() => import('./UserManagementPage'));
 const DepartmentManagementPage = lazy(() => import('./DepartmentManagementPage'));
 const ClusterManagementPage = lazy(() => import('./ClusterManagementPage'));
 const PeriodManagementPage = lazy(() => import('./PeriodManagementPage'));
+const ScoringConfigManagementPage = lazy(() => import('./ScoringConfigManagementPage'));
 
 const MANAGEMENT_TABS = [
   { value: 'tai-khoan', label: 'Tài khoản', icon: Users },
   { value: 'ban', label: 'Ban', icon: Building2 },
   { value: 'cum', label: 'Cụm', icon: Layers },
   { value: 'ky', label: 'Kỳ thi đua', icon: CalendarRange },
+  { value: 'cau-hinh-diem', label: 'Cấu hình điểm', icon: Gauge },
 ] as const;
 
 type ManagementTab = (typeof MANAGEMENT_TABS)[number]['value'];
@@ -23,6 +25,7 @@ const MANAGEMENT_PAGES = {
   ban: DepartmentManagementPage,
   cum: ClusterManagementPage,
   ky: PeriodManagementPage,
+  'cau-hinh-diem': ScoringConfigManagementPage,
 } satisfies Record<ManagementTab, typeof UserManagementPage>;
 
 function isManagementTab(value: string | null): value is ManagementTab {

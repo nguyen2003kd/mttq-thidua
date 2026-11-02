@@ -20,6 +20,10 @@ export interface PeriodApi {
   endYear: number;
   name: string;
   status: PeriodStatusApi;
+  scoringConfigId: string | null;
+  scoringConfigName: string | null;
+  maxBonusPointPerPeriod: number;
+  maxBonusPointPerCriteria: number;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: string;
@@ -31,6 +35,9 @@ export interface PeriodPayload {
   endYear: number;
   name?: string | null;
   status: PeriodStatusApi;
+  scoringConfigId: string;
+  maxBonusPointPerPeriod: number;
+  maxBonusPointPerCriteria: number;
 }
 
 interface ApiErrorMessage {

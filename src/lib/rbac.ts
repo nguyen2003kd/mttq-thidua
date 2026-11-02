@@ -37,8 +37,10 @@ export function can(user: AuthUser | null, action: Action, context?: { state?: S
 export const ROUTE_ROLES: Record<string, Role[]> = {
   '/thi-dua/admin': ['SPECIALIST', 'ADMIN'],
   '/thi-dua/dia-phuong': ['LOCAL'],
-  '/thi-dua/cham-diem': ['SPECIALIST', 'SCORER'],
+  '/thi-dua/cham-diem': ['SPECIALIST', 'SCORER', 'REVIEWER'],
   '/chuyen-vien': ['SPECIALIST', 'REVIEWER'],
+  // Quản lý nhóm tiêu chí con — chỉ Chuyên viên; REVIEWER chỉ xem ở luồng chấm/duyệt.
+  '/chuyen-vien/tieu-chi': ['SPECIALIST'],
   '/dia-phuong': ['LOCAL'],
   '/thi-dua/duyet/lanh-dao-ban': ['LEADER'],
   '/thi-dua/duyet/hoi-dong-tdkt': ['COUNCIL'],
@@ -47,7 +49,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   '/uy-ban/lich-su': ['COMMITTEE'],
   // Tạm tắt trang tổng quan — bật lại cùng với route trong App.tsx
   // '/thi-dua/dashboard-tong-quan': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE'],
-  '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'LOCAL', 'SCORER', 'REVIEWER'],
+  '/thi-dua/lich-su-thay-doi': ['SPECIALIST', 'LEADER', 'COUNCIL', 'COMMITTEE', 'SCORER', 'REVIEWER'],
 };
 
 export function rolesForPath(pathname: string): Role[] | null {

@@ -204,7 +204,6 @@ export default function CouncilApprovalPage() {
     try {
       for (const submission of selectedRow.submissions.filter(canCommentSubmission)) await processor(submission);
       await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsQueryKey()]);
-      setSelectedRow(null);
       toast.success(successMessage);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể xử lý hồ sơ đã chọn.');

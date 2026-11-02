@@ -77,7 +77,7 @@ export interface SubmissionApi {
   totalProposedPoint: number;
   /** Tổng điểm thưởng địa phương đề xuất của hồ sơ — dùng để theo dõi quota 5/kỳ. */
   totalProposedBonusPoint?: number;
-  /** Tổng điểm thưởng chính thức của địa phương trong kỳ (mọi hồ sơ) + giới hạn kỳ — trả về ở endpoint chi tiết. */
+  /** Tổng điểm thưởng hiệu lực trong kỳ: điểm chính thức nếu đã chấm, nếu chưa thì dùng điểm đề xuất. */
   periodBonusUsed?: number;
   periodBonusLimit?: number;
   totalFinalPoint: number;
@@ -248,7 +248,6 @@ export function mapCriteriaGroupToTable(group: CriteriaGroupApi, targetSubmissio
       type: c.type as 'Standard' | 'Supplementary' | 'LateAdded',
       name: c.content,
       maxScore: c.maxPoint,
-      bonusScore: c.maxBonusPoint || undefined,
       deadline: c.deadline ?? undefined,
       note: c.note ?? undefined,
       order: idx + 1,
@@ -276,7 +275,6 @@ export function mergeSubmissionCriteria(criteria: CriteriaApi[] | null | undefin
       targetSubmissionId: result.submissionId,
       content: result.criteriaContent ?? 'Tiêu chí đã vô hiệu',
       maxPoint: result.snapshotMaxPoint,
-      maxBonusPoint: result.snapshotMaxBonusPoint,
       deadline: null,
       note: null,
       status: 'Deleted',

@@ -13,4 +13,5 @@ export interface ApprovalRequest {
   criteriaIds?: string[] | null;
   /** @nullable */
   submissionResultIds?: string[] | null;
+  isDraft?: boolean;
 }

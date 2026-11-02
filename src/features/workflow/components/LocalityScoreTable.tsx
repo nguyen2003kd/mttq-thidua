@@ -31,6 +31,8 @@ interface LocalityScoreTableProps {
   evidence: Evidence[];
   localityId: string;
   editable: boolean;
+  /** Điểm thưởng tối đa trên mỗi tiêu chí con — theo cấu hình của kỳ thi đua. */
+  maxBonusPoint?: number;
   allowRevisionAfterDeadline?: boolean;
   evidenceDeletionLocked?: boolean;
   scoreFieldsLocked?: boolean;
@@ -144,6 +146,7 @@ function ExplanationDialog({ open, onOpenChange, criterionName, value, onConfirm
 
 const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function EditableRow({
   criterion,
+  maxBonusPoint,
   entry,
   files,
   draft,
@@ -212,7 +215,8 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
     setBonusScoreError('');
   }, [draft, entry?.explanation, entry?.proposedBonusScore, entry?.proposedScore, entry?.value, scoreFieldsLocked]);
 
-  const maxBonus = criterion.bonusScore ?? 0;
+  // Điểm thưởng tối đa theo cấu hình của kỳ; tiêu chí bổ sung không có điểm thưởng.
+  const maxBonus = criterion.type === 'Supplementary' ? 0 : (maxBonusPoint ?? criterion.bonusScore ?? 0);
   const criterionDeadlineMs = criterion.deadline ? Date.parse(criterion.deadline) : Number.NaN;
   const criterionDeadlineExpired = Number.isFinite(criterionDeadlineMs) && criterionDeadlineMs <= nowMs;
   const criterionDeadlineBlocksEdit = isDeadlineBlockingLocalityEdit(criterionDeadlineExpired, allowRevisionAfterDeadline);
@@ -593,6 +597,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
   evidence,
   localityId,
   editable,
+  maxBonusPoint,
   allowRevisionAfterDeadline = false,
   evidenceDeletionLocked = false,
   scoreFieldsLocked = false,
@@ -705,6 +710,7 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
               key={row.id}
               ref={(node) => { rowRefs.current[criterion.id] = node; }}
               criterion={criterion}
+              maxBonusPoint={maxBonusPoint}
               entry={record.entries.find((item) => item.criteriaId === criterion.id)}
               files={evidence.filter((item) => item.localityId === localityId && item.criteriaId === criterion.id)}
               draft={draftValues?.get(criterion.id)}

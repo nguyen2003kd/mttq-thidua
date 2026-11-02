@@ -8,20 +8,21 @@ import { MessageSquare, Search } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { ColumnDef } from '@tanstack/react-table';
-import { DataTable, EmptyState, PageHeader, PageLoading, RejectDialog, ScoreStateBadge } from '@/components/core';
+import { DataTable, EmptyState, PageHeader, PageLoading, RejectDialog } from '@/components/core';
+// import { ScoreStateBadge } from '@/components/core'; // tạm ẩn cùng cột trạng thái
 import { Button } from '@/components/core';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge'; // tạm ẩn cùng cột trạng thái
 import { isRealSubmission, specialistApi, type SubmissionApi } from '@/features/cham-diem/api/specialistApi';
+import { COMMITTEE_APPROVED_STAGE as APPROVED_COMMITTEE_STAGE, isCommitteeSubmissionApproved } from '../committeeStatus';
 import { buildCommitteePeriodUrl } from '../committeePeriodNavigation';
 // import { RequestSpecialistDialog } from '@/features/workflow/components/RequestSpecialistDialog';
 // import { resultPublicationApi } from '../api/resultPublicationApi';
 // import { ResultPublicationDialog } from '../components/ResultPublicationDialog';
 
 const PENDING_COMMITTEE_STAGE = 'CouncilApproved' as const;
-const APPROVED_COMMITTEE_STAGE = 'CommitteeFinalized' as const;
-// Các cấp giữa không duyệt/chuyển hồ sơ — Ban thường trực xem và nhận xét ngay
+// Các cấp giữa không duyệt/chuyển hồ sơ - Ban thường trực xem và nhận xét ngay
 // hồ sơ chuyên viên đã duyệt (SpecialistApproved) thay vì chờ Hội đồng trình lên.
 const COMMITTEE_VISIBLE_STAGES = ['SpecialistApproved', 'LeaderApproved', PENDING_COMMITTEE_STAGE, APPROVED_COMMITTEE_STAGE] as const;
 
@@ -167,7 +168,7 @@ export default function CommitteeApprovalPage() {
   // Cũ: chỉ hồ sơ CouncilApproved mới cho nhận xét — submission.currentStage === PENDING_COMMITTEE_STAGE.
   // Sau đó: mọi stage khác CommitteeFinalized. Giờ thêm loại nhóm đã công bố.
   const canCommentSubmission = (submission: SubmissionApi) =>
-    submission.currentStage !== APPROVED_COMMITTEE_STAGE && !publishedGroupIds.has(submission.criteriaGroupId ?? '');
+    !isCommitteeSubmissionApproved(submission.currentStage) && !publishedGroupIds.has(submission.criteriaGroupId ?? '');
   const canCommentSelected = selectedRow?.submissions.some(canCommentSubmission) ?? false;
   const saveComment = async (comment: string) => {
     if (!selectedRow) return;
@@ -177,7 +178,6 @@ export default function CommitteeApprovalPage() {
         await specialistApi.comment({ submissionId: submission.id, reason: comment });
       }
       await invalidateQueryResources(queryClient, [getGetApiV1SubmissionsQueryKey()]);
-      setSelectedRow(null);
       toast.success('Đã lưu nhận xét của Ban thường trực vào lịch sử hồ sơ.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể lưu nhận xét. Vui lòng thử lại.');
@@ -233,7 +233,8 @@ export default function CommitteeApprovalPage() {
     { accessorFn: (row) => row.proposedScore, header: 'Tổng điểm đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedScore}</span>, meta: { align: 'right', sortable: true, list: { width: 'minmax(160px,.9fr)' } } },
     { accessorFn: (row) => row.councilBonus, header: 'Tổng điểm thưởng', cell: ({ row }) => <span className="tabular-nums">{row.original.councilBonus}</span>, meta: { align: 'right', sortable: true, list: { width: 'minmax(155px,.85fr)' } } },
     { accessorFn: (row) => row.proposedBonus, header: 'Tổng điểm thưởng đề xuất', cell: ({ row }) => <span className="tabular-nums">{row.original.proposedBonus}</span>, meta: { align: 'right', sortable: true, list: { width: 'minmax(205px,1fr)' } } },
-    { id: 'state', accessorFn: (row) => row.submissions.length === 0 ? 'Chưa nộp' : row.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE) ? 'Đã duyệt' : 'Chờ duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submissions.length === 0 ? <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge> : row.original.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE) ? <Badge variant="success">Đã duyệt</Badge> : <ScoreStateBadge state="CHO_DUYET_BTT" />, meta: { align: 'center', sortable: true, list: { width: 'minmax(155px,.85fr)' } } },
+    // Ẩn cột trạng thái — Ban thường trực chỉ xem hồ sơ, không duyệt (giống trang Hội đồng).
+    // { id: 'state', accessorFn: (row) => row.submissions.length === 0 ? 'Chưa nộp' : row.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE) ? 'Đã duyệt' : 'Chờ duyệt', header: 'Trạng thái', cell: ({ row }) => row.original.submissions.length === 0 ? <Badge variant="outline" className="text-muted-foreground">Chưa nộp</Badge> : row.original.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE) ? <Badge variant="success">Đã duyệt</Badge> : <ScoreStateBadge state="CHO_DUYET_BTT" />, meta: { align: 'center', sortable: true, list: { width: 'minmax(155px,.85fr)' } } },
   ], [totalAppliedGroups]);
   // const selectedRowApproved = Boolean(selectedRow && selectedRow.submissions.length > 0 && selectedRow.submissions.every((submission) => submission.currentStage === APPROVED_COMMITTEE_STAGE));
 
