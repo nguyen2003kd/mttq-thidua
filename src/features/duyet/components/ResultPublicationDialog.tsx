@@ -136,7 +136,7 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
   });
 
   const remindMutation = useMutation({
-    mutationFn: () => resultPublicationApi.remindUnpublished(periodId),
+    mutationFn: () => resultPublicationApi.remindUnpublished(periodToPublish),
     onSuccess: (result) => {
       toast.success(`Đã gửi thông báo nhắc nhở đến ${result.notifiedWards} địa phương.`);
     },
@@ -206,7 +206,7 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
                   <div className="flex flex-col gap-1">
                     <Button
                       variant="info"
-                      disabled={remindMutation.isPending || !periodId}
+                      disabled={remindMutation.isPending || !periodToPublish}
                       onClick={() => remindMutation.mutate()}
                     >
                       <BellRing className="mr-1.5 size-4" />{remindMutation.isPending ? 'Đang gửi…' : 'Gửi thông báo nhắc nhở'}
@@ -323,7 +323,7 @@ export function ResultPublicationDialog({ open, onOpenChange, selectedPeriodId }
             <Button
               variant="destructive"
               disabled={publishMutation.isPending}
-              onClick={() => publishMutation.mutate({ periodId, note: publicationNote.trim(), file: publicationFile[0] ?? null })}
+              onClick={() => publishMutation.mutate({ periodId: periodToPublish, note: publicationNote.trim(), file: publicationFile[0] ?? null })}
             >
               {publishMutation.isPending ? 'Đang công bố…' : 'Xác nhận công bố'}
             </Button>
