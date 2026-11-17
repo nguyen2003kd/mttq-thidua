@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarRange, Gauge, Layers, Users } from 'lucide-react';
+import { Building2, CalendarRange, Gauge, Layers, MapPin, Users } from 'lucide-react';
 import { PageHeader, PageLoading } from '@/components/core';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const UserManagementPage = lazy(() => import('./UserManagementPage'));
+const LocalityAccountsPage = lazy(() => import('./LocalityAccountsPage'));
 const DepartmentManagementPage = lazy(() => import('./DepartmentManagementPage'));
 const ClusterManagementPage = lazy(() => import('./ClusterManagementPage'));
 const PeriodManagementPage = lazy(() => import('./PeriodManagementPage'));
@@ -12,6 +13,7 @@ const ScoringConfigManagementPage = lazy(() => import('./ScoringConfigManagement
 
 const MANAGEMENT_TABS = [
   { value: 'tai-khoan', label: 'Tài khoản', icon: Users },
+  { value: 'dia-phuong', label: 'Địa phương', icon: MapPin },
   { value: 'ban', label: 'Ban', icon: Building2 },
   { value: 'cum', label: 'Cụm', icon: Layers },
   { value: 'ky', label: 'Kỳ thi đua', icon: CalendarRange },
@@ -22,6 +24,7 @@ type ManagementTab = (typeof MANAGEMENT_TABS)[number]['value'];
 
 const MANAGEMENT_PAGES = {
   'tai-khoan': UserManagementPage,
+  'dia-phuong': LocalityAccountsPage,
   ban: DepartmentManagementPage,
   cum: ClusterManagementPage,
   ky: PeriodManagementPage,
