@@ -269,15 +269,6 @@ export default function CriteriaListPage() {
         },
       },
       {
-        accessorKey: 'note',
-        header: 'Ghi chú',
-        enableSorting: false,
-        cell: ({ row }) => (
-          <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
-        ),
-        meta: { disableTooltip: true, sortable: false, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
-      },
-      {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
         enableSorting: true,
