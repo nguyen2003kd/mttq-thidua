@@ -325,7 +325,7 @@ export default function LoginPage() {
             </form>
             {/* Footer note */}
             <p className="text-center text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Mặt trận Tổ quốc Việt Nam — Bản quyền nội bộ
+              © {new Date().getFullYear()} Uỷ ban Mặt trận Tổ quốc Việt Nam thành phố Đồng Nai
             </p>
           </div>
         </div>
