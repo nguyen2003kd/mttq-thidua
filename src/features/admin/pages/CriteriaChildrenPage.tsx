@@ -75,7 +75,7 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parent
 
 export default function CriteriaChildrenPage() {
   const { id } = useParams<{ id: string }>(); const queryClient = useQueryClient();
-  const { filters: { search: initialSearch, sort }, setters: { sort: setSort } } = useQueryFilters({ search: '', sort: 'createdAt-desc' });
+  const { filters: { search: initialSearch, sort }, setters: { sort: setSort } } = useQueryFilters({ search: '', sort: 'createdAt-asc' });
   const [search, setSearch] = useState(initialSearch);
   const [selected, setSelected] = useState<CriteriaItem | null>(null);
   const [editor, setEditor] = useState<{ item: CriteriaItem | null; readonly: boolean } | null>(null);
