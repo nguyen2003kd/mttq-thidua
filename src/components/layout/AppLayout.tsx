@@ -171,6 +171,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
     if (user?.role === 'ADMIN') {
       items.push({ to: ROUTES.ADMIN_CRITERIA_LIST, label: 'Quản lý tiêu chí', icon: Table });
+      items.push({ to: '/thi-dua/cham-diem', label: 'Chấm điểm', icon: ClipboardCheck });
+      items.push({ to: ROUTES.SPECIALIST_REVIEW, label: 'Chấm và thẩm định', icon: ClipboardCheck });
+      items.push({ to: `/thi-dua/duyet/lanh-dao-ban/ban1`, label: 'Duyệt — Lãnh đạo Ban', icon: FileCheck });
+      items.push({ to: ROUTES.DUYET_COUNCIL, label: 'Duyệt — Hội đồng TĐKT', icon: FileCheck });
+      items.push({ to: ROUTES.DUYET_STANDING, label: 'Duyệt — Ban Thường trực', icon: FileCheck });
+      items.push({ to: ROUTES.SPECIALIST_SCORE_SUMMARY, label: 'Bảng tổng hợp điểm', icon: ClipboardList });
       items.push({ to: ROUTES.ADMIN_DEADLINE_CONFIG, label: 'Cấu hình thời hạn', icon: ClipboardCheck });
       items.push({ to: ROUTES.ADMIN_LOCALITY, label: 'Địa phương', icon: Trophy });
       items.push({ to: ROUTES.ADMIN_MANAGEMENT, label: 'Quản lý hệ thống', icon: Settings2 });
