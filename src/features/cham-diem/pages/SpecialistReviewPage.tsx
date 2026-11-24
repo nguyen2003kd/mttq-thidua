@@ -11,6 +11,7 @@ import { useForm } from 'react-hook-form';
 import {
   AlertCircle,
   ArrowLeft,
+  CalendarClock,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -50,7 +51,7 @@ import { TableSortSelect, type TableSortOption } from '@/components/core/TableSo
 import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/tableSorting';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
+import { DeadlineExtensionDialog, ForwardingDocumentsDialog, ForwardSubmissionDialog, RevisionRequestDialog } from '@/features/workflow/components';
 import { getSpecialistSubmissionPermissions, isRealSubmission, specialistApi, type ScoringRole, type SubmissionApi, type SubmissionResultFile, type SubmissionResultItem, type SubmissionStage } from '@/features/cham-diem/api/specialistApi';
 import { getSpecialistGroupProgress } from '@/features/cham-diem/utils/specialistGroupProgress';
 import {
@@ -1627,6 +1628,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const [supplementaryOpen, setSupplementaryOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [extensionOpen, setExtensionOpen] = useState(false);
   const [approving, setApproving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
@@ -1791,6 +1793,13 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     queryFn: () => specialistApi.getSubmission(selectedSubmission!.id),
     enabled: Boolean(selectedSubmission?.id),
   });
+  const deadlineExtensionsQuery = useQuery({
+    queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(nhomTieuChiId ?? ''), 'deadline-extensions'),
+    queryFn: () => specialistApi.listDeadlineExtensions(nhomTieuChiId!),
+    enabled: Boolean(nhomTieuChiId) && scoringRole === 'SPECIALIST',
+  });
+  const currentExtension = (deadlineExtensionsQuery.data ?? []).find((ext) => ext.wardCode === localityCode) ?? null;
+  const refreshDeadlineExtensions = () => queryClient.invalidateQueries({ queryKey: dataQueryKey(getGetApiV1CriteriaGroupsIdQueryKey(nhomTieuChiId ?? ''), 'deadline-extensions') });
   const selectedForwardingHistoriesQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey(selectedSubmission?.id ?? ''), { action: 'Approve', page: 1, pageSize: 100 }),
     queryFn: () => specialistApi.listApprovalHistories(selectedSubmission!.id, { action: 'Approve', page: 1, pageSize: 100 }),
@@ -2853,9 +2862,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
             )}
             {/* Reviewer không chấm điểm (canEdit=false) nhưng vẫn được thêm tiêu chí bổ sung khi hồ sơ đang ở bước của mình. */}
             <Button variant="success" onClick={openSupplementaryDialog} disabled={supplementaryAddLocked} disabledReason={supplementaryAddLocked ? specialistLockReason : undefined}><FilePlus2 className="size-4" />Thêm tiêu chí bổ sung</Button>
-            {selectedCriterion && (
-              <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
-                <AlertCircle className="size-4 text-warning" />Yêu cầu chỉnh sửa
+            <Button variant="outline" className="border-warning/60 text-warning-foreground hover:bg-warning/10 hover:text-warning-foreground sm:col-span-2 lg:col-span-1" disabled={specialistRevisionLocked || selectedSubmissionDetailQuery.isLoading} disabledReason={specialistRevisionLocked ? specialistLockReason : selectedSubmissionDetailQuery.isLoading ? 'Đang tải chi tiết hồ sơ.' : undefined} onClick={() => setRevisionOpen(true)}>
+              <AlertCircle className="size-4 text-warning" />Yêu cầu chỉnh sửa
+            </Button>
+            {scoringRole === 'SPECIALIST' && (
+              <Button variant="outline" className="border-info/60 text-info-foreground hover:bg-info/10 hover:text-info-foreground sm:col-span-2 lg:col-span-1" disabled={!selectedGroupDetailQuery.data?.deadline} disabledReason={!selectedGroupDetailQuery.data?.deadline ? 'Nhóm tiêu chí chưa có hạn nộp.' : undefined} onClick={() => setExtensionOpen(true)}>
+                <CalendarClock className="size-4" />Gia hạn nộp
               </Button>
             )}
           </div>
@@ -3261,7 +3273,7 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
           sizeBytes: inheritedRevisionFile.sizeBytes,
         } : null}
         onPreviewInheritedFile={inheritedRevisionFile ? () => openRevisionFilePreview(inheritedRevisionFile) : undefined}
-        onSubmit={async ({ criteriaIds, reason, file, inheritedFileId }) => {
+        onSubmit={async ({ criteriaIds, reason, files, inheritedFileId }) => {
           if (specialistRevisionLocked) {
             toast.info(specialistLockReason);
             return false;
@@ -3283,18 +3295,18 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
             return false;
           }
           try {
-            let attachment = file;
-            if (!attachment && inheritedFileId) {
+            const attachments = [...files];
+            if (attachments.length === 0 && inheritedFileId) {
               if (inheritedRevisionFile?.id !== inheritedFileId) throw new Error('Không tìm thấy tệp đính kèm của yêu cầu trước.');
               const blob = await getFileBlob(inheritedFileId, inheritedRevisionFile.url);
-              attachment = new File([blob], inheritedRevisionFile.displayName || inheritedRevisionFile.originalName, { type: blob.type });
+              attachments.push(new File([blob], inheritedRevisionFile.displayName || inheritedRevisionFile.originalName, { type: blob.type }));
             }
             await specialistApi.requestRevision({
               submissionId: submission.id,
               reason,
               criteriaIds,
               submissionResultIds: selectedResultIds,
-              file: attachment,
+              files: attachments,
             });
             await refreshSubmissionData();
             toast.success(`Đã gửi yêu cầu chỉnh sửa đến ${revisionTargetLabel}.`);
@@ -3304,6 +3316,38 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
             return false;
           }
         }}
+      />
+      <DeadlineExtensionDialog
+        open={extensionOpen}
+        onOpenChange={setExtensionOpen}
+        localityName={district?.localityName ?? localityCode ?? ''}
+        groupName={selectedGroup?.groupName ?? ''}
+        groupDeadline={selectedGroupDetailQuery.data?.deadline}
+        currentGrant={currentExtension ? { extendedDeadline: currentExtension.extendedDeadline, reason: currentExtension.reason } : null}
+        onSubmit={async ({ extendedDeadline, reason }) => {
+          if (!nhomTieuChiId || !localityCode) return false;
+          try {
+            await specialistApi.upsertDeadlineExtension(nhomTieuChiId, { wardCode: localityCode, extendedDeadline, reason: reason || undefined });
+            await refreshDeadlineExtensions();
+            toast.success('Đã lưu gia hạn nộp cho địa phương.');
+            return true;
+          } catch (error) {
+            toast.error('Không thể lưu gia hạn nộp.', { description: getFilesApiError(error) });
+            return false;
+          }
+        }}
+        onRevoke={currentExtension ? async () => {
+          if (!nhomTieuChiId || !localityCode) return false;
+          try {
+            await specialistApi.deleteDeadlineExtension(nhomTieuChiId, localityCode);
+            await refreshDeadlineExtensions();
+            toast.success('Đã thu hồi gia hạn nộp.');
+            return true;
+          } catch (error) {
+            toast.error('Không thể thu hồi gia hạn.', { description: getFilesApiError(error) });
+            return false;
+          }
+        } : undefined}
       />
       <FilePreviewDialog file={previewFile} onOpenChange={(open) => { if (!open) setPreviewFile(null); }} />
       <ForwardSubmissionDialog

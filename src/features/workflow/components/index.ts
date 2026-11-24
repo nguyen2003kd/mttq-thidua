@@ -11,3 +11,4 @@ export { ForwardSubmissionDialog } from './ForwardSubmissionDialog';
 export { OfficialScoreRevisionDialog } from './OfficialScoreRevisionDialog';
 export { ForwardingDocumentsDialog, type ForwardingDocument, type ForwardingDocumentFile } from './ForwardingDocumentsDialog';
 export { RevisionRequestDialog, type RevisionRequestCriterion } from './RevisionRequestDialog';
+export { DeadlineExtensionDialog, type DeadlineExtensionGrant } from './DeadlineExtensionDialog';

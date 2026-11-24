@@ -478,8 +478,8 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   const [exporting, setExporting] = useState(false);
   const [selectedLocalityId, setSelectedLocalityId] = useState<string | null>(null);
   const [summarySort, setSummarySort] = useState<TableSortState>(null);
-  const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER'));
-  const canPublish = useAuthStore((state) => !readOnly && state.user?.role === 'SPECIALIST');
+  const canReview = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'REVIEWER' || state.user?.role === 'ADMIN'));
+  const canPublish = useAuthStore((state) => !readOnly && (state.user?.role === 'SPECIALIST' || state.user?.role === 'ADMIN'));
   const periodListParams = { page: 1, pageSize: 100, sortBy: 'updatedAt', sortOrder: 'desc' } as const;
   const periodsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1PeriodsQueryKey({

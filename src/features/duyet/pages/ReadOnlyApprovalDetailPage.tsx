@@ -193,7 +193,7 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
     'Đã duyệt hồ sơ và chuyển sang Ban Thường trực.',
   );
 
-  const requestRevision = async ({ criteriaIds, reason, file }: { criteriaIds: string[]; reason: string; file: File | null }) => {
+  const requestRevision = async ({ criteriaIds, reason, files }: { criteriaIds: string[]; reason: string; files: File[] }) => {
     const selectedResultIds = criteriaIds
       .map((criteriaId) => resultByCriterion.get(criteriaId)?.id)
       .filter((id): id is string => Boolean(id));
@@ -202,7 +202,7 @@ export default function ReadOnlyApprovalDetailPage({ reviewer }: { reviewer: Rev
       return false;
     }
     return processSubmission(async (item) => {
-      await specialistApi.requestRevision({ submissionId: item.id, reason, submissionResultIds: selectedResultIds, file });
+      await specialistApi.requestRevision({ submissionId: item.id, reason, submissionResultIds: selectedResultIds, files });
     }, 'Đã gửi yêu cầu chỉnh sửa về Chuyên viên.');
   };
   */
