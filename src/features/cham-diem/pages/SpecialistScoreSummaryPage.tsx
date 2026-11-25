@@ -502,7 +502,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
   }), [periods]);
   useEffect(() => {
     if (isPeriodFilterReady || periodsQuery.isLoading) return;
-    if (periodsQuery.isError) {
+    if (periodsQuery.isError && !periodsQuery.data) {
       setIsPeriodFilterReady(true);
       return;
     }
@@ -513,7 +513,7 @@ export default function SpecialistScoreSummaryPage({ readOnly = false }: { readO
     if (periodDefaultingRef.current) return;
     periodDefaultingRef.current = true;
     setPeriodFilter(sortedPeriods[0].id);
-  }, [isPeriodFilterReady, periodFilter, periodsQuery.isError, periodsQuery.isLoading, setPeriodFilter, sortedPeriods]);
+  }, [isPeriodFilterReady, periodFilter, periodsQuery.data, periodsQuery.isError, periodsQuery.isLoading, setPeriodFilter, sortedPeriods]);
   const submissionsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1SubmissionsQueryKey(), { view: 'all', includeUnsubmitted: true, periodId: periodFilter || undefined, sortBy: 'createdAt', sortOrder: 'desc' }),
     queryFn: () => listEverySubmission(periodFilter || undefined),

@@ -88,8 +88,7 @@ function formatDateTime(year: number, month: number, day: number, hour: number, 
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
   const date = new Date(year, month - 1, day, hour, minute);
   if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${String(year).padStart(4, '0')}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+  return date.toISOString();
 }
 
 function parseDeadline(value: unknown, rowNumber: number): string | null {

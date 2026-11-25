@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const TIME_API_URL = 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Ho_Chi_Minh';
+const TIME_API_URL = 'https://timeapi.io/api/Time/current/zone?timeZone=UTC';
 const RESYNC_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 1_000;
 

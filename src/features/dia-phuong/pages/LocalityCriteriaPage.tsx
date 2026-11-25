@@ -737,7 +737,7 @@ export default function LocalityCriteriaPage() {
 
   // ── Detail view ────────────────────────────────────────────────────────────
   if (groupDetailQuery.isLoading) return <PageLoading label="Đang tải nhóm tiêu chí…" />;
-  if (groupDetailQuery.isError) {
+  if (groupDetailQuery.isError && !groupDetailQuery.data) {
     return (
       <div className="space-y-5">
         <PageHeader title="Chi tiết nhóm tiêu chí" description="Không thể hiển thị nội dung nhóm tiêu chí này." />

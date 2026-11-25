@@ -172,7 +172,7 @@ export default function CriteriaChildrenPage() {
     if (siblingTotal + value.maxScore > group.maxPoint) return toast.error(`Tổng điểm tiêu chí (${siblingTotal + value.maxScore}) không được vượt quá ${group.maxPoint} điểm của nhóm.`);
     setSaving(true);
     try {
-      const payload = { content: value.name, maxPoint: value.maxScore, deadline: value.deadline || null, note: value.note };
+      const payload = { content: value.name, maxPoint: value.maxScore, deadline: value.deadline ? new Date(value.deadline).toISOString() : null, note: value.note };
       if (current) await criteriaGroupsApi.updateCriteria(current.id, { ...payload, changeReason: 'Cập nhật tiêu chí từ giao diện quản lý.' });
       else await criteriaGroupsApi.createBulk(group.id, [{ type: 'Standard', ...payload }]);
       await invalidateCriteria();
