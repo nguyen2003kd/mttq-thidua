@@ -68,7 +68,7 @@ export function CriteriaChildrenDialog({ open, onOpenChange, items, totalScore, 
       ...item,
       name: item.name.trim(),
       note: item.note?.trim() || undefined,
-      deadline: item.deadline || undefined,
+      deadline: item.deadline ? new Date(item.deadline).toISOString() : undefined,
     }));
     const normalizedSubtotal = normalizedItems.reduce((sum, item) => sum + item.maxScore, 0);
     if (normalizedSubtotal > totalScore) {

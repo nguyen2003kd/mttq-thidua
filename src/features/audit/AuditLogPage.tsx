@@ -1177,7 +1177,7 @@ export function AuditLogView({ title, description, actions }: { title: string; d
   ];
 
   if (logsQuery.isPending) return <PageLoading label="Đang tải lịch sử thay đổi…" />;
-  if (logsQuery.isError) return <EmptyState variant="error" title="Không tải được lịch sử thay đổi" description={logsQuery.error instanceof Error ? logsQuery.error.message : 'Vui lòng thử lại sau.'} />;
+  if (logsQuery.isError && !logsQuery.data) return <EmptyState variant="error" title="Không tải được lịch sử thay đổi" description={logsQuery.error instanceof Error ? logsQuery.error.message : 'Vui lòng thử lại sau.'} />;
   if (!result) return <EmptyState title="Chưa có dữ liệu lịch sử" />;
   const visibleItems = result.items;
 
