@@ -9,6 +9,7 @@ import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
 import { getGetApiV1AuditLogsQueryKey } from '@/api/endpoints/audit-logs';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
 import { useScoreStore } from '@/store/scoreStore';
+import { useAuthStore } from '@/store/authStore';
 import { EXCEL_WORKBOOK_ACCEPT, isExcelWorkbookFileName } from '@/lib/fileTypes';
 import { useQueryFilters } from '@/hooks/useQueryFilters';
 import {
@@ -77,6 +78,8 @@ function TrustedDeadlineInput({ value, onChange, trustedNowRef }: { value: strin
 export default function CriteriaListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Trang này dùng chung cho SPECIALIST — chỉ ADMIN mới ẩn cột Ghi chú và truncate nhiều dòng.
+  const isAdminView = ['ADMIN', 'SYSTEM_ADMIN'].includes(useAuthStore((s) => s.user?.role) ?? '');
   const localities = useScoreStore((s) => s.localities);
   const deadline = useScoreStore((s) => s.deadline);
   const setDeadline = useScoreStore((s) => s.setDeadline);
@@ -210,7 +213,7 @@ export default function CriteriaListPage() {
         header: LABELS.CRITERIA_TABLE_NAME,
         enableSorting: false,
         cell: ({ row }) => (
-          <TruncatedText value={row.original.name} className="w-full max-w-full font-medium" />
+          <TruncatedText value={row.original.name} maxLines={isAdminView ? 2 : undefined} className="w-full max-w-full font-medium" />
         ),
         meta: {
           className: 'font-medium',
@@ -225,7 +228,7 @@ export default function CriteriaListPage() {
         header: 'Ban xử lý',
         enableSorting: false,
         cell: ({ row }) => (
-          <TruncatedText value={row.original.departmentName} className="w-full max-w-full" />
+          <TruncatedText value={row.original.departmentName} maxLines={isAdminView ? 2 : undefined} className="w-full max-w-full" />
         ),
         meta: { disableTooltip: true, sortable: false, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
@@ -245,7 +248,7 @@ export default function CriteriaListPage() {
         header: 'Nội dung tiêu chí',
         enableSorting: false,
         cell: ({ row }) => (
-          <TruncatedText value={row.original.content} className="w-full max-w-[280px] text-sm text-muted-foreground" />
+          <TruncatedText value={row.original.content} maxLines={isAdminView ? 3 : undefined} className="w-full max-w-[280px] text-sm text-muted-foreground" />
         ),
         meta: { disableTooltip: true, sortable: false, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
@@ -270,6 +273,15 @@ export default function CriteriaListPage() {
           list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '1fr', valueClassName: 'text-primary' },
         },
       },
+      ...(!isAdminView ? [{
+        accessorKey: 'note',
+        header: 'Ghi chú',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
+        ),
+        meta: { disableTooltip: true, sortable: false, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
+      } satisfies ColumnDef<CriteriaTable>] : []),
       {
         accessorKey: 'status',
         header: LABELS.CRITERIA_STATUS,
@@ -307,7 +319,7 @@ export default function CriteriaListPage() {
         },
       },
     ],
-    [],
+    [isAdminView],
   );
 
   const resetEditor = () => {
