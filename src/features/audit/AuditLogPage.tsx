@@ -476,22 +476,22 @@ function AuditFileRow({ item }: { item: AuditLogItem }) {
   const [beforeThumb, setBeforeThumb] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isImage || !fileId || newFile?.url) return;
+    if (!isImage || !fileId) return;
     let cancelled = false;
     getFilePreviewUrl(fileId)
       .then((url) => { if (!cancelled) setThumb(url); })
       .catch(() => { /* giữ icon fallback */ });
     return () => { cancelled = true; };
-  }, [fileId, isImage, newFile?.url]);
+  }, [fileId, isImage]);
 
   useEffect(() => {
-    if (!isImage || !beforeFileId || oldFile?.url) return;
+    if (!isImage || !beforeFileId) return;
     let cancelled = false;
     getFilePreviewUrl(beforeFileId)
       .then((url) => { if (!cancelled) setBeforeThumb(url); })
       .catch(() => { /* giữ icon fallback */ });
     return () => { cancelled = true; };
-  }, [beforeFileId, isImage, oldFile?.url]);
+  }, [beforeFileId, isImage]);
 
   const handleDownload = async () => {
     if (!fileId) return;
@@ -508,8 +508,8 @@ function AuditFileRow({ item }: { item: AuditLogItem }) {
         {showOld && (
           <>
             <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
-              {isImage && (oldFile?.url ?? beforeThumb)
-                ? <img src={oldFile?.url ?? beforeThumb ?? ''} alt={beforeFileName ?? ''} className="size-8 rounded-md object-cover opacity-50" />
+              {isImage && beforeThumb
+                ? <img src={beforeThumb} alt={beforeFileName ?? ''} className="size-8 rounded-md object-cover opacity-50" />
                 : <FileText className="size-3.5 shrink-0 text-muted-foreground" />}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground line-through">{beforeFileName ?? '—'}</span>
@@ -517,8 +517,8 @@ function AuditFileRow({ item }: { item: AuditLogItem }) {
           </>
         )}
         <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-muted">
-          {isImage && (newFile?.url ?? thumb)
-            ? <img src={newFile?.url ?? thumb ?? ''} alt={fileName} className="size-8 rounded-md object-cover" />
+          {isImage && thumb
+            ? <img src={thumb} alt={fileName} className="size-8 rounded-md object-cover" />
             : <FileText className="size-3.5 text-primary/70" />}
         </span>
         <span className="truncate font-medium text-foreground">{fileName}</span>

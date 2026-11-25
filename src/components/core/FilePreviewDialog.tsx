@@ -166,7 +166,7 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
   const fileUrl = file?.url;
   const [resolved, setResolved] = useState<FileItemApi | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [useBlobPreview, setUseBlobPreview] = useState(false);
+  const [useBlobPreview, setUseBlobPreview] = useState(true);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sheetViews, setSheetViews] = useState<SheetView[] | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
@@ -176,19 +176,15 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
     let cancelled = false;
     setResolved(null);
     setBlobUrl(null);
-    setUseBlobPreview(false);
+    setUseBlobPreview(true);
     setPreviewError(null);
     filesApi.get(fileId)
       .then((item) => {
         if (cancelled) return;
         setResolved(item);
-        if (!item.url && !fileUrl) setUseBlobPreview(true);
       })
       .catch((error) => {
-        if (!cancelled) {
-          console.warn('Không lấy được đường dẫn xem file:', error);
-          if (!fileUrl) setUseBlobPreview(true);
-        }
+        if (!cancelled) console.warn('Không lấy được đường dẫn xem file:', error);
       });
     return () => { cancelled = true; };
   }, [fileId, fileUrl]);

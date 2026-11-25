@@ -135,11 +135,10 @@ export const filesApi = {
     request<{ deleted: boolean; id: string }>({ url: `/api/v1/files/${id}`, method: 'DELETE' }),
 };
 
-/** Presigned URL (hạn 1h) — gọi lại mỗi lần cần hiển thị/tải, không lưu lâu. */
+/** URL xem trước — blob qua endpoint download (đi qua BE), gọi lại mỗi lần cần hiển thị. */
 export async function getFilePreviewUrl(id: string): Promise<string> {
-  const file = await filesApi.get(id);
-  if (!file.url) throw new Error('Không lấy được đường dẫn file.');
-  return file.url;
+  const blob = await getFileBlob(id);
+  return URL.createObjectURL(blob);
 }
 
 /** Lấy nội dung tệp; thử URL dự phòng khi endpoint download lỗi hoặc trả về rỗng. */
