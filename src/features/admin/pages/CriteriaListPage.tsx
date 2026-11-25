@@ -43,7 +43,12 @@ import { validateCriteriaApplication, validateCriteriaDeadline } from '@/feature
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile, type ParsedCriteriaItem } from '@/features/admin/criteriaExcel';
 import { DeadlineExtensionManageDialog } from '@/features/admin/components/DeadlineExtensionManageDialog';
 
-const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
+const toDateTimeInput = (value: string) => {
+  if (!value) return '';
+  const date = new Date(value.includes('T') ? value : `${value}T23:59`);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
 const toLocalDateTimeInput = (timestampMs: number) => {
   const date = new Date(timestampMs);
   return new Date(timestampMs - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -464,7 +469,7 @@ export default function CriteriaListPage() {
     let createdGroupId: string | null = null;
     let importedChildrenCreated = false;
     try {
-      const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: closeDate || null, departmentId, periodId: periodId || undefined };
+      const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: closeDate ? new Date(closeDate).toISOString() : null, departmentId, periodId: periodId || undefined };
       if (editingTable) {
         const latestGroup = await fetchLatestGroup(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);

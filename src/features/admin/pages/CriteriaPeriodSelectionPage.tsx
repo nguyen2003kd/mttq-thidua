@@ -312,7 +312,7 @@ export default function CriteriaPeriodSelectionPage({
     } satisfies ColumnDef<PeriodApi>]),
   ], [isLocality]);
 
-  if (periodsQuery.isError) {
+  if (periodsQuery.isError && !periodsQuery.data) {
     return (
       <div className="space-y-6">
         <PageHeader

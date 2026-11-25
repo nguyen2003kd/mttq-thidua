@@ -8,15 +8,17 @@ export function useCountdown(targetDate: string | Date) {
   const targetMs = useMemo(() => new Date(targetKey).getTime(), [targetKey]);
 
   const [daysLeft, setDaysLeft] = useState(() => daysBetween(Date.now(), targetMs));
+  const [isExpired, setIsExpired] = useState(() => targetMs <= Date.now());
 
   useEffect(() => {
-    const tick = () => setDaysLeft(daysBetween(Date.now(), targetMs));
+    const tick = () => {
+      setDaysLeft(daysBetween(Date.now(), targetMs));
+      setIsExpired(targetMs <= Date.now());
+    };
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, [targetMs]);
-
-  const isExpired = daysLeft <= 0;
 
   return { daysLeft, isExpired };
 }

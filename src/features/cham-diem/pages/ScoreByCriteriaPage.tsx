@@ -132,7 +132,7 @@ export default function ScoreByCriteriaPage() {
     );
   }
 
-  if (groupQuery.isError) {
+  if (groupQuery.isError && !groupQuery.data) {
     return <EmptyState
       title="Không tìm thấy nhóm tiêu chí"
       description="Nhóm tiêu chí này không tồn tại hoặc đã bị xóa."
