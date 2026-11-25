@@ -1,6 +1,6 @@
 import { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
-import { type CriteriaGroupApi, type CriteriaStatusApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
+import { type CriteriaGroupApi, type CriteriaStatusApi, type DeadlineExtensionApi, type PagedResult } from '@/features/admin/api/criteriaGroupsApi';
 
 // ── Response envelope ────────────────────────────────────────────────────────
 
@@ -193,6 +193,8 @@ export interface SpecialistScoreHistoryApi {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
+export type { DeadlineExtensionApi };
+
 export const specialistApi = {
   // Criteria groups
   listCriteriaGroups: (params?: { search?: string; status?: string; periodId?: string; page?: number; pageSize?: number }) =>
@@ -263,19 +265,27 @@ export const specialistApi = {
     }),
 
   // RequestRevision — yêu cầu chỉnh sửa kèm tệp đính kèm (gắn vào ApprovalHistory của lần yêu cầu)
-  requestRevision: (payload: { submissionId: string; reason: string; criteriaIds?: string[]; submissionResultIds?: string[]; file?: File | null }) => {
+  requestRevision: (payload: { submissionId: string; reason: string; criteriaIds?: string[]; submissionResultIds?: string[]; files?: File[] }) => {
     const form = new FormData();
     form.append('submissionId', payload.submissionId);
     form.append('reason', payload.reason);
     (payload.criteriaIds ?? []).forEach((id) => form.append('criteriaIds', id));
     (payload.submissionResultIds ?? []).forEach((id) => form.append('submissionResultIds', id));
-    if (payload.file) form.append('files', payload.file);
+    (payload.files ?? []).forEach((file) => form.append('files', file));
     return request<ApprovalHistoryApi>({
       url: '/api/v1/submissions/request-revision',
       method: 'POST',
       data: form,
     });
   },
+
+  // Gia hạn nộp cho một địa phương trên nhóm tiêu chí — SPECIALIST/ADMIN.
+  listDeadlineExtensions: (groupId: string) =>
+    request<DeadlineExtensionApi[]>({ url: `/api/v1/criteria-groups/${groupId}/deadline-extensions`, method: 'GET' }),
+  upsertDeadlineExtension: (groupId: string, payload: { wardCode: string; extendedDeadline: string; reason?: string }) =>
+    request<DeadlineExtensionApi>({ url: `/api/v1/criteria-groups/${groupId}/deadline-extensions`, method: 'POST', data: payload }),
+  deleteDeadlineExtension: (groupId: string, wardCode: string) =>
+    request<{ deleted: true; id: string; wardCode: string }>({ url: `/api/v1/criteria-groups/${groupId}/deadline-extensions/${wardCode}`, method: 'DELETE' }),
 
   // Ban Thường trực công bố kết quả cuối cùng của hồ sơ đã qua Hội đồng.
   finalizeSubmission: (submissionId: string) =>

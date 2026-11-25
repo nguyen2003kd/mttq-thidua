@@ -29,7 +29,7 @@ import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, Info, Trash2, Download, FileUp } from 'lucide-react';
+import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, CalendarClock, Info, Trash2, Download, FileUp } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { CriteriaTable } from '@/types/domain';
 import { criteriaGroupsApi, getCriteriaApiError, type CriteriaGroupApi, type CriteriaGroupStatusApi } from '@/features/admin/api/criteriaGroupsApi';
@@ -40,6 +40,7 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
 import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile, type ParsedCriteriaItem } from '@/features/admin/criteriaExcel';
+import { DeadlineExtensionManageDialog } from '@/features/admin/components/DeadlineExtensionManageDialog';
 
 const toDateTimeInput = (value: string) => value ? (value.includes('T') ? value.slice(0, 16) : `${value}T23:59`) : '';
 const toLocalDateTimeInput = (timestampMs: number) => {
@@ -176,6 +177,7 @@ export default function CriteriaListPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
+  const [extensionOpen, setExtensionOpen] = useState(false);
   const [deadlineValue, setDeadlineValue] = useState(toDateTimeInput(deadline));
   const { uploading: fileUploading, uploadProgress: fileProgress } = useFileUpload();
   const invalidateCriteria = () => invalidateQueryResources(queryClient, [
@@ -651,6 +653,23 @@ export default function CriteriaListPage() {
                   <Send className="mr-1.5 h-4 w-4" /> Áp dụng tiêu chí cho địa phương
                 </Button>
                 <Button
+                  variant="edit"
+                  hideWhen={!selectedTable}
+                  disabled={!selectedTable || !selectedTable.closeDate}
+                  disabledReason={
+                    !selectedTable
+                      ? 'Chọn một nhóm tiêu chí để gia hạn nộp.'
+                      : !selectedTable.closeDate
+                        ? 'Nhóm tiêu chí chưa có hạn nộp gốc.'
+                        : undefined
+                  }
+                  onClick={() => {
+                    if (selectedTable?.closeDate) setExtensionOpen(true);
+                  }}
+                >
+                  <CalendarClock className="mr-1.5 h-4 w-4" /> Gia hạn nộp
+                </Button>
+                <Button
                   variant="destructive"
                   hideWhen={!selectedTable}
                   disabled={!selectedTable || selectedTable.status !== 'DRAFT' || deleteMutation.isPending}
@@ -883,6 +902,12 @@ export default function CriteriaListPage() {
       >
         <div className="space-y-1.5"><Label htmlFor="suggested-publish-time">Thời gian gợi ý công bố <span className="text-destructive">★</span></Label><Input id="suggested-publish-time" type="datetime-local" value={deadlineValue} onChange={(event) => setDeadlineValue(event.target.value)} /></div>
       </FormDialog>
+
+      <DeadlineExtensionManageDialog
+        open={extensionOpen}
+        onOpenChange={setExtensionOpen}
+        group={selectedTable ? { id: selectedTable.id, name: selectedTable.name, deadline: selectedTable.closeDate || null } : null}
+      />
 
     </div>
   );

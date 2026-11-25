@@ -759,6 +759,18 @@ export default function LocalityCriteriaPage() {
   }
 
   const detailTable = groupDetailQuery.data ? mapCriteriaGroupToTable(groupDetailQuery.data, submissionDetailQuery.data?.id) : table;
+  // Hạn gia hạn riêng của địa phương → hạn hiệu lực = max(hạn gốc, hạn gia hạn), áp cho cả nhóm lẫn từng tiêu chí.
+  const extensionMs = Date.parse(groupDetailQuery.data?.extendedDeadline ?? '');
+  if (detailTable && Number.isFinite(extensionMs)) {
+    const extensionIso = groupDetailQuery.data!.extendedDeadline!;
+    const extendValue = (value?: string) => {
+      if (!value) return value;
+      const ms = Date.parse(value);
+      return !Number.isFinite(ms) || ms >= extensionMs ? value : extensionIso;
+    };
+    detailTable.closeDate = extendValue(detailTable.closeDate) ?? detailTable.closeDate;
+    detailTable.criteria = detailTable.criteria.map((criterion) => ({ ...criterion, deadline: extendValue(criterion.deadline) }));
+  }
   if (!detailTable) return <EmptyState title="Không tìm thấy nhóm tiêu chí" description="Nhóm tiêu chí không được giao cho địa phương này." />;
 
   const currentTimeMs = trustedNowMs ?? 0;
@@ -1140,8 +1152,6 @@ export default function LocalityCriteriaPage() {
         editable={editable}
         maxBonusPoint={groupDetailQuery.data?.maxBonusPointPerCriteria}
         allowRevisionAfterDeadline={isRevisionStage}
-        evidenceDeletionLocked={isRevisionStage}
-        scoreFieldsLocked={isRevisionStage}
         editDisabledReason={editDisabledReason}
         nowMs={currentTimeMs}
         draftValues={draftResults}
@@ -1156,10 +1166,6 @@ export default function LocalityCriteriaPage() {
         uploading={savingAll}
         onSelect={(entry, criterion) => setSelected({ entry, criterion })}
         onDeleteEvidence={(evidenceId) => {
-          if (isRevisionStage) {
-            toast.info('Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.');
-            return;
-          }
           if (!ensureSubmissionIsEditable()) return;
           const target = evidence.find((item) => item.id === evidenceId);
           if (target) setDeleteTarget(target);
@@ -1183,7 +1189,7 @@ export default function LocalityCriteriaPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem chi tiết." onClick={() => setDetailOpen(true)}><Eye className="size-4" />Xem chi tiết</Button>
             <Button variant="info" hideWhen={!selected} disabled={!selected} disabledReason="Chọn một tiêu chí để xem minh chứng." onClick={() => selected && setViewing(selected)}><FileText className="size-4" />Xem minh chứng</Button>
-            <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || isRevisionStage || selectedCriterionRevisionLocked || selectedCriterionDeadlineBlocksEdit} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : isRevisionStage ? 'Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.' : submissionLockedReason ?? (selectedCriterionRevisionLocked ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.' : parentDeadlineBlocksEdit || selectedCriterionDeadlineBlocksEdit ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
+            <Button variant="destructive" hideWhen={!selected} disabled={!editable || !selected || selectedCriterionRevisionLocked || selectedCriterionDeadlineBlocksEdit} disabledReason={!isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (selectedCriterionRevisionLocked ? 'Tiêu chí này không nằm trong yêu cầu chỉnh sửa của Chuyên viên.' : parentDeadlineBlocksEdit || selectedCriterionDeadlineBlocksEdit ? 'Đã quá hạn nộp, không thể xóa minh chứng.' : !selected ? 'Chọn một tiêu chí để xóa minh chứng.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => requireSelection(() => { const target = filesFor(selected?.entry.criteriaId)[0]; if (target) setDeleteTarget(target); else toast.info('Tiêu chí chưa có minh chứng để xóa.'); })}><Trash2 className="size-4" />Xóa minh chứng</Button>
             <div className="ml-auto flex flex-wrap gap-2">
               <Button disabled={!editable || savingAll} disabledReason={savingAll ? 'Đang lưu dữ liệu.' : !isTrustedTimeReady ? 'Đang đồng bộ thời gian chuẩn.' : submissionLockedReason ?? (parentDeadlineBlocksEdit ? 'Đã quá hạn nộp.' : 'Hồ sơ hiện không cho phép chỉnh sửa.')} onClick={() => void handleSaveAll()}><Save className="size-4" />{savingAll ? 'Đang lưu' : 'Lưu nháp'}</Button>
               <Button disabled={savingAll || !canSubmit || !allCriteriaComplete} disabledReason={submitDisabledReason} onClick={openSubmitDialog}><Send className="size-4" />Gửi yêu cầu</Button>
@@ -1216,11 +1222,6 @@ export default function LocalityCriteriaPage() {
       <CriterionDetailDialog open={detailOpen && Boolean(selected)} onOpenChange={(open) => setDetailOpen(open)} item={selected} evidence={filesFor(selected?.entry.criteriaId)} onPreview={(file) => setPreviewFile({ id: file.id, originalName: file.fileName })} maxBonusPoint={groupDetailQuery.data?.maxBonusPointPerCriteria} />
       <EvidenceModal open={!!viewing} onOpenChange={(open) => { if (!open) setViewing(null); }} criterion={viewing?.criterion} entry={viewing?.entry} evidence={filesFor(viewing?.entry.criteriaId)} readonly maxBonusPoint={groupDetailQuery.data?.maxBonusPointPerCriteria} />
       <ConfirmDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }} title="Xóa minh chứng" description={`Bạn có chắc muốn xóa “${deleteTarget?.fileName ?? ''}”?`} confirmLabel="Tiếp tục" cancelLabel="Đóng" variant="destructive" onConfirm={() => {
-        if (isRevisionStage) {
-          toast.info('Không thể xóa minh chứng khi hồ sơ đang yêu cầu chỉnh sửa.');
-          setDeleteTarget(null);
-          return;
-        }
         if (!deleteTarget || !ensureSubmissionIsEditable()) return;
         deleteFileMutation.mutate(deleteTarget.id);
       }} />

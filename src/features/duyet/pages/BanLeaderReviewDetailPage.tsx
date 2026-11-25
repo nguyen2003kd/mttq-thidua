@@ -3,14 +3,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getGetApiV1SubmissionsSubmissionIdApprovalHistoriesQueryKey } from '@/api/endpoints/approval';
 import { getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
 import { getGetApiV1FilesQueryKey } from '@/api/endpoints/files';
-import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey } from '@/api/endpoints/submissions';
-// getGetApiV1SubmissionsQueryKey tạm ẩn — chỉ dùng trong các block duyệt/sửa điểm đang comment
+import { getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey, getGetApiV1SubmissionsQueryKey } from '@/api/endpoints/submissions';
 import { dataQueryKey, invalidateQueryResources } from '@/api/mutator/query-keys';
-import { ArrowLeft, Download, Eye, FileText, MessageSquare } from 'lucide-react';
-// import { Edit3, MessageSquareWarning, Save } from 'lucide-react'; // tạm ẩn cùng các nút sửa điểm/duyệt của Lãnh đạo ban
+import { ArrowLeft, Download, Edit3, Eye, FileText, MessageSquare, MessageSquareWarning, Save } from 'lucide-react';
 // import { Send } from 'lucide-react'; // tạm ẩn cùng nút "Duyệt & trình Hội đồng" của Lãnh đạo ban
 import { toast } from 'sonner';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, EmptyState, FilePreviewDialog, ListDialog, PageHeader, PageLoading, RejectDialog, TableColumnVisibility } from '@/components/core';
 import { SortableTableHead } from '@/components/core/SortableTableHead';
 import { TableSortSelect, type TableSortOption } from '@/components/core/TableSortSelect';
@@ -18,9 +16,7 @@ import { sortTableRows, toggleTableSort, type TableSortState } from '@/lib/table
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ForwardingDocumentsDialog, OfficialScoreRevisionDialog } from '@/features/workflow/components';
-// import { RevisionRequestDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
-// import { ReviewScoreModal } from '@/features/workflow/components'; // tạm ẩn cùng tính năng sửa điểm của Lãnh đạo ban
+import { ForwardingDocumentsDialog, OfficialScoreRevisionDialog, RevisionRequestDialog, ReviewScoreModal } from '@/features/workflow/components';
 // import { ForwardSubmissionDialog } from '@/features/workflow/components'; // tạm ẩn cùng nút duyệt của Lãnh đạo ban
 import { isRealSubmission, specialistApi, type SubmissionResultFile, type SubmissionResultItem } from '@/features/cham-diem/api/specialistApi';
 import { downloadFile, filesApi } from '@/features/files/api/filesApi';
@@ -91,22 +87,22 @@ function LeaderCriterionDetailDialog({
 
 export default function BanLeaderReviewDetailPage() {
   const { banId = 'ban1', tableId, localityId } = useParams<{ banId?: string; tableId?: string; localityId?: string }>();
-  // const navigate = useNavigate(); // tạm ẩn cùng các thao tác duyệt của Lãnh đạo ban
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentPending, setCommentPending] = useState(false);
-  // const [revisionOpen, setRevisionOpen] = useState(false); // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
+  const [revisionOpen, setRevisionOpen] = useState(false);
   // const [forwardOpen, setForwardOpen] = useState(false); // tạm ẩn nút duyệt của Lãnh đạo ban
   const [selectedCriteriaId, setSelectedCriteriaId] = useState<string | null>(null);
   const [detailSort, setDetailSort] = useState<TableSortState>(null);
   const [criterionDetailOpen, setCriterionDetailOpen] = useState(false);
-  // const [scoreEditOpen, setScoreEditOpen] = useState(false); // tạm ẩn cùng tính năng sửa điểm của Lãnh đạo ban
+  const [scoreEditOpen, setScoreEditOpen] = useState(false);
   const [scoreRevisionResult, setScoreRevisionResult] = useState<SubmissionResultItem | null>(null);
   const [evidenceDialog, setEvidenceDialog] = useState<{ criterionName: string; files: SubmissionResultFile[] } | null>(null);
-  const [drafts] = useState<Record<string, LeaderScoreDraft>>({});
-  // const [pendingAttachments, setPendingAttachments] = useState<Record<string, File>>({}); // tạm ẩn cùng tính năng sửa điểm
-  // const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(() => new Set()); // tạm ẩn cùng tính năng sửa điểm
-  // const [savingAll, setSavingAll] = useState(false); // tạm ẩn cùng tính năng sửa điểm
+  const [drafts, setDrafts] = useState<Record<string, LeaderScoreDraft>>({});
+  const [pendingAttachments, setPendingAttachments] = useState<Record<string, File>>({});
+  const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(() => new Set());
+  const [savingAll, setSavingAll] = useState(false);
   const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
 
   const localityCode = localityId ? getLocalityCode(localityId) : '';
@@ -180,8 +176,7 @@ export default function BanLeaderReviewDetailPage() {
   const specialistForwardingFiles = specialistForwarding?.files?.length
     ? specialistForwarding.files
     : (legacySpecialistForwardingFilesQuery.data?.items ?? []);
-  // const canProcess = submission.currentStage === LEADER_STAGE; // tạm ẩn cùng các thao tác duyệt của Lãnh đạo ban
-  // Cũ: chỉ kiểm tra stage — submission.currentStage === LEADER_STAGE.
+  const canProcess = submission.currentStage === LEADER_STAGE;
   // Nhóm tiêu chí đã công bố (Published) → hồ sơ khóa, không nhận xét thêm.
   const canComment = submission.currentStage === LEADER_STAGE && groupQuery.data?.status !== 'Published';
   const saveComment = async (comment: string) => {
@@ -197,19 +192,16 @@ export default function BanLeaderReviewDetailPage() {
     }
   };
   const selectedResultItem = resultItems.find(({ criterion }) => criterion.id === selectedCriteriaId);
-  // const selectedResultDisabled = selectedResultItem?.criterion.status === 'Deleted' || selectedResultItem?.result?.criteriaStatus === 'Deleted'; // tạm ẩn cùng tính năng sửa điểm
-  // const revisionCriteria = resultItems // tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban
-  //   .filter(({ criterion, result }) => criterion.type !== 'Supplementary' && criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted' && Boolean(result))
-  //   .map(({ criterion }) => ({ id: criterion.id, title: criterion.content }));
-  // const defaultSelectedCriteriaIds = selectedCriteriaId ? [selectedCriteriaId] : [];
+  const selectedResultDisabled = selectedResultItem?.criterion.status === 'Deleted' || selectedResultItem?.result?.criteriaStatus === 'Deleted';
+  const revisionCriteria = resultItems
+    .filter(({ criterion, result }) => criterion.type !== 'Supplementary' && criterion.status !== 'Deleted' && result?.criteriaStatus !== 'Deleted' && Boolean(result))
+    .map(({ criterion }) => ({ id: criterion.id, title: criterion.content }));
+  const defaultSelectedCriteriaIds = selectedCriteriaId ? [selectedCriteriaId] : [];
 
   // API hiện chỉ trả officialPoint của Chuyên viên. Không dùng nó làm điểm Lãnh đạo.
   // Điểm Lãnh đạo chỉ hiển thị khi người dùng đã nhập ở phiên làm việc này.
   const leaderScoreFor = (result?: SubmissionResultItem) => (result ? drafts[result.id] : undefined);
 
-  /* Tạm ẩn tính năng sửa điểm của Lãnh đạo ban — chỉ xem hồ sơ và nhận xét.
-   * Khôi phục: mở các block comment này + nút Sửa điểm/Lưu nháp/ReviewScoreModal
-   * + state drafts/pendingAttachments/savedDraftIds/savingAll/scoreEditOpen.
   const validateLeaderDrafts = () => {
     for (const { criterion, result } of resultItems) {
       if (criterion.type === 'Supplementary' || criterion.status === 'Deleted' || result?.criteriaStatus === 'Deleted' || !result) continue;
@@ -319,10 +311,8 @@ export default function BanLeaderReviewDetailPage() {
       setSavingAll(false);
     }
   };
-  */
 
-  /* Tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban — chỉ xem hồ sơ và nhận xét.
-  const requestRevision = async ({ criteriaIds, reason, file }: { criteriaIds: string[]; reason: string; file: File | null }) => {
+  const requestRevision = async ({ criteriaIds, reason, files }: { criteriaIds: string[]; reason: string; files: File[] }) => {
     const selectedResultIds = criteriaIds
       .map((criteriaId) => resultsByCriteria.get(criteriaId)?.id)
       .filter((id): id is string => Boolean(id));
@@ -331,11 +321,11 @@ export default function BanLeaderReviewDetailPage() {
       return false;
     }
     try {
-      await specialistApi.requestRevision({ submissionId: submission.id, reason, submissionResultIds: selectedResultIds, file });
+      await specialistApi.requestRevision({ submissionId: submission.id, reason, submissionResultIds: selectedResultIds, files });
       await invalidateQueryResources(queryClient, [
         getGetApiV1SubmissionsQueryKey(),
         ['submission-results'],
-        ...(file ? [getGetApiV1FilesQueryKey()] : []),
+        ...(files.length > 0 ? [getGetApiV1FilesQueryKey()] : []),
       ]);
       toast.success('Đã gửi yêu cầu Chuyên viên chấm lại hồ sơ.');
       navigate(backToList);
@@ -345,7 +335,6 @@ export default function BanLeaderReviewDetailPage() {
       return false;
     }
   };
-  */
 
   /* Tạm ẩn hành động duyệt của Lãnh đạo ban — hiện chỉ xem hồ sơ.
    * Khôi phục: mở comment này, nút bấm + ForwardSubmissionDialog ở JSX,
@@ -392,11 +381,9 @@ export default function BanLeaderReviewDetailPage() {
         <TableSortSelect sort={detailSort} options={detailSortOptions} onChange={setDetailSort} /><TableColumnVisibility storageKey="leader-review-detail" columns={[{ id: 'criterion', label: 'Tiêu chí con' }, { id: 'evidence', label: 'Bằng chứng' }, { id: 'local-proposed', label: 'Điểm địa phương đề xuất' }, { id: 'specialist-score', label: 'Điểm chuyên viên chấm' }, { id: 'explanation', label: 'Nội dung diễn giải' }]} />
         <Button variant="info" hideWhen={!selectedResultItem} disabled={!selectedResultItem} disabledReason="Chọn một tiêu chí con để xem chi tiết." onClick={() => setCriterionDetailOpen(true)}><Eye className="mr-1.5 size-4" />Xem chi tiết</Button>
         <Button variant="outline" disabled={!canComment || commentPending} disabledReason={!canComment ? 'Hồ sơ đã chuyển cấp hoặc đã công bố nên không thể nhận xét.' : undefined} onClick={() => setCommentOpen(true)}><MessageSquare className="mr-1.5 size-4" />Nhận xét</Button>
-        {/* Tạm ẩn nút Sửa điểm / Lưu nháp — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
-        {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess || selectedResultDisabled} disabledReason={selectedResultDisabled ? 'Tiêu chí đã vô hiệu nên không thể cập nhật điểm.' : undefined} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
-        <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu nháp'}</Button> */}
-        {/* Tạm ẩn nút Yêu cầu chỉnh sửa — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
-        <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button> */}
+        {selectedResultItem?.result && selectedResultItem.criterion.type !== 'Supplementary' && <Button variant="outline" disabled={!canProcess || selectedResultDisabled} disabledReason={selectedResultDisabled ? 'Tiêu chí đã vô hiệu nên không thể cập nhật điểm.' : !canProcess ? 'Hồ sơ đã chuyển bước nên không thể cập nhật điểm.' : undefined} onClick={() => setScoreEditOpen(true)}><Edit3 className="mr-1.5 size-4" />Sửa điểm</Button>}
+        <Button variant="outline" disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể lưu điểm.' : undefined} onClick={() => { void saveAllScores(); }}><Save className="mr-1.5 size-4" />{savingAll ? 'Đang lưu…' : 'Lưu nháp'}</Button>
+        <Button variant="outline" disabled={!canProcess || revisionCriteria.length === 0} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể yêu cầu chỉnh sửa.' : revisionCriteria.length === 0 ? 'Không có tiêu chí con nào để yêu cầu chỉnh sửa.' : undefined} onClick={() => setRevisionOpen(true)}><MessageSquareWarning className="mr-1.5 size-4" />Yêu cầu chỉnh sửa</Button>
         {/* Tạm ẩn nút duyệt của Lãnh đạo ban — chỉ xem hồ sơ.
         <Button disabled={!canProcess || savingAll} disabledReason={!canProcess ? 'Hồ sơ đã chuyển bước nên không thể duyệt.' : undefined} onClick={() => setForwardOpen(true)}><Send className="mr-1.5 size-4" />Duyệt &amp; trình Hội đồng</Button> */}
       </div>
@@ -432,7 +419,6 @@ export default function BanLeaderReviewDetailPage() {
     />
     <OfficialScoreRevisionDialog open={Boolean(scoreRevisionResult)} onOpenChange={(open) => { if (!open) setScoreRevisionResult(null); }} result={scoreRevisionResult} criterionLabel={scoreRevisionResult?.criteriaContent ?? selectedResultItem?.criterion.content ?? 'Tiêu chí con'} />
 
-    {/* Tạm ẩn modal sửa điểm — Lãnh đạo ban chỉ xem hồ sơ và nhận xét.
     <ReviewScoreModal
       open={scoreEditOpen}
       onOpenChange={setScoreEditOpen}
@@ -466,8 +452,7 @@ export default function BanLeaderReviewDetailPage() {
         });
         return true;
       }}
-    /> */}
-    {/* Tạm ẩn cùng nút Yêu cầu chỉnh sửa của Lãnh đạo ban.
+    />
     <RevisionRequestDialog
       open={revisionOpen}
       onOpenChange={setRevisionOpen}
@@ -477,7 +462,7 @@ export default function BanLeaderReviewDetailPage() {
       criteria={revisionCriteria}
       defaultSelectedCriteriaIds={defaultSelectedCriteriaIds}
       onSubmit={requestRevision}
-    /> */}
+    />
     {/* Tạm ẩn cùng nút duyệt của Lãnh đạo ban.
     <ForwardSubmissionDialog open={forwardOpen} onOpenChange={setForwardOpen} localityName={localityName} groupName={groupQuery.data.name} targetLabel="Hội đồng Thi đua - Khen thưởng" explanationLabel="Diễn giải hồ sơ từ Lãnh đạo ban" onConfirm={forwardToCouncil} /> */}
     <RejectDialog open={commentOpen} onOpenChange={setCommentOpen} localityName={localityName} state="CHO_DUYET_BAN" title="Nhận xét hồ sơ" confirmLabel="Gửi nhận xét" confirmVariant="default" submitAction="approve" description={`Nhận xét của Lãnh đạo ban về hồ sơ của ${localityName}. Nhận xét được lưu vào lịch sử hồ sơ và không làm thay đổi điểm hoặc trạng thái duyệt.`} reasonLabel="Nội dung nhận xét" reasonPlaceholder="Nhập nhận xét của Lãnh đạo ban về hồ sơ địa phương." onConfirm={saveComment} />

@@ -44,6 +44,8 @@ export interface CriteriaGroupApi {
   content: string | null;
   maxPoint: number;
   deadline: string | null;
+  /** Hạn nộp gia hạn riêng cho địa phương của user đang gọi (nếu có). */
+  extendedDeadline?: string | null;
   status: CriteriaGroupStatusApi;
   departmentId: string | null;
   departmentName: string | null;
@@ -55,6 +57,17 @@ export interface CriteriaGroupApi {
   updatedAt: string | null;
   criteria: CriteriaApi[];
   files: CriteriaGroupFileApi[];
+}
+
+export interface DeadlineExtensionApi {
+  id: string;
+  criteriaGroupId: string;
+  wardCode: string;
+  localityName?: string | null;
+  extendedDeadline: string;
+  reason?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
 }
 
 export interface PagedResult<T> {
@@ -141,6 +154,13 @@ export const criteriaGroupsApi = {
     request<CriteriaGroupApi>({ url: `/api/v1/criteria/${id}`, method: 'DELETE' }),
   bulkUpdateStatus: (criteriaIds: string[], status: Exclude<CriteriaStatusApi, 'Deleted'>) =>
     request<CriteriaApi[]>({ url: '/api/v1/criteria/bulk', method: 'PUT', data: { criteriaIds, status } }),
+  // Gia hạn nộp cho một địa phương trên nhóm tiêu chí — SPECIALIST/ADMIN.
+  listDeadlineExtensions: (groupId: string) =>
+    request<DeadlineExtensionApi[]>({ url: `/api/v1/criteria-groups/${groupId}/deadline-extensions`, method: 'GET' }),
+  upsertDeadlineExtension: (groupId: string, payload: { wardCode: string; extendedDeadline: string; reason?: string }) =>
+    request<DeadlineExtensionApi>({ url: `/api/v1/criteria-groups/${groupId}/deadline-extensions`, method: 'POST', data: payload }),
+  deleteDeadlineExtension: (groupId: string, wardCode: string) =>
+    request<{ deleted: true; id: string; wardCode: string }>({ url: `/api/v1/criteria-groups/${groupId}/deadline-extensions/${wardCode}`, method: 'DELETE' }),
 };
 
 export function getCriteriaApiError(error: unknown) {

@@ -11,11 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const revisionSchema = z.object({
-  criteriaIds: z.array(z.string()).min(1, 'Vui lòng chọn ít nhất một tiêu chí cần chỉnh sửa.'),
+  criteriaIds: z.array(z.string()),
   reason: z.string().trim().min(1, 'Vui lòng nhập nội dung yêu cầu chỉnh sửa.'),
-  file: z.instanceof(File).nullable()
-    .refine((file) => !file || file.size > 0, 'Tệp đính kèm đang rỗng. Vui lòng chọn tệp khác.')
-    .refine((file) => !file || file.size <= MAX_FILE_SIZE, 'File đính kèm không được vượt quá 20MB.'),
+  files: z.array(z.instanceof(File))
+    .refine((files) => files.every((file) => file.size > 0), 'Tệp đính kèm đang rỗng. Vui lòng chọn tệp khác.')
+    .refine((files) => files.every((file) => file.size <= MAX_FILE_SIZE), 'Mỗi file đính kèm không được vượt quá 20MB.'),
 });
 
 type RevisionForm = z.infer<typeof revisionSchema>;
@@ -37,7 +37,7 @@ interface RevisionRequestDialogProps {
   defaultReason?: string;
   inheritedFile?: { id: string; name: string; sizeBytes: number } | null;
   onPreviewInheritedFile?: () => void;
-  onSubmit: (values: { criteriaIds: string[]; reason: string; file: File | null; inheritedFileId: string | null }) => Promise<boolean>;
+  onSubmit: (values: { criteriaIds: string[]; reason: string; files: File[]; inheritedFileId: string | null }) => Promise<boolean>;
 }
 
 /** Dialog chọn nhiều tiêu chí để yêu cầu chỉnh sửa, dùng chung cho các cấp duyệt. */
@@ -56,11 +56,11 @@ export function RevisionRequestDialog({
 }: RevisionRequestDialogProps) {
   const form = useForm<RevisionForm>({
     resolver: zodResolver(revisionSchema),
-    defaultValues: { criteriaIds: [], reason: '', file: null },
+    defaultValues: { criteriaIds: [], reason: '', files: [] },
   });
   const [submitting, setSubmitting] = useState(false);
   const [inheritedFileSelected, setInheritedFileSelected] = useState(true);
-  const selectedFile = form.watch('file');
+  const selectedFiles = form.watch('files') ?? [];
   const selectedCriteriaIds = form.watch('criteriaIds') ?? [];
   const reasonEdited = Boolean(form.formState.dirtyFields.reason);
   const criteriaRef = useRef(criteria);
@@ -76,7 +76,7 @@ export function RevisionRequestDialog({
       criteriaRef.current.some((criterion) => criterion.id === id),
     );
     setInheritedFileSelected(true);
-    form.reset({ criteriaIds: validIds, reason: defaultReasonRef.current ?? '', file: null });
+    form.reset({ criteriaIds: validIds, reason: defaultReasonRef.current ?? '', files: [] });
   }, [form, open]);
 
   useEffect(() => {
@@ -93,6 +93,13 @@ export function RevisionRequestDialog({
     form.setValue('criteriaIds', next, { shouldValidate: true });
   };
 
+  const allCriteriaIds = criteria.map((criterion) => criterion.id);
+  const allSelected = allCriteriaIds.length > 0 && selectedCriteriaIds.length === allCriteriaIds.length;
+  const someSelected = !allSelected && selectedCriteriaIds.length > 0;
+  const toggleAll = (checked: boolean) => {
+    form.setValue('criteriaIds', checked ? allCriteriaIds : [], { shouldValidate: true });
+  };
+
   return (
     <FormDialog
       open={open}
@@ -104,7 +111,9 @@ export function RevisionRequestDialog({
         try {
           const success = await onSubmit({
             ...values,
-            inheritedFileId: !values.file && inheritedFileSelected ? inheritedFile?.id ?? null : null,
+            // Không chọn tiêu chí nào = yêu cầu chỉnh sửa toàn bộ nhóm tiêu chí.
+            criteriaIds: values.criteriaIds.length > 0 ? values.criteriaIds : allCriteriaIds,
+            inheritedFileId: values.files.length === 0 && inheritedFileSelected ? inheritedFile?.id ?? null : null,
           });
           if (success) onOpenChange(false);
         } finally {
@@ -113,18 +122,31 @@ export function RevisionRequestDialog({
       })}
       submitLabel={submitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
       cancelLabel="Đóng"
-      submitDisabled={submitting || selectedCriteriaIds.length === 0}
+      submitDisabled={submitting || criteria.length === 0}
     >
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <Label>Tiêu chí cần chỉnh sửa <span className="text-destructive">★</span></Label>
-          <span className="text-xs font-medium text-muted-foreground">Đã chọn {selectedCriteriaIds.length}/{criteria.length}</span>
+          <Label>Tiêu chí cần chỉnh sửa</Label>
+          <span className="text-xs font-medium text-muted-foreground">{selectedCriteriaIds.length > 0 ? `Đã chọn ${selectedCriteriaIds.length}/${criteria.length}` : 'Không chọn = toàn bộ nhóm'}</span>
         </div>
         {criteria.length === 0 ? (
           <p className="rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
             Không có tiêu chí con nào để yêu cầu chỉnh sửa.
           </p>
         ) : (
+          <>
+          <label
+            htmlFor="revision-criterion-all"
+            className="flex cursor-pointer items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/50"
+          >
+            <Checkbox
+              id="revision-criterion-all"
+              checked={allSelected}
+              indeterminate={someSelected}
+              onCheckedChange={(value) => toggleAll(!!value)}
+            />
+            <span className="text-sm font-semibold">Toàn bộ nhóm tiêu chí ({criteria.length})</span>
+          </label>
           <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border bg-background p-2">
             {criteria.map((criterion) => {
               const checked = selectedCriteriaIds.includes(criterion.id);
@@ -147,6 +169,7 @@ export function RevisionRequestDialog({
               );
             })}
           </div>
+          </>
         )}
         {form.formState.errors.criteriaIds && <p className="text-xs text-destructive">{form.formState.errors.criteriaIds.message}</p>}
       </div>
@@ -157,7 +180,7 @@ export function RevisionRequestDialog({
       </div>
       <div className="space-y-1.5">
         <Label>File đính kèm</Label>
-        {inheritedFile && inheritedFileSelected && !selectedFile && (
+        {inheritedFile && inheritedFileSelected && selectedFiles.length === 0 && (
           <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm">
             <FileText className="size-4 shrink-0 text-primary" aria-hidden="true" />
             <div className="min-w-0 flex-1">
@@ -169,13 +192,13 @@ export function RevisionRequestDialog({
           </div>
         )}
         <FileUpload
-          value={selectedFile ? [selectedFile] : []}
-          onChange={(files) => form.setValue('file', files[0] ?? null, { shouldValidate: true })}
-          multiple={false}
+          value={selectedFiles}
+          onChange={(files) => form.setValue('files', files, { shouldValidate: true })}
+          multiple
           maxSizeMb={20}
-          error={form.formState.errors.file?.message}
+          error={form.formState.errors.files?.message}
         />
-        {inheritedFile && inheritedFileSelected && !selectedFile && <p className="text-xs text-muted-foreground">Hệ thống sẽ kiểm tra và gửi kèm tệp cũ; chọn tệp mới để thay thế.</p>}
+        {inheritedFile && inheritedFileSelected && selectedFiles.length === 0 && <p className="text-xs text-muted-foreground">Hệ thống sẽ kiểm tra và gửi kèm tệp cũ; chọn tệp mới để thay thế.</p>}
       </div>
     </FormDialog>
   );
