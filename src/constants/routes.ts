@@ -13,14 +13,12 @@ export const ROUTES = {
   ADMIN_CRITERIA_NEW: '/thi-dua/admin/bang-tieu-chi/new',
   // NOTE: ADMIN_CRITERIA_NEW trỏ tới route `bang-tieu-chi/:id` với id="new";
   // CriteriaFormPage tự nhận biết qua `id === 'new'`. Không có route literal riêng.
-  ADMIN_DEADLINE_CONFIG: '/thi-dua/admin/cau-hinh-thoi-han',
   ADMIN_MANAGEMENT: '/thi-dua/admin/quan-ly',
   ADMIN_USERS: '/thi-dua/admin/tai-khoan',
   ADMIN_DEPARTMENTS: '/thi-dua/admin/ban',
   ADMIN_CLUSTERS: '/thi-dua/admin/cum',
   ADMIN_PERIODS: '/thi-dua/admin/ky',
   ADMIN_DASHBOARD: '/thi-dua/admin/dashboard',
-  ADMIN_LOCALITY: '/thi-dua/admin/dia-phuong',
 
   // Địa phương
   LOCALITY_MINH_CHUNG: '/thi-dua/dia-phuong/minh-chung',
@@ -32,6 +30,7 @@ export const ROUTES = {
   CHAM_DIEM_BY_LOCALITY: '/thi-dua/cham-diem/theo-dia-phuong/:id',
 
   // Duyệt
+  DUYET_HOME: '/thi-dua/duyet',
   DUYET_BAN_LEADER: '/thi-dua/duyet/lanh-dao-ban/:banId',
   DUYET_COUNCIL: '/thi-dua/duyet/hoi-dong-tdkt',
   COUNCIL_SCORE_SUMMARY: '/hoi-dong/tong-hop-cham-diem',
