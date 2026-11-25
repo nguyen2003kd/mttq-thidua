@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseVietnamDateTime } from '@/lib/vietnamDateTime';
 
 export const EMPTY_CRITERIA_MESSAGE = 'Cần có ít nhất một tiêu chí trước khi áp dụng.';
 export const CRITERIA_TOTAL_MISMATCH_MESSAGE =
@@ -47,7 +48,7 @@ export function validateCriteriaDeadline({
   if (isApplied && !deadline) return 'Vui lòng chọn hạn nộp cho nhóm tiêu chí đã áp dụng.';
   if (!deadline || (!isApplied && deadline === originalDeadline)) return null;
   if (trustedNowMs === null) return 'Đang đồng bộ thời gian chuẩn, vui lòng thử lại sau giây lát.';
-  const deadlineMs = new Date(deadline).getTime();
+  const deadlineMs = parseVietnamDateTime(deadline);
   return !Number.isFinite(deadlineMs) || deadlineMs <= trustedNowMs
     ? 'Hạn nộp phải sau thời gian chuẩn hiện tại.'
     : null;

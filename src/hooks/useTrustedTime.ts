@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { parseVietnamDateTime } from '@/lib/vietnamDateTime';
 
-const TIME_API_URL = 'https://timeapi.io/api/Time/current/zone?timeZone=UTC';
+const TIME_API_URL = 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Ho_Chi_Minh';
 const RESYNC_INTERVAL_MS = 60_000;
 const TICK_INTERVAL_MS = 1_000;
 
@@ -11,12 +12,6 @@ interface TimeApiResponse {
 interface TimeAnchor {
   serverTimeMs: number;
   performanceMs: number;
-}
-
-function parseUtcDateTime(value?: string): number {
-  if (!value) return Number.NaN;
-  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
-  return Date.parse(normalized);
 }
 
 export function useTrustedTime() {
@@ -45,9 +40,9 @@ export function useTrustedTime() {
         }
 
         const data = await response.json() as TimeApiResponse;
-        const serverTimeMs = parseUtcDateTime(data.dateTime);
+        const serverTimeMs = parseVietnamDateTime(data.dateTime);
         if (!Number.isFinite(serverTimeMs)) {
-          throw new Error('TimeAPI.io returned an invalid UTC time');
+          throw new Error('TimeAPI.io returned an invalid time');
         }
 
         anchorRef.current = { serverTimeMs, performanceMs: performance.now() };

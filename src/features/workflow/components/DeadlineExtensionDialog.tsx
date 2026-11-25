@@ -4,6 +4,7 @@ import { Button, FormDialog } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 export interface DeadlineExtensionGrant {
   extendedDeadline: string;
@@ -21,13 +22,7 @@ interface DeadlineExtensionDialogProps {
   onRevoke?: () => Promise<boolean>;
 }
 
-function toLocalInputValue(iso?: string | null) {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+const toLocalInputValue = toVietnamDateTimeInput;
 
 function formatDeadline(iso: string) {
   const date = new Date(iso);
@@ -58,11 +53,11 @@ export function DeadlineExtensionDialog({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const deadlineMs = deadline ? new Date(deadline).getTime() : Number.NaN;
+    const deadlineMs = parseVietnamDateTime(deadline);
     if (!Number.isFinite(deadlineMs)) return;
     setSubmitting(true);
     try {
-      const success = await onSubmit({ extendedDeadline: new Date(deadlineMs).toISOString(), reason: reason.trim() });
+      const success = await onSubmit({ extendedDeadline: toVietnamOffsetDateTime(deadline)!, reason: reason.trim() });
       if (success) onOpenChange(false);
     } finally {
       setSubmitting(false);

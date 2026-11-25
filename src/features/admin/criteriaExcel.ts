@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
+import { parseVietnamDateTime, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 const HEADERS = ['Nội dung', 'Điểm chuẩn', 'Ghi chú', 'Hạn nộp'];
 const GROUP_NAME_HINT = 'Nhập tên nhóm tiêu chí';
@@ -86,9 +87,12 @@ function parseScore(value: unknown, cell: string, allowZero: boolean) {
 
 function formatDateTime(year: number, month: number, day: number, hour: number, minute: number) {
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  const date = new Date(year, month - 1, day, hour, minute);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-  return date.toISOString();
+  // Excel date/time cells are entered in Vietnam time regardless of browser timezone.
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day ||
+      date.getUTCHours() !== hour || date.getUTCMinutes() !== minute) return null;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return toVietnamOffsetDateTime(`${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`);
 }
 
 function parseDeadline(value: unknown, rowNumber: number): string | null {
@@ -193,17 +197,17 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
   // Hạn nộp của nhóm tiêu chí và tiêu chí con không được ở quá khứ,
   // và hạn nộp của tiêu chí con không được vượt quá hạn nộp của nhóm tiêu chí.
   const nowMs = Date.now();
-  if (deadline && new Date(deadline).getTime() < nowMs) {
+  if (deadline && parseVietnamDateTime(deadline) < nowMs) {
     throw new Error('Hạn nộp của nhóm tiêu chí (Ô D2) không được ở thời gian quá khứ.');
   }
   if (deadline) {
-    const groupDeadlineMs = new Date(deadline).getTime();
+    const groupDeadlineMs = parseVietnamDateTime(deadline);
     for (const item of criteria) {
       if (!item.deadline) continue;
-      if (new Date(item.deadline).getTime() < nowMs) {
+      if (parseVietnamDateTime(item.deadline) < nowMs) {
         throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được ở thời gian quá khứ.`);
       }
-      if (new Date(item.deadline).getTime() > groupDeadlineMs) {
+      if (parseVietnamDateTime(item.deadline) > groupDeadlineMs) {
         throw new Error(`Hạn nộp của tiêu chí con "${item.content}" không được vượt quá hạn nộp của nhóm tiêu chí (Ô D2).`);
       }
     }

@@ -21,20 +21,10 @@ import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/feat
 import { useAuthStore } from '@/store/authStore';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 import type { CriteriaItem } from '@/types/domain';
+import { parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
-const toDateTimeInput = (value?: string | null) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return localDate.toISOString().slice(0, 16);
-};
-
-const getCurrentLocalDateTime = () => {
-  const now = new Date();
-  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return localNow.toISOString().slice(0, 16);
-};
+const toDateTimeInput = toVietnamDateTimeInput;
+const getCurrentLocalDateTime = () => toVietnamDateTimeInput(Date.now());
 
 const toItem = (criterion: CriteriaApi, order: number): CriteriaItem => ({
   id: criterion.id, name: criterion.content, maxScore: criterion.maxPoint,
@@ -58,8 +48,8 @@ function CriteriaItemDialog({ open, onOpenChange, item, readonly = false, parent
     const maxScore = Number(score);
     if (!name.trim()) return setError('Nội dung tiêu chí là bắt buộc.');
     if (!Number.isFinite(maxScore) || maxScore <= 0) return setError('Điểm chuẩn phải lớn hơn 0.');
-    if (deadline && new Date(deadline).getTime() < Date.now()) return setError('Hạn nộp không được ở thời gian quá khứ.');
-    if (deadline && parentDeadline && new Date(deadline).getTime() > new Date(parentDeadline).getTime()) {
+    if (deadline && parseVietnamDateTime(deadline) < Date.now()) return setError('Hạn nộp không được ở thời gian quá khứ.');
+    if (deadline && parentDeadline && parseVietnamDateTime(deadline) > parseVietnamDateTime(parentDeadline)) {
       return setError('Hạn nộp của tiêu chí con không được vượt quá hạn nộp của tiêu chí cha.');
     }
     onSave({ name: name.trim(), maxScore, deadline: deadline || undefined, note: note.trim() || undefined });
@@ -172,7 +162,7 @@ export default function CriteriaChildrenPage() {
     if (siblingTotal + value.maxScore > group.maxPoint) return toast.error(`Tổng điểm tiêu chí (${siblingTotal + value.maxScore}) không được vượt quá ${group.maxPoint} điểm của nhóm.`);
     setSaving(true);
     try {
-      const payload = { content: value.name, maxPoint: value.maxScore, deadline: value.deadline ? new Date(value.deadline).toISOString() : null, note: value.note };
+      const payload = { content: value.name, maxPoint: value.maxScore, deadline: toVietnamOffsetDateTime(value.deadline), note: value.note };
       if (current) await criteriaGroupsApi.updateCriteria(current.id, { ...payload, changeReason: 'Cập nhật tiêu chí từ giao diện quản lý.' });
       else await criteriaGroupsApi.createBulk(group.id, [{ type: 'Standard', ...payload }]);
       await invalidateCriteria();

@@ -37,7 +37,7 @@ describe('validateCriteriaApplication', () => {
 });
 
 describe('validateCriteriaDeadline', () => {
-  const trustedNowMs = Date.parse('2026-10-01T09:00:00');
+  const trustedNowMs = Date.parse('2026-10-01T09:00:00+07:00');
 
   it('requires a deadline for an applied group that has none', () => {
     expect(validateCriteriaDeadline({ deadline: '', originalDeadline: '', isApplied: true, trustedNowMs }))

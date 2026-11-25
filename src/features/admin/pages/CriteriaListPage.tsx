@@ -39,20 +39,13 @@ import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
+import { parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile, type ParsedCriteriaItem } from '@/features/admin/criteriaExcel';
 import { DeadlineExtensionManageDialog } from '@/features/admin/components/DeadlineExtensionManageDialog';
 
-const toDateTimeInput = (value: string) => {
-  if (!value) return '';
-  const date = new Date(value.includes('T') ? value : `${value}T23:59`);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-};
-const toLocalDateTimeInput = (timestampMs: number) => {
-  const date = new Date(timestampMs);
-  return new Date(timestampMs - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-};
+const toDateTimeInput = (value: string) => toVietnamDateTimeInput(value);
+const toLocalDateTimeInput = toVietnamDateTimeInput;
 const toTableStatus = (status: CriteriaGroupApi['status']): CriteriaTable['status'] => status === 'Applied' ? 'ACTIVE' : status === 'Published' ? 'PUBLISHED' : status === 'Closed' ? 'EXPIRED' : 'DRAFT';
 const toCriteriaTable = (group: CriteriaGroupApi): CriteriaTable => ({
   id: group.id,
@@ -454,10 +447,10 @@ export default function CriteriaListPage() {
     }
 
     // Hạn nộp của tiêu chí con (nhập từ Excel) không được vượt quá hạn nộp của nhóm.
-    const groupDeadlineMs = closeDate ? new Date(closeDate).getTime() : 0;
+    const groupDeadlineMs = closeDate ? parseVietnamDateTime(closeDate) : 0;
     if (groupDeadlineMs && importedCriteria) {
       const violating = importedCriteria.find(
-        (item) => item.deadline && new Date(item.deadline).getTime() > groupDeadlineMs,
+        (item) => item.deadline && parseVietnamDateTime(item.deadline) > groupDeadlineMs,
       );
       if (violating) {
         toast.error(`Hạn nộp của tiêu chí con "${violating.content}" không được vượt quá hạn nộp của nhóm tiêu chí.`);
@@ -469,7 +462,7 @@ export default function CriteriaListPage() {
     let createdGroupId: string | null = null;
     let importedChildrenCreated = false;
     try {
-      const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: closeDate ? new Date(closeDate).toISOString() : null, departmentId, periodId: periodId || undefined };
+      const payload = { name: name.trim(), content: content.trim() || null, maxPoint: parsedTotalScore, deadline: toVietnamOffsetDateTime(closeDate), departmentId, periodId: periodId || undefined };
       if (editingTable) {
         const latestGroup = await fetchLatestGroup(editingTable.id);
         const childrenTotal = latestGroup.criteria.reduce((sum, criterion) => sum + criterion.maxPoint, 0);
@@ -481,9 +474,9 @@ export default function CriteriaListPage() {
         }
         // Hạn nộp mới của nhóm không được sớm hơn hạn nộp của tiêu chí con hiện có.
         if (closeDate) {
-          const newDeadlineMs = new Date(closeDate).getTime();
+          const newDeadlineMs = parseVietnamDateTime(closeDate);
           const violating = latestGroup.criteria.find(
-            (criterion) => criterion.deadline && new Date(criterion.deadline).getTime() > newDeadlineMs,
+            (criterion) => criterion.deadline && parseVietnamDateTime(criterion.deadline) > newDeadlineMs,
           );
           if (violating) {
             toast.error(`Hạn nộp của tiêu chí con "${violating.content}" không được vượt quá hạn nộp mới của nhóm tiêu chí.`);
@@ -496,7 +489,7 @@ export default function CriteriaListPage() {
         const createdGroup = await criteriaGroupsApi.create(payload);
         if (importedCriteria) {
           createdGroupId = createdGroup.id;
-          await criteriaGroupsApi.createBulk(createdGroup.id, importedCriteria);
+          await criteriaGroupsApi.createBulk(createdGroup.id, importedCriteria.map((item) => ({ ...item, deadline: toVietnamOffsetDateTime(item.deadline) })));
           importedChildrenCreated = true;
           toast.success(`Đã nhập nhóm tiêu chí và ${importedCriteria.length} tiêu chí con từ Excel.`);
         } else {

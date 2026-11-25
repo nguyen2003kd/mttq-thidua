@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useScoreStore } from '@/store/scoreStore';
 import { criteriaGroupsApi, getCriteriaApiError } from '@/features/admin/api/criteriaGroupsApi';
+import { toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 interface DeadlineExtensionManageDialogProps {
   open: boolean;
@@ -18,13 +19,7 @@ interface DeadlineExtensionManageDialogProps {
   group: { id: string; name: string; deadline?: string | null } | null;
 }
 
-function toLocalInputValue(iso?: string | null) {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+const toLocalInputValue = toVietnamDateTimeInput;
 
 function formatDeadline(iso: string) {
   const date = new Date(iso);
@@ -98,7 +93,7 @@ export function DeadlineExtensionManageDialog({ open, onOpenChange, group }: Dea
     if (!wardCode || !deadline) return;
     upsertMutation.mutate({
       wardCode,
-      extendedDeadline: new Date(deadline).toISOString(),
+      extendedDeadline: toVietnamOffsetDateTime(deadline)!,
       reason: reason.trim() || undefined,
     });
   };
