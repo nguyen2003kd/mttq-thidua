@@ -210,7 +210,7 @@ export default function CriteriaListPage() {
         header: LABELS.CRITERIA_TABLE_NAME,
         enableSorting: false,
         cell: ({ row }) => (
-          <TruncatedText value={row.original.name} className="w-full max-w-full font-medium" />
+          <TruncatedText value={row.original.name} maxLines={2} className="w-full max-w-full font-medium" />
         ),
         meta: {
           className: 'font-medium',
@@ -225,7 +225,7 @@ export default function CriteriaListPage() {
         header: 'Ban xử lý',
         enableSorting: false,
         cell: ({ row }) => (
-          <TruncatedText value={row.original.departmentName} className="w-full max-w-full" />
+          <TruncatedText value={row.original.departmentName} maxLines={2} className="w-full max-w-full" />
         ),
         meta: { disableTooltip: true, sortable: false, list: { label: 'Ban xử lý', width: 'minmax(140px, 1fr)' } },
       },
@@ -245,7 +245,7 @@ export default function CriteriaListPage() {
         header: 'Nội dung tiêu chí',
         enableSorting: false,
         cell: ({ row }) => (
-          <TruncatedText value={row.original.content} className="w-full max-w-[280px] text-sm text-muted-foreground" />
+          <TruncatedText value={row.original.content} maxLines={3} className="w-full max-w-[280px] text-sm text-muted-foreground" />
         ),
         meta: { disableTooltip: true, sortable: false, list: { label: 'Nội dung tiêu chí', width: 'minmax(220px, 1.4fr)' } },
       },
@@ -269,15 +269,6 @@ export default function CriteriaListPage() {
           sortable: true,
           list: { label: LABELS.CRITERIA_TOTAL_SCORE, width: '1fr', valueClassName: 'text-primary' },
         },
-      },
-      {
-        accessorKey: 'note',
-        header: 'Ghi chú',
-        enableSorting: false,
-        cell: ({ row }) => (
-          <TruncatedText value={row.original.note} className="w-full max-w-[180px] text-sm text-muted-foreground" />
-        ),
-        meta: { disableTooltip: true, sortable: false, list: { label: 'Ghi chú', width: 'minmax(160px, 1fr)' } },
       },
       {
         accessorKey: 'status',

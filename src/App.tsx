@@ -9,6 +9,7 @@ import { LocalityLayout } from '@/components/layout/LocalityLayout';
 import { RequireAuth } from '@/routes/guards/RequireAuth';
 import { RequireRole } from '@/routes/guards/RequireRole';
 import { ROUTES } from '@/constants/routes';
+import { defaultRouteForRole } from '@/lib/rbac';
 import type { Role } from '@/types/rbac';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -30,9 +31,7 @@ const CriteriaListPage = lazy(() => import('@/features/admin/pages/CriteriaListP
 const CriteriaPeriodSelectionPage = lazy(() => import('@/features/admin/pages/CriteriaPeriodSelectionPage'));
 const CriteriaDetailPage = lazy(() => import('@/features/admin/pages/CriteriaDetailPage'));
 const CriteriaFormPage = lazy(() => import('@/features/admin/pages/CriteriaFormPage'));
-const DeadlineConfigPage = lazy(() => import('@/features/admin/pages/DeadlineConfigPage'));
 const AdminDashboardPage = lazy(() => import('@/features/admin/pages/AdminDashboardPage'));
-const LocalityListPage = lazy(() => import('@/features/admin/pages/LocalityListPage'));
 const AdminManagementPage = lazy(() => import('@/features/admin/pages/AdminManagementPage'));
 const ScoreByCriteriaPage = lazy(() => import('@/features/cham-diem/pages/ScoreByCriteriaPage'));
 const ScoreByLocalityPage = lazy(() => import('@/features/cham-diem/pages/ScoreByLocalityPage'));
@@ -83,7 +82,10 @@ function SpecialistReviewEntryPage() {
         emptyDescription: 'Chưa có kỳ thi đua để chấm và thẩm định.',
         stickyDescription: 'Chọn một kỳ để xem hồ sơ địa phương.',
       }}
-      onOpenPeriod={(period) => navigate(`${ROUTES.SPECIALIST_REVIEW}?groupPeriodFilter=${encodeURIComponent(period.id)}`)}
+      onOpenPeriod={(period) => {
+        const asQuery = searchParams.get('as') ? `&as=${encodeURIComponent(searchParams.get('as')!)}` : '';
+        navigate(`${ROUTES.SPECIALIST_REVIEW}?groupPeriodFilter=${encodeURIComponent(period.id)}${asQuery}`);
+      }}
     />
   );
 }
@@ -195,6 +197,16 @@ function RoleHomeRedirect() {
     case 'ADMIN': return <Navigate to={ROUTES.ADMIN_CRITERIA_LIST} replace />;
     default: return <Navigate to={ROUTES.LOGIN} replace />;
   }
+}
+
+/** /thi-dua/duyet → tab đầu tiên với ADMIN; role duyệt khác về đúng màn của mình. */
+function DuyetIndexRedirect() {
+  const user = useAuthStore((state) => state.user);
+  if (!user) return <Navigate to={ROUTES.LOGIN} replace />;
+  const target = user.role === 'ADMIN'
+    ? '/thi-dua/cham-diem'
+    : defaultRouteForRole(user.role, user);
+  return <Navigate to={target} replace />;
 }
 
 /** Lắng nghe sự kiện `auth:logout` (từ interceptor 401) và điều hướng về /login. */
@@ -361,14 +373,14 @@ export default function App() {
               <Route path="bang-tieu-chi" element={<CriteriaListPage />} />
               <Route path="bang-tieu-chi/:id/chi-tiet" element={<CriteriaDetailPage />} />
               <Route path="bang-tieu-chi/:id" element={<CriteriaFormPage />} />
-              <Route path="cau-hinh-thoi-han" element={<DeadlineConfigPage />} />
               <Route path="quan-ly" element={<AdminManagementPage />} />
               <Route path="tai-khoan" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=tai-khoan`} replace />} />
               <Route path="ban" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ban`} replace />} />
               <Route path="cum" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=cum`} replace />} />
               <Route path="ky" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ky`} replace />} />
               <Route path="cau-hinh-diem" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=cau-hinh-diem`} replace />} />
-              <Route path="dia-phuong" element={<LocalityListPage />} />
+              <Route path="cau-hinh-thoi-han" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=ky`} replace />} />
+              <Route path="dia-phuong" element={<Navigate to={`${ROUTES.ADMIN_MANAGEMENT}?tab=dia-phuong`} replace />} />
               <Route path="dashboard" element={<AdminDashboardPage />} />
             </Route>
 
@@ -412,83 +424,30 @@ export default function App() {
               <Route path=":diaPhuongId/:nhomTieuChiId" element={<ScoreByLocalityPage />} />
             </Route>
 
-            {/* Duyệt routes */}
+            {/* Duyệt routes — gộp chung một nhánh; ADMIN thấy thanh tab chuyển cấp (AdminApprovalTabs trong AppLayout). */}
             <Route
-              path="/thi-dua/duyet/lanh-dao-ban/:banId"
+              path="/thi-dua/duyet"
               element={
                 <RequireAuth>
-                  <RequireRole roles={['LEADER', 'ADMIN']}>
-                    <AppLayout>
-                      <BanLeaderApprovalPage />
-                    </AppLayout>
-                  </RequireRole>
+                  <AppLayout>
+                    <Outlet />
+                  </AppLayout>
                 </RequireAuth>
               }
-            />
-            <Route
-              path="/thi-dua/duyet/lanh-dao-ban/:banId/:localityId"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['LEADER', 'ADMIN']}>
-                    <AppLayout>
-                      <BanLeaderCriteriaGroupsPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/thi-dua/duyet/lanh-dao-ban/:banId/chi-tiet/:tableId/:localityId"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['LEADER', 'ADMIN']}>
-                    <AppLayout>
-                      <BanLeaderReviewDetailPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/thi-dua/duyet/lanh-dao-ban/:banId/lich-su"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['LEADER', 'ADMIN']}>
-                    <AppLayout>
-                      <BanLeaderHistoryPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/thi-dua/duyet/hoi-dong-tdkt"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['COUNCIL', 'ADMIN']}>
-                    <AppLayout>
-                      <CouncilApprovalEntryPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/thi-dua/duyet/hoi-dong-tdkt/:localityId"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['COUNCIL', 'ADMIN']}>
-                    <AppLayout>
-                      <CouncilCriteriaGroupsPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/thi-dua/duyet/hoi-dong-tdkt/:localityId/:groupId"
-              element={<RequireAuth><RequireRole roles={['COUNCIL', 'ADMIN']}><AppLayout><ReadOnlyApprovalDetailPage reviewer="council" /></AppLayout></RequireRole></RequireAuth>}
-            />
+            >
+              <Route index element={<DuyetIndexRedirect />} />
+              <Route path="lanh-dao-ban/:banId" element={<RequireRole roles={['LEADER', 'ADMIN']}><BanLeaderApprovalPage /></RequireRole>} />
+              <Route path="lanh-dao-ban/:banId/:localityId" element={<RequireRole roles={['LEADER', 'ADMIN']}><BanLeaderCriteriaGroupsPage /></RequireRole>} />
+              <Route path="lanh-dao-ban/:banId/chi-tiet/:tableId/:localityId" element={<RequireRole roles={['LEADER', 'ADMIN']}><BanLeaderReviewDetailPage /></RequireRole>} />
+              <Route path="lanh-dao-ban/:banId/lich-su" element={<RequireRole roles={['LEADER', 'ADMIN']}><BanLeaderHistoryPage /></RequireRole>} />
+              <Route path="hoi-dong-tdkt" element={<RequireRole roles={['COUNCIL', 'ADMIN']}><CouncilApprovalEntryPage /></RequireRole>} />
+              <Route path="hoi-dong-tdkt/:localityId" element={<RequireRole roles={['COUNCIL', 'ADMIN']}><CouncilCriteriaGroupsPage /></RequireRole>} />
+              <Route path="hoi-dong-tdkt/:localityId/:groupId" element={<RequireRole roles={['COUNCIL', 'ADMIN']}><ReadOnlyApprovalDetailPage reviewer="council" /></RequireRole>} />
+              <Route path="ban-thuong-truc" element={<RequireRole roles={['COMMITTEE', 'ADMIN']}><CommitteeApprovalEntryPage /></RequireRole>} />
+              <Route path="ban-thuong-truc/duyet" element={<RequireRole roles={['COMMITTEE', 'ADMIN']}><CommitteeApprovalEntryPage /></RequireRole>} />
+              <Route path="ban-thuong-truc/:localityId" element={<RequireRole roles={['COMMITTEE', 'ADMIN']}><CommitteeCriteriaGroupsPage /></RequireRole>} />
+              <Route path="ban-thuong-truc/:localityId/:groupId" element={<RequireRole roles={['COMMITTEE', 'ADMIN']}><ReadOnlyApprovalDetailPage reviewer="committee" /></RequireRole>} />
+            </Route>
             <Route
               path="/hoi-dong/lich-su"
               element={
@@ -504,30 +463,6 @@ export default function App() {
             <Route
               path={ROUTES.COUNCIL_SCORE_SUMMARY}
               element={<RequireAuth><RequireRole roles={['COUNCIL', 'ADMIN']}><AppLayout><SpecialistScoreSummaryPage readOnly /></AppLayout></RequireRole></RequireAuth>}
-            />
-            <Route
-              path="/thi-dua/duyet/ban-thuong-truc"
-              element={
-                <RequireAuth>
-                  <RequireRole roles={['COMMITTEE', 'ADMIN']}>
-                    <AppLayout>
-                      <CommitteeApprovalEntryPage />
-                    </AppLayout>
-                  </RequireRole>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/thi-dua/duyet/ban-thuong-truc/duyet"
-              element={<RequireAuth><RequireRole roles={['COMMITTEE', 'ADMIN']}><AppLayout><CommitteeApprovalEntryPage /></AppLayout></RequireRole></RequireAuth>}
-            />
-            <Route
-              path="/thi-dua/duyet/ban-thuong-truc/:localityId"
-              element={<RequireAuth><RequireRole roles={['COMMITTEE', 'ADMIN']}><AppLayout><CommitteeCriteriaGroupsPage /></AppLayout></RequireRole></RequireAuth>}
-            />
-            <Route
-              path="/thi-dua/duyet/ban-thuong-truc/:localityId/:groupId"
-              element={<RequireAuth><RequireRole roles={['COMMITTEE', 'ADMIN']}><AppLayout><ReadOnlyApprovalDetailPage reviewer="committee" /></AppLayout></RequireRole></RequireAuth>}
             />
             <Route
               path="/uy-ban/lich-su"

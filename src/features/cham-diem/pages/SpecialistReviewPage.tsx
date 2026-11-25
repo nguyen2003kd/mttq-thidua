@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { getGetApiV1CriteriaGroupsQueryKey, getGetApiV1CriteriaGroupsIdQueryKey } from '@/api/endpoints/criteria-groups';
 import { getGetApiV1SubmissionsQueryKey, getGetApiV1SubmissionsIdQueryKey, getGetApiV1CriteriaGroupsGroupIdSubmissionsQueryKey } from '@/api/endpoints/submissions';
@@ -1581,7 +1581,21 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userRole = useAuthStore((s) => s.user?.role);
-  const scoringRole: ScoringRole = userRole === 'SCORER' || userRole === 'REVIEWER' ? userRole : 'SPECIALIST';
+  const [searchParams] = useSearchParams();
+  // ADMIN xem trang theo đúng vai trò của từng tab Duyệt: ?as=scorer|reviewer|specialist.
+  // /thi-dua/cham-diem vốn là bàn làm việc người chấm → mặc định SCORER khi thiếu `as`.
+  const asParam = searchParams.get('as')?.toLowerCase();
+  const adminViewRole: ScoringRole | undefined =
+    asParam === 'scorer' ? 'SCORER'
+    : asParam === 'reviewer' ? 'REVIEWER'
+    : asParam === 'specialist' ? 'SPECIALIST'
+    : undefined;
+  const scoringRole: ScoringRole =
+    userRole === 'SCORER' || userRole === 'REVIEWER'
+      ? userRole
+      : userRole === 'ADMIN'
+        ? adminViewRole ?? (basePath === '/thi-dua/cham-diem' ? 'SCORER' : 'SPECIALIST')
+        : 'SPECIALIST';
   const {
     filters: { localitySearch, submissionStageFilter, groupSearch, groupStatusFilter, groupSortFilter, groupYearFilter, groupPeriodFilter },
     setters: {
@@ -1612,10 +1626,12 @@ export default function SpecialistReviewPage({ basePath = '/chuyen-vien/duyet', 
     groupPeriodFilter: usePeriodStore.getState().selectedPeriodId ?? '',
   });
   const withGroupPeriodFilter = (path: string) => {
-    if (!groupPeriodFilter) return path;
-    return basePath === '/thi-dua/cham-diem'
+    const asQuery = asParam ? `as=${encodeURIComponent(asParam)}` : '';
+    if (!groupPeriodFilter) return asQuery ? `${path}?${asQuery}` : path;
+    const url = basePath === '/thi-dua/cham-diem'
       ? buildScoreEntryUrl(path, groupPeriodFilter)
       : `${path}?groupPeriodFilter=${encodeURIComponent(groupPeriodFilter)}`;
+    return asQuery ? `${url}&${asQuery}` : url;
   };
   const [groupColumnVisibility, setGroupColumnVisibility] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return {};

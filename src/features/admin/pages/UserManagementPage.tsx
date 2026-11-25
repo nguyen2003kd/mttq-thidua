@@ -26,6 +26,7 @@ import type { CreateUserRequest, UpdateUserRequest } from '@/api/models';
 import { departmentsApi } from '../api/departmentsApi';
 import { isValidVietnamesePhoneNumber as isValidPhoneNumber } from '../userValidation';
 import { useAuthStore } from '@/store/authStore';
+import { vnWards } from '@/data/vn-wards';
 
 // Swagger gen chưa cập nhật fullName/departmentId — mở rộng local cho tới khi chạy lại gen:api.
 type CreateUserBody = CreateUserRequest & { fullName?: string | null; departmentId?: string | null };
@@ -81,6 +82,9 @@ const CREATE_ROLE_OPTIONS = [
 const statusLabels: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
 const roleLabels: Record<string, string> = Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label]));
 
+/** Tra tên phường/xã theo mã — build map 1 lần (3321 entries). */
+const wardNameByCode = new Map(vnWards.map((w) => [w.code, w.name]));
+
 function roleLabel(raw: string): string {
   const normalized = raw.trim().toUpperCase().replace(/[-\s]/g, '_');
   const map: Record<string, string> = {
@@ -128,6 +132,8 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const currentRole = useAuthStore((s) => s.user?.role);
   const canManageAccounts = ['ADMIN', 'SYSTEM_ADMIN'].includes(currentRole ?? '');
   const canCreateAccounts = canManageAccounts || currentRole === 'SPECIALIST';
+  // ADMIN/SYSTEM_ADMIN xem tài khoản của tất cả vai trò; SPECIALIST chỉ xem tài khoản chấm (như cũ).
+  const showAllRoles = canManageAccounts;
   const {
     filters: { userSearch: search, userStatus: statusFilter, userRole: roleFilter },
     setters: { userSearch: setSearch, userStatus: setStatusFilter, userRole: setRoleFilter },
@@ -135,23 +141,40 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
   const debouncedSearch = useDebounce(search, 350);
 
   const usersQuery = useQuery({
-    queryKey: dataQueryKey(getGetApiV1UsersQueryKey(), { search: debouncedSearch.trim(), status: statusFilter, role: roleFilter, page: 1, pageSize: 100 }),
+    queryKey: dataQueryKey(getGetApiV1UsersQueryKey(), { search: debouncedSearch.trim(), status: statusFilter, role: roleFilter }),
     queryFn: async () => {
-      const raw = await getApiV1Users({
+      const params = {
         Search: debouncedSearch.trim() || undefined,
         Status: statusFilter || undefined,
         Role: roleFilter || undefined,
-        Page: 1,
         PageSize: 100,
-      });
-      return (raw as unknown as UsersEnvelope)?.data ?? { items: [], total: 0 };
+      };
+      // Fetch hết các trang — tài khoản địa phương có thể nằm ngoài trang 1.
+      const first = (await getApiV1Users({ ...params, Page: 1 })) as unknown as UsersEnvelope;
+      const firstData = first?.data ?? { items: [], total: 0 };
+      const pageCount = Math.ceil((firstData.total ?? 0) / 100);
+      if (pageCount <= 1) return firstData;
+
+      const rest = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, index) =>
+          getApiV1Users({ ...params, Page: index + 2 })
+            .then((raw) => ((raw as unknown as UsersEnvelope)?.data?.items ?? [])),
+        ),
+      );
+      return { ...firstData, items: [...(firstData.items ?? []), ...rest.flat()] };
     },
   });
 
-  // Trang quản lý tài khoản chỉ dành cho tài khoản chấm điểm: Chuyên viên cấp 2 và Lãnh đạo ban.
-  const users = (usersQuery.data?.items ?? []).filter((user) =>
-    (user.roles ?? []).some((role) => ['SCORER', 'REVIEWER'].includes(role.trim().toUpperCase())),
-  );
+  // ADMIN xem tài khoản nội bộ mọi vai trò — tk Địa phương có tab riêng nên mặc định ẩn,
+  // chỉ hiện khi chủ động lọc "Vai trò = Địa phương". Vai trò khác chỉ thấy tài khoản chấm điểm.
+  const allUsers = usersQuery.data?.items ?? [];
+  const users = showAllRoles
+    ? (roleFilter ? allUsers : allUsers.filter((user) =>
+        !(user.roles ?? []).some((role) => role.trim().toUpperCase() === 'LOCAL'),
+      ))
+    : allUsers.filter((user) =>
+        (user.roles ?? []).some((role) => ['SCORER', 'REVIEWER'].includes(role.trim().toUpperCase())),
+      );
 
   const departmentsQuery = useQuery({
     queryKey: dataQueryKey(getGetApiV1DepartmentsAllQueryKey()),
@@ -296,6 +319,15 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       meta: { list: { width: 'minmax(120px, 1fr)' } },
       cell: ({ row }) => row.original.departmentName ?? '—',
     },
+    ...(showAllRoles ? [{
+      id: 'locality',
+      header: 'Địa phương',
+      meta: { list: { width: 'minmax(140px, 1fr)' } },
+      cell: ({ row }) => {
+        const code = row.original.wardCode;
+        return !code ? '—' : (wardNameByCode.get(code) ?? code);
+      },
+    } satisfies ColumnDef<ManagedUser>] : []),
     {
       accessorFn: (row) => statusLabels[row.status] ?? row.status,
       id: 'status',
@@ -312,7 +344,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
       meta: { align: 'right', sortable: true, list: { width: '130px', valueClassName: 'text-xs' } },
       cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-muted-foreground">{formatDate(row.original.createdAt)}</span>,
     },
-  ], []);
+  ], [showAllRoles]);
 
   return (
     <div>
@@ -348,7 +380,7 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
               label="Vai trò"
               value={roleFilter}
               onChange={setRoleFilter}
-              options={[{ value: '', label: 'Tất cả' }, ...CREATE_ROLE_OPTIONS]}
+              options={[{ value: '', label: 'Tất cả' }, ...(showAllRoles ? ROLE_OPTIONS : CREATE_ROLE_OPTIONS)]}
             />
           </div>
         }
@@ -360,7 +392,9 @@ export default function UserManagementPage({ embedded = false }: { embedded?: bo
         onClearFilters={() => { setSearch(''); setStatusFilter(''); setRoleFilter(''); }}
         emptyState={{
           title: 'Chưa có tài khoản',
-          description: 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',
+          description: showAllRoles
+            ? 'Chưa có tài khoản nào trong hệ thống. Thêm tài khoản đầu tiên để bắt đầu.'
+            : 'Trang này chỉ hiển thị tài khoản Chuyên viên cấp 2 và Lãnh đạo ban. Thêm tài khoản đầu tiên để bắt đầu.',
         }}
         toolbar={
           canCreateAccounts ? (
