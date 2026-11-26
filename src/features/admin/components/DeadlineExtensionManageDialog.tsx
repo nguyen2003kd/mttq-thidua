@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useScoreStore } from '@/store/scoreStore';
 import { criteriaGroupsApi, getCriteriaApiError } from '@/features/admin/api/criteriaGroupsApi';
-import { toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadline, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 interface DeadlineExtensionManageDialogProps {
   open: boolean;
@@ -21,10 +21,6 @@ interface DeadlineExtensionManageDialogProps {
 
 const toLocalInputValue = toVietnamDateTimeInput;
 
-function formatDeadline(iso: string) {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('vi-VN');
-}
 
 /** Dialog quản lý gia hạn nộp của một nhóm tiêu chí cho từng địa phương — dành cho ADMIN. */
 export function DeadlineExtensionManageDialog({ open, onOpenChange, group }: DeadlineExtensionManageDialogProps) {
@@ -109,7 +105,7 @@ export function DeadlineExtensionManageDialog({ open, onOpenChange, group }: Dea
           </DialogTitle>
           <DialogDescription>
             {group?.name}
-            {group?.deadline ? ` · Hạn gốc: ${formatDeadline(group.deadline)}` : ' · Chưa có hạn nộp'}
+            {group?.deadline ? ` · Hạn gốc: ${formatVietnamDeadline(group.deadline)}` : ' · Chưa có hạn nộp'}
           </DialogDescription>
         </DialogHeader>
 
@@ -159,7 +155,7 @@ export function DeadlineExtensionManageDialog({ open, onOpenChange, group }: Dea
                   <div className="min-w-0">
                     <p className="font-medium">{item.localityName ?? item.wardCode}</p>
                     <p className="text-xs text-muted-foreground">
-                      Đến {formatDeadline(item.extendedDeadline)}
+                      Đến {formatVietnamDeadline(item.extendedDeadline)}
                       {item.reason ? ` · ${item.reason}` : ''}
                     </p>
                   </div>

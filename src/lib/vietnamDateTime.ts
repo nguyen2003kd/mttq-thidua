@@ -24,6 +24,16 @@ export function toVietnamDateTimeInput(value?: string | number | null): string {
   return new Date(timestamp + VIETNAM_OFFSET_MS).toISOString().slice(0, 16);
 }
 
+/** Format deadline in Vietnamese time, consistently across browsers: DD/MM/YYYY HH:mm. */
+export function formatVietnamDeadline(value?: string | number | Date | null): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const input = toVietnamDateTimeInput(value instanceof Date ? value.getTime() : value);
+  if (!input) return '—';
+  const [date, time] = input.split('T');
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year} ${time}`;
+}
+
 /** Attach explicit +07:00 to a datetime-local value before submitting it to DateTimeOffset APIs. */
 export function toVietnamOffsetDateTime(value?: string | null): string | null {
   if (!value) return null;

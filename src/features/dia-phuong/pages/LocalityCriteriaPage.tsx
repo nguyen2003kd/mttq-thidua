@@ -17,6 +17,7 @@ import { isDeadlineBlockingLocalityEdit } from '@/features/workflow/deadlineRule
 import type { SpecialistRevisionFile } from '@/features/workflow/components/LocalityScoreTable';
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
+import { formatVietnamDeadline } from '@/lib/vietnamDateTime';
 import { submitAfterSuccessfulUploads } from '@/features/dia-phuong/submissionFlow';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
@@ -62,7 +63,7 @@ function CriterionDetailDialog({ open, onOpenChange, item, evidence, onPreview, 
   const { entry, criterion } = item;
   const fields = [
     ['Loại tiêu chí', entry.isSupplementary ? 'Tiêu chí bổ sung' : 'Tiêu chí chấm điểm'],
-    ['Hạn nộp', criterion?.deadline ? formatDate(criterion.deadline) : 'Chưa có hạn'],
+    ['Hạn nộp', criterion?.deadline ? formatVietnamDeadline(criterion.deadline) : 'Chưa có hạn'],
     ['Điểm đề xuất', `${entry.proposedScore ?? entry.value ?? 0} / ${criterion?.maxScore ?? entry.supplementaryMaxScore ?? 0}`],
     ['Điểm thưởng đề xuất', `${entry.proposedBonusScore ?? 0} / ${entry.isSupplementary ? 0 : (maxBonusPoint ?? criterion?.bonusScore ?? 0)}`],
   ];
@@ -366,8 +367,8 @@ export default function LocalityCriteriaPage() {
         header: 'Hạn nộp',
         enableSorting: true,
         sortDescFirst: false,
-        cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
-        meta: { sortable: true, list: { label: 'Hạn nộp', width: 'minmax(115px, .72fr)' } },
+        cell: ({ row }) => formatVietnamDeadline(row.original.closeDate),
+        meta: { sortable: true, list: { label: 'Hạn nộp', width: 'minmax(165px, .9fr)' } },
       },
       {
         accessorKey: 'totalScore',
@@ -1091,7 +1092,7 @@ export default function LocalityCriteriaPage() {
     <div className="space-y-5 pb-6">
       <PageHeader
         title="Tự đánh giá và gửi minh chứng"
-        description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatDate(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`}
+        description={`${detailTable.name} · ${detailTable.closeDate ? `Hạn nộp ${formatVietnamDeadline(detailTable.closeDate)}` : 'Chưa có hạn nộp'}`}
         summary={<ScoreStateBadge state={record.state} size="lg" />}
         actions={<div className="flex flex-wrap items-center gap-2">{decisionFiles.length > 0 && <Button variant="info" onClick={() => { if (decisionFiles.length === 1) { setPreviewFile({ id: decisionFiles[0].id, originalName: decisionFiles[0].displayName || decisionFiles[0].originalName }); } else { setDecisionOpen(true); } }}><FileText className="size-4" />Xem quyết định{decisionFiles.length > 1 ? ` (${decisionFiles.length})` : ''}</Button>}<Button variant="info" onClick={() => setHistoryOpen(true)}><History className="size-4" />Lịch sử</Button><Button variant="back" render={<Link to={`/dia-phuong/tieu-chi?periodId=${encodeURIComponent(periodFilter)}`} />} nativeButton={false}><ArrowLeft className="size-4" />Quay lại</Button></div>}
       />

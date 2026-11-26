@@ -26,9 +26,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LABELS } from '@/constants/labels';
 import { CRITERIA_STATUS_LABELS } from '@/constants/enums';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AlertTriangle, Plus, Eye, Pencil, Send, Calendar, CalendarClock, Info, Trash2, Download, FileUp } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -39,7 +40,7 @@ import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
-import { parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadline, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile, type ParsedCriteriaItem } from '@/features/admin/criteriaExcel';
 import { DeadlineExtensionManageDialog } from '@/features/admin/components/DeadlineExtensionManageDialog';
@@ -255,10 +256,36 @@ export default function CriteriaListPage() {
         header: 'Hạn nộp',
         enableSorting: true,
         sortDescFirst: false,
-        cell: ({ row }) => row.original.closeDate ? formatDate(row.original.closeDate) : '—',
+        cell: ({ row }) => {
+          const deadline = row.original.closeDate;
+          if (!deadline) return '—';
+          const formattedDeadline = formatVietnamDeadline(deadline);
+
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    tabIndex={0}
+                    aria-label={`Hạn nộp: ${formattedDeadline}, giờ Việt Nam UTC+7`}
+                    className="block w-full min-w-0 max-w-full cursor-help truncate whitespace-nowrap font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  />
+                }
+              >
+                {formattedDeadline}
+              </TooltipTrigger>
+              <TooltipContent side="top" className="flex min-w-48 flex-col items-start gap-1 px-3 py-2.5 text-left">
+                <span className="text-[11px] font-medium text-muted-foreground">Hạn nộp</span>
+                <span className="text-sm font-semibold tabular-nums">{formattedDeadline}</span>
+                <span className="text-[11px] text-muted-foreground">Giờ Việt Nam (UTC+7)</span>
+              </TooltipContent>
+            </Tooltip>
+          );
+        },
         meta: {
           sortable: true,
-          list: { label: 'Hạn nộp', width: '1fr' },
+          disableTooltip: true,
+          list: { label: 'Hạn nộp', width: 'minmax(160px, 1fr)' },
         },
       },
       {
@@ -367,7 +394,7 @@ export default function CriteriaListPage() {
       setName(parsed.name);
       setTotalScore(String(parsed.maxPoint));
       setContent(parsed.content);
-      setCloseDate(parsed.deadline ?? '');
+      setCloseDate(toVietnamDateTimeInput(parsed.deadline));
       setImportedCriteria(parsed.criteria);
       setOpen(true);
       toast.success(`Đã đọc ${parsed.criteria.length} tiêu chí con. Vui lòng chọn kỳ thi đua và ban xử lý.`);
