@@ -4,7 +4,7 @@ import { Button, FormDialog } from '@/components/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadline, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 export interface DeadlineExtensionGrant {
   extendedDeadline: string;
@@ -24,10 +24,6 @@ interface DeadlineExtensionDialogProps {
 
 const toLocalInputValue = toVietnamDateTimeInput;
 
-function formatDeadline(iso: string) {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('vi-VN');
-}
 
 /** Dialog gia hạn nộp hồ sơ cho một địa phương trên một nhóm tiêu chí. */
 export function DeadlineExtensionDialog({
@@ -69,7 +65,7 @@ export function DeadlineExtensionDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Gia hạn nộp cho địa phương"
-      description={`${localityName} · ${groupName}${groupDeadline ? ` · Hạn gốc: ${formatDeadline(groupDeadline)}` : ' · Chưa có hạn nộp'}`}
+      description={`${localityName} · ${groupName}${groupDeadline ? ` · Hạn gốc: ${formatVietnamDeadline(groupDeadline)}` : ' · Chưa có hạn nộp'}`}
       onSubmit={(event) => { void handleSubmit(event); }}
       submitLabel={submitting ? 'Đang lưu…' : 'Lưu gia hạn'}
       cancelLabel="Đóng"
@@ -77,7 +73,7 @@ export function DeadlineExtensionDialog({
     >
       {currentGrant && (
         <div className="flex items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">
-          <span className="min-w-0">Đang gia hạn đến <strong>{formatDeadline(currentGrant.extendedDeadline)}</strong></span>
+          <span className="min-w-0">Đang gia hạn đến <strong>{formatVietnamDeadline(currentGrant.extendedDeadline)}</strong></span>
           {onRevoke && (
             <Button type="button" variant="ghost" size="sm" className="shrink-0 text-destructive hover:bg-destructive/10" disabled={revoking}
               onClick={() => {

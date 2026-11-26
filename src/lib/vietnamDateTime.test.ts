@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from './vietnamDateTime';
+import { formatVietnamDeadline, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from './vietnamDateTime';
 
 describe('Vietnam deadline timezone', () => {
   it('parses TimeAPI local datetime (no offset) as UTC+7, not UTC', () => {
@@ -23,6 +23,17 @@ describe('Vietnam deadline timezone', () => {
 
   it('preserves the legacy date-only end-of-day behavior', () => {
     expect(toVietnamDateTimeInput('2026-11-26')).toBe('2026-11-26T23:59');
+  });
+
+  it('renders full deadline with Vietnam date and time for UTC and ICT inputs', () => {
+    expect(formatVietnamDeadline('2026-11-26T10:00:00Z')).toBe('26/11/2026 17:00');
+    expect(formatVietnamDeadline('2026-11-26T17:00:00+07:00')).toBe('26/11/2026 17:00');
+  });
+
+  it('renders midnight boundary and date-only deadlines in Vietnam time', () => {
+    expect(formatVietnamDeadline('2026-11-25T17:00:00Z')).toBe('26/11/2026 00:00');
+    expect(formatVietnamDeadline('2026-11-26')).toBe('26/11/2026 23:59');
+    expect(formatVietnamDeadline(null)).toBe('—');
   });
 
   it('does not depend on browser timezone for input conversion', () => {
