@@ -40,7 +40,7 @@ import { periodsApi } from '@/features/admin/api/periodsApi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useTrustedTime } from '@/hooks/useTrustedTime';
-import { formatVietnamDeadline, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadlineAmPm, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 import { validateCriteriaApplication, validateCriteriaDeadline } from '@/features/admin/criteriaValidation';
 import { downloadCriteriaExcelTemplate, parseCriteriaExcelFile, type ParsedCriteriaItem } from '@/features/admin/criteriaExcel';
 import { DeadlineExtensionManageDialog } from '@/features/admin/components/DeadlineExtensionManageDialog';
@@ -259,7 +259,7 @@ export default function CriteriaListPage() {
         cell: ({ row }) => {
           const deadline = row.original.closeDate;
           if (!deadline) return '—';
-          const formattedDeadline = formatVietnamDeadline(deadline);
+          const formattedDeadline = formatVietnamDeadlineAmPm(deadline);
 
           return (
             <Tooltip>
@@ -285,7 +285,7 @@ export default function CriteriaListPage() {
         meta: {
           sortable: true,
           disableTooltip: true,
-          list: { label: 'Hạn nộp', width: 'minmax(160px, 1fr)' },
+          list: { label: 'Hạn nộp', width: 'minmax(195px, 1fr)' },
         },
       },
       {

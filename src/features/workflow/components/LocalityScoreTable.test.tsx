@@ -67,6 +67,7 @@ describe('LocalityScoreTable', () => {
     );
 
     expect(ref.current?.collectAll().has(overdueCriterion.id)).toBe(true);
+    expect(screen.getByText('01/01/2020 07:00 AM')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xóa minh chứng minh-chung.pdf' })).toBeDisabled();
   });
 });

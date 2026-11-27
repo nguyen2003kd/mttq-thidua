@@ -34,6 +34,16 @@ export function formatVietnamDeadline(value?: string | number | Date | null): st
   return `${day}/${month}/${year} ${time}`;
 }
 
+/** Hiển thị hạn nộp theo giờ Việt Nam và đồng hồ 12 giờ: DD/MM/YYYY hh:mm AM/PM. */
+export function formatVietnamDeadlineAmPm(value?: string | number | Date | null): string {
+  const formatted = formatVietnamDeadline(value);
+  if (formatted === '—') return formatted;
+  const separator = formatted.lastIndexOf(' ');
+  const [hours, minutes] = formatted.slice(separator + 1).split(':').map(Number);
+  const hour12 = String(hours % 12 || 12).padStart(2, '0');
+  return `${formatted.slice(0, separator)} ${hour12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
+}
+
 /** Attach explicit +07:00 to a datetime-local value before submitting it to DateTimeOffset APIs. */
 export function toVietnamOffsetDateTime(value?: string | null): string | null {
   if (!value) return null;
