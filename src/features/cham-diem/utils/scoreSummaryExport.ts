@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx-js-style';
+import * as XLSX from '@/lib/safeSpreadsheet';
 
 // Màu xanh hệ thống (--primary: 198 100% 28%)
 const PRIMARY = '0072B8';
@@ -156,11 +156,11 @@ function writeScaleBlock(worksheet: XLSX.WorkSheet, row: number): number {
   return current;
 }
 
-export function exportScoreSummaryToExcel(
+export async function exportScoreSummaryToExcel(
   rows: ScoreSummaryExportRow[],
   fileName: string,
   meta?: ScoreSummaryExportMeta,
-): void {
+): Promise<void> {
   const data: (string | number)[][] = [HEADERS];
   const clusterSpans: Array<{ start: number; count: number }> = [];
   let previousCluster: string | null = null;
@@ -234,5 +234,5 @@ export function exportScoreSummaryToExcel(
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Bảng tổng hợp');
-  XLSX.writeFile(workbook, fileName);
+  await XLSX.writeFile(workbook, fileName);
 }

@@ -1,11 +1,14 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { File as FileIcon, Music } from 'lucide-react';
-import * as XLSX from 'xlsx-js-style';
+import * as XLSX from '@/lib/safeSpreadsheet';
+import type { CellObject } from '@/lib/safeSpreadsheet';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from './Button';
 import { downloadFile, filesApi, getFileBlob, getFilesApiError, type FileItemApi } from '@/features/files/api/filesApi';
 import { cn } from '@/lib/utils';
+import { preparePdfPreviewBlob } from '@/lib/pdfPreview';
+import { prepareDocxPreview } from '@/lib/docxPreview';
 
 export interface FilePreviewDialogProps {
   /** File cần xem — null = đóng. Chỉ bắt buộc id; metadata (mimeType/extension/url) tự fetch. */
@@ -79,13 +82,26 @@ function resolveColor(color?: XlsColor): string | undefined {
   return undefined;
 }
 
-/** Map cell style khi đọc bằng SheetJS (chỉ trả về fill: {patternType, fgColor}) → CSS. */
+/** Convert the safe subset of ExcelJS styling into CSS for readonly previews. */
 function cellStyleToCss(style: unknown): CSSProperties {
-  const s = style as { patternType?: string; fgColor?: XlsColor } | undefined;
+  const s = style as {
+    patternType?: string;
+    fgColor?: XlsColor;
+    font?: { bold?: boolean; italic?: boolean; color?: XlsColor };
+    alignment?: { horizontal?: string; wrapText?: boolean };
+  } | undefined;
   if (!s) return {};
   const css: CSSProperties = {};
   const fg = resolveColor(s.fgColor);
   if (fg && s.patternType !== 'none') css.backgroundColor = `#${fg}`;
+  const fontColor = resolveColor(s.font?.color);
+  if (fontColor) css.color = `#${fontColor}`;
+  if (s.font?.bold) css.fontWeight = 700;
+  if (s.font?.italic) css.fontStyle = 'italic';
+  if (s.alignment?.horizontal === 'center') css.textAlign = 'center';
+  if (s.alignment?.horizontal === 'right') css.textAlign = 'right';
+  if (s.alignment?.horizontal === 'left') css.textAlign = 'left';
+  if (s.alignment?.wrapText) css.whiteSpace = 'pre-wrap';
   return css;
 }
 
@@ -110,8 +126,8 @@ function sheetToRows(ws: XLSX.WorkSheet): { rows: SheetRowView[]; colWidths: num
   const merges = new Map<string, { colSpan: number; rowSpan: number }>();
   for (const m of ws['!merges'] ?? []) {
     merges.set(`${m.s.r},${m.s.c}`, { rowSpan: m.e.r - m.s.r + 1, colSpan: m.e.c - m.s.c + 1 });
-    for (let r = m.s.r; r <= m.e.r; r++) {
-      for (let c = m.s.c; c <= m.e.c; c++) {
+    for (let r = Math.max(m.s.r, range.s.r); r <= Math.min(m.e.r, range.s.r + SHEET_PREVIEW_MAX_ROWS - 1); r++) {
+      for (let c = Math.max(m.s.c, range.s.c); c <= Math.min(m.e.c, range.e.c); c++) {
         if (r !== m.s.r || c !== m.s.c) covered.add(`${r},${c}`);
       }
     }
@@ -125,7 +141,7 @@ function sheetToRows(ws: XLSX.WorkSheet): { rows: SheetRowView[]; colWidths: num
     if (!w) {
       let maxLen = 8;
       for (let r = range.s.r; r <= lastRow; r++) {
-        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+        const cell = ws[XLSX.utils.encode_cell({ r, c })] as CellObject | undefined;
         const len = (cell?.w ?? (cell?.v != null ? String(cell.v) : '')).length;
         if (len > maxLen) maxLen = len;
       }
@@ -138,7 +154,7 @@ function sheetToRows(ws: XLSX.WorkSheet): { rows: SheetRowView[]; colWidths: num
     const cells: SheetCellView[] = [];
     for (let c = range.s.c; c <= range.e.c; c++) {
       if (covered.has(`${r},${c}`)) continue;
-      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      const cell = ws[XLSX.utils.encode_cell({ r, c })] as CellObject | undefined;
       const merge = merges.get(`${r},${c}`);
       const style = cellStyleToCss(cell?.s);
       // Excel: số căn phải mặc định; text wrap xuống dòng để không bị cắt mất
@@ -151,7 +167,8 @@ function sheetToRows(ws: XLSX.WorkSheet): { rows: SheetRowView[]; colWidths: num
         style,
       });
     }
-    const rowHeight = ws['!rows']?.[r]?.hpx;
+    const rowInfo = ws['!rows']?.[r];
+    const rowHeight = rowInfo?.hpx ?? (rowInfo?.hpt ? rowInfo.hpt * 96 / 72 : undefined);
     rows.push({ cells, height: rowHeight ? Math.round(rowHeight) : undefined });
   }
   return { rows, colWidths, truncated: range.e.r > lastRow };
@@ -170,6 +187,19 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sheetViews, setSheetViews] = useState<SheetView[] | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
+  const [docxDocument, setDocxDocument] = useState<string | null>(null);
+
+  const fileName = file?.displayName || file?.originalName || resolved?.displayName || resolved?.originalName || '';
+  const ext = (resolved?.extension || resolved?.originalName?.split('.').pop() || file?.originalName?.split('.').pop() || fileName.split('.').pop() || '').toLowerCase().replace('.', '');
+  const mime = resolved?.mimeType?.toLowerCase() ?? '';
+  const isPdf = mime === 'application/pdf' || ext === 'pdf';
+  const isXlsx = ext === 'xlsx' || mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const isDocx = ext === 'docx' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const isCsv = ext === 'csv' || mime === 'text/csv';
+  const isLegacyOffice = ['doc', 'xls', 'ppt', 'pptx'].includes(ext);
+  // File riêng tư được tải qua API có xác thực và xem ngay trong trình duyệt.
+  // Không nhúng URL private vào Office Online Viewer.
+  const previewWithBlob = !isLegacyOffice && (useBlobPreview || isPdf || isXlsx || isDocx || isCsv);
 
   useEffect(() => {
     if (!fileId) return;
@@ -178,6 +208,8 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
     setBlobUrl(null);
     setUseBlobPreview(false);
     setPreviewError(null);
+    setDocxDocument(null);
+    setSheetViews(null);
     filesApi.get(fileId)
       .then((item) => {
         if (cancelled) return;
@@ -194,56 +226,60 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
   }, [fileId, fileUrl]);
 
   useEffect(() => {
-    if (!fileId || !useBlobPreview) return;
+    if (!fileId || !previewWithBlob) return;
     let cancelled = false;
     let objectUrl: string | null = null;
+    setBlobUrl(null);
+    setSheetViews(null);
+    setDocxDocument(null);
+    setPreviewError(null);
+    setActiveSheet(0);
+
     getFileBlob(fileId, fileUrl)
-      .then((blob) => {
+      .then(async (blob) => {
         if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setBlobUrl(objectUrl);
+        if (isDocx) {
+          const documentHtml = await prepareDocxPreview(blob);
+          if (!cancelled) setDocxDocument(documentHtml);
+        } else if (isXlsx || isCsv) {
+          const workbook = await XLSX.read(await blob.arrayBuffer(), {
+            type: 'array',
+            cellStyles: true,
+            ...(isCsv ? { format: 'csv' as const } : {}),
+          });
+          if (cancelled) return;
+          const activeTab = workbook.Workbook?.Views?.[0]?.activeTab ?? 0;
+          setActiveSheet(Math.max(0, Math.min(activeTab, workbook.SheetNames.length - 1)));
+          setSheetViews(workbook.SheetNames.map((name) => {
+            const { rows, colWidths, truncated } = sheetToRows(workbook.Sheets[name]);
+            return { name, rows, colWidths, truncated, headerRow: true };
+          }));
+        } else {
+          const previewBlob = isPdf ? await preparePdfPreviewBlob(blob) : blob;
+          if (cancelled) return;
+          objectUrl = URL.createObjectURL(previewBlob);
+          setBlobUrl(objectUrl);
+        }
+        if (!cancelled) setPreviewError(null);
       })
-      .catch((error) => { if (!cancelled) setPreviewError(getFilesApiError(error)); });
+      .catch((error: unknown) => {
+        if (!cancelled) setPreviewError(getFilesApiError(error));
+      });
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [fileId, fileUrl, useBlobPreview]);
+  }, [fileId, fileUrl, previewWithBlob, isPdf, isXlsx, isDocx, isCsv]);
 
-  const url = useBlobPreview ? blobUrl : (resolved?.url ?? file?.url ?? null);
-  const fileName = file?.displayName || file?.originalName || resolved?.displayName || resolved?.originalName || '';
-  const ext = (resolved?.extension || fileName.split('.').pop() || '').toLowerCase().replace('.', '');
+  const url = previewWithBlob ? blobUrl : (resolved?.url ?? file?.url ?? null);
   const isImage = !!resolved?.mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
-  const isCsv = ext === 'csv' || resolved?.mimeType === 'text/csv';
-  // xls/xlsx/doc/ppt → Office viewer; csv → render in-app bằng SheetJS
-  const isOfficeDoc = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)
-    || resolved?.mimeType === 'application/vnd.ms-excel'
-    || resolved?.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  const isPdf = resolved?.mimeType === 'application/pdf' || ext === 'pdf';
   const isAudio = !!resolved?.mimeType.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext);
   const isVideo = !!resolved?.mimeType.startsWith('video/') || ['mp4', 'webm', 'mov'].includes(ext);
-
-  // CSV: fetch arrayBuffer → XLSX.read → render bảng có chrome kiểu Excel
-  useEffect(() => {
-    if (!url || !isCsv) { setSheetViews(null); return; }
-    let cancelled = false;
-    setActiveSheet(0);
-    fetch(url)
-      .then((r) => r.arrayBuffer())
-      .then((buffer) => {
-        if (cancelled) return;
-        const workbook = XLSX.read(buffer, { type: 'array', cellStyles: true });
-        // Mở đúng sheet đang active khi lưu file (như Excel mở mặc định)
-        const activeTab = (workbook.Workbook?.Views?.[0] as { activeTab?: number } | undefined)?.activeTab ?? 0;
-        setActiveSheet(Math.min(Math.max(activeTab, 0), workbook.SheetNames.length - 1));
-        setSheetViews(workbook.SheetNames.map((name) => {
-          const { rows, colWidths, truncated } = sheetToRows(workbook.Sheets[name]);
-          return { name, rows, colWidths, truncated, headerRow: isCsv };
-        }));
-      })
-      .catch(() => { if (!cancelled) setSheetViews([]); });
-    return () => { cancelled = true; };
-  }, [url, isCsv]);
+  const isPreviewLoading = isDocx
+    ? docxDocument === null
+    : isXlsx || isCsv
+      ? sheetViews === null
+      : !isLegacyOffice && !url;
 
   return (
     <Dialog open={!!file} onOpenChange={onOpenChange}>
@@ -257,14 +293,14 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
               <FileIcon className="h-10 w-10 text-muted-foreground" />
               <p className="max-w-lg text-sm text-destructive">{previewError}</p>
             </div>
-          ) : !file || !url ? (
+          ) : !file || isPreviewLoading ? (
             <div className="flex w-full flex-col items-center gap-2 py-10">
               <FileIcon className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Đang mở file…</p>
             </div>
           ) : isImage ? (
             <img
-              src={url}
+              src={url ?? undefined}
               alt={fileName}
               className="max-h-full w-auto max-w-full rounded-md object-contain"
               onError={() => {
@@ -273,13 +309,25 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
               }}
             />
           ) : isPdf ? (
-            <iframe src={url} title={fileName} className="h-full w-full rounded-md border-0 bg-white" />
+            <iframe
+              src={url ?? undefined}
+              title={fileName}
+              className="h-full w-full rounded-md border-0 bg-white"
+            />
+          ) : isDocx ? (
+            <iframe
+              srcDoc={docxDocument ?? undefined}
+              sandbox=""
+              referrerPolicy="no-referrer"
+              title={fileName}
+              className="h-full w-full rounded-md border-0 bg-white"
+            />
           ) : isAudio ? (
             <div className="flex w-full max-w-xl flex-col items-center gap-4 rounded-md border bg-white p-8">
               <Music className="h-10 w-10 text-primary" />
               <p className="max-w-full truncate text-sm font-medium text-foreground">{fileName}</p>
               <audio
-                src={url}
+                src={url ?? undefined}
                 controls
                 className="w-full"
                 onError={() => {
@@ -290,7 +338,7 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
             </div>
           ) : isVideo ? (
             <video
-              src={url}
+              src={url ?? undefined}
               controls
               className="max-h-full w-auto max-w-full rounded-md"
               onError={() => {
@@ -298,13 +346,15 @@ export function FilePreviewDialog({ file, onOpenChange }: FilePreviewDialogProps
                 else setUseBlobPreview(true);
               }}
             />
-          ) : isOfficeDoc ? (
-            <iframe
-              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
-              title={fileName}
-              className="h-full w-full rounded-md border-0 bg-white"
-            />
-          ) : isCsv ? (
+          ) : isLegacyOffice ? (
+            <div className="flex max-w-xl flex-col items-center gap-3 px-6 text-center">
+              <FileIcon className="h-10 w-10 text-muted-foreground" />
+              <p className="font-medium">Chưa hỗ trợ xem trực tiếp định dạng .{ext}.</p>
+              <p className="text-sm text-muted-foreground">
+                Tải file về máy và lưu lại dưới dạng .xlsx (Excel) hoặc .docx (Word) để xem trong hệ thống.
+              </p>
+            </div>
+          ) : (isCsv || isXlsx) ? (
             !sheetViews ? (
               <div className="flex w-full flex-col items-center gap-2 py-10">
                 <FileIcon className="h-8 w-8 text-muted-foreground" />

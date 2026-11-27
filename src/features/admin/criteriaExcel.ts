@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx-js-style';
+import * as XLSX from '@/lib/safeSpreadsheet';
 import { parseVietnamDateTime, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 const HEADERS = ['Nội dung', 'Điểm chuẩn', 'Ghi chú', 'Hạn nộp'];
@@ -218,16 +218,16 @@ export function parseCriteriaExcelRows(rows: unknown[][]): ParsedCriteriaExcel {
 
 export async function parseCriteriaExcelFile(file: File) {
   if (file.size > 20 * 1024 * 1024) throw new Error('Tệp Excel không được vượt quá 20 MB.');
-  if (!/\.xlsx?$/i.test(file.name)) throw new Error('Vui lòng chọn tệp Excel định dạng .xlsx hoặc .xls.');
+  if (!/\.xlsx$/i.test(file.name)) throw new Error('Vui lòng lưu tệp thành định dạng .xlsx (Excel 2007 trở lên).');
 
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const workbook = await XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) throw new Error('Tệp Excel không có trang tính để nhập.');
   const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[firstSheetName], { header: 1, defval: '', raw: true });
   return parseCriteriaExcelRows(rows);
 }
 
-export function downloadCriteriaExcelTemplate() {
+export async function downloadCriteriaExcelTemplate() {
   const workbook = XLSX.utils.book_new();
   const childTemplateRows = 10;
   const emptyRow = () => Array<string>(HEADERS.length).fill('');
@@ -270,5 +270,5 @@ export function downloadCriteriaExcelTemplate() {
   styleRow(guide, 2, 1, GROUP_ROW_STYLE);
   styleRow(guide, 3, 1, CHILD_ROW_STYLE);
   XLSX.utils.book_append_sheet(workbook, guide, 'Hướng dẫn');
-  XLSX.writeFile(workbook, 'Mau_nhap_nhom_tieu_chi.xlsx');
+  await XLSX.writeFile(workbook, 'Mau_nhap_nhom_tieu_chi.xlsx');
 }
