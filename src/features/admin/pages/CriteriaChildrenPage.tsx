@@ -21,7 +21,7 @@ import { criteriaGroupsApi, getCriteriaApiError, type CriteriaApi } from '@/feat
 import { useAuthStore } from '@/store/authStore';
 import { validateCriteriaApplication } from '@/features/admin/criteriaValidation';
 import type { CriteriaItem } from '@/types/domain';
-import { formatVietnamDeadline, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadlineAmPm, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from '@/lib/vietnamDateTime';
 
 const toDateTimeInput = toVietnamDateTimeInput;
 const getCurrentLocalDateTime = () => toVietnamDateTimeInput(Date.now());
@@ -120,8 +120,8 @@ export default function CriteriaChildrenPage() {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
       sortDescFirst: true,
-      cell: ({ row }) => formatVietnamDeadline(row.original.deadline),
-      meta: { sortable: true, list: { width: 'minmax(170px,0.9fr)' } },
+      cell: ({ row }) => formatVietnamDeadlineAmPm(row.original.deadline),
+      meta: { sortable: true, list: { width: 'minmax(195px,0.9fr)' } },
     },
     {
       accessorFn: (row) => hideChildStatus ? '' : row.status === 'Deleted' ? 'Vô hiệu' : row.status === 'Applied' ? 'Đã áp dụng' : 'Nháp',

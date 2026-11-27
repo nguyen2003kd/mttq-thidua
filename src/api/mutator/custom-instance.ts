@@ -31,6 +31,8 @@ installAuthInterceptors(mainAxiosInstance);
 mainAxiosInstance.interceptors.request.use((config) => {
   const progressConfig = config as ProgressRequestConfig;
   const method = config.method?.toLowerCase() ?? '';
+  // Giữ loading toàn màn hình như trước, kể cả khi upload file.
+  // Bảng theo dõi từng file ở góc phải vẫn hoạt động song song.
   if (MUTATION_METHODS.has(method) && !progressConfig.__actionProgressId) {
     progressConfig.__actionProgressId = beginActionProgress(getMutationProgressLabel(config));
   }

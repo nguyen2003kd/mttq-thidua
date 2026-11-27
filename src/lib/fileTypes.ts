@@ -17,7 +17,7 @@ export const ALLOWED_UPLOAD_EXTENSIONS = [
 const allowedUploadExtensions = new Set<string>(ALLOWED_UPLOAD_EXTENSIONS);
 
 export const ALLOWED_UPLOAD_ACCEPT = ALLOWED_UPLOAD_EXTENSIONS.join(',');
-export const EXCEL_WORKBOOK_ACCEPT = '.xls,.xlsx';
+export const EXCEL_WORKBOOK_ACCEPT = '.xlsx';
 export const UPLOAD_FILE_TYPE_ERROR = 'Chỉ chấp nhận ảnh, tệp Excel/CSV, Word, PDF hoặc TXT.';
 export const UPLOAD_FILE_SELECTION_ERROR = 'Tệp này không đúng định dạng được chấp nhận ở mục này.';
 
@@ -33,5 +33,5 @@ export function isAllowedUploadFileName(fileName: string): boolean {
 
 export function isExcelWorkbookFileName(fileName: string): boolean {
   const extension = getFileExtension(fileName);
-  return extension === '.xls' || extension === '.xlsx';
+  return extension === '.xlsx';
 }

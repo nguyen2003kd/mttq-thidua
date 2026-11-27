@@ -4,6 +4,8 @@ import { getGetApiV1AuthProfileQueryKey } from '@/api/endpoints/auth';
 import { queryClient } from '@/api/mutator/query-client';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { UploadProgressPanel } from '@/features/files/UploadProgressPanel';
+import { useUploadProgressStore } from '@/features/files/uploadProgressStore';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { LocalityLayout } from '@/components/layout/LocalityLayout';
 import { RequireAuth } from '@/routes/guards/RequireAuth';
@@ -271,6 +273,7 @@ function ProfileGate() {
 }
 
 export default function App() {
+  const isUploadPanelVisible = useUploadProgressStore((state) => state.visible);
   return (
     <QueryClientProvider client={queryClient}>
       <ActionProgressOverlay />
@@ -278,7 +281,8 @@ export default function App() {
         <AuthEvents />
         <ProactiveAuthRefresh />
         <ProfileGate />
-        <Toaster position="bottom-right" duration={4000} richColors closeButton />
+        <Toaster position={isUploadPanelVisible ? 'top-right' : 'bottom-right'} duration={4000} richColors closeButton />
+        <UploadProgressPanel />
         <Suspense fallback={<PageLoading label="Đang tải trang…" className="min-h-dvh" />}>
           <Routes>
             {/* Login */}

@@ -1,5 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { mainInstance } from '@/api/mutator/custom-instance';
+import { useUploadProgressStore } from '../uploadProgressStore';
 
 export type FileEntityTypeApi =
   | 'CriteriaGroup'
@@ -93,33 +94,73 @@ const appendMeta = (form: FormData, meta: FileUploadMeta) => {
 };
 
 export const filesApi = {
-  /** Upload 1 file (multipart, tối đa 20MB/request) */
-  upload: (file: File, meta: FileUploadMeta = {}, onProgress?: (percent: number) => void) => {
+  /** Upload 1 file; exposes an individual progress/result in the floating panel. */
+  upload: async (
+    file: File,
+    meta: FileUploadMeta = {},
+    onProgress?: (percent: number) => void,
+    trackedItemId?: string,
+  ) => {
+    const tracker = useUploadProgressStore.getState();
+    const id = trackedItemId ?? tracker.startBatch([{ name: file.name, size: file.size }])[0];
+    tracker.setUploading(id);
     const form = new FormData();
     form.append('file', file);
     appendMeta(form, meta);
-    return request<FileItemApi>({
-      url: '/api/v1/files/upload',
-      method: 'POST',
-      data: form,
-      onUploadProgress: (event) => {
-        if (onProgress && event.total) onProgress(Math.round((event.loaded / event.total) * 100));
-      },
-    });
+
+    try {
+      const result = await request<FileItemApi>({
+        url: '/api/v1/files/upload',
+        method: 'POST',
+        data: form,
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          const percent = Math.round((event.loaded / event.total) * 100);
+          useUploadProgressStore.getState().setProgress(id, percent);
+          onProgress?.(percent);
+        },
+      });
+      useUploadProgressStore.getState().succeed(id);
+      return result;
+    } catch (error) {
+      useUploadProgressStore.getState().fail(id, getFilesApiError(error));
+      throw error;
+    }
   },
   /** Upload nhiều file 1 lần (field `files` lặp; metadata áp dụng chung; tối đa 100MB/request). */
-  uploadBulk: (files: File[], meta: FileUploadMeta = {}, onProgress?: (percent: number) => void) => {
+  uploadBulk: async (files: File[], meta: FileUploadMeta = {}, onProgress?: (percent: number) => void) => {
+    const tracker = useUploadProgressStore.getState();
+    const ids = tracker.startBatch(files.map((file) => ({ name: file.name, size: file.size })), 'bulk');
+    ids.forEach((id) => tracker.setUploading(id));
     const form = new FormData();
     files.forEach((file) => form.append('files', file));
     appendMeta(form, meta);
-    return request<FileItemApi[]>({
-      url: '/api/v1/files/upload-bulk',
-      method: 'POST',
-      data: form,
-      onUploadProgress: (event) => {
-        if (onProgress && event.total) onProgress(Math.round((event.loaded / event.total) * 100));
-      },
-    });
+
+    try {
+      const results = await request<FileItemApi[]>({
+        url: '/api/v1/files/upload-bulk',
+        method: 'POST',
+        data: form,
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          const percent = Math.round((event.loaded / event.total) * 100);
+          const state = useUploadProgressStore.getState();
+          ids.forEach((id) => state.setProgress(id, percent));
+          onProgress?.(percent);
+        },
+      });
+      if (results.length !== files.length) {
+        const warning = 'Máy chủ không xác nhận đủ số file. Hãy kiểm tra danh sách đính kèm.';
+        ids.forEach((id) => useUploadProgressStore.getState().uncertain(id, warning));
+        throw new Error(warning);
+      }
+      ids.forEach((id) => useUploadProgressStore.getState().succeed(id));
+      return results;
+    } catch (error) {
+      const reason = 'Không xác định được file nào đã lưu do lô upload gặp lỗi. Hãy kiểm tra danh sách. ' + getFilesApiError(error);
+      ids.forEach((id) => useUploadProgressStore.getState().uncertain(id, reason));
+      throw error;
+    }
   },
   list: (params: FileListParams = {}) =>
     request<PagedResult<FileItemApi>>({ url: '/api/v1/files', method: 'GET', params }),
