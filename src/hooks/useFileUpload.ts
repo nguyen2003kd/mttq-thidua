@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { useUploadProgressStore } from '@/features/files/uploadProgressStore';
 import {
   filesApi,
   getFilesApiError,
@@ -19,15 +20,19 @@ export function useFileUpload() {
     if (files.length === 0) return [];
     setUploading(true);
     setUploadProgress({});
+    // List every selected file immediately, including those still waiting in the queue.
+    const trackingIds = useUploadProgressStore.getState().startBatch(
+      files.map((file) => ({ name: file.name, size: file.size })),
+    );
     const results: FileItemApi[] = [];
     const failures: string[] = [];
     try {
-      for (const file of files) {
+      for (const [index, file] of files.entries()) {
         setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
         try {
           const uploaded = await filesApi.upload(file, meta, (percent) => {
             setUploadProgress((prev) => ({ ...prev, [file.name]: percent }));
-          });
+          }, trackingIds[index]);
           setUploadProgress((prev) => ({ ...prev, [file.name]: 100 }));
           results.push(uploaded);
         } catch (error) {

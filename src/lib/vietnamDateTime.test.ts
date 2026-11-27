@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatVietnamDeadline, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from './vietnamDateTime';
+import { formatVietnamDeadline, formatVietnamDeadlineAmPm, parseVietnamDateTime, toVietnamDateTimeInput, toVietnamOffsetDateTime } from './vietnamDateTime';
 
 describe('Vietnam deadline timezone', () => {
   it('parses TimeAPI local datetime (no offset) as UTC+7, not UTC', () => {
@@ -34,6 +34,15 @@ describe('Vietnam deadline timezone', () => {
     expect(formatVietnamDeadline('2026-11-25T17:00:00Z')).toBe('26/11/2026 00:00');
     expect(formatVietnamDeadline('2026-11-26')).toBe('26/11/2026 23:59');
     expect(formatVietnamDeadline(null)).toBe('—');
+  });
+
+  it('formats the deadline column in 12-hour Vietnam time with AM/PM', () => {
+    expect(formatVietnamDeadlineAmPm('2026-11-27T12:50:00+07:00')).toBe('27/11/2026 12:50 PM');
+    expect(formatVietnamDeadlineAmPm('2026-11-27T19:30:00+07:00')).toBe('27/11/2026 07:30 PM');
+    expect(formatVietnamDeadlineAmPm('2026-11-27T09:15:00+07:00')).toBe('27/11/2026 09:15 AM');
+    expect(formatVietnamDeadlineAmPm('2026-11-27T00:00:00+07:00')).toBe('27/11/2026 12:00 AM');
+    expect(formatVietnamDeadlineAmPm('2026-11-27T05:00:00Z')).toBe('27/11/2026 12:00 PM');
+    expect(formatVietnamDeadlineAmPm(null)).toBe('—');
   });
 
   it('does not depend on browser timezone for input conversion', () => {

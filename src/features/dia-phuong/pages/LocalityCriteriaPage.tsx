@@ -17,7 +17,7 @@ import { isDeadlineBlockingLocalityEdit } from '@/features/workflow/deadlineRule
 import type { SpecialistRevisionFile } from '@/features/workflow/components/LocalityScoreTable';
 import { LocalityCriteriaHistoryDialog } from '@/features/dia-phuong/components/LocalityCriteriaHistoryDialog';
 import { formatDate } from '@/lib/utils';
-import { formatVietnamDeadline } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadline, formatVietnamDeadlineAmPm } from '@/lib/vietnamDateTime';
 import { submitAfterSuccessfulUploads } from '@/features/dia-phuong/submissionFlow';
 import { useAuthStore } from '@/store/authStore';
 import { usePeriodStore } from '@/store/periodStore';
@@ -367,8 +367,8 @@ export default function LocalityCriteriaPage() {
         header: 'Hạn nộp',
         enableSorting: true,
         sortDescFirst: false,
-        cell: ({ row }) => formatVietnamDeadline(row.original.closeDate),
-        meta: { sortable: true, list: { label: 'Hạn nộp', width: 'minmax(165px, .9fr)' } },
+        cell: ({ row }) => formatVietnamDeadlineAmPm(row.original.closeDate),
+        meta: { sortable: true, list: { label: 'Hạn nộp', width: 'minmax(195px, .9fr)' } },
       },
       {
         accessorKey: 'totalScore',

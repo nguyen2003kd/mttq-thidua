@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ColumnDef } from '@tanstack/react-table';
 import { downloadFile } from '@/features/files/api/filesApi';
 import { formatDate } from '@/lib/utils';
-import { formatVietnamDeadline } from '@/lib/vietnamDateTime';
+import { formatVietnamDeadlineAmPm } from '@/lib/vietnamDateTime';
 import { isDeadlineBlockingLocalityEdit } from '@/features/workflow/deadlineRules';
 import type { CriteriaItem, Evidence, ScoreEntry, ScoreRecord } from '@/types/domain';
 import type { EvidenceFormValue } from './EvidenceModal';
@@ -396,9 +396,9 @@ const EditableRow = forwardRef<EditableRowHandle, EditableRowProps>(function Edi
       {isColumnVisible('deadline') && <TableCell className="align-middle text-center text-sm text-muted-foreground">
         <Tooltip>
           <TooltipTrigger render={<span className="block truncate" />}>
-            {criterion.deadline ? formatVietnamDeadline(criterion.deadline) : 'Chưa có hạn'}
+            {criterion.deadline ? formatVietnamDeadlineAmPm(criterion.deadline) : 'Chưa có hạn'}
           </TooltipTrigger>
-          <TooltipContent>{criterion.deadline ? formatVietnamDeadline(criterion.deadline) : 'Chưa có hạn'}</TooltipContent>
+          <TooltipContent>{criterion.deadline ? formatVietnamDeadlineAmPm(criterion.deadline) : 'Chưa có hạn'}</TooltipContent>
         </Tooltip>
       </TableCell>}
       {isColumnVisible('proposedScore') && <TableCell className="align-middle">
@@ -630,8 +630,8 @@ export const LocalityScoreTable = forwardRef<LocalityScoreTableHandle, LocalityS
     {
       accessorKey: 'deadline',
       header: 'Hạn nộp',
-      size: 170,
-      meta: { className: 'h-12 w-[170px] border-r border-white/30', sortable: true, disableTooltip: true },
+      size: 200,
+      meta: { className: 'h-12 w-[200px] border-r border-white/30', sortable: true, disableTooltip: true },
     },
     {
       id: 'proposedScore',
