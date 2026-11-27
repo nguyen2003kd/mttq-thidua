@@ -381,7 +381,7 @@ export default function CriteriaListPage() {
     event.currentTarget.value = '';
     if (!file) return;
     if (!isExcelWorkbookFileName(file.name)) {
-      toast.error('Chỉ hỗ trợ tệp Excel định dạng .xls hoặc .xlsx.');
+      toast.error('Chỉ hỗ trợ tệp Excel .xlsx. Hãy lưu file .xls cũ sang .xlsx trước khi nhập.');
       return;
     }
 
@@ -724,7 +724,7 @@ export default function CriteriaListPage() {
                   <Trash2 className="mr-1.5 h-4 w-4" /> Xóa
                 </Button>
               </>
-            <Button variant="info" onClick={downloadCriteriaExcelTemplate}>
+            <Button variant="info" onClick={() => { void downloadCriteriaExcelTemplate().catch(() => toast.error('Không thể xuất mẫu Excel.')); }}>
               <Download className="mr-1.5 h-4 w-4" /> Tải mẫu Excel
             </Button>
             <Button variant="success" onClick={() => excelFileInputRef.current?.click()}>
